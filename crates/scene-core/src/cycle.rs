@@ -31,7 +31,7 @@ use waiting::{Awaiting, Resolution, Waiting};
 /// Everything the world tells the core.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Input {
-    /// Una muestra decodificada.
+    /// A decoded sample.
     Sample { at: SampleRef, frame: FrameInfo },
     /// A sample that produced no image: there is nothing to look at.
     NoFrame { at: SampleRef, why: NoFrame },
@@ -245,7 +245,7 @@ enum Reached {
 /// What the core does after each `poll`.
 #[derive(Debug, PartialEq)]
 pub enum Step<'a> {
-    /// Una tanda de pedidos, en orden.
+    /// A batch of looks, in order.
     Look(&'a [Request]),
     Done,
 }
@@ -271,9 +271,9 @@ pub struct Incomplete<'m> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Output {
     pub at: SampleRef,
-    /// La escena v3.
+    /// The v3 scene.
     pub scene: Arc<Scene>,
-    /// Los eventos v3.
+    /// The v3 events.
     pub events: Vec<Event>,
     /// The same turn in v4: it always comes out of the core; the
     /// shell decides whether to publish it.

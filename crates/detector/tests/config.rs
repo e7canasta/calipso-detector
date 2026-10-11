@@ -2,7 +2,7 @@ use detector::config::Config;
 use std::{fs, process::Command};
 
 #[test]
-fn a7_check_prints_the_profile_and_opens_no_models() {
+fn check_prints_the_profile_and_opens_no_models() {
     for text in [
         include_str!("../../../config/example.toml"),
         include_str!("../../../config/test.toml"),

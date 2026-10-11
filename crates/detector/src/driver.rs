@@ -206,7 +206,7 @@ mod tests {
         }
     }
     #[test]
-    fn a4_failed_and_empty_decodes_do_not_look() {
+    fn failed_and_empty_decodes_do_not_look() {
         let mut d = driver();
         let t = Instant::now();
         let at = stamp_to_ref(stamp());
@@ -265,7 +265,7 @@ mod tests {
         assert!(outputs.last().unwrap().timing.processing_ms >= 0.0);
     }
     #[test]
-    fn a5_and_a6_the_sensor_republishes_and_the_core_deduplicates() {
+    fn the_sensor_republishes_and_the_core_deduplicates() {
         let mut d = driver();
         let t = Instant::now();
         let first = d

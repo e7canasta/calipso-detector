@@ -2,7 +2,7 @@ mod support;
 use scene_core::contract::{BedState, Envelope, Event, EventBody, RoomState};
 
 #[test]
-fn a1_s1_end_to_end_matches_the_approved_events() {
+fn s1_end_to_end_matches_the_approved_events() {
     let mut driver = support::driver();
     let mut events = Vec::new();
     let mut scene = None;
@@ -29,7 +29,7 @@ fn a1_s1_end_to_end_matches_the_approved_events() {
 }
 
 #[test]
-fn a9_a_reconnection_in_s1_only_reports_the_sensor_and_keeps_the_held() {
+fn a_reconnection_in_s1_only_reports_the_sensor_and_keeps_the_held() {
     use ingest::{IngestError, StreamEvent};
     use scene_core::contract::{EventKind, SensorState};
     use std::time::Instant;

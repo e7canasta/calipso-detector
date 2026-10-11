@@ -49,7 +49,7 @@ impl PosePort for PoseEstimator {
                         .map(|j| Keypoint {
                             x: data[[person, j, 0]],
                             y: data[[person, j, 1]],
-                            // Sin canal de visibilidad, como v2: puntaje pleno.
+                            // Without a visibility channel, as in v2: full score.
                             score: if channels > 2 {
                                 data[[person, j, 2]]
                             } else {

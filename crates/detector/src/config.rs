@@ -605,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn r6_profile_preserves_legacy_hash_and_names_reinforcement_after_detection() {
+    fn reinforcement_preserves_the_baseline_hash_and_comes_after_detection() {
         use scene_core::contract::LookKind;
         let legacy = Config::parse(VALID).unwrap().profile().unwrap();
         assert_eq!(legacy.hash.0, "sha256:239a5803f0c15901");
@@ -863,7 +863,7 @@ mod tests {
         assert_ne!(c.profile().unwrap().hash, baseline.hash);
     }
     #[test]
-    fn a7_config_validates_and_translates_without_io() {
+    fn config_validates_and_translates_without_io() {
         let c = Config::parse(VALID).unwrap();
         assert_eq!(c.site_map().resolution.unwrap().width, 800);
         assert_eq!(c.policy().persistence.dwell_secs, 2.0);
@@ -871,7 +871,7 @@ mod tests {
         assert!(c.ingest().keyframe_only);
     }
     #[test]
-    fn a7_resolution_is_required_with_a_reason() {
+    fn resolution_is_required_with_a_reason() {
         let e = Config::parse(&VALID.replace("resolution = [800, 600]", "")).unwrap_err();
         assert!(e.to_string().contains("resolution"), "{e}");
     }

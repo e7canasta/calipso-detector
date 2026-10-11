@@ -118,20 +118,20 @@ fn wait_file(path: &Path, predicate: impl Fn(&str) -> bool) {
     }
 }
 #[test]
-#[ignore = "requiere CALIPSO_MODELS, nats-server, mediamtx, ffmpeg y sockets"]
-fn a8_local_video_onnx_nats_and_shutdown_by_both_signals() {
+#[ignore = "requires CALIPSO_MODELS, nats-server, mediamtx, ffmpeg and sockets"]
+fn local_video_onnx_nats_and_shutdown_by_both_signals() {
     run_demo(1);
 }
 
 #[test]
 #[ignore = "requires the three models in CALIPSO_MODELS, nats-server, mediamtx, ffmpeg and sockets"]
-fn r6_three_models_rtsp_nats_validate_and_publish_reinforcement_and_faces() {
+fn three_models_rtsp_nats_validate_and_publish_reinforcement_and_faces() {
     run_demo(3);
 }
 
 #[test]
 #[ignore = "requires the five models in CALIPSO_MODELS, nats-server, mediamtx, ffmpeg and sockets"]
-fn r8_five_senses_rtsp_nats_validate_and_publish_pose_depth_and_calibration() {
+fn five_senses_rtsp_nats_validate_and_publish_pose_depth_and_calibration() {
     run_demo(5);
 }
 

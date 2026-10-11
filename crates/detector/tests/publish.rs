@@ -30,7 +30,7 @@ const TIMING: Timing = Timing {
     processing_ms: 2.0,
 };
 #[test]
-fn a1_a2_a3_s1_valid_envelopes_events_first_and_contiguous_sequences() {
+fn s1_valid_envelopes_events_first_and_contiguous_sequences() {
     let scene_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
             "../../../contract/schema/calipso.scene.v3.json"

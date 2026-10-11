@@ -76,7 +76,7 @@ impl Sensor {
 mod tests {
     use super::*;
     #[test]
-    fn a6_stall_only_while_streaming_and_a_sample_recovers() {
+    fn stall_only_while_streaming_and_a_sample_recovers() {
         let t = Instant::now();
         let limit = Duration::from_secs(3);
         let mut sensor = Sensor::new(t);
