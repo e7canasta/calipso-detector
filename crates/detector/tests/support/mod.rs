@@ -21,7 +21,7 @@ impl sense::DetectorPort for Script {
     }
 }
 pub fn driver() -> Driver {
-    const S1: &str = include_str!("../../../../golden/s1-staff-put-to-bed.md");
+    const S1: &str = include_str!("../../../../../calipso-golden/scenes/s1-staff-put-to-bed.md");
     let script = golden::language::Scene::parse(S1)
         .unwrap()
         .samples()

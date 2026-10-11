@@ -16,10 +16,10 @@ One directory per capability of the engine, one feature per behaviour:
 | [`attention/`](attention) | What the core decides to look at, where, in what order and why not: reinforcement, faces, pose, depth, when to look again, calibrating the empty bed | `attention`, `belief/subject` |
 | [`posture/`](posture) | The second level: the depth of each keypoint, truly lying, posture by disparity | `refine` |
 | [`contract/`](contract) | What `calipso.scene` and `calipso.events` publish: the scene, the mode and the layer-0 transition | `project`, `contract` |
-| [`shell/`](shell) | The shell's side: each capability answered by a real model adapter, the profile, distilling a night | `sense`, `detector`, `golden` |
+| [`shell/`](shell) | The shell's side: each capability answered by a real model adapter, the profile, distilling a night | `sense`, `detector`, `calipso-golden` |
 
 The tables of `occupancy/` and `attention/` are the same language as the
-[golden scenes](../golden/README.md): a span per row, what is seen on the left,
+golden scenes in `calipso-golden`: a span per row, what is seen on the left,
 what is believed on the right.
 
 ## Tags

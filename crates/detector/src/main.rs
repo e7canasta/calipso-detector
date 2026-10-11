@@ -26,18 +26,6 @@ struct Args {
     /// Validates the configuration and prints the profile without opening camera or models.
     #[arg(long)]
     check: bool,
-    /// Runs a golden scene instead of the camera: the source is the scene and
-    /// the senses are what it says they see. Opens no camera or models.
-    #[arg(long)]
-    scene: Option<PathBuf>,
-    /// With --scene: without waiting between samples. Requires --jsonl (does not
-    /// publish to NATS).
-    #[arg(long, requires = "scene", requires = "jsonl")]
-    fast: bool,
-    /// With --scene: writes to this file the same it publishes, each line with
-    /// its `schema`, for `calipso-rerun-bridge --replay`.
-    #[arg(long, requires = "scene")]
-    jsonl: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -61,9 +49,6 @@ async fn main() -> Result<()> {
     if args.check {
         println!("{}", serde_json::to_string(&profile)?);
         return Ok(());
-    }
-    if let Some(path) = &args.scene {
-        return run_scene(config, profile, path, args.fast, args.jsonl.as_deref()).await;
     }
 
     // Install before creating threads: if it fails there is nothing to close.
@@ -138,139 +123,5 @@ async fn main() -> Result<()> {
         .map_err(|_| anyhow::anyhow!("ingest thread failed"))?;
     actor_result.context("wait for the publisher")?;
     result.context("wait for the engine thread")??;
-    Ok(())
-}
-
-/// The replay engine: the same composition as live, with the scene's
-/// source and the scripted senses instead of RTSP and the models. The core, the
-/// driver and the publisher are the usual ones.
-async fn run_scene(
-    config: Config,
-    profile: scene_core::contract::Profile,
-    path: &std::path::Path,
-    fast: bool,
-    jsonl: Option<&std::path::Path>,
-) -> Result<()> {
-    use detector::senses::Scripted;
-    use detector::source::scene::{Pace, SceneSource};
-    use golden::{
-        expected::Verification,
-        language::{Scene, Sense},
-        world,
-    };
-    use std::io::Write;
-
-    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
-    let scene = Scene::parse(&text).with_context(|| format!("scene {}", path.display()))?;
-    let site = config.site_map();
-    anyhow::ensure!(
-        site.resolution == Some(world::FRAME)
-            && site.bed == scene_core::geom::Quad::from_rect(world::BED),
-        "the profile does not have the scenes' geometry (bed 100,100 to 500,400 in 640×480): use config/scene.toml"
-    );
-    for (sense, has, name) in [
-        (
-            Sense::Reinforce,
-            config.senses.reinforce.is_some(),
-            "reinforcement",
-        ),
-        (Sense::Faces, config.senses.faces.is_some(), "faces"),
-    ] {
-        anyhow::ensure!(
-            !scene.senses.contains(&sense) || has,
-            "the scene assumes {name} and the profile does not have it: use config/scene-senses.toml"
-        );
-    }
-    if let Some(dwell) = scene.dwell_s
-        && (dwell - config.policy().persistence.dwell_secs).abs() > f64::EPSILON
-    {
-        tracing::warn!(
-            scene = dwell,
-            profile = config.policy().persistence.dwell_secs,
-            "the scene's expectations hold with another dwell"
-        );
-    }
-    let name = path
-        .file_stem()
-        .map_or_else(|| "scene".into(), |s| s.to_string_lossy().into_owned());
-    let source = Source {
-        site: config.camera.site.clone(),
-        camera: config.camera.id.clone(),
-        run_id: format!("{name}-{}", ulid::Ulid::new()),
-        build: build::current(),
-    };
-    tracing::info!(scene = %scene.title, run_id = %source.run_id, fast, "runs scene");
-    let (mut publisher, rx) = PublisherHandle::channel(source, profile);
-    let token = CancellationToken::new();
-    let actor = (!fast).then(|| {
-        tokio::spawn(nats::run(
-            config.nats.clone(),
-            config.prefix(),
-            rx,
-            token.clone(),
-        ))
-    });
-    let mut file = jsonl
-        .map(|p| std::fs::File::create(p).with_context(|| format!("create {}", p.display())))
-        .transpose()?;
-    let pace = if fast { Pace::Fast } else { Pace::Real };
-    let stall = Duration::from_secs(config.stream.stall_timeout_secs);
-    let engine = tokio::task::spawn_blocking({
-        let token = token.clone();
-        move || -> Result<Verification> {
-            let mut driver = Driver::new(config.policy(), config.site_map(), Scripted, stall);
-            let mut source = SceneSource::new(&scene, pace);
-            let mut verification = Verification::new(&scene);
-            let mut error = None;
-            driver.run(&mut source, &token, |processed| {
-                if processed.output.scene.republished.is_none()
-                    && let Ok(n) = u32::try_from(processed.output.at.sequence)
-                {
-                    verification.observe(n, &processed.output.scene);
-                }
-                let publication = publisher.prepare(processed.output, processed.timing);
-                if let Some(file) = file.as_mut() {
-                    let written = publication
-                        .messages()
-                        .map_err(anyhow::Error::from)
-                        .and_then(|ms| {
-                            ms.iter().try_for_each(|m| {
-                                file.write_all(&m.bytes)?;
-                                file.write_all(b"\n")
-                            })?;
-                            Ok(())
-                        });
-                    if let Err(e) = written {
-                        error.get_or_insert(e);
-                    }
-                }
-                if !fast {
-                    publisher.publish(publication);
-                }
-            });
-            match error {
-                Some(e) => Err(e).context("write JSONL"),
-                None => Ok(verification),
-            }
-        }
-    });
-    let verification = engine.await.context("wait for the scene engine")??;
-    if let Some(actor) = actor {
-        // Give the queue time to drain before closing the network.
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        token.cancel();
-        actor.await.context("wait for the publisher")?;
-    }
-    for o in verification.outcomes() {
-        let span = format!("{}-{}", o.samples.from, o.samples.to);
-        match &o.difference {
-            None => println!("✓ span {span}"),
-            Some(d) => println!("✗ span {span}: {d}"),
-        }
-    }
-    anyhow::ensure!(
-        verification.matches(),
-        "the scene does not match its expectations"
-    );
     Ok(())
 }

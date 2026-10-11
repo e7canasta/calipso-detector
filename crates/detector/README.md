@@ -18,19 +18,6 @@ variable, to the working directory). It needs `yolo26s.onnx`, ONNX Runtime and
 FFmpeg available, as for the `sense` and `ingest` crates. Geometries are in
 pixels of the declared resolution, which is required; they are not scaled.
 
-## Golden scenes
-
-`--scene` replaces the camera with a golden scene: the source is the scene and
-the senses are what it says they see. No camera, no models.
-
-```sh
-cargo run -p detector -- --config config/scene.toml --scene golden/s1-staff-put-to-bed.md --fast --jsonl /tmp/s1.jsonl
-```
-
-It prints `✓`/`✗` per span against the scene's expectations and fails if any
-span does not match. `--fast` does not wait between samples and requires
-`--jsonl` (nothing goes to NATS).
-
 ## Local video
 
 With `mediamtx`, `ffmpeg`, `nats-server` and the NATS CLI installed, use three

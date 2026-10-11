@@ -38,6 +38,19 @@ check_ingest_deps() {
 step "ingest dependencies"
 check_ingest_deps
 
+# The camera process does one thing. Scenes, their language and the replay
+# live in calipso-golden and depend on this repo, never the other way around.
+check_detector_deps() {
+  local tree
+  tree=$(cargo tree -p detector -e normal --prefix none --format '{p}') \
+    || fail "could not read the detector tree"
+  if printf '%s\n' "$tree" | awk '{print $1}' | grep -qx golden; then
+    fail "detector depends on golden: the scene language lives in calipso-golden"
+  fi
+}
+step "detector dependencies"
+check_detector_deps
+
 # sense is synchronous: its ONNX adapters stay without transport too.
 check_sense_deps() {
   local tree found

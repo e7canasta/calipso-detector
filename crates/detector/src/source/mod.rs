@@ -1,7 +1,6 @@
 //! The source port: where samples come from and what happens to the transport.
-//! Live, RTSP with decode; in a scene, the spans.
+//! Live, RTSP with decode.
 pub mod rtsp;
-pub mod scene;
 
 use ingest::{IngestError, StreamEvent};
 use scene_core::contract::SampleRef;

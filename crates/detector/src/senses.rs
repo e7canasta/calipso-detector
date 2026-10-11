@@ -1,6 +1,6 @@
 //! The senses port: who answers the core's probes over a frame. Live,
-//! the `sense` models over an image; in a scene, the scripted world. The core
-//! cannot tell: it only sees `Request → Outcome`.
+//! the `sense` models over an image. The core cannot tell: it only sees
+//! `Request → Outcome`.
 use crate::config::Config;
 use anyhow::{Context, Result};
 use image::DynamicImage;
@@ -84,28 +84,4 @@ pub fn load(config: &Config) -> Result<sense::Senses> {
         loaded = loaded.with_depth(model);
     }
     Ok(loaded)
-}
-
-/// A scene sample is seen with the scenes' geometry.
-impl Frame for golden::world::Sample {
-    fn info(&self) -> FrameInfo {
-        golden::world::FRAME
-    }
-}
-
-/// In a golden scene: what the scene says each sense sees, cropped to the
-/// requested region (the only fake, `golden::world::respond`). Looking costs
-/// nothing: `Spent(0)`, so a replayed scene always gives the same ledger.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Scripted;
-
-impl SensesPort for Scripted {
-    type Frame = golden::world::Sample;
-    fn look(
-        &mut self,
-        frame: &golden::world::Sample,
-        request: &Request,
-    ) -> (Result<Reading, Failure>, Spent) {
-        (golden::world::respond(frame, &request.probe), Spent(0.0))
-    }
 }

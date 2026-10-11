@@ -41,7 +41,8 @@ is its anti-corruption layer: the domain thinks in its own vocabulary and only
                                           ▼
                 scene-core ── published language: contract::v4
                                           │
-          consumers in other repositories: calipso-rerun-bridge, calipso-shark
+          other repositories: calipso-golden (scenes and replay),
+                              calipso-rerun-bridge, calipso-shark
 ```
 
 The vocabulary the domain and the contract share is **owned by the domain**

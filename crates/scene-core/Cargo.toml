@@ -20,7 +20,7 @@ schemars = "1.2.2"
 serde = { version = "1.0.229", features = ["derive"] }
 
 [dev-dependencies]
-golden = { path = "../golden" }
+golden = { path = "../../../calipso-golden/crates/golden" }
 proptest = "1.9"
 cucumber = "0.23.0"
 futures = "0.3.34"

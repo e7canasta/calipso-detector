@@ -21,5 +21,4 @@
 /crates/ingest/                         @calipso/ingest
 /crates/detector/src/config.rs          @calipso/profiles
 /config/                                @calipso/profiles
-/crates/golden/                         @calipso/golden
-/golden/                                @calipso/golden
+# The scene language, the scenes and the replay live in calipso-golden.

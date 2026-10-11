@@ -22,7 +22,7 @@ const GOLDEN: [(u32, &str); 8] = [
 
 fn scene(name: &str) -> Scene {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../golden")
+        .join("../../../calipso-golden/scenes")
         .join(format!("{name}.md"));
     Scene::parse(&std::fs::read_to_string(&path).unwrap())
         .unwrap_or_else(|e| panic!("{}: {e}", path.display()))

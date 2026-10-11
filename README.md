@@ -17,13 +17,11 @@ those facts lives in other repositories.
 | [`ingest`](crates/ingest) | RTSP, a one-slot mailbox, on-demand H.264 decode | nothing from the domain |
 | [`sense`](crates/sense) | the senses: runs each probe with a model (YOLO, ONNX) | `scene-core` |
 | [`detector`](crates/detector) | the per-camera binary: profile, injected source and senses, loop driver, NATS publishing | all of the above |
-| [`golden`](crates/golden) | golden scenes: their language, the scripted world, the expectations, `calipso-distill` | `scene-core` |
 
 | Directory | What it holds |
 | --- | --- |
 | [`contract/`](contract) | JSON schemas for `calipso.scene.v4` and `calipso.events.v4`, examples, the layer-0 transition table |
 | [`features/`](features) | the executable Gherkin specification, by capability: occupancy, attention, posture, contract, shell |
-| [`golden/`](golden) | golden scenes that run through the real detector without camera or models |
 | [`config/`](config) | example camera profiles |
 | [`scripts/`](scripts) | `check.sh` (the per-commit gate) and its own tests |
 
@@ -33,7 +31,6 @@ those facts lives in other repositories.
 scripts/check.sh            # format, clippy, core dependency rules, tests, licenses
 scripts/check-guardians.sh  # each gate rule is proven to fail when broken
 cargo run -p detector -- --config config/example.toml --check
-cargo run -p detector -- --config config/scene.toml --scene golden/s1-staff-put-to-bed.md --fast --jsonl /tmp/s1.jsonl
 ```
 
 ## Documentation
@@ -42,15 +39,15 @@ cargo run -p detector -- --config config/scene.toml --scene golden/s1-staff-put-
 | --- | --- |
 | [`crates/scene-core/DESIGN.md`](crates/scene-core/DESIGN.md) | The engine's reference: invariants, the loop, layer 0, module map, glossary |
 | [`RULES.md`](RULES.md) | What is not negotiable, each rule with its guardian; the code cites them by number |
-| [`crates/detector/README.md`](crates/detector/README.md) | Running the per-camera binary: profiles, NATS, golden scenes |
+| [`crates/detector/README.md`](crates/detector/README.md) | Running the per-camera binary: profiles, NATS |
 | [`features/README.md`](features/README.md) | How the specification is organized and how to write a scenario |
-| [`golden/README.md`](golden/README.md) | The golden scene language |
 | [`contract/`](contract) | The published JSON schemas, examples and the layer-0 table |
 
 ## Not in this repository
 
 The engine does one thing. These consume its contract and live apart:
 
+- `calipso-golden`: the scene language, the golden scenes, `calipso-distill` and `calipso-replay`. It drives this engine from outside; the camera process does not know it.
 - `calipso-shark`: recording and analysis from NATS (the transition tape, summaries, the occupancy TUI, the meters).
 - `calipso-rerun-bridge`: draws the published scene and events in Rerun.
 - `calipso-docs`: books, specifications, workshops and design history.
