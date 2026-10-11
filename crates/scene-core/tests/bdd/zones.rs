@@ -1,6 +1,6 @@
-//! R4 steps (specs 201–203): the camera sees a sequence by zones and the engine
-//! believes what each span says. The tables are golden sequences written by
-//! hand.
+//! Zone steps (`features/occupancy`): the camera sees a sequence by zones and
+//! the engine believes what each span says. The tables are golden sequences
+//! written by hand.
 
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when};

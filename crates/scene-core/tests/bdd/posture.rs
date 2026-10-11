@@ -1,11 +1,10 @@
-//! R9 steps (specs 901–905): the loop's second level. What the scene publishes
-//! is checked as its consumers (scene-analytics, perception-bridge) read it: the
-//! contract's JSON.
+//! Posture steps (`features/posture`): the loop's second level. What the
+//! scene publishes is checked as its consumers read it: the contract's JSON.
 
 use cucumber::{given, then};
 use serde_json::Value;
 
-use crate::r6::scene;
+use crate::attention::scene;
 use crate::script::depth_at;
 use crate::ward::Ward;
 

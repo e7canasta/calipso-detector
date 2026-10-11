@@ -5,22 +5,22 @@
 //!
 //! Features tagged `@wip` (a spec in progress, still red) do not run in
 //! `scripts/check.sh`; `scripts/wip.sh` shows them (`CALIPSO_WIP=1`). Features
-//! tagged `@shell` belong to the shell (R6, 611–613) and the `detector`
+//! tagged `@shell` belong to the shell (`features/shell`) and the `detector`
 //! harness runs them.
 
 // Tests are shell: the harness reads the environment. Rule 8 governs the core
 // library, not its tests.
 #![allow(clippy::disallowed_methods)]
 
+mod attention;
+mod contract;
 #[path = "../equivalence.rs"]
 mod equivalence;
-mod r13;
-mod r5;
-mod r6;
-mod r8;
-mod r9;
+mod occupancy;
+mod posture;
 #[path = "../script.rs"]
 mod script;
+mod subject;
 mod ward;
 mod zones;
 

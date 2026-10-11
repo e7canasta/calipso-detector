@@ -1,6 +1,7 @@
-//! R6 steps (specs 601–602): the acquisition policy. What the core decides to
-//! look at, where, in what order and why not, with scripted senses. The real
-//! models are shell (611–613); the decision is checked here.
+//! Attention steps (`features/attention`): the acquisition policy. What the
+//! core decides to look at, where, in what order and why not, with scripted
+//! senses. The real models are shell (`features/shell`); the decision is
+//! checked here.
 
 use cucumber::{given, then};
 use scene_core::contract::{

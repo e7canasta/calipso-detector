@@ -1,6 +1,6 @@
-//! R5 steps (specs 501–504): the bed only rises from the floor, stabilization
-//! by time, failing reinforcement and the scene that declares when it did not
-//! observe.
+//! Occupancy steps (`features/occupancy`): the bed only rises from the floor,
+//! stabilization by time, failing reinforcement and the scene that declares
+//! when it did not observe.
 
 use cucumber::{given, then, when};
 use scene_core::contract::{Cause, EventBody, LookKind, LookOutcome, RepublishReason, SampleRef};

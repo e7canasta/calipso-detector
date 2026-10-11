@@ -1,7 +1,7 @@
-//! R8 steps (specs 801–803): the pose, depth and calibration policy. When the
-//! core decides to take the subject's pose, measure their depth or learn the
-//! empty bed, with scripted senses. The real models are shell (811–813); the
-//! decision is checked here.
+//! Subject steps (`features/attention`): the pose, depth and calibration
+//! policy. When the core decides to take the subject's pose, measure their
+//! depth or learn the empty bed, with scripted senses. The real models are
+//! shell (`features/shell`); the decision is checked here.
 
 use cucumber::{given, then};
 use scene_core::contract::{Calibration, EventBody};
@@ -11,7 +11,7 @@ use scene_core::contract::{
 use scene_core::geom::Rect;
 use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
 
-use crate::r6::{scene, skipped};
+use crate::attention::{scene, skipped};
 use crate::ward::{Ward, later};
 
 // --- Background

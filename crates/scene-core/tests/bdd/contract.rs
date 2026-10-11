@@ -1,6 +1,5 @@
-//! R13 steps (specs 1101 and 1301): contract v4. What `events.v4` and
-//! `scene.v4` publish is checked as their consumers (the TUI, the episodes)
-//! read it: the contract's JSON.
+//! Contract steps (`features/contract`): what `events.v4` and `scene.v4`
+//! publish is checked as their consumers read it: the contract's JSON.
 
 use cucumber::gherkin::Step;
 use cucumber::{given, then};
