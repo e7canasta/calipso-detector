@@ -97,40 +97,7 @@ async fn main() -> Result<()> {
         let mailbox = Arc::clone(&mailbox);
         let token = token.clone();
         move || -> Result<()> {
-            let detect = sense::ultralytics::Detector::load(
-                &config.model_path(&config.senses.detect.model),
-                config.senses.detect.backend_confidence,
-            )
-            .context("load ONNX detector")?;
-            let mut senses = sense::Senses::new(detect);
-            if let Some(reinforce) = &config.senses.reinforce {
-                let path = config.model_path(&reinforce.model);
-                tracing::info!(model = %path.display(), "loads ONNX reinforcement");
-                let model = sense::ultralytics::Detector::load(&path, reinforce.backend_confidence)
-                    .with_context(|| format!("load ONNX reinforcement: {}", path.display()))?;
-                senses = senses.with_reinforce(model);
-            }
-            if let Some(faces) = &config.senses.faces {
-                let path = config.model_path(&faces.model);
-                tracing::info!(model = %path.display(), "loads ONNX faces");
-                let model = sense::ultralytics::Detector::load(&path, faces.backend_confidence)
-                    .with_context(|| format!("load ONNX faces: {}", path.display()))?;
-                senses = senses.with_faces(model);
-            }
-            if let Some(pose) = &config.senses.pose {
-                let path = config.model_path(&pose.model);
-                tracing::info!(model = %path.display(), "loads ONNX pose");
-                let model = sense::ultralytics::PoseEstimator::load(&path, pose.backend_confidence)
-                    .with_context(|| format!("load ONNX pose: {}", path.display()))?;
-                senses = senses.with_pose(model);
-            }
-            if let Some(depth) = &config.senses.depth {
-                let path = config.model_path(&depth.model);
-                tracing::info!(model = %path.display(), "loads ONNX depth");
-                let model = sense::ultralytics::DepthEstimator::load(&path)
-                    .with_context(|| format!("load ONNX depth: {}", path.display()))?;
-                senses = senses.with_depth(model);
-            }
+            let senses = detector::senses::load(&config)?;
             let mut driver = Driver::new(
                 config.policy(),
                 config.site_map(),

@@ -223,7 +223,17 @@ impl Config {
         config.validate()?;
         Ok(config)
     }
+    /// Each section checks itself; the first error found is reported.
     fn validate(&self) -> Result<()> {
+        self.validate_identifiers()?;
+        self.validate_transport()?;
+        self.validate_senses()?;
+        self.validate_policy()?;
+        self.validate_map()
+    }
+
+    /// `camera.site` and `camera.id` become subject tokens.
+    fn validate_identifiers(&self) -> Result<()> {
         for (name, token) in [
             ("camera.site", &self.camera.site),
             ("camera.id", &self.camera.id),
@@ -236,6 +246,11 @@ impl Config {
                 "{name}: invalid identifier"
             );
         }
+        Ok(())
+    }
+
+    /// The RTSP stream, NATS and their timings.
+    fn validate_transport(&self) -> Result<()> {
         let stream_url = url::Url::parse(&self.stream.url).context("invalid stream.url")?;
         ensure!(
             stream_url.scheme() == "rtsp" && stream_url.host_str().is_some(),
@@ -266,6 +281,11 @@ impl Config {
             self.stream.reconnect_delay_secs > 0,
             "stream.reconnect_delay_secs must be positive"
         );
+        Ok(())
+    }
+
+    /// Each sense section, and that depth and calibration ask for each other.
+    fn validate_senses(&self) -> Result<()> {
         ensure!(
             !self.senses.detect.model.as_os_str().is_empty(),
             "senses.detect.model is empty"
@@ -351,6 +371,11 @@ impl Config {
                 "calibration.retry_secs must be finite and not negative"
             );
         }
+        Ok(())
+    }
+
+    /// Confidences between 0 and 1; a backend never stricter than the policy.
+    fn validate_policy(&self) -> Result<()> {
         for (name, v) in [
             ("policy.min_confidence", self.policy.min_confidence),
             ("policy.same_body_iou", self.policy.same_body_iou),
@@ -376,6 +401,11 @@ impl Config {
             self.policy.dwell_secs.is_finite() && self.policy.dwell_secs >= 0.0,
             "policy.dwell_secs must be finite and not negative"
         );
+        Ok(())
+    }
+
+    /// The bed inside the resolution and not degenerate; a valid headboard.
+    fn validate_map(&self) -> Result<()> {
         let [w, h] = self.map.resolution;
         ensure!(w > 0 && h > 0, "map.resolution must be positive");
         ensure!(
