@@ -10,7 +10,7 @@ senses: detect, reinforce, faces
 Distilled from run `01M4H6QXX6SGBFKYRW23W881E5` of camera `sample1` (go2rtc, test
 video; no pixels stored): 296 live samples with yolo26s, reinforcement yolo26l and
 faces yolov12l-face, profile `config/sample1.toml`. The expectations are what the
-engine believed live. Replayed through the detector with `config/scene-r6.toml`, it
+engine believed live. Replayed through the detector with `config/scene-senses.toml`, it
 matches in all 53 spans and publishes the same 20 domain facts (kind, cause and
 resulting occupancy) as live.
 

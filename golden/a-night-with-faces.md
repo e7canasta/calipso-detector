@@ -5,11 +5,11 @@ dwell_s: 2
 senses: detect, faces
 ---
 
-# R6 — A night with faces
+# A night with faces
 
 They enter alone and lie down; their face is visible. Then they cover up: the face
 appears at the headboard, and the bed stays occupied by the retained occupant (a
-face adds nobody, R6 limit L4).
+face adds nobody).
 
 | samples | on floor | where | in bed | faces        | occupants | bed            |
 |---------|----------|-------|--------|--------------|-----------|----------------|

@@ -1,10 +1,10 @@
-# The golden scenes' profile (R7): the geometry of golden::world (bed from
-# 100,100 to 500,400 in 640×480) and the policy of the R6 scenarios: reinforcement and faces.
-#   calipso-detector --config config/scene-r6.toml --scene golden/<scene with reinforcement or faces>.md
+# The golden scenes' profile with more senses: the geometry of golden::world (bed
+# from 100,100 to 500,400 in 640×480) and the reinforcement and face policies.
+#   calipso-detector --config config/scene-senses.toml --scene golden/<scene with reinforcement or faces>.md
 # In scene mode no camera is opened and no models are loaded: it looks at the scene.
 [camera]
 site = "golden"
-id = "scene-r6"
+id = "scene-senses"
 [stream]
 url = "rtsp://scene.invalid/no-camera"
 sample_interval_ms = 1000

@@ -314,7 +314,7 @@ mod every_scene {
 
     fn profile(scene: &Scene) -> Config {
         let name = if scene.senses.iter().any(|s| *s != Sense::Detect) {
-            "config/scene-r6.toml"
+            "config/scene-senses.toml"
         } else {
             "config/scene.toml"
         };
@@ -364,14 +364,14 @@ mod every_scene {
 #[test]
 fn the_binary_rejects_a_scene_that_assumes_senses_the_profile_lacks() {
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let output = std::env::temp_dir().join(format!("calipso-r6-{}.jsonl", std::process::id()));
+    let output = std::env::temp_dir().join(format!("calipso-senses-{}.jsonl", std::process::id()));
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_calipso-detector"))
         .current_dir(&root)
         .args([
             "--config",
             "config/scene.toml",
             "--scene",
-            "golden/r6-a-night-with-faces.md",
+            "golden/a-night-with-faces.md",
             "--fast",
             "--jsonl",
         ])
@@ -402,7 +402,7 @@ mod round_trip {
 
     fn profile(scene: &Scene) -> Config {
         let name = if scene.senses.iter().any(|s| *s != Sense::Detect) {
-            "config/scene-r6.toml"
+            "config/scene-senses.toml"
         } else {
             "config/scene.toml"
         };

@@ -4,7 +4,7 @@ cadence_s: 1
 dwell_s: 2
 ---
 
-# R5 — A body in the bed, with nobody coming from the floor
+# A body in the bed, with nobody coming from the floor
 
 They enter alone, lie down, get up and leave. Then the detector sees something in
 the empty bed (a pillow): it is not an occupant, and when it disappears it leaves

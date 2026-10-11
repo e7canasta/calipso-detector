@@ -27,7 +27,7 @@ dwell_s: 2          # the dwell the expectations hold with
 - `where` can also be `N near bed`: of those seen on the floor, N are next to
   the bed and the rest at the door.
 - `senses` (property): what the expectations assume (`detect`, `reinforce`,
-  `faces`); with reinforcement or faces, run with `config/scene-r6.toml`.
+  `faces`); with reinforcement or faces, run with `config/scene-senses.toml`.
 - The night starts at sample 1 and has no gaps.
 
 ## Running them

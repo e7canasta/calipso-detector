@@ -212,7 +212,7 @@ async fn run_scene(
     ] {
         anyhow::ensure!(
             !scene.senses.contains(&sense) || has,
-            "the scene assumes {name} and the profile does not have it: use config/scene-r6.toml"
+            "the scene assumes {name} and the profile does not have it: use config/scene-senses.toml"
         );
     }
     if let Some(dwell) = scene.dwell_s
