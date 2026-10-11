@@ -203,7 +203,7 @@ fn replays(ward: &mut Ward) {
         .map(|(input, script)| {
             monitor
                 .handle(input.clone())
-                .drive(|request| (script.respond(&request.probe), scene_core::look::Spent(1.0)))
+                .drive(|request| (script.respond(request), scene_core::look::Spent(1.0)))
         })
         .collect();
     let original: Vec<&Output> = ward.turns.iter().map(|t| &t.output).collect();

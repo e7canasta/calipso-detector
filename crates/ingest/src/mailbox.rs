@@ -74,12 +74,12 @@ impl<T> Mailbox<T> {
     }
 
     /// The consumer is blocked waiting for a value.
-    pub fn is_waiting(&self) -> bool {
+    pub(crate) fn is_waiting(&self) -> bool {
         self.state.lock().expect("mailbox poisoned").waiting
     }
 
     /// Values replaced before being taken.
-    pub fn overwritten(&self) -> u64 {
+    pub(crate) fn overwritten(&self) -> u64 {
         self.state.lock().expect("mailbox poisoned").overwritten
     }
 

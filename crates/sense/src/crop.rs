@@ -8,15 +8,15 @@ use std::borrow::Cow;
 
 /// A crop and its pixel origin inside the frame. Without a region, the original is borrowed.
 #[derive(Debug)]
-pub struct Crop<'a> {
-    pub image: Cow<'a, DynamicImage>,
+pub(crate) struct Crop<'a> {
+    pub(crate) image: Cow<'a, DynamicImage>,
     origin: Point,
 }
 
 impl<'a> Crop<'a> {
     /// Clips to the frame edges, rounding outwards to cover the requested
     /// region. An empty region stays empty: it never falls back to the whole frame.
-    pub fn of(frame: &'a DynamicImage, region: Option<Rect>) -> Self {
+    pub(crate) fn of(frame: &'a DynamicImage, region: Option<Rect>) -> Self {
         match region {
             Some(region) => {
                 let x = (region.x0.floor() as u32).min(frame.width());
@@ -42,12 +42,8 @@ impl<'a> Crop<'a> {
         }
     }
 
-    pub fn point_to_frame(&self, [x, y]: [f32; 2]) -> [f32; 2] {
-        [x + self.origin.x, y + self.origin.y]
-    }
-
     /// The keypoints of a pose, from the crop to the frame; the score does not change.
-    pub fn keypoints_to_frame(&self, keypoints: Vec<Keypoint>) -> Vec<Keypoint> {
+    pub(crate) fn keypoints_to_frame(&self, keypoints: Vec<Keypoint>) -> Vec<Keypoint> {
         keypoints
             .into_iter()
             .map(|k| Keypoint {
@@ -58,7 +54,7 @@ impl<'a> Crop<'a> {
             .collect()
     }
 
-    pub fn to_frame(&self, detections: Vec<Detection>) -> Vec<Detection> {
+    pub(crate) fn to_frame(&self, detections: Vec<Detection>) -> Vec<Detection> {
         detections
             .into_iter()
             .map(|mut detection| {
@@ -83,7 +79,12 @@ mod tests {
         let frame = image::DynamicImage::new_rgb8(320, 240);
         let crop = Crop::of(&frame, None);
         assert!(matches!(crop.image, Cow::Borrowed(image) if std::ptr::eq(image, &frame)));
-        assert_eq!(crop.point_to_frame([10.0, 10.0]), [10.0, 10.0]);
+        let keypoint = Keypoint {
+            x: 10.0,
+            y: 10.0,
+            score: 0.5,
+        };
+        assert_eq!(crop.keypoints_to_frame(vec![keypoint]), [keypoint]);
     }
 
     #[test]

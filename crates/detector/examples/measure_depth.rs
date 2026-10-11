@@ -14,7 +14,7 @@ use detector::{
 use ingest::{Mailbox, Sample};
 use scene_core::{
     geom::Point,
-    look::{Label, LookId, Probe, Reading, Request},
+    look::{Label, Probe, Reading},
 };
 use sense::{DepthPort, Senses, ultralytics::DepthEstimator};
 use std::{
@@ -239,10 +239,7 @@ async fn main() -> Result<()> {
                     continue;
                 };
                 let t = at.source_secs.0 - *origin.get_or_insert(at.source_secs.0);
-                let request = Request {
-                    id: LookId(0),
-                    probe: Probe::Detect { region: None },
-                };
+                let request = Probe::Detect { region: None };
                 let Ok(Reading::Bodies(bodies)) = senses.look(&frame, &request).0 else {
                     continue;
                 };

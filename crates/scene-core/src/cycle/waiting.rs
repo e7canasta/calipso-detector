@@ -4,14 +4,14 @@ use super::Observed;
 use crate::body::Keypoint;
 use crate::evidence::Admission;
 use crate::geom::{Point, Rect};
-use crate::look::{DepthPurpose, FaceRegion, LookId, Probe, Request};
+use crate::look::{DepthPurpose, FaceRegion, Probe};
 use crate::policy::FacePolicy;
 
 /// Probe and continuation are created together; their fields cannot be
 /// replaced from the sequencer.
 #[derive(Debug)]
 pub(super) struct Waiting {
-    request: Request,
+    probe: Probe,
     stage: Awaiting,
 }
 
@@ -44,26 +44,16 @@ pub(super) enum Awaiting {
 }
 
 impl Waiting {
-    pub(super) fn primary(id: LookId, region: Option<Rect>) -> Self {
-        Self::new(id, Probe::Detect { region }, Awaiting::Primary)
+    pub(super) fn primary(region: Option<Rect>) -> Self {
+        Self::new(Probe::Detect { region }, Awaiting::Primary)
     }
 
-    pub(super) fn reinforce(id: LookId, region: Rect, primary: Admission) -> Self {
-        Self::new(
-            id,
-            Probe::Reinforce { region },
-            Awaiting::Reinforce { primary },
-        )
+    pub(super) fn reinforce(region: Rect, primary: Admission) -> Self {
+        Self::new(Probe::Reinforce { region }, Awaiting::Reinforce { primary })
     }
 
-    pub(super) fn faces(
-        id: LookId,
-        bodies: Admission,
-        region: FaceRegion,
-        policy: FacePolicy,
-    ) -> Self {
+    pub(super) fn faces(bodies: Admission, region: FaceRegion, policy: FacePolicy) -> Self {
         Self::new(
-            id,
             Probe::Faces { region },
             Awaiting::Faces {
                 bodies,
@@ -73,9 +63,8 @@ impl Waiting {
         )
     }
 
-    pub(super) fn calibrate(id: LookId, observed: Observed, points: Vec<Point>) -> Self {
+    pub(super) fn calibrate(observed: Observed, points: Vec<Point>) -> Self {
         Self::new(
-            id,
             Probe::Depth {
                 purpose: DepthPurpose::Bed,
                 points,
@@ -84,12 +73,11 @@ impl Waiting {
         )
     }
 
-    pub(super) fn pose(id: LookId, observed: Observed, bbox: Rect) -> Self {
-        Self::new(id, Probe::Pose { bbox }, Awaiting::Pose { observed, bbox })
+    pub(super) fn pose(observed: Observed, bbox: Rect) -> Self {
+        Self::new(Probe::Pose { bbox }, Awaiting::Pose { observed, bbox })
     }
 
     pub(super) fn depth(
-        id: LookId,
         observed: Observed,
         pose: Vec<Keypoint>,
         bbox: Rect,
@@ -97,7 +85,6 @@ impl Waiting {
     ) -> Self {
         let (at, points) = asked.into_iter().unzip();
         Self::new(
-            id,
             Probe::Depth {
                 purpose: DepthPurpose::Subject,
                 points,
@@ -111,15 +98,12 @@ impl Waiting {
         )
     }
 
-    fn new(id: LookId, probe: Probe, stage: Awaiting) -> Self {
-        Self {
-            request: Request { id, probe },
-            stage,
-        }
+    fn new(probe: Probe, stage: Awaiting) -> Self {
+        Self { probe, stage }
     }
 
     /// The probe to look at and what interprets its reading.
-    pub(super) fn into_parts(self) -> (Request, Awaiting) {
-        (self.request, self.stage)
+    pub(super) fn into_parts(self) -> (Probe, Awaiting) {
+        (self.probe, self.stage)
     }
 }

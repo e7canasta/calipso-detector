@@ -1,7 +1,7 @@
 use image::DynamicImage;
 use scene_core::{
     geom::Rect,
-    look::{Detection, Failure, Label, LookId, Probe, Reading, Request},
+    look::{Detection, Failure, Label, Probe, Reading},
 };
 use sense::{DetectorPort, ModelError, Senses};
 
@@ -26,11 +26,8 @@ impl DetectorPort for NeverCalled {
 
 #[test]
 fn reinforce_uses_its_own_port_and_maps_every_box() {
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Reinforce {
-            region: Rect::new(100.0, 50.0, 200.0, 150.0),
-        },
+    let request = Probe::Reinforce {
+        region: Rect::new(100.0, 50.0, 200.0, 150.0),
     };
     let (result, spent) = Senses::new(NeverCalled)
         .with_reinforce(FakeDetector)
@@ -47,11 +44,8 @@ fn reinforce_uses_its_own_port_and_maps_every_box() {
 
 #[test]
 fn reinforce_without_port_never_calls_primary() {
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Reinforce {
-            region: Rect::new(0.0, 0.0, 10.0, 10.0),
-        },
+    let request = Probe::Reinforce {
+        region: Rect::new(0.0, 0.0, 10.0, 10.0),
     };
     let (result, _) = Senses::new(NeverCalled).look(&DynamicImage::new_rgb8(100, 100), &request);
     assert_eq!(result, Err(Failure::Model));
@@ -60,11 +54,8 @@ fn reinforce_without_port_never_calls_primary() {
 #[test]
 fn detect_returns_every_box_in_frame_coordinates() {
     let frame = DynamicImage::new_rgb8(320, 240);
-    let request = Request {
-        id: LookId(7),
-        probe: Probe::Detect {
-            region: Some(Rect::new(100.0, 50.0, 200.0, 150.0)),
-        },
+    let request = Probe::Detect {
+        region: Some(Rect::new(100.0, 50.0, 200.0, 150.0)),
     };
     let (result, spent) = Senses::new(FakeDetector).look(&frame, &request);
     let Ok(Reading::Bodies(boxes)) = result else {
@@ -89,13 +80,7 @@ fn empty_regions_fail_without_calling_any_model() {
             Probe::Reinforce { region },
         ] {
             let mut senses = Senses::new(NeverCalled).with_reinforce(NeverCalled);
-            let (result, spent) = senses.look(
-                &frame,
-                &Request {
-                    id: LookId(0),
-                    probe,
-                },
-            );
+            let (result, spent) = senses.look(&frame, &probe);
             assert_eq!(result, Err(Failure::Model));
             assert!(spent.0 > 0.0);
         }
@@ -121,13 +106,7 @@ fn faces_preserve_local_boxes_scores_and_labels_in_both_regions() {
         let (reading, _) = Senses::new(NeverCalled)
             .with_faces(Faces)
             .with_reinforce(NeverCalled)
-            .look(
-                &DynamicImage::new_rgb8(320, 240),
-                &Request {
-                    id: LookId(0),
-                    probe: Probe::Faces { region },
-                },
-            );
+            .look(&DynamicImage::new_rgb8(320, 240), &Probe::Faces { region });
         assert_eq!(
             reading,
             Ok(Reading::Faces(vec![Detection {
@@ -143,11 +122,8 @@ fn faces_preserve_local_boxes_scores_and_labels_in_both_regions() {
 fn faces_fail_without_model_for_empty_crop_or_model_error() {
     use scene_core::look::FaceRegion;
     let frame = DynamicImage::new_rgb8(100, 100);
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Faces {
-            region: FaceRegion::Subject(Rect::new(200.0, 0.0, 300.0, 10.0)),
-        },
+    let request = Probe::Faces {
+        region: FaceRegion::Subject(Rect::new(200.0, 0.0, 300.0, 10.0)),
     };
     assert_eq!(
         Senses::new(NeverCalled)
@@ -156,11 +132,8 @@ fn faces_fail_without_model_for_empty_crop_or_model_error() {
             .0,
         Err(Failure::Model)
     );
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Faces {
-            region: FaceRegion::Headboard(Rect::new(0.0, 0.0, 100.0, 100.0)),
-        },
+    let request = Probe::Faces {
+        region: FaceRegion::Headboard(Rect::new(0.0, 0.0, 100.0, 100.0)),
     };
     assert_eq!(
         Senses::new(NeverCalled).look(&frame, &request).0,
@@ -190,10 +163,7 @@ fn full_frame_and_empty_result_are_successful() {
             Ok(vec![])
         }
     }
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Detect { region: None },
-    };
+    let request = Probe::Detect { region: None };
     let (result, _) = Senses::new(Empty).look(&DynamicImage::new_rgb8(320, 240), &request);
     assert_eq!(result, Ok(Reading::Bodies(vec![])));
 }
@@ -206,10 +176,7 @@ fn model_failure_is_data_and_records_spent_time() {
             Err(ModelError::Inference("boom".into()))
         }
     }
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Detect { region: None },
-    };
+    let request = Probe::Detect { region: None };
     let (result, spent) = Senses::new(Broken).look(&DynamicImage::new_rgb8(100, 100), &request);
     assert_eq!(result, Err(Failure::Model));
     assert!(spent.0 > 0.0);
@@ -290,10 +257,7 @@ fn unsupported_requests_fail_and_warn_with_the_requested_kind() {
         },
     ] {
         let expected_kind = format!("probe={:?}", probe.kind());
-        let request = Request {
-            id: LookId(0),
-            probe,
-        };
+        let request = probe;
         let (result, spent) = senses.look(&DynamicImage::new_rgb8(100, 100), &request);
         assert_eq!(result, Err(Failure::Model));
         assert!(spent.0 > 0.0);

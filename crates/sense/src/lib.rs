@@ -1,9 +1,9 @@
-//! Senses: runs each core `Probe` on a frame and returns an `Outcome`.
+//! Senses: runs each core `Probe` on a frame and returns a `Reading`.
 //! It returns everything it sees; it knows no policies (rule 6).
 // What is `pub` is reachable from outside; the rest says `pub(crate)`.
 #![warn(unreachable_pub)]
 
-pub mod crop;
+mod crop;
 
 mod error;
 pub mod ports;
@@ -19,7 +19,7 @@ use image::DynamicImage;
 use scene_core::{
     contract::Keypoint,
     geom::{Point, Rect},
-    look::{Detection, Failure, Probe, Reading, Request, Spent},
+    look::{Detection, Failure, Probe, Reading, Spent},
 };
 use std::time::Instant;
 
@@ -73,10 +73,10 @@ impl Senses {
     pub fn look(
         &mut self,
         frame: &DynamicImage,
-        request: &Request,
+        probe: &Probe,
     ) -> (Result<Reading, Failure>, Spent) {
         let started = Instant::now();
-        let result = match &request.probe {
+        let result = match probe {
             Probe::Detect { region } => {
                 boxes(self.detect.as_mut(), frame, *region).map(Reading::Bodies)
             }
@@ -98,7 +98,7 @@ impl Senses {
             },
         };
         if result.is_err() {
-            tracing::warn!(probe = ?request.probe.kind(), "sense failed or unavailable");
+            tracing::warn!(probe = ?probe.kind(), "sense failed or unavailable");
         }
         (result, Spent(started.elapsed().as_secs_f64() * 1000.0))
     }

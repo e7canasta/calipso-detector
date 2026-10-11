@@ -28,7 +28,7 @@ pub struct SampleRef {
 impl SampleRef {
     /// Source seconds since an earlier sample. `None` across sessions: source
     /// time is not compared between sessions (rule 9).
-    pub fn secs_since(self, earlier: SampleRef) -> Option<f64> {
+    pub(crate) fn secs_since(self, earlier: SampleRef) -> Option<f64> {
         (self.session == earlier.session).then_some(self.source_secs.0 - earlier.source_secs.0)
     }
 }

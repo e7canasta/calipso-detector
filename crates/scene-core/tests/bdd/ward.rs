@@ -122,7 +122,7 @@ impl Ward {
         });
         let output = monitor
             .handle(input.clone())
-            .drive(|request| (script.respond(&request.probe), Spent(1.0)));
+            .drive(|request| (script.respond(request), Spent(1.0)));
         let facts = crate::published::facts(&output);
         invariants(&output.scene, &facts);
         crate::published::check(&output);

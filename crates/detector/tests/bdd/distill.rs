@@ -7,7 +7,7 @@ use scene_core::{
     Input, Monitor,
     contract::{Build, Profile, ProfileHash, SampleRef, SessionId, Source, SourceSecs, Timing},
     geom::Quad,
-    look::{Failure, Probe, Reading, Request, Spent},
+    look::{Failure, Probe, Reading, Spent},
     map::SiteMap,
     policy::{FacePolicy, Policy, ReinforcePolicy},
 };
@@ -33,7 +33,7 @@ fn sample(n: u64) -> Input {
 fn night(
     w: &mut Shell,
     policy: Policy,
-    mut respond: impl FnMut(u64, &Request) -> Result<Reading, Failure>,
+    mut respond: impl FnMut(u64, &Probe) -> Result<Reading, Failure>,
 ) {
     let mut monitor = Monitor::new(policy.clone(), site());
     w.policy = Some(policy);
@@ -58,7 +58,7 @@ fn shared_boxes(w: &mut Shell, winner: String) {
     assert!(matches!(winner.as_str(), "main" | "reinforcement"));
     night(w, reinforcement(), |n, r| {
         let mut body = world::in_bed(0);
-        let boxes = match r.probe {
+        let boxes = match r {
             Probe::Detect { .. } => {
                 body.confidence = if winner == "main" { 0.9 } else { 0.7 };
                 if n <= 3 {
@@ -91,7 +91,7 @@ fn sense_fails(w: &mut Shell, sense: String) {
     } else {
         reinforcement()
     };
-    night(w, policy, |n, r| match r.probe {
+    night(w, policy, |n, r| match r {
         Probe::Detect { .. } => Ok(Reading::Bodies(if faces || n <= 3 {
             vec![world::in_bed(0)]
         } else {
@@ -106,7 +106,7 @@ fn sense_fails(w: &mut Shell, sense: String) {
 
 #[given("a night where reinforcement looked without finding bodies")]
 fn empty_reinforcement(w: &mut Shell) {
-    night(w, reinforcement(), |n, r| match r.probe {
+    night(w, reinforcement(), |n, r| match r {
         Probe::Detect { .. } => Ok(Reading::Bodies(if n <= 3 {
             vec![world::in_bed(0)]
         } else {
@@ -125,7 +125,7 @@ fn empty_faces(w: &mut Shell) {
         }),
         ..Policy::default()
     };
-    night(w, policy, |_, r| match r.probe {
+    night(w, policy, |_, r| match r {
         Probe::Detect { .. } => Ok(Reading::Bodies(vec![world::in_bed(0)])),
         Probe::Faces { .. } => Ok(Reading::Faces(vec![])),
         _ => panic!("unexpected probe"),
@@ -213,7 +213,7 @@ fn repeats(w: &mut Shell) {
         .map(|m| {
             monitor
                 .handle(sample(u64::from(m.n)))
-                .drive(|r| (world::respond(m, &r.probe), Spent(1.0)))
+                .drive(|r| (world::respond(m, r), Spent(1.0)))
         })
         .collect();
     assert_eq!(replayed, w.night);

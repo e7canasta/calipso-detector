@@ -6,7 +6,7 @@ use image::DynamicImage;
 use models::{Call, DepthModel, Model, PoseModel};
 use scene_core::{
     geom::Rect,
-    look::{Detection, FaceRegion, Failure, Label, LookId, Probe, Reading, Request},
+    look::{Detection, FaceRegion, Failure, Label, Probe, Reading},
 };
 
 #[derive(Debug, Default, World)]
@@ -179,13 +179,7 @@ fn look_faces(w: &mut Shell, target: String, x0: f32, y0: f32, x1: f32, y1: f32)
         FaceRegion::Subject(rect)
     };
     let reading = senses
-        .look(
-            w.image.as_ref().unwrap(),
-            &Request {
-                id: LookId(0),
-                probe: Probe::Faces { region },
-            },
-        )
+        .look(w.image.as_ref().unwrap(), &Probe::Faces { region })
         .0;
     if let Ok(reading) = &reading {
         assert!(matches!(reading, Reading::Faces(_)));
@@ -203,11 +197,8 @@ fn reinforce(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
         senses
             .look(
                 w.image.as_ref().unwrap(),
-                &Request {
-                    id: LookId(0),
-                    probe: Probe::Reinforce {
-                        region: Rect::new(x0, y0, x1, y1),
-                    },
+                &Probe::Reinforce {
+                    region: Rect::new(x0, y0, x1, y1),
                 },
             )
             .0,

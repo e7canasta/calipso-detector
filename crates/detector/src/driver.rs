@@ -21,7 +21,7 @@ pub struct Processed {
 }
 
 /// Both types belong to other crates: Rust does not allow impl From here.
-pub fn stamp_to_ref(stamp: Stamp) -> SampleRef {
+pub(crate) fn stamp_to_ref(stamp: Stamp) -> SampleRef {
     SampleRef {
         session: SessionId(stamp.session),
         sequence: stamp.sequence,
@@ -76,7 +76,7 @@ impl<S: SensesPort> Driver<S> {
         }
         sensor::translate(&event).map(|state| self.report(self.sensor_at(), state))
     }
-    pub fn poll_stall(&mut self, now: Instant) -> Option<Processed> {
+    fn poll_stall(&mut self, now: Instant) -> Option<Processed> {
         self.sensor
             .poll(now, self.stall_timeout)
             .then(|| self.report(self.sensor_at(), SensorState::Stalled))
@@ -116,9 +116,9 @@ impl<S: SensesPort> Driver<S> {
                     at,
                     frame: frame.info(),
                 })
-                .drive(|req| {
-                    let _look = tracing::debug_span!("look", kind=?req.probe.kind()).entered();
-                    self.senses.look(&frame, req)
+                .drive(|probe| {
+                    let _look = tracing::debug_span!("look", kind=?probe.kind()).entered();
+                    self.senses.look(&frame, probe)
                 }),
             Ok(None) => self
                 .monitor

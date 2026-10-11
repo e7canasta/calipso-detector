@@ -9,7 +9,6 @@ use crate::attention::Attention;
 use crate::belief::Belief;
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
-use crate::look::LookId;
 use crate::map::{Geometry, SiteMap};
 use crate::policy::Policy;
 use crate::project::v4;
@@ -23,14 +22,8 @@ impl Engine {
             map: map.into(),
             belief: Belief::default(),
             sensor: SensorMemory::default(),
-            next_id: 0,
             frame: None,
         }
-    }
-
-    pub(super) fn next_id(&mut self) -> LookId {
-        self.next_id = self.next_id.wrapping_add(1);
-        LookId(self.next_id)
     }
 }
 

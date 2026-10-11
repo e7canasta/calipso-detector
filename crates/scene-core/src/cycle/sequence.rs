@@ -14,7 +14,7 @@ use crate::body::Keypoint;
 use crate::conclusion::{Conclusion, Observation, RepublishReason};
 use crate::evidence::{self, Admission, FaceEvidence, Perceived};
 use crate::geom::{Point, Rect};
-use crate::look::{FaceRegion, LookId, LookKind, Outcome, Request, Spent};
+use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
 use crate::sensor::SensorChanged;
@@ -50,7 +50,7 @@ impl Course<'_> {
         self.monitor.engine.frame = Some(frame);
         self.geometry = self.monitor.engine.map.gate(frame);
         let region = attention::primary_region();
-        self.wait(|id| Waiting::primary(id, region))
+        Phase::Waiting(Waiting::primary(region))
     }
 
     /// The order of a turn. At each point `attention` is asked and a look is
@@ -66,7 +66,7 @@ impl Course<'_> {
                 Reached::Primary(primary) => {
                     let considered = self.reinforce(&primary);
                     if let Some(region) = self.wanted(LookKind::Reinforce, considered) {
-                        return self.wait(|id| Waiting::reinforce(id, region, primary));
+                        return Phase::Waiting(Waiting::reinforce(region, primary));
                     }
                     Reached::Bodies(primary)
                 }
@@ -74,7 +74,7 @@ impl Course<'_> {
                 Reached::Bodies(bodies) => {
                     let considered = self.faces(&bodies);
                     if let Some((region, policy)) = self.wanted(LookKind::Faces, considered) {
-                        return self.wait(|id| Waiting::faces(id, bodies, region, policy));
+                        return Phase::Waiting(Waiting::faces(bodies, region, policy));
                     }
                     Reached::Evidence(Perceived {
                         bodies,
@@ -95,14 +95,14 @@ impl Course<'_> {
                     let considered = self.calibrate(&observed);
                     if let Some(points) = self.wanted(LookKind::Calibrate, considered) {
                         self.monitor.engine.map.attempted(self.at);
-                        return self.wait(|id| Waiting::calibrate(id, observed, points));
+                        return Phase::Waiting(Waiting::calibrate(observed, points));
                     }
                     Reached::Map(observed)
                 }
                 // Enrich the subject?
                 Reached::Map(observed) => match self.enrich(&observed.believed) {
                     EnrichPlan::Ask(bbox) => {
-                        return self.wait(|id| Waiting::pose(id, observed, bbox));
+                        return Phase::Waiting(Waiting::pose(observed, bbox));
                     }
                     EnrichPlan::Keep(reason) => {
                         self.skipped(LookKind::Pose, reason);
@@ -125,8 +125,7 @@ impl Course<'_> {
                     let considered = self.deepen(pose.as_deref());
                     match (self.wanted(LookKind::Depth, considered), pose) {
                         (Some(points), Some(pose)) => {
-                            return self
-                                .wait(|id| Waiting::depth(id, observed, pose, bbox, points));
+                            return Phase::Waiting(Waiting::depth(observed, pose, bbox, points));
                         }
                         (_, pose) => {
                             let e = Enrichment::fresh(pose, None, bbox, &observed.evidence.bodies);
@@ -148,12 +147,7 @@ impl Course<'_> {
     }
 
     /// The reading arrived: it is interpreted and the turn continues where it was.
-    pub(super) fn advance(
-        &mut self,
-        stage: Awaiting,
-        request: &Request,
-        outcome: Outcome,
-    ) -> Phase {
+    pub(super) fn advance(&mut self, stage: Awaiting, probe: &Probe, outcome: Outcome) -> Phase {
         let spent = outcome.spent;
         let reached = match stage {
             Awaiting::Primary => {
@@ -162,7 +156,7 @@ impl Course<'_> {
                     self.monitor.engine.map.bed_for(self.geometry),
                     &self.monitor.engine.policy.admission,
                 );
-                self.asked(request, spent, admission.result.clone());
+                self.asked(probe, spent, admission.result.clone());
                 Reached::Primary(admission)
             }
             Awaiting::Reinforce { primary } => {
@@ -177,7 +171,7 @@ impl Course<'_> {
                     self.monitor.engine.map.bed_for(self.geometry),
                     &self.monitor.engine.policy.admission,
                 );
-                self.asked(request, spent, result);
+                self.asked(probe, spent, result);
                 Reached::Bodies(bodies)
             }
             Awaiting::Faces {
@@ -186,7 +180,7 @@ impl Course<'_> {
                 policy,
             } => {
                 let faces = evidence::faces(outcome.faces(), region.rect(), &policy);
-                self.asked(request, spent, faces.result);
+                self.asked(probe, spent, faces.result);
                 Reached::Evidence(Perceived {
                     bodies,
                     faces: faces.faces,
@@ -194,13 +188,13 @@ impl Course<'_> {
             }
             Awaiting::Calibrate { mut observed } => {
                 let (meters, result) = evidence::depth(outcome.depths());
-                self.asked(request, spent, result);
+                self.asked(probe, spent, result);
                 observed.calibrated = self.monitor.engine.map.learn(self.at, meters);
                 Reached::Map(observed)
             }
             Awaiting::Pose { observed, bbox } => {
                 let (pose, result) = evidence::pose(outcome.into_pose());
-                self.asked(request, spent, result);
+                self.asked(probe, spent, result);
                 Reached::Pose {
                     observed,
                     pose,
@@ -214,7 +208,7 @@ impl Course<'_> {
                 at,
             } => {
                 let (depths, result) = evidence::depths(outcome.depths(), &at, pose.len());
-                self.asked(request, spent, result);
+                self.asked(probe, spent, result);
                 let e = Enrichment::fresh(Some(pose), depths, bbox, &observed.evidence.bodies);
                 Reached::Enriched(observed, e)
             }
@@ -323,16 +317,11 @@ impl Course<'_> {
         belief.observe(self.at, bodies, policy)
     }
 
-    /// Requests a look and waits in `phase`.
-    fn wait(&mut self, make: impl FnOnce(LookId) -> Waiting) -> Phase {
-        Phase::Waiting(make(self.monitor.engine.next_id()))
-    }
-
-    fn asked(&mut self, request: &Request, spent: Spent, result: LookResult) {
+    fn asked(&mut self, probe: &Probe, spent: Spent, result: LookResult) {
         self.attention.looks.push(Look {
-            kind: request.probe.kind(),
+            kind: probe.kind(),
             outcome: LookOutcome::Asked {
-                region: request.probe.region(),
+                region: probe.region(),
                 result,
                 spent_ms: spent.0,
             },

@@ -1,11 +1,11 @@
 //! The senses port: who answers the core's probes over a frame. Live,
 //! the `sense` models over an image. The core cannot tell: it only sees
-//! `Request → Outcome`.
+//! `Probe → Reading`.
 use crate::config::Config;
 use anyhow::{Context, Result};
 use image::DynamicImage;
 use scene_core::{
-    look::{Failure, Reading, Request, Spent},
+    look::{Failure, Probe, Reading, Spent},
     map::FrameInfo,
 };
 
@@ -27,19 +27,14 @@ impl Frame for DynamicImage {
 /// Who looks: it answers each probe over the sample's frame.
 pub trait SensesPort {
     type Frame: Frame;
-    fn look(&mut self, frame: &Self::Frame, request: &Request)
-    -> (Result<Reading, Failure>, Spent);
+    fn look(&mut self, frame: &Self::Frame, probe: &Probe) -> (Result<Reading, Failure>, Spent);
 }
 
 /// Live: the models over the image.
 impl SensesPort for sense::Senses {
     type Frame = DynamicImage;
-    fn look(
-        &mut self,
-        frame: &DynamicImage,
-        request: &Request,
-    ) -> (Result<Reading, Failure>, Spent) {
-        sense::Senses::look(self, frame, request)
+    fn look(&mut self, frame: &DynamicImage, probe: &Probe) -> (Result<Reading, Failure>, Spent) {
+        sense::Senses::look(self, frame, probe)
     }
 }
 

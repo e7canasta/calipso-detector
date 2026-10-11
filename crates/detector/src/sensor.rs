@@ -3,26 +3,26 @@
 use std::time::{Duration, Instant};
 
 #[derive(Debug)]
-pub struct Stall {
+pub(crate) struct Stall {
     last_sample: Instant,
 }
 
 impl Stall {
-    pub fn new(now: Instant) -> Self {
+    pub(crate) fn new(now: Instant) -> Self {
         Self { last_sample: now }
     }
 
-    pub fn on_sample(&mut self, now: Instant) {
+    pub(crate) fn on_sample(&mut self, now: Instant) {
         self.last_sample = now;
     }
 
-    pub fn expired(&self, now: Instant, timeout: Duration) -> bool {
+    pub(crate) fn expired(&self, now: Instant, timeout: Duration) -> bool {
         now.saturating_duration_since(self.last_sample) >= timeout
     }
 }
 
 /// Translates transport states; the core decides whether the sensor changed.
-pub fn translate(event: &ingest::StreamEvent) -> Option<scene_core::contract::SensorState> {
+pub(crate) fn translate(event: &ingest::StreamEvent) -> Option<scene_core::contract::SensorState> {
     use scene_core::contract::SensorState;
     match event {
         ingest::StreamEvent::Connecting => Some(SensorState::Connecting),
@@ -37,33 +37,33 @@ pub fn translate(event: &ingest::StreamEvent) -> Option<scene_core::contract::Se
 
 /// One reception deadline per session; armed on streaming and fired once.
 #[derive(Debug)]
-pub struct Sensor {
+pub(crate) struct Sensor {
     stall: Stall,
     armed: bool,
     fired: bool,
 }
 impl Sensor {
-    pub fn new(now: Instant) -> Self {
+    pub(crate) fn new(now: Instant) -> Self {
         Self {
             stall: Stall::new(now),
             armed: false,
             fired: false,
         }
     }
-    pub fn on_stream(&mut self, event: &ingest::StreamEvent, now: Instant) {
+    pub(crate) fn on_stream(&mut self, event: &ingest::StreamEvent, now: Instant) {
         self.armed = matches!(event, ingest::StreamEvent::Streaming { .. });
         self.fired = false;
         self.stall.on_sample(now);
     }
     /// A sample restarts the deadline; if it recovers from a timeout, that must be reported.
-    pub fn on_sample(&mut self, now: Instant) -> bool {
+    pub(crate) fn on_sample(&mut self, now: Instant) -> bool {
         let recovered = self.fired;
         self.armed = true;
         self.fired = false;
         self.stall.on_sample(now);
         recovered
     }
-    pub fn poll(&mut self, now: Instant, timeout: Duration) -> bool {
+    pub(crate) fn poll(&mut self, now: Instant, timeout: Duration) -> bool {
         if self.armed && !self.fired && self.stall.expired(now, timeout) {
             self.fired = true;
             true

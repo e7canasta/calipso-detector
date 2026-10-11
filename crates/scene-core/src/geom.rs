@@ -45,12 +45,12 @@ impl Rect {
     }
 
     /// Does `other` fall entirely inside this box?
-    pub fn contains_rect(&self, other: &Rect) -> bool {
+    pub(crate) fn contains_rect(&self, other: &Rect) -> bool {
         other.x0 >= self.x0 && other.y0 >= self.y0 && other.x1 <= self.x1 && other.y1 <= self.y1
     }
 
     /// Intersection over union: how much two boxes overlap (0 to 1).
-    pub fn iou(&self, other: &Rect) -> f32 {
+    pub(crate) fn iou(&self, other: &Rect) -> f32 {
         let inter = Rect {
             x0: self.x0.max(other.x0),
             y0: self.y0.max(other.y0),
@@ -91,7 +91,7 @@ impl Quad {
     }
 
     /// The smallest rectangle that contains it.
-    pub fn bounds(&self) -> Rect {
+    pub(crate) fn bounds(&self) -> Rect {
         let xs = self.0.map(|p| p.x);
         let ys = self.0.map(|p| p.y);
         Rect {

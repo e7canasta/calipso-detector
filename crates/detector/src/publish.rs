@@ -10,11 +10,11 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-pub const EVENT_BUFFER: usize = 1024;
+pub(crate) const EVENT_BUFFER: usize = 1024;
 /// The channel is bounded too; the actor's fact queue has 1024 slots.
 pub const CHANNEL_BUFFER: usize = 64;
 /// The contract version the shell publishes: the last token of each subject.
-pub const VERSION: &str = "v4";
+pub(crate) const VERSION: &str = "v4";
 pub type ScenePublication = Envelope<Arc<Scene>>;
 pub type EventPublication = Envelope<Event>;
 

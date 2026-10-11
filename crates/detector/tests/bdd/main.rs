@@ -1,4 +1,4 @@
-//! The capability crosses Request → Outcome; the policies are tested in scene-core.
+//! The capability crosses Probe → Reading; the policies are tested in scene-core.
 use cucumber::World;
 mod depth;
 mod distill;

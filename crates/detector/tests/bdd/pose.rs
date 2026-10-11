@@ -6,7 +6,7 @@ use cucumber::{given, then, when};
 use scene_core::{
     contract::Keypoint,
     geom::Rect,
-    look::{LookId, Probe, Reading, Request},
+    look::{Probe, Reading},
 };
 use sense::PersonPose;
 
@@ -84,11 +84,8 @@ fn look(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
         .senses()
         .look(
             w.image.as_ref().unwrap(),
-            &Request {
-                id: LookId(0),
-                probe: Probe::Pose {
-                    bbox: Rect::new(x0, y0, x1, y1),
-                },
+            &Probe::Pose {
+                bbox: Rect::new(x0, y0, x1, y1),
             },
         )
         .0;

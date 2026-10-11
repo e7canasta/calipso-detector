@@ -23,7 +23,7 @@ comes back.
   ┌──────────────────────────┐  Input / Reading  ┌─────────────────────────┐
   │ decode · senses (ONNX)   │ ────────────────► │ Monitor / Turn          │
   │ NATS · clock             │ ◄──────────────── │   believe, decide,      │
-  └──────────────────────────┘  Request,         │   project               │
+  └──────────────────────────┘  Probe,           │   project               │
                                 Output           └─────────────────────────┘
 ```
 
@@ -95,7 +95,7 @@ What no change may break. Each one has someone watching it.
 ## 3. The loop: one turn per sample
 
 The public API is the loop protocol: `Monitor::handle` opens a `Turn` per
-input and `Turn::drive` runs it to the end. For each `Request` the shell looks
+input and `Turn::drive` runs it to the end. For each `Probe` the shell looks
 and returns a `Reading` (or a `Failure`) and how long it took; the turn closes
 with the `Output` (`at`, `scene`, `events`). `Turn::cancel` closes it as a
 shutdown. There is no other way through: the shell has nothing to misuse.
@@ -247,7 +247,7 @@ One concept, one name.
 | engine | `Engine` | What decides: policy, map, belief and sensor; it does not remember what was published |
 | conclusion | `conclusion::Conclusion` | What the engine concludes from a closed turn, before the chronicle and the contract: an `Observation` or what to republish |
 | observation | `conclusion::Observation` | What a turn observed and believed, together: the input of the chronicle and the projection |
-| look, probe | `look`, `Request` | What the core asks the shell to look at |
+| look, probe | `look`, `Probe` | What the core asks the shell to look at |
 | reading | `Reading` | What the shell returns for a probe |
 | evidence | `evidence` | Which reading counts and how much it is worth; it never decides what is believed |
 | count | `zone::Counts`, `ZoneCounts` | Bodies per zone: floor, bed, held |

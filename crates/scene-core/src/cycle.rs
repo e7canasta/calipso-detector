@@ -17,7 +17,7 @@ use crate::chronicle::Chronicle;
 use crate::conclusion::RepublishReason;
 use crate::contract::v4::{Event, Scene};
 use crate::evidence::Perceived;
-use crate::look::{Failure, Outcome, Reading, Request, Spent};
+use crate::look::{Failure, Outcome, Probe, Reading, Spent};
 use crate::map::{BedCalibrated, FrameInfo, Geometry, Map};
 use crate::policy::Policy;
 use crate::sensor::{SensorChanged, SensorMemory, SensorState};
@@ -87,7 +87,6 @@ struct Engine {
     map: Map,
     belief: Belief,
     sensor: SensorMemory,
-    next_id: u32,
     frame: Option<FrameInfo>,
 }
 
@@ -167,7 +166,7 @@ impl Turn<'_> {
     /// failing sense.
     pub fn drive(
         self,
-        mut look: impl FnMut(&Request) -> (Result<Reading, Failure>, Spent),
+        mut look: impl FnMut(&Probe) -> (Result<Reading, Failure>, Spent),
     ) -> Output {
         let Turn {
             mut course,
@@ -177,9 +176,9 @@ impl Turn<'_> {
         let conclusion = loop {
             phase = match phase {
                 Phase::Waiting(waiting) => {
-                    let (request, stage) = waiting.into_parts();
-                    let (result, spent) = look(&request);
-                    course.advance(stage, &request, Outcome { result, spent })
+                    let (probe, stage) = waiting.into_parts();
+                    let (result, spent) = look(&probe);
+                    course.advance(stage, &probe, Outcome { result, spent })
                 }
                 Phase::Concluded { observed } => break course.observed(observed),
                 Phase::Republish { reason, changed } => break course.republished(reason, changed),
@@ -250,14 +249,14 @@ mod tests {
             score: 0.9,
         }]));
         for s in 1..=3 {
-            m.handle(sample(f64::from(s))).drive(|r| match r.probe {
+            m.handle(sample(f64::from(s))).drive(|r| match r {
                 Probe::Detect { .. } => (Ok(Reading::Bodies(vec![person(seen)])), Spent(1.0)),
                 _ => (Ok(pose.clone()), Spent(1.0)),
             });
         }
         assert_eq!(m.engine.belief.pose_reference(), Some(seen));
         // The main detector loses it; reinforcement sees it moved and a new pose is taken.
-        let out = m.handle(sample(4.0)).drive(|r| match r.probe {
+        let out = m.handle(sample(4.0)).drive(|r| match r {
             Probe::Detect { .. } => (Ok(Reading::Bodies(vec![])), Spent(1.0)),
             Probe::Reinforce { .. } => (Ok(Reading::Bodies(vec![person(moved)])), Spent(1.0)),
             _ => (Ok(pose.clone()), Spent(1.0)),

@@ -1,6 +1,6 @@
 #![cfg(feature = "onnx")]
 
-use scene_core::look::{Label, LookId, Probe, Reading, Request};
+use scene_core::look::{Label, Probe, Reading};
 use sense::{Senses, ultralytics::Detector};
 
 #[test]
@@ -10,10 +10,7 @@ fn real_onnx_detects_a_person() {
     let detector = Detector::load(&std::path::PathBuf::from(models).join("yolo26s.onnx"), 0.25)
         .expect("load yolo26s.onnx");
     let image = image::load_from_memory(include_bytes!("fixtures/astronaut.jpg")).unwrap();
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Detect { region: None },
-    };
+    let request = Probe::Detect { region: None };
     let (result, spent) = Senses::new(detector).look(&image, &request);
     let Ok(Reading::Bodies(boxes)) = result else {
         panic!("model failed: {result:?}")
@@ -45,10 +42,7 @@ fn real_onnx_reinforces_a_region() {
     let model = Detector::load(&models.join("yolo26l.onnx"), 0.25).expect("load reinforcement");
     let image = image::load_from_memory(include_bytes!("fixtures/astronaut.jpg")).unwrap();
     let region = Rect::new(20.0, 0.0, image.width() as f32, image.height() as f32);
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Reinforce { region },
-    };
+    let request = Probe::Reinforce { region };
     let mut senses = Senses::new(NeverCalled).with_reinforce(model);
     assert!(senses.look(&image, &request).0.is_ok()); // warm-up, outside the five measurements
     let mut times = Vec::new();
@@ -85,11 +79,8 @@ fn real_onnx_faces_on_full_image_and_upper_crop() {
     let mut senses = Senses::new(NeverCalled).with_faces(model);
     for (case, height) in [("full", image.height()), ("upper", image.height() / 2)] {
         let rect = Rect::new(0.0, 0.0, image.width() as f32, height as f32);
-        let request = Request {
-            id: LookId(0),
-            probe: Probe::Faces {
-                region: FaceRegion::Headboard(rect),
-            },
+        let request = Probe::Faces {
+            region: FaceRegion::Headboard(rect),
         };
         assert!(senses.look(&image, &request).0.is_ok());
         let mut times = Vec::new();
@@ -125,10 +116,7 @@ fn real_onnx_pose_on_the_person_box() {
     let detector = Detector::load(&models.join("yolo26s.onnx"), 0.25).expect("load yolo26s");
     let pose = PoseEstimator::load(&models.join("yolo26s-pose.onnx"), 0.25).expect("load pose");
     let mut senses = Senses::new(detector).with_pose(pose);
-    let detect = Request {
-        id: LookId(0),
-        probe: Probe::Detect { region: None },
-    };
+    let detect = Probe::Detect { region: None };
     let Ok(Reading::Bodies(boxes)) = senses.look(&image, &detect).0 else {
         panic!("detector failed")
     };
@@ -138,10 +126,7 @@ fn real_onnx_pose_on_the_person_box() {
         .max_by(|a, b| a.confidence.total_cmp(&b.confidence))
         .expect("a person")
         .bbox;
-    let request = Request {
-        id: LookId(1),
-        probe: Probe::Pose { bbox },
-    };
+    let request = Probe::Pose { bbox };
     assert!(senses.look(&image, &request).0.is_ok()); // calentamiento
     let mut times = Vec::new();
     for _ in 0..5 {
@@ -207,12 +192,9 @@ fn real_onnx_depth_at_points_and_its_scale() {
             y: image.height() as f32,
         }, // the last edge
     ];
-    let request = Request {
-        id: LookId(0),
-        probe: Probe::Depth {
-            purpose: DepthPurpose::Bed,
-            points,
-        },
+    let request = Probe::Depth {
+        purpose: DepthPurpose::Bed,
+        points,
     };
     let mut senses = Senses::new(NeverCalled).with_depth(DepthEstimator::load(&path).unwrap());
     assert!(senses.look(&image, &request).0.is_ok()); // calentamiento

@@ -7,5 +7,5 @@ mod decoder;
 pub mod driver;
 pub mod publish;
 pub mod senses;
-pub mod sensor;
+mod sensor;
 pub mod source;

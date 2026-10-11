@@ -129,22 +129,9 @@ pub enum Reading {
     Depth(Vec<Option<f32>>),
 }
 
-/// Identifies a probe within a turn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LookId(pub u32);
-
 /// Milliseconds the shell measured. The core only records them (rule 9).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Spent(pub f64);
-
-/// The look the turn waits for.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Request {
-    /// Its id within the turn: the answer must carry it.
-    pub id: LookId,
-    /// What to look at, and where.
-    pub probe: Probe,
-}
 
 /// The shell's answer to a probe, as the turn records it.
 #[derive(Debug, Clone, PartialEq)]
@@ -224,12 +211,6 @@ impl LookKind {
 impl std::fmt::Display for LookKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
-    }
-}
-
-impl std::fmt::Display for LookId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "look {}", self.0)
     }
 }
 

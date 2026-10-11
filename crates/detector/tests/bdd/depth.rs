@@ -5,7 +5,7 @@ use crate::world::{Shell, models::DepthModel};
 use cucumber::{given, then, when};
 use scene_core::{
     geom::Point,
-    look::{DepthPurpose, LookId, Probe, Reading, Request},
+    look::{DepthPurpose, Probe, Reading},
 };
 use sense::DepthMap;
 
@@ -92,12 +92,9 @@ fn look(w: &mut Shell, purpose: String, list: String) {
         .senses()
         .look(
             w.image.as_ref().unwrap(),
-            &Request {
-                id: LookId(0),
-                probe: Probe::Depth {
-                    purpose,
-                    points: points(&list),
-                },
+            &Probe::Depth {
+                purpose,
+                points: points(&list),
             },
         )
         .0;

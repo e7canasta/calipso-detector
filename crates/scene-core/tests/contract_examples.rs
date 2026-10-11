@@ -203,7 +203,7 @@ fn observe(monitor: &mut Monitor, sequence: u64, script: &script::Script) -> sce
                 height: 480,
             },
         })
-        .drive(|request| (script.respond(&request.probe), Spent(1.0)))
+        .drive(|request| (script.respond(request), Spent(1.0)))
 }
 
 #[test]
