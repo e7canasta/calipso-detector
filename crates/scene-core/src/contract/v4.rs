@@ -232,7 +232,10 @@ pub struct Transition {
     pub before: Before,
     /// What we saw hold.
     pub seen: Seen,
-    /// The occupancy we believe: that of the last fact.
+    /// The occupancy we believe at the end of the turn. Its occupants
+    /// (`rbh`, `mode`, `bed`) are those of the last fact; `unexplained` is the
+    /// scene's and may differ, because a body that is nobody comes and goes
+    /// without a fact (rule 6). A transition with no facts still has it.
     pub after: Occupancy,
     /// What happened to each person, in order.
     pub facts: Vec<Fact>,

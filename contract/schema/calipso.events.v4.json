@@ -965,7 +965,7 @@
       "type": "object",
       "properties": {
         "after": {
-          "description": "The occupancy we believe: that of the last fact.",
+          "description": "The occupancy we believe at the end of the turn. Its occupants\n(`rbh`, `mode`, `bed`) are those of the last fact; `unexplained` is the\nscene's and may differ, because a body that is nobody comes and goes\nwithout a fact (rule 6). A transition with no facts still has it.",
           "$ref": "#/$defs/Occupancy"
         },
         "at": {

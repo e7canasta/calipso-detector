@@ -171,9 +171,19 @@ pub fn check(output: &Output) {
                 Cell::new(t.before.occupancy.rbh, t.seen.fv, t.after.rbh),
                 "{at:?}: the cell"
             );
+            // The occupants are those of the last fact; the bodies that are
+            // nobody move without a fact (rule 6), so `unexplained` may differ.
             if let Some(last) = t.facts.last() {
-                assert_eq!(last.after, t.after, "{at:?}: the after is the last fact's");
+                assert_eq!(
+                    (last.after.rbh, last.after.mode, last.after.bed),
+                    (t.after.rbh, t.after.mode, t.after.bed),
+                    "{at:?}: the after's occupants are the last fact's"
+                );
             }
+            assert_eq!(
+                t.after.unexplained, output.scene.bed.unexplained,
+                "{at:?}: the after's unexplained is the scene's"
+            );
             assert_eq!(
                 output.scene.room.last_cell.as_ref(),
                 Some(&t.cell),

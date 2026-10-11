@@ -1,5 +1,5 @@
 //! Properties of the room and bed rules, only through the public API.
-// Only the rows; `check` runs on the scripted suites (see DESIGN.md §11).
+// `type_name` is for the BDD steps.
 #[allow(dead_code)]
 mod published;
 
@@ -131,6 +131,7 @@ fn run(
             let output = monitor
                 .handle(sample(session, index, seconds))
                 .drive(|_| (step.bodies().map(Reading::Bodies), Spent(1.0)));
+            published::check(&output);
             check(&previous.scene, &output, step)?;
             previous = output;
         }
