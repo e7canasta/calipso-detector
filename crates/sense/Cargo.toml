@@ -1,0 +1,21 @@
+[package]
+name = "sense"
+description = "Senses: runs the core's probes with models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+onnx = ["dep:ultralytics-inference"]
+
+[dependencies]
+scene-core = { path = "../scene-core" }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+tracing = "0.1"
+thiserror = "2"
+ultralytics-inference = { version = "=0.0.44", default-features = false, optional = true }
+
+[lints]
+workspace = true

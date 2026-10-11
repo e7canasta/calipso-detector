@@ -1,0 +1,13 @@
+# Pre-R6 profile: fixed hash sha256:239a5803f0c15901.
+[camera]
+site = "test"
+id = "room-1"
+[stream]
+url = "rtsp://127.0.0.1:18554/test"
+[senses.detect]
+model = "yolo26s.onnx"
+[map]
+resolution = [800, 600]
+bed = [[100,100], [500,100], [500,400], [100,400]]
+[nats]
+url = "nats://127.0.0.1:4222"

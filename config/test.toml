@@ -1,0 +1,20 @@
+# scripts/test-rtsp.sh serves testsrc.h264 (160×96, no people).
+[camera]
+site = "test"
+id = "room-local"
+[stream]
+url = "rtsp://127.0.0.1:18554/test"
+keyframe_only = true
+reconnect_delay_secs = 1
+sample_interval_ms = 1000
+stall_timeout_secs = 3
+[senses.detect]
+model = "yolo26s.onnx"
+backend_confidence = 0.25
+[policy]
+dwell_secs = 2.0 # source seconds a new count must hold
+[map]
+resolution = [160, 96]
+bed = [[10,10], [50,10], [50,50], [10,50]]
+[nats]
+url = "nats://127.0.0.1:4222"

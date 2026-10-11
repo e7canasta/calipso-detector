@@ -1,0 +1,154 @@
+{
+  "schema": "calipso.scene.v3",
+  "source": {
+    "site": "ejemplo",
+    "camera": "habitacion",
+    "run_id": "ejemplo",
+    "build": {
+      "version": "0.1.0",
+      "git": "ejemplo"
+    }
+  },
+  "seq": 1,
+  "observed_at": {
+    "session": 1,
+    "sequence": 1,
+    "source_secs": 1.0
+  },
+  "published_at_ms": 0,
+  "profile": {
+    "camera": {
+      "id": "habitacion",
+      "version": 1
+    },
+    "resident": null,
+    "hash": "ejemplo"
+  },
+  "timing": {
+    "wait_ms": 0.0,
+    "processing_ms": 0.0
+  },
+  "last_event_seq": 0,
+  "body": {
+    "frame": {
+      "width": 640,
+      "height": 480
+    },
+    "evidence": {
+      "bodies": {
+        "status": "seen",
+        "items": [
+          {
+            "zone": "floor",
+            "near_bed": false,
+            "bbox": {
+              "x0": 560.0,
+              "y0": 20.0,
+              "x1": 660.0,
+              "y1": 220.0
+            },
+            "confidence": 0.8,
+            "source": "primary"
+          },
+          {
+            "zone": "floor",
+            "near_bed": false,
+            "bbox": {
+              "x0": 560.0,
+              "y0": 250.0,
+              "x1": 660.0,
+              "y1": 450.0
+            },
+            "confidence": 0.8,
+            "source": "primary"
+          }
+        ]
+      },
+      "faces": {
+        "status": "skipped",
+        "reason": "not_requested",
+        "items": []
+      }
+    },
+    "room": {
+      "state": "empty",
+      "occupants": 0,
+      "since": {
+        "session": 1,
+        "sequence": 1,
+        "source_secs": 1.0
+      },
+      "pending": {
+        "counts": {
+          "floor": 2,
+          "bed": 0
+        },
+        "observations": {
+          "have": 1,
+          "need": 3
+        },
+        "duration": null
+      }
+    },
+    "bed": {
+      "state": "empty",
+      "seen": "one person",
+      "since": {
+        "session": 1,
+        "sequence": 1,
+        "source_secs": 1.0
+      },
+      "held": []
+    },
+    "floor": {
+      "seen": 0
+    },
+    "subject": null,
+    "attention": {
+      "looks": [
+        {
+          "kind": "detect",
+          "outcome": {
+            "type": "asked",
+            "region": null,
+            "result": {
+              "type": "read",
+              "candidates": 2,
+              "rejected": []
+            },
+            "spent_ms": 1.0
+          }
+        }
+      ]
+    },
+    "map": {
+      "geometry": {
+        "type": "valid"
+      },
+      "bed": [
+        {
+          "x": 100.0,
+          "y": 100.0
+        },
+        {
+          "x": 500.0,
+          "y": 100.0
+        },
+        {
+          "x": 500.0,
+          "y": 400.0
+        },
+        {
+          "x": 100.0,
+          "y": 400.0
+        }
+      ],
+      "headboard": null,
+      "calibration": {
+        "status": "unavailable"
+      }
+    },
+    "sensor": "connecting",
+    "republished": null
+  }
+}

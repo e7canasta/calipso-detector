@@ -1,0 +1,62 @@
+# Local go2rtc, always live. Bed drawn on a frame from 2026-10-08.
+[camera]
+site = "local"
+id = "sample1"
+
+[stream]
+url = "rtsp://127.0.0.1:8554/sample1"
+# username = "user"
+# password = "secret"
+keyframe_only = true
+reconnect_delay_secs = 2
+sample_interval_ms = 1000
+stall_timeout_secs = 10
+
+[senses.detect]
+model = "yolo26s.onnx" # relative to CALIPSO_MODELS, or an absolute path
+backend_confidence = 0.25
+
+# Reinforcement recommended by measurement 613; removing the section turns the policy off.
+[senses.reinforce]
+model = "yolo26l.onnx" # relative to CALIPSO_MODELS, or an absolute path
+backend_confidence = 0.25 # cannot exceed policy.min_confidence
+bed_padding = 0.15 # fraction of the bed's width and height on each side
+
+# Faces FP16 192: turn p90 166 ms in measurement 613.
+[senses.faces]
+model = "face/yolov12l-face.onnx" # FP16, input 192
+backend_confidence = 0.25 # cannot exceed senses.faces.min_confidence
+min_confidence = 0.30
+
+# Pose and depth (R8, measurement 813); removing the sections turns the policy off.
+[senses.pose]
+model = "yolo26s-pose.onnx"
+backend_confidence = 0.25
+move_threshold = 0.1 # fraction of the subject's diagonal: the pose is requested again
+min_keypoint_score = 0.3 # pose keypoints where depth is measured
+# max_age_secs: without the key. Measurement 912 does not ask for it in this video (the pose
+# renews by itself: p90 28 s between new poses).
+
+[senses.depth]
+model = "yolo26s-depth.onnx" # subject (with pose) and empty bed (with calibration)
+# posture_tolerance: 0.05 by default; measurement 912 proposes not changing it.
+
+# Learn the empty bed at startup; requires [senses.depth].
+[calibration]
+retry_secs = 2.0 # source seconds between failed attempts
+
+[policy]
+min_confidence = 0.5
+same_body_iou = 0.5
+near_bed_margin = 0.10
+dwell_secs = 2.0 # source seconds a new count must hold
+
+[map]
+resolution = [1920, 1080]
+bed = [[785,355], [1160,370], [1240,1075], [705,1075]]
+# Face region when no body is seen; with a body, the core asks for its box.
+headboard = [785,355,1160,520]
+
+[nats]
+url = "nats://127.0.0.1:4222"
+# prefix = "vision.north-residence.room-12"

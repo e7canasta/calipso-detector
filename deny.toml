@@ -1,0 +1,49 @@
+# Workspace licenses and advisories. The core's banned dependencies (rule 8)
+# are watched per crate by scripts/check.sh; cargo-deny does not tell crates apart.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+  # `paste` is archived (unmaintained, not a vulnerability). It is a build-time
+  # macro that comes through `image` (exr, rav1e) via `ultralytics-inference`.
+  # Revisit when the ONNX backend changes.
+  { id = "RUSTSEC-2024-0436", reason = "unmaintained; transitive build-time macro of the ONNX backend" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# Permissive (or weak per-file copyleft, MPL-2.0). They come with RTSP, FFmpeg,
+# image, ONNX Runtime and TLS. Strong copyleft (GPL, AGPL) is not allowed here:
+# each one is a business decision.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "Unicode-3.0",
+  "0BSD",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "CC0-1.0",
+  "Unlicense",
+  "WTFPL",
+  "NCSA",
+  "MPL-2.0",
+  "CDLA-Permissive-2.0",
+]
+# PENDING DECISION (2026-10-08): the ONNX backend is AGPL-3.0, as in v2. It
+# does not block development; it is reviewed before production.
+exceptions = [
+  { allow = ["AGPL-3.0"], crate = "ultralytics-inference" },
+]
+# The workspace crates are not published.
+private = { ignore = true }
+
+[bans]
+multiple-versions = "allow"

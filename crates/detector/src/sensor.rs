@@ -1,0 +1,120 @@
+//! The missing-samples timer, extracted from v2's main.rs @4c74723.
+//! It neither decides sensor changes nor emits domain facts.
+use std::time::{Duration, Instant};
+
+#[derive(Debug)]
+pub struct Stall {
+    last_sample: Instant,
+}
+
+impl Stall {
+    pub fn new(now: Instant) -> Self {
+        Self { last_sample: now }
+    }
+
+    pub fn on_sample(&mut self, now: Instant) {
+        self.last_sample = now;
+    }
+
+    pub fn expired(&self, now: Instant, timeout: Duration) -> bool {
+        now.saturating_duration_since(self.last_sample) >= timeout
+    }
+}
+
+/// Translates transport states; the core decides whether the sensor changed.
+pub fn translate(event: &ingest::StreamEvent) -> Option<scene_core::contract::SensorState> {
+    use scene_core::contract::SensorState;
+    match event {
+        ingest::StreamEvent::Connecting => Some(SensorState::Connecting),
+        ingest::StreamEvent::Streaming { .. } => Some(SensorState::Streaming),
+        ingest::StreamEvent::Disconnected { .. } => Some(SensorState::Reconnecting),
+        _ => {
+            tracing::warn!("unknown ingest event");
+            None
+        }
+    }
+}
+
+/// One reception deadline per session; armed on streaming and fired once.
+#[derive(Debug)]
+pub struct Sensor {
+    stall: Stall,
+    armed: bool,
+    fired: bool,
+}
+impl Sensor {
+    pub fn new(now: Instant) -> Self {
+        Self {
+            stall: Stall::new(now),
+            armed: false,
+            fired: false,
+        }
+    }
+    pub fn on_stream(&mut self, event: &ingest::StreamEvent, now: Instant) {
+        self.armed = matches!(event, ingest::StreamEvent::Streaming { .. });
+        self.fired = false;
+        self.stall.on_sample(now);
+    }
+    /// A sample restarts the deadline; if it recovers from a timeout, that must be reported.
+    pub fn on_sample(&mut self, now: Instant) -> bool {
+        let recovered = self.fired;
+        self.armed = true;
+        self.fired = false;
+        self.stall.on_sample(now);
+        recovered
+    }
+    pub fn poll(&mut self, now: Instant, timeout: Duration) -> bool {
+        if self.armed && !self.fired && self.stall.expired(now, timeout) {
+            self.fired = true;
+            true
+        } else {
+            false
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn a6_stall_only_while_streaming_and_a_sample_recovers() {
+        let t = Instant::now();
+        let limit = Duration::from_secs(3);
+        let mut sensor = Sensor::new(t);
+        assert!(!sensor.poll(t + limit, limit));
+        sensor.on_stream(&ingest::StreamEvent::Streaming { session: 1 }, t);
+        assert!(!sensor.poll(t + limit - Duration::from_nanos(1), limit));
+        assert!(sensor.poll(t + limit, limit));
+        assert!(!sensor.poll(t + limit, limit));
+        assert!(sensor.on_sample(t + limit));
+        assert!(!sensor.on_sample(t + limit));
+        sensor.on_stream(
+            &ingest::StreamEvent::Disconnected {
+                session: 1,
+                reason: ingest::IngestError::Protocol("test".into()),
+            },
+            t,
+        );
+        assert!(!sensor.poll(t + limit, limit));
+    }
+    #[test]
+    fn stream_is_translated_without_deduplicating() {
+        use scene_core::contract::SensorState;
+        assert_eq!(
+            translate(&ingest::StreamEvent::Connecting),
+            Some(SensorState::Connecting)
+        );
+        for _ in 0..2 {
+            assert_eq!(
+                translate(&ingest::StreamEvent::Streaming { session: 1 }),
+                Some(SensorState::Streaming)
+            );
+        }
+        assert_eq!(
+            translate(&ingest::StreamEvent::Disconnected {
+                session: 1,
+                reason: ingest::IngestError::Protocol("test".into())
+            }),
+            Some(SensorState::Reconnecting)
+        );
+    }
+}

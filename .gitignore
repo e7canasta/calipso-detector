@@ -1,0 +1,7 @@
+target/
+
+# ONNX models: they live in CALIPSO_MODELS, not in the repository.
+/*.onnx
+
+# Claude Code agent worktrees (local, not versioned)
+.claude/worktrees/

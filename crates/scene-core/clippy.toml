@@ -1,0 +1,22 @@
+# Rules 8 and 9: the core does no IO and reads no clocks. Clippy reads this file
+# from the crate directory. Every gap a fixture finds is added here.
+disallowed-types = [
+  { path = "std::time::Instant",      reason = "rules 8/9: the core reads no clocks; time arrives in Input" },
+  { path = "std::time::SystemTime",   reason = "rules 8/9: the core reads no clocks; time arrives in Input" },
+  { path = "std::fs::File",           reason = "rule 8: the core does no IO" },
+  { path = "std::fs::OpenOptions",    reason = "rule 8: the core does no IO" },
+  { path = "std::net::TcpStream",     reason = "rule 8: the core does no IO" },
+  { path = "std::net::TcpListener",   reason = "rule 8: the core does no IO" },
+  { path = "std::net::UdpSocket",     reason = "rule 8: the core does no IO" },
+  { path = "std::thread::Builder",    reason = "rule 8: the core creates no threads" },
+]
+disallowed-methods = [
+  { path = "std::thread::spawn",          reason = "rule 8: the core creates no threads" },
+  { path = "std::thread::sleep",          reason = "rule 8: the core does not wait" },
+  { path = "std::fs::read",               reason = "rule 8: the core does no IO" },
+  { path = "std::fs::read_to_string",     reason = "rule 8: the core does no IO" },
+  { path = "std::fs::write",              reason = "rule 8: the core does no IO" },
+  { path = "std::fs::read_dir",           reason = "rule 8: the core does no IO" },
+  { path = "std::env::var",               reason = "rule 8: configuration arrives in Policy" },
+  { path = "std::process::Command::new",  reason = "rule 8: the core does no IO" },
+]

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# The guardian: one command that verifies a commit (rule 17).
+# For each commit of a series:  git rebase -x scripts/check.sh main
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+step() { printf '\n== %s\n' "$1"; }
+fail() { printf '\n✗ %s\n' "$1" >&2; exit 1; }
+
+# Rule 8: the core does not depend on IO crates. cargo-deny bans for the whole
+# workspace and not per crate, so scene-core's tree is checked directly.
+FORBIDDEN_CORE_DEPS='image|ort|retina|tokio|async-nats|ffmpeg-next|ffmpeg-sys-next|reqwest|mio'
+check_core_deps() {
+  local found
+  found=$(cargo tree -p scene-core -e normal --prefix none --format '{p}' \
+            | awk '{print $1}' | grep -Ex "$FORBIDDEN_CORE_DEPS" | sort -u || true)
+  [ -z "$found" ] || fail "rule 8: scene-core depends on IO: $found"
+}
+
+step "format"
+cargo fmt --all --check || fail "format: run cargo fmt --all"
+
+step "lints"
+cargo clippy --workspace --all-targets --quiet -- -D warnings || fail "clippy"
+
+step "core dependencies"
+check_core_deps
+
+# 302 — ingest hides the transport, without depending on the domain (A-5).
+check_ingest_deps() {
+  local tree
+  tree=$(cargo tree -p ingest -e normal --prefix none --format '{p}') \
+    || fail "could not read the ingest tree"
+  if printf '%s\n' "$tree" | awk '{print $1}' | grep -qx scene-core; then
+    fail "302 A-5: ingest depends on scene-core"
+  fi
+}
+step "ingest dependencies"
+check_ingest_deps
+# /302
+
+# 303 — sense is synchronous: its ONNX adapters stay without transport too.
+check_sense_deps() {
+  local tree found
+  tree=$(cargo tree -p sense --all-features -e normal --prefix none --format '{p}') \
+    || fail "could not read the sense tree"
+  found=$(printf '%s\n' "$tree" \
+    | awk '$1 == "tokio" || $1 == "async-nats" { print $1 }' | sort -u)
+  [ -z "$found" ] || fail "303: sense depends on async transport: $found"
+}
+step "sense dependencies (with ONNX)"
+check_sense_deps
+# /303
+
+# R12-2, R13-1 — the domain does not speak contract: it decides with its own
+# vocabulary (`time`, `zone`, `body`, `provenance`, `look`, `evidence`,
+# `attention`, `map`, `sensor`, `refine`) and `contract` re-exports it. Only
+# these publish: `project` (translates), `chronicle` (remembers what was
+# published) and `cycle` (composes the `Output`).
+check_domain_contract() {
+  local found
+  found=$(grep -rl 'crate::contract' crates/scene-core/src \
+            | grep -vE '^crates/scene-core/src/(contract/|project/|chronicle\.rs$|cycle\.rs$)' \
+            || true)
+  [ -z "$found" ] || fail "R13-1: the domain imports the contract: $found"
+}
+step "the domain without contract"
+check_domain_contract
+# /R12-2
+
+step "tests"
+cargo test --workspace --quiet || fail "tests"
+
+
+step "licenses and advisories"
+cargo deny --log-level error check licenses advisories || fail "licenses or advisories"
+
+printf '\n✓ commit verified\n'

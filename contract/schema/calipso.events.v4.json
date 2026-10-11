@@ -1,0 +1,916 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "The envelope of every v4 message: the usual one, with v4's `SchemaId` (D9-3).",
+  "type": "object",
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/Event"
+    },
+    "event_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_event_seq": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0
+    },
+    "observed_at": {
+      "description": "Source time of what is claimed: without a new sample, that of the last\nobserved one.",
+      "$ref": "#/$defs/SampleRef"
+    },
+    "profile": {
+      "$ref": "#/$defs/Profile"
+    },
+    "published_at_ms": {
+      "description": "Wall clock; set by publishing, never by the core.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "schema": {
+      "$ref": "#/$defs/SchemaId"
+    },
+    "seq": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "timing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Timing"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "source",
+    "seq",
+    "observed_at",
+    "published_at_ms",
+    "profile",
+    "body"
+  ],
+  "$defs": {
+    "BedState": {
+      "description": "Is someone in the bed?",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "empty"
+          ]
+        },
+        {
+          "description": "At least one visible occupant in the bed's stable count.",
+          "type": "string",
+          "const": "seen"
+        },
+        {
+          "description": "Nobody seen, with retained occupants.",
+          "type": "string",
+          "const": "held"
+        },
+        {
+          "description": "The bed geometry does not apply to the image.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "Before": {
+      "description": "What we believed, since when and for how long.",
+      "type": "object",
+      "properties": {
+        "bed": {
+          "description": "`unknown` if the geometry does not apply, even with counts.",
+          "$ref": "#/$defs/BedState"
+        },
+        "lasted_secs": {
+          "description": "Source seconds since `since`; `None` without `since` or across sessions.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode"
+        },
+        "rbh": {
+          "$ref": "#/$defs/Rbh"
+        },
+        "since": {
+          "description": "The sample of the previous transition; `None` on the first.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unexplained": {
+          "description": "Bodies in the bed that are not occupants (rule 6).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "rbh",
+        "mode",
+        "bed",
+        "unexplained"
+      ]
+    },
+    "Build": {
+      "type": "object",
+      "properties": {
+        "git": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "git"
+      ]
+    },
+    "Cause": {
+      "description": "Why an event happened.",
+      "oneOf": [
+        {
+          "description": "The zone count stabilized at a new value.",
+          "type": "string",
+          "const": "stabilized"
+        },
+        {
+          "description": "The shell reported a reception change.",
+          "type": "string",
+          "const": "sensor_reported"
+        },
+        {
+          "description": "The map learned something about the static world.",
+          "type": "string",
+          "const": "map_learned"
+        },
+        {
+          "description": "The bed had no history yet since the engine started: what is seen is\nadopted, stabilized, without a step from the floor.",
+          "type": "string",
+          "const": "baseline"
+        }
+      ]
+    },
+    "Cell": {
+      "description": "The cell of a transition: `before:seen:after`, the natural key of the row\n(D2). Each part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`), as in book 3.",
+      "type": "string",
+      "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$"
+    },
+    "Context": {
+      "description": "What happened during the span and decided the cell.",
+      "type": "object",
+      "properties": {
+        "far": {
+          "description": "How many appeared far from the bed.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "passing": {
+          "description": "How many appeared in passing.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "far",
+        "passing"
+      ]
+    },
+    "DerivedEvent": {
+      "description": "A change in what was published, with the occupancy at the end of the turn.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/Occupancy"
+        },
+        "at": {
+          "$ref": "#/$defs/SampleRef"
+        },
+        "cause": {
+          "$ref": "#/$defs/Cause"
+        }
+      },
+      "oneOf": [
+        {
+          "description": "The mode changed (in v3, the state).",
+          "type": "object",
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/Mode"
+            },
+            "to": {
+              "$ref": "#/$defs/Mode"
+            },
+            "type": {
+              "type": "string",
+              "const": "room_changed"
+            }
+          },
+          "required": [
+            "type",
+            "from",
+            "to"
+          ]
+        },
+        {
+          "description": "The bed changed; it goes to `unknown` without a transition.",
+          "type": "object",
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/BedState"
+            },
+            "to": {
+              "$ref": "#/$defs/BedState"
+            },
+            "type": {
+              "type": "string",
+              "const": "bed_changed"
+            }
+          },
+          "required": [
+            "type",
+            "from",
+            "to"
+          ]
+        }
+      ],
+      "required": [
+        "cause",
+        "at",
+        "after"
+      ]
+    },
+    "Event": {
+      "description": "A message of `events.v4`. Within a turn they come out in order: `sensor`,\n`transition`, `map`, `derived`.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "transition"
+            }
+          },
+          "$ref": "#/$defs/Transition",
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "derived"
+            }
+          },
+          "$ref": "#/$defs/DerivedEvent",
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "sensor"
+            }
+          },
+          "$ref": "#/$defs/SensorEvent",
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "map"
+            }
+          },
+          "$ref": "#/$defs/MapEvent",
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "Fact": {
+      "description": "A fact within its transition, with the occupancy it leaves.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/Occupancy"
+        },
+        "cause": {
+          "$ref": "#/$defs/Cause"
+        }
+      },
+      "oneOf": [
+        {
+          "description": "Someone appeared on the floor: they entered the room.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "entered"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Someone stopped being seen on the floor: they left the room.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "left_room"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Someone appeared in bed coming from the floor; with cause `baseline`,\nthey were found in bed at startup.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "lay_down"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Someone was seen moving from the bed to the floor.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "left_bed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Someone stopped being seen in bed without leaving: they are retained.",
+          "type": "object",
+          "properties": {
+            "last_seen": {
+              "$ref": "#/$defs/SampleRef"
+            },
+            "type": {
+              "type": "string",
+              "const": "held_in_bed"
+            }
+          },
+          "required": [
+            "type",
+            "last_seen"
+          ]
+        },
+        {
+          "description": "Someone retained in bed was seen again.",
+          "type": "object",
+          "properties": {
+            "held_since": {
+              "$ref": "#/$defs/SampleRef"
+            },
+            "type": {
+              "type": "string",
+              "const": "reappeared"
+            }
+          },
+          "required": [
+            "type",
+            "held_since"
+          ]
+        }
+      ],
+      "required": [
+        "cause",
+        "after"
+      ]
+    },
+    "Fv": {
+      "description": "The pair `[F, V]`: admitted bodies seen on the floor and in bed.",
+      "type": "array",
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      ]
+    },
+    "LayerRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ]
+    },
+    "LookKind": {
+      "description": "What was asked to be looked at.",
+      "oneOf": [
+        {
+          "description": "The main person detector.",
+          "type": "string",
+          "const": "detect"
+        },
+        {
+          "description": "The face detector.",
+          "type": "string",
+          "const": "faces"
+        },
+        {
+          "description": "The finer detector over the bed, when the subject is lost.",
+          "type": "string",
+          "const": "reinforce"
+        },
+        {
+          "description": "The subject's pose.",
+          "type": "string",
+          "const": "pose"
+        },
+        {
+          "description": "The depth at image points.",
+          "type": "string",
+          "const": "depth"
+        },
+        {
+          "description": "The depth of the empty bed, to learn it.",
+          "type": "string",
+          "const": "calibrate"
+        }
+      ]
+    },
+    "MapEvent": {
+      "description": "What the map learned: not an occupancy fact.",
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/SampleRef"
+        },
+        "cause": {
+          "$ref": "#/$defs/Cause"
+        }
+      },
+      "oneOf": [
+        {
+          "description": "The map learned the depth of the empty bed.",
+          "type": "object",
+          "properties": {
+            "reference_m": {
+              "type": "number",
+              "format": "float"
+            },
+            "type": {
+              "type": "string",
+              "const": "bed_calibrated"
+            }
+          },
+          "required": [
+            "type",
+            "reference_m"
+          ]
+        }
+      ],
+      "required": [
+        "cause",
+        "at"
+      ]
+    },
+    "Mode": {
+      "description": "The mode of the layer-0 machine: the name of its state.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "empty"
+          ]
+        },
+        {
+          "description": "One occupant, off the bed.",
+          "type": "string",
+          "const": "alone_out"
+        },
+        {
+          "description": "One occupant in bed, seen in the stable count.",
+          "type": "string",
+          "const": "alone_in_bed_seen"
+        },
+        {
+          "description": "One occupant in bed, retained.",
+          "type": "string",
+          "const": "alone_in_bed_held"
+        },
+        {
+          "description": "More than one occupant.",
+          "type": "string",
+          "const": "accompanied"
+        }
+      ]
+    },
+    "Occupancy": {
+      "description": "The occupancy: a single shape for all of v4 (before, after, each fact).",
+      "type": "object",
+      "properties": {
+        "bed": {
+          "description": "`unknown` if the geometry does not apply, even with counts.",
+          "$ref": "#/$defs/BedState"
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode"
+        },
+        "rbh": {
+          "$ref": "#/$defs/Rbh"
+        },
+        "unexplained": {
+          "description": "Bodies in the bed that are not occupants (rule 6).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "rbh",
+        "mode",
+        "bed",
+        "unexplained"
+      ]
+    },
+    "Phase": {
+      "description": "The phase of rule 6: until the first climb into bed, whatever appears in\nit is adopted.",
+      "type": "string",
+      "enum": [
+        "booting",
+        "running"
+      ]
+    },
+    "Profile": {
+      "type": "object",
+      "properties": {
+        "camera": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LayerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hash": {
+          "$ref": "#/$defs/ProfileHash"
+        },
+        "resident": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LayerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "senses": {
+          "description": "What each configured sense looks with. `hash` already covers them; this\nnames them for whoever watches, as in v2. Empty if the shell does not\nreport them.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SenseProfile"
+          }
+        }
+      },
+      "required": [
+        "hash"
+      ]
+    },
+    "ProfileHash": {
+      "description": "Hash of the effective policy the engine ran with.",
+      "type": "string"
+    },
+    "Rbh": {
+      "description": "The triple `[R, B, H]`: occupants of the room, of the bed (seen and\nretained) and retained. They are counts: `0 ≤ H ≤ B ≤ R`.",
+      "type": "array",
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      ]
+    },
+    "SampleRef": {
+      "description": "Which sample and when, in source time. It is the domain's only clock\n(rule 9).",
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "session": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "source_secs": {
+          "$ref": "#/$defs/SourceSecs"
+        }
+      },
+      "required": [
+        "session",
+        "sequence",
+        "source_secs"
+      ]
+    },
+    "SchemaId": {
+      "description": "Which schema a v4 message carries.",
+      "type": "string",
+      "enum": [
+        "calipso.scene.v4",
+        "calipso.events.v4"
+      ]
+    },
+    "Seen": {
+      "description": "What we saw: the count that held, the span and its context.",
+      "type": "object",
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "fv": {
+          "$ref": "#/$defs/Fv"
+        },
+        "span": {
+          "$ref": "#/$defs/Span"
+        }
+      },
+      "required": [
+        "fv",
+        "span",
+        "context"
+      ]
+    },
+    "SenseProfile": {
+      "description": "The model and thresholds of a sense.",
+      "type": "object",
+      "properties": {
+        "backend_confidence": {
+          "description": "Below this score the backend does not return the candidate.",
+          "type": "number",
+          "format": "float"
+        },
+        "kind": {
+          "$ref": "#/$defs/LookKind"
+        },
+        "min_confidence": {
+          "description": "Below this score the policy does not admit the candidate.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "model": {
+          "description": "The model file, without its path.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "model",
+        "backend_confidence"
+      ]
+    },
+    "SensorEvent": {
+      "description": "A reception change, reported by the shell.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/Occupancy"
+        },
+        "at": {
+          "$ref": "#/$defs/SampleRef"
+        },
+        "cause": {
+          "$ref": "#/$defs/Cause"
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/SensorState"
+            },
+            "to": {
+              "$ref": "#/$defs/SensorState"
+            },
+            "type": {
+              "type": "string",
+              "const": "sensor_changed"
+            }
+          },
+          "required": [
+            "type",
+            "from",
+            "to"
+          ]
+        }
+      ],
+      "required": [
+        "cause",
+        "at",
+        "after"
+      ]
+    },
+    "SensorState": {
+      "description": "The reception state, as the shell reports it. It says nothing about the bed.",
+      "type": "string",
+      "enum": [
+        "connecting",
+        "streaming",
+        "stalled",
+        "reconnecting"
+      ]
+    },
+    "SessionId": {
+      "description": "Source session. Source time is only comparable within one session.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "Source": {
+      "description": "Identity of the publishing shell; the core does not build these values.",
+      "type": "object",
+      "properties": {
+        "build": {
+          "$ref": "#/$defs/Build"
+        },
+        "camera": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "site": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "site",
+        "camera",
+        "run_id",
+        "build"
+      ]
+    },
+    "SourceSecs": {
+      "description": "Seconds of source time (video PTS) within a session.",
+      "type": "number",
+      "format": "double"
+    },
+    "Span": {
+      "description": "The span that held: from which sample and for how many source seconds.",
+      "type": "object",
+      "properties": {
+        "first": {
+          "$ref": "#/$defs/SampleRef"
+        },
+        "secs": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "first",
+        "secs"
+      ]
+    },
+    "Timing": {
+      "type": "object",
+      "properties": {
+        "processing_ms": {
+          "type": "number",
+          "format": "double"
+        },
+        "wait_ms": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "wait_ms",
+        "processing_ms"
+      ]
+    },
+    "Transition": {
+      "description": "A layer-0 change: what we believed, what we saw, what we believe and the\nfacts, in order (D9-1).",
+      "type": "object",
+      "properties": {
+        "after": {
+          "description": "The occupancy we believe: that of the last fact.",
+          "$ref": "#/$defs/Occupancy"
+        },
+        "at": {
+          "$ref": "#/$defs/SampleRef"
+        },
+        "before": {
+          "$ref": "#/$defs/Before"
+        },
+        "cell": {
+          "$ref": "#/$defs/Cell"
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Fact"
+          }
+        },
+        "phase": {
+          "description": "The phase it was decided with.",
+          "$ref": "#/$defs/Phase"
+        },
+        "seen": {
+          "$ref": "#/$defs/Seen"
+        }
+      },
+      "required": [
+        "at",
+        "cell",
+        "phase",
+        "before",
+        "seen",
+        "after",
+        "facts"
+      ]
+    }
+  }
+}

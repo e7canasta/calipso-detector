@@ -1,0 +1,44 @@
+[package]
+name = "detector"
+description = "The per-camera binary: composition, loop driver and publishing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "calipso-detector"
+path = "src/main.rs"
+
+[dependencies]
+scene-core = { path = "../scene-core" }
+golden = { path = "../golden" }
+ingest = { path = "../ingest" }
+sense = { path = "../sense", features = ["onnx"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+async-nats = "0.47"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
+toml = "0.8"
+serde_json = "1"
+sha2 = "0.10"
+ulid = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2"
+image = { version = "0.25", default-features = false }
+
+[dev-dependencies]
+cucumber = "0.23.0"
+jsonschema = { version = "0.33", default-features = false }
+futures = "0.3"
+
+[[test]]
+name = "bdd"
+path = "tests/bdd/main.rs"
+harness = false

@@ -1,0 +1,16 @@
+# Owners per subsystem (rule 19). Everyone touches everything; the owner reviews.
+# A change that crosses a contract needs a review from both sides.
+# Owners are assigned when the rules are ratified; until then, the pair.
+
+/crates/scene-core/src/belief/      @calipso/belief
+/crates/scene-core/src/attention/   @calipso/attention
+/crates/scene-core/src/map/         @calipso/map-evidence
+/crates/scene-core/src/evidence/    @calipso/map-evidence
+/crates/scene-core/src/cycle/       @calipso/cycle-driver
+/crates/detector/src/driver*        @calipso/cycle-driver
+/crates/scene-core/src/contract/    @calipso/publish-contract
+/crates/scene-core/src/project/     @calipso/publish-contract
+/crates/detector/src/publish*       @calipso/publish-contract
+/crates/sense/                      @calipso/sense
+/crates/ingest/                     @calipso/ingest
+/crates/detector/src/profiles*      @calipso/profiles

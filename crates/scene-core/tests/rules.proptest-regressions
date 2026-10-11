@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0f867c759ebb90156066f9dcb0ee17761214f88986f81b17b433fc972908f685 # shrinks to sequence = [Step { bed: 1, near: 0, far: 0, failure: None, repeat: 3, reconnection: false }, Step { bed: 2, near: 0, far: 0, failure: None, repeat: 3, reconnection: false }, Step { bed: 0, near: 2, far: 1, failure: None, repeat: 3, reconnection: false }, Step { bed: 1, near: 0, far: 0, failure: None, repeat: 3, reconnection: false }]
