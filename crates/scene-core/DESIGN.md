@@ -10,7 +10,7 @@
 
 `scene-core` is the detector's core: **it believes on partial evidence, decides
 where to look and projects what it believes.** It is a deterministic function
-of `(Policy, SiteMap, Input*, Outcome*)`: with the same inputs it gives the same
+of `(Policy, SiteMap, Input*, Reading*)`: with the same inputs it gives the same
 scene and the same facts, always.
 
 It sees no pixels, calls no models, reads no clocks, touches no network, disk or
@@ -20,10 +20,10 @@ comes back.
 
 ```text
           shell (detector)                     core (scene-core)
-  ┌──────────────────────────┐  Input / Outcome  ┌─────────────────────────┐
+  ┌──────────────────────────┐  Input / Reading  ┌─────────────────────────┐
   │ decode · senses (ONNX)   │ ────────────────► │ Monitor / Turn          │
   │ NATS · clock             │ ◄──────────────── │   believe, decide,      │
-  └──────────────────────────┘  Step::Look,      │   project               │
+  └──────────────────────────┘  Request,         │   project               │
                                 Output           └─────────────────────────┘
 ```
 
@@ -68,7 +68,7 @@ number.
 | C1 | **Consumers are not broken.** A published version keeps going out unchanged, byte for byte, while someone reads it | The kernel's "we don't break userspace" |
 | C2 | **Expand, migrate, contract.** A new version goes out next to the old one; consumers migrate one at a time; the old one is retired | Fowler, *Parallel Change* |
 | C3 | **One version, one source.** Each version is defined once (`contract::v4`) and its JSON Schema comes from the types (rule 13) | |
-| C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same `finish`: they cannot tell different things | |
+| C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same turn: they cannot tell different things | |
 | C5 | **A test proves it.** While two versions are published together, a test lowers the new one to the old one on every turn of the suites; it is retired with the old version | Metamorphic testing |
 
 A published version is frozen (C1), so its types are deliberately **not**
@@ -83,8 +83,8 @@ What no change may break. Each one has someone watching it.
 |---|---|---|
 | No IO: no clocks, files, network or threads | 8 | `clippy.toml`, `scripts/check.sh` (dependency tree) |
 | Only source time; never compared across sessions | 9 | `SampleRef::secs_since` returns `None` across sessions |
-| The loop is a protocol: a turn is not abandoned | 10 | `Turn` is `#[must_use]` and holds the belief exclusively |
-| `cycle` only sequences; each decision belongs to another module | 11 | review; the order lives in `Turn::next` |
+| The loop is a protocol: a turn is not abandoned | 10 | `Turn` is `#[must_use]`, holds the belief exclusively and only `drive` or `cancel` close it |
+| `cycle` only sequences; each decision belongs to another module | 11 | `scripts/check.sh` (cycle consults no policy); review; the order lives in `Course::next` |
 | Every attention decision has a reason | 12 | `SkipReason` on every no |
 | One contract, one source: the JSON Schema comes from the types | 13 | the contract snapshots |
 | No panics: no `unwrap`, `expect` or indexing | 21 | `#![deny(...)]` in `lib.rs` |
@@ -94,31 +94,32 @@ What no change may break. Each one has someone watching it.
 
 ## 3. The loop: one turn per sample
 
-The public API is the loop protocol: `Monitor` opens a `Turn` per sample; the
-turn asks for looks (`Step::Look`), receives readings (`feed`) and closes with
-`finish`, which returns the `Output` (`at`, `scene`, `events`).
+The public API is the loop protocol: `Monitor::handle` opens a `Turn` per
+input and `Turn::drive` runs it to the end. For each `Request` the shell looks
+and returns a `Reading` (or a `Failure`) and how long it took; the turn closes
+with the `Output` (`at`, `scene`, `events`). `Turn::cancel` closes it as a
+shutdown. There is no other way through: the shell has nothing to misuse.
 
 `Monitor` composes three pieces that do not mix (P4, P5): the
 **engine** (`Engine`: policy, map, belief, sensor), which decides with what it
 sees; the **chronicle** (`chronicle::Chronicle`), which remembers the
-domain; and the last scene, for republishing. `finish` splits the turn in
+domain; and the last scene, for republishing. Closing splits the turn in
 two phases: the engine returns a `Conclusion` (an `Observation` or what to
 republish) without reading the chronicle, and `Monitor::project` notes it in
 the chronicle and translates it to the contract.
 
 ```text
  Engine ──► Conclusion ──► Chronicle::record ──► Chronicled ─┐
-                │                                            ├──► project::observed ──► Output
+                │                                            ├──► project::v4::observed ──► Output
                 └────────────────────────────────────────────┘
 ```
 
-`project::observed` splits the observation into what every version publishes
-the same way (`Shared`: evidence, bed, subject, map, …), computed once, and
-layer 0 (`Layer0`: the occupancy, the transition, the calibration), which each
-version translates its own way (`project::v4`). `Output` carries the turn's
-`scene` and `events` in the published version. A version published next to it
-(C2) adds its own module and its own fields, and a test lowers one to the
-other (C5).
+`project::v4::observed` translates the observation into the published
+version. What no version changes (the evidence, the bed, the subject, how
+republishing degrades) lives in `project` itself, as `contract::common` does
+for the types. `Output` carries the turn's `scene` and `events` in the
+published version. A version published next to it (C2) adds its own module,
+and a test lowers one to the other (C5).
 
 ```text
  look ──► evidence ──► belief ──────────────► refine ──► project ──► Output
@@ -131,7 +132,7 @@ other (C5).
 One turn, in order: detect over the whole image; admit bodies per zone;
 reinforce a loss in bed?; believe (stabilize, conserve, derive the subject);
 calibrate, pose, depth?; conclude the enrichment; project the scene and the
-facts. The order lives in a single place: `Turn::next` (`cycle.rs`).
+facts. The order lives in a single place: `Course::next` (`cycle/sequence.rs`).
 
 ## 4. Mechanism and policy
 
@@ -246,8 +247,8 @@ One concept, one name.
 | engine | `Engine` | What decides: policy, map, belief and sensor; it does not remember what was published |
 | conclusion | `conclusion::Conclusion` | What the engine concludes from a closed turn, before the chronicle and the contract: an `Observation` or what to republish |
 | observation | `conclusion::Observation` | What a turn observed and believed, together: the input of the chronicle and the projection |
-| look, probe | `look`, `Step::Look` | What the core asks the shell to look at |
-| reading | `Outcome` | What the shell returns for a probe |
+| look, probe | `look`, `Request` | What the core asks the shell to look at |
+| reading | `Reading` | What the shell returns for a probe |
 | evidence | `evidence` | Which reading counts and how much it is worth; it never decides what is believed |
 | count | `zone::Counts`, `ZoneCounts` | Bodies per zone: floor, bed, held |
 | span | `Span` | From the last stable count until a new one holds |
@@ -284,7 +285,7 @@ matters as much as the second.
 | Module | Responsibility | Never |
 |---|---|---|
 | `lib.rs` | The public API and rule 21's `deny` | exposes how the core believes |
-| `cycle` (+ `waiting`) | Sequences the turn and keeps the ledger | decides anything |
+| `cycle` (+ `monitor`, `sequence`, `waiting`) | The loop protocol (`cycle`), what one camera is made of and what comes out of a turn (`monitor`), the order of a turn and its ledger (`sequence`), each probe with its continuation (`waiting`) | decides anything |
 | `look` | The protocol's vocabulary: probes, readings, what was asked (`LookKind`) and how it failed | contains pixels |
 | `evidence` | Admits readings: one body per person, its zone | decides what is believed or looked at |
 | `belief` | The belief: joins layer 0 and the subject | sees a raw reading |
@@ -338,6 +339,8 @@ round is integrated.
 | The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | verifying the held occupant (book 4) |
 | The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
 | `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Their descriptions say so; renaming them changes the wire, so it waits for the next contract version (C2), together with the positional `rbh` and `fv` | next contract version |
+| The scene's `last_event_seq` is written by the NATS actor (the last event delivered), not where the stream is numbered | The transport writes into the published body: the in-memory sink and NATS agree only while no event is dropped. Moving it changes what the field means to its consumers (C1) | next contract version |
+| `Input::Sensor` carries a `SampleRef`, and the shell makes one up from the last sample (`Driver::sensor_at`) | The turn's `at` is published as the envelope's `observed_at`, which is not optional: a reception change with no sample needs it to be optional | next contract version |
 | The contract re-exports domain types instead of owning wire types | Consumers depend on `scene-core` to read the contract. A separate wire crate (like the kernel's `uapi` headers) would let consumers depend only on the published language | next |
 
 ## Sources

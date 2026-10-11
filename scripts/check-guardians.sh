@@ -8,7 +8,11 @@ export CARGO_TARGET_DIR="$root/target/guardians"
 status=0
 for fixture in scripts/fixtures/*.sh; do
   name=$(basename "$fixture" .sh)
-  work=$(mktemp -d)
+  # The copy keeps its name next to calipso-golden: the path dependencies
+  # between both repositories resolve to the copy.
+  tmp=$(mktemp -d)
+  work="$tmp/calipso-detector"
+  ln -s "$(cd "$root/../calipso-golden" && pwd)" "$tmp/calipso-golden"
   rsync -a --exclude target --exclude .git "$root/" "$work/"
   (cd "$work" && bash "$root/$fixture")
   if (cd "$work" && scripts/check.sh >"$work/check.log" 2>&1); then
@@ -16,6 +20,6 @@ for fixture in scripts/fixtures/*.sh; do
   else
     printf '✓ %s: failed as it should (%s)\n' "$name" "$(grep -m1 '✗' "$work/check.log" | sed 's/^✗ //')"
   fi
-  rm -rf "$work"
+  rm -rf "$tmp"
 done
 exit $status

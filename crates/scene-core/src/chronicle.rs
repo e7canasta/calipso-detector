@@ -5,6 +5,8 @@
 //! (P1, P4).
 
 use crate::belief::{Alone, Room, Transition, ZoneCounts};
+use crate::conclusion::Observation;
+use crate::evidence::BodyEvidence;
 use crate::time::SampleRef;
 use crate::zone::Counts;
 
@@ -121,6 +123,26 @@ pub(crate) struct Entry {
     pub seen: bool,
     /// The transition, if layer 0 changed in this turn.
     pub transition: Option<TransitionKey>,
+}
+
+impl Entry {
+    /// What the chronicle notes of a concluded turn: the room's name, the
+    /// bed's kind and whether it saw bodies per zone.
+    pub(crate) fn of(observation: &Observation) -> Self {
+        let occupancy = &observation.believed.occupancy;
+        let totals = occupancy.totals();
+        Self {
+            at: observation.at,
+            room: RoomName::of(totals),
+            bed: BedKind::of(totals, occupancy.bed_known),
+            seen: matches!(observation.evidence.bodies.bodies, BodyEvidence::Seen(_)),
+            transition: observation
+                .believed
+                .transition
+                .as_ref()
+                .map(TransitionKey::of),
+        }
+    }
 }
 
 impl Chronicle {

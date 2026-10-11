@@ -1,9 +1,8 @@
 //! Minimal shell configuration; policies are handed over by value.
 use anyhow::{Context, Result, ensure};
 use scene_core::{
-    FrameInfo,
     geom::{Point, Quad, Rect},
-    map::SiteMap,
+    map::{FrameInfo, SiteMap},
     policy::{CalibrationPolicy, EnrichPolicy, FacePolicy, Policy, ReinforcePolicy},
 };
 use serde::{Deserialize, Serialize};
@@ -37,13 +36,13 @@ pub struct Stream {
     pub url: String,
     pub username: Option<String>,
     pub password: Option<String>,
-    #[serde(default = "yes")]
+    #[serde(default = "defaults::keyframe_only")]
     pub keyframe_only: bool,
-    #[serde(default = "five")]
+    #[serde(default = "defaults::reconnect_delay_secs")]
     pub reconnect_delay_secs: u64,
-    #[serde(default = "thousand")]
+    #[serde(default = "defaults::sample_interval_ms")]
     pub sample_interval_ms: u64,
-    #[serde(default = "ten")]
+    #[serde(default = "defaults::stall_timeout_secs")]
     pub stall_timeout_secs: u64,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -66,14 +65,17 @@ pub struct Depth {
     pub model: PathBuf,
     /// Relative disparity of "sitting"; serialized only if it changes, so
     /// the hash of a profile that does not touch it does not change.
-    #[serde(default = "five_percent", skip_serializing_if = "is_five_percent")]
+    #[serde(
+        default = "defaults::posture_tolerance",
+        skip_serializing_if = "defaults::is_posture_tolerance"
+    )]
     pub posture_tolerance: f32,
 }
 /// `CalibrationPolicy`: the delay between attempts, in source seconds.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationConfig {
-    #[serde(default = "two")]
+    #[serde(default = "defaults::calibration_retry_secs")]
     pub retry_secs: f64,
 }
 /// The subject's pose: the model and the `EnrichPolicy` parameters.
@@ -81,14 +83,14 @@ pub struct CalibrationConfig {
 #[serde(deny_unknown_fields)]
 pub struct Pose {
     pub model: PathBuf,
-    #[serde(default = "quarter")]
+    #[serde(default = "defaults::backend_confidence")]
     pub backend_confidence: f32,
     /// Fraction of the reference box diagonal from which the subject moved and
     /// the pose is requested again.
-    #[serde(default = "tenth")]
+    #[serde(default = "defaults::move_threshold")]
     pub move_threshold: f32,
     /// Minimum score of a pose keypoint to measure depth at it.
-    #[serde(default = "thirty_percent")]
+    #[serde(default = "defaults::min_keypoint_score")]
     pub min_keypoint_score: f32,
     /// Age from which a still pose is requested again; without it, as
     /// always. Serialized only if present, so the hash does not change.
@@ -99,25 +101,25 @@ pub struct Pose {
 #[serde(deny_unknown_fields)]
 pub struct Faces {
     pub model: PathBuf,
-    #[serde(default = "quarter")]
+    #[serde(default = "defaults::backend_confidence")]
     pub backend_confidence: f32,
-    #[serde(default = "thirty_percent")]
+    #[serde(default = "defaults::face_min_confidence")]
     pub min_confidence: f32,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reinforce {
     pub model: PathBuf,
-    #[serde(default = "quarter")]
+    #[serde(default = "defaults::backend_confidence")]
     pub backend_confidence: f32,
-    #[serde(default = "fifteen_percent")]
+    #[serde(default = "defaults::bed_padding")]
     pub bed_padding: f32,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Detect {
     pub model: PathBuf,
-    #[serde(default = "quarter")]
+    #[serde(default = "defaults::backend_confidence")]
     pub backend_confidence: f32,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -129,13 +131,19 @@ pub struct PolicyConfig {
     /// Source seconds a new count must hold.
     pub dwell_secs: f64,
 }
+/// Without a `[policy]` section, the core's own defaults.
 impl Default for PolicyConfig {
     fn default() -> Self {
+        let Policy {
+            admission,
+            persistence,
+            ..
+        } = Policy::default();
         Self {
-            min_confidence: 0.5,
-            same_body_iou: 0.5,
-            near_bed_margin: 0.10,
-            dwell_secs: 2.0,
+            min_confidence: admission.min_confidence,
+            same_body_iou: admission.same_body_iou,
+            near_bed_margin: admission.near_bed_margin,
+            dwell_secs: persistence.dwell_secs,
         }
     }
 }
@@ -152,38 +160,69 @@ pub struct NatsConfig {
     pub url: String,
     pub prefix: Option<String>,
 }
-fn yes() -> bool {
-    true
+/// What a profile gets when it leaves a field out. Each value is named by what
+/// it means: two fields that share a number do not share a default.
+mod defaults {
+    pub fn keyframe_only() -> bool {
+        true
+    }
+    pub fn reconnect_delay_secs() -> u64 {
+        5
+    }
+    pub fn sample_interval_ms() -> u64 {
+        1000
+    }
+    pub fn stall_timeout_secs() -> u64 {
+        10
+    }
+    pub fn backend_confidence() -> f32 {
+        0.25
+    }
+    pub fn calibration_retry_secs() -> f64 {
+        2.0
+    }
+    pub fn posture_tolerance() -> f32 {
+        0.05
+    }
+    pub fn is_posture_tolerance(value: &f32) -> bool {
+        *value == posture_tolerance()
+    }
+    pub fn move_threshold() -> f32 {
+        0.10
+    }
+    pub fn bed_padding() -> f32 {
+        0.15
+    }
+    pub fn face_min_confidence() -> f32 {
+        0.30
+    }
+    pub fn min_keypoint_score() -> f32 {
+        0.30
+    }
 }
-fn five() -> u64 {
-    5
+
+/// A score or a ratio: finite and between 0 and 1.
+fn fraction(name: &str, value: f32) -> Result<()> {
+    ensure!(
+        value.is_finite() && (0.0..=1.0).contains(&value),
+        "{name} must be between 0 and 1"
+    );
+    Ok(())
 }
-fn thousand() -> u64 {
-    1000
+
+/// A margin or a delay: finite and not negative.
+fn not_negative(name: &str, value: f64) -> Result<()> {
+    ensure!(
+        value.is_finite() && value >= 0.0,
+        "{name} must be finite and not negative"
+    );
+    Ok(())
 }
-fn ten() -> u64 {
-    10
-}
-fn quarter() -> f32 {
-    0.25
-}
-fn two() -> f64 {
-    2.0
-}
-fn five_percent() -> f32 {
-    0.05
-}
-fn is_five_percent(value: &f32) -> bool {
-    *value == five_percent()
-}
-fn tenth() -> f32 {
-    0.10
-}
-fn fifteen_percent() -> f32 {
-    0.15
-}
-fn thirty_percent() -> f32 {
-    0.30
+
+/// Every sense names its model.
+fn model(name: &str, path: &Path) -> Result<()> {
+    ensure!(!path.as_os_str().is_empty(), "{name} is empty");
+    Ok(())
 }
 
 fn resolve_model_path(model: &Path, base: Option<&Path>) -> PathBuf {
@@ -286,76 +325,43 @@ impl Config {
 
     /// Each sense section, and that depth and calibration ask for each other.
     fn validate_senses(&self) -> Result<()> {
-        ensure!(
-            !self.senses.detect.model.as_os_str().is_empty(),
-            "senses.detect.model is empty"
-        );
+        model("senses.detect.model", &self.senses.detect.model)?;
         if let Some(reinforce) = &self.senses.reinforce {
-            ensure!(
-                !reinforce.model.as_os_str().is_empty(),
-                "senses.reinforce.model is empty"
-            );
-            ensure!(
-                reinforce.backend_confidence.is_finite()
-                    && (0.0..=1.0).contains(&reinforce.backend_confidence),
-                "senses.reinforce.backend_confidence must be between 0 and 1"
-            );
+            model("senses.reinforce.model", &reinforce.model)?;
+            fraction(
+                "senses.reinforce.backend_confidence",
+                reinforce.backend_confidence,
+            )?;
             ensure!(
                 reinforce.backend_confidence <= self.policy.min_confidence,
                 "senses.reinforce.backend_confidence cannot exceed policy.min_confidence"
             );
-            ensure!(
-                reinforce.bed_padding.is_finite() && reinforce.bed_padding >= 0.0,
-                "senses.reinforce.bed_padding must be finite and not negative"
-            );
+            not_negative(
+                "senses.reinforce.bed_padding",
+                f64::from(reinforce.bed_padding),
+            )?;
         }
         if let Some(faces) = &self.senses.faces {
-            ensure!(
-                !faces.model.as_os_str().is_empty(),
-                "senses.faces.model is empty"
-            );
-            for (name, value) in [
-                ("senses.faces.backend_confidence", faces.backend_confidence),
-                ("senses.faces.min_confidence", faces.min_confidence),
-            ] {
-                ensure!(
-                    value.is_finite() && (0.0..=1.0).contains(&value),
-                    "{name} must be between 0 and 1"
-                );
-            }
+            model("senses.faces.model", &faces.model)?;
+            fraction("senses.faces.backend_confidence", faces.backend_confidence)?;
+            fraction("senses.faces.min_confidence", faces.min_confidence)?;
             ensure!(
                 faces.backend_confidence <= faces.min_confidence,
                 "senses.faces.backend_confidence cannot exceed senses.faces.min_confidence"
             );
         }
         if let Some(pose) = &self.senses.pose {
-            ensure!(
-                !pose.model.as_os_str().is_empty(),
-                "senses.pose.model is empty"
-            );
-            for (name, value) in [
-                ("senses.pose.backend_confidence", pose.backend_confidence),
-                ("senses.pose.min_keypoint_score", pose.min_keypoint_score),
-            ] {
-                ensure!(
-                    value.is_finite() && (0.0..=1.0).contains(&value),
-                    "{name} must be between 0 and 1"
-                );
-            }
-            ensure!(
-                pose.move_threshold.is_finite() && pose.move_threshold >= 0.0,
-                "senses.pose.move_threshold must be finite and not negative"
-            );
+            model("senses.pose.model", &pose.model)?;
+            fraction("senses.pose.backend_confidence", pose.backend_confidence)?;
+            fraction("senses.pose.min_keypoint_score", pose.min_keypoint_score)?;
+            not_negative("senses.pose.move_threshold", f64::from(pose.move_threshold))?;
             ensure!(
                 pose.max_age_secs.is_none_or(|s| s.is_finite() && s > 0.0),
                 "senses.pose.max_age_secs must be finite and positive"
             );
         }
         if let Some(depth) = &self.senses.depth {
-            ensure!(
-                !depth.model.as_os_str().is_empty(),
-                "senses.depth.model is empty"
-            );
+            model("senses.depth.model", &depth.model)?;
             ensure!(
                 self.senses.pose.is_some() || self.calibration.is_some(),
                 "senses.depth: nobody asks for depth; [senses.pose] or [calibration] is needed"
@@ -366,42 +372,28 @@ impl Config {
                 self.senses.depth.is_some(),
                 "calibration: calibrating the bed requires [senses.depth]"
             );
-            ensure!(
-                calibration.retry_secs.is_finite() && calibration.retry_secs >= 0.0,
-                "calibration.retry_secs must be finite and not negative"
-            );
+            not_negative("calibration.retry_secs", calibration.retry_secs)?;
         }
         Ok(())
     }
 
     /// Confidences between 0 and 1; a backend never stricter than the policy.
     fn validate_policy(&self) -> Result<()> {
-        for (name, v) in [
-            ("policy.min_confidence", self.policy.min_confidence),
-            ("policy.same_body_iou", self.policy.same_body_iou),
-            (
-                "senses.detect.backend_confidence",
-                self.senses.detect.backend_confidence,
-            ),
-        ] {
-            ensure!(
-                v.is_finite() && (0.0..=1.0).contains(&v),
-                "{name} must be between 0 and 1"
-            );
-        }
+        fraction("policy.min_confidence", self.policy.min_confidence)?;
+        fraction("policy.same_body_iou", self.policy.same_body_iou)?;
+        fraction(
+            "senses.detect.backend_confidence",
+            self.senses.detect.backend_confidence,
+        )?;
         ensure!(
             self.senses.detect.backend_confidence <= self.policy.min_confidence,
             "senses.detect.backend_confidence cannot exceed policy.min_confidence"
         );
-        ensure!(
-            self.policy.near_bed_margin.is_finite() && self.policy.near_bed_margin >= 0.0,
-            "policy.near_bed_margin must be finite and not negative"
-        );
-        ensure!(
-            self.policy.dwell_secs.is_finite() && self.policy.dwell_secs >= 0.0,
-            "policy.dwell_secs must be finite and not negative"
-        );
-        Ok(())
+        not_negative(
+            "policy.near_bed_margin",
+            f64::from(self.policy.near_bed_margin),
+        )?;
+        not_negative("policy.dwell_secs", self.policy.dwell_secs)
     }
 
     /// The bed inside the resolution and not degenerate; a valid headboard.
@@ -467,7 +459,7 @@ impl Config {
                 .senses
                 .depth
                 .as_ref()
-                .map_or_else(five_percent, |d| d.posture_tolerance),
+                .map_or_else(defaults::posture_tolerance, |d| d.posture_tolerance),
             max_pose_age_secs: config.max_age_secs,
         });
         p.calibration = self.calibration.as_ref().map(|config| CalibrationPolicy {

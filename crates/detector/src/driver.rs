@@ -175,7 +175,7 @@ mod tests {
     use crate::source::rtsp::SampleDecoder;
     use image::DynamicImage;
     use ingest::{Payload, Sample};
-    use scene_core::FrameInfo;
+    use scene_core::map::FrameInfo;
     use scene_core::{
         contract::{LookOutcome, RepublishReason},
         geom::{Quad, Rect},

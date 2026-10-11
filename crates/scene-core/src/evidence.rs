@@ -143,7 +143,7 @@ pub fn faces(reading: Sensed<&[Detection]>, region: Rect, policy: &FacePolicy) -
         Err(failure) => {
             return FaceAdmission {
                 faces: FaceEvidence::Unavailable(failure),
-                result: LookResult::failed(failure.kind()),
+                result: LookResult::failed(failure),
             };
         }
         Ok(d) => d,
@@ -197,7 +197,7 @@ fn admit_from(
             return Admission {
                 bodies: BodyEvidence::Unavailable(failure),
                 primary: NONE,
-                result: LookResult::failed(failure.kind()),
+                result: LookResult::failed(failure),
             };
         }
         Ok(d) => d,
@@ -291,7 +291,7 @@ pub fn consolidate(
 /// The pose the sense brought: `None` if it failed or brought no keypoints.
 pub fn pose(reading: Sensed<Option<Vec<Keypoint>>>) -> (Option<Vec<Keypoint>>, LookResult) {
     match reading {
-        Err(failure) => (None, LookResult::failed(failure.kind())),
+        Err(failure) => (None, LookResult::failed(failure)),
         Ok(Some(kp)) if !kp.is_empty() => {
             let result = LookResult::read(kp.len());
             (Some(kp), result)
@@ -303,7 +303,7 @@ pub fn pose(reading: Sensed<Option<Vec<Keypoint>>>) -> (Option<Vec<Keypoint>>, L
 /// The depth over a set of points: the median of the valid readings.
 pub fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult) {
     match reading {
-        Err(failure) => (None, LookResult::failed(failure.kind())),
+        Err(failure) => (None, LookResult::failed(failure)),
         Ok(values) => (
             estimation::median(values),
             LookResult::read(values.iter().flatten().count()),
@@ -320,7 +320,7 @@ pub fn depths(
     len: usize,
 ) -> (Option<Vec<Option<f32>>>, LookResult) {
     match reading {
-        Err(failure) => (None, LookResult::failed(failure.kind())),
+        Err(failure) => (None, LookResult::failed(failure)),
         Ok(values) => {
             let mut depths = vec![None; len];
             for (&i, value) in at.iter().zip(values) {

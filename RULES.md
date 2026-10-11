@@ -88,16 +88,20 @@ speed.
 ### 10. The loop is an explicit protocol
 
 The core asks, the shell looks and answers, and the core decides the next step.
-A failure is data. Misuse returns explicit errors and no turn is abandoned.
+A failure is data. The shell drives a turn in one call (`drive`, or `cancel`
+on shutdown): there is no order to get wrong, and no turn is abandoned.
 
-*Guardian:* misuse tests; `#[must_use]` and an assertion in `Drop`.
+*Guardian:* the API offers no other way through; `#[must_use]` and an
+assertion in `Drop`.
 
 ### 11. `cycle` only sequences
 
 The order of a turn lives in one place with no domain rules. A rule in `cycle`
 is in the wrong place.
 
-*Guardian:* `cycle` imports no policies; review by its owner.
+*Guardian:* `cycle` never asks which senses are configured: it hands the
+whole `Policy` to the module that decides (`scripts/check.sh`); review by its
+owner.
 
 ### 12. Every attention decision has a reason
 

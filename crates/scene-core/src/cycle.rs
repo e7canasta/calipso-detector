@@ -1,32 +1,32 @@
-//! The loop: one turn per sample. `cycle` only sequences and keeps the ledger;
-//! each decision belongs to `attention`, `evidence`, `belief` or `map` (rule
-//! 11). The order of a turn lives in a single place: [`Turn::next`].
+//! The loop: one turn per sample, as a protocol. `cycle` only sequences and
+//! keeps the ledger; each decision belongs to `attention`, `evidence`,
+//! `belief` or `map` (rule 11).
+//!
+//! - here: the protocol the shell drives (`Input`, `Turn`, `Output`) and the
+//!   state a turn carries;
+//! - `monitor`: what one camera is made of, how a turn opens and what comes
+//!   out of it;
+//! - `sequence`: the order of a turn, in a single place (`Course::next`);
+//! - `waiting`: each probe with its continuation.
 
 use std::sync::Arc;
 
-use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
-use crate::attention::{
-    self, Attention, Consideration, Decision, EnrichPlan, Glimpse, Look, LookOutcome, LookResult,
-    SkipReason,
-};
-use crate::belief::Belief;
-use crate::belief::{Believed, Enrichment};
-use crate::body::Keypoint;
+use crate::attention::Attention;
+use crate::belief::{Belief, Believed};
+use crate::chronicle::Chronicle;
 use crate::conclusion::RepublishReason;
-use crate::conclusion::{Conclusion, Observation};
 use crate::contract::v4::{Event, Scene};
-use crate::evidence::{self, Admission, FaceEvidence, Perceived};
-use crate::geom::Rect;
-use crate::look::{
-    FaceRegion, Failure, LookId, LookKind, Outcome, ProbeKindMismatch, Reading, Request, Spent,
-};
-use crate::map::{FrameInfo, Geometry, Map, SiteMap};
-use crate::policy::{FacePolicy, Policy};
+use crate::evidence::Perceived;
+use crate::look::{Failure, Outcome, Reading, Request, Spent};
+use crate::map::{BedCalibrated, FrameInfo, Geometry, Map};
+use crate::policy::Policy;
 use crate::sensor::{SensorChanged, SensorMemory, SensorState};
 use crate::time::SampleRef;
 
+mod monitor;
+mod sequence;
 mod waiting;
-use waiting::{Awaiting, Resolution, Waiting};
+use waiting::Waiting;
 
 /// Everything the world tells the core.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,7 +72,7 @@ pub enum NoFrame {
 pub struct Monitor {
     engine: Engine,
     /// The chronicle of the domain: the projection reads it, already folded.
-    chronicle: crate::chronicle::Chronicle,
+    chronicle: Chronicle,
     /// The last concluded scene and its sample, for republishing. If it was a
     /// failure, the scene keeps the observed origin separately.
     last: Option<(SampleRef, Arc<Scene>)>,
@@ -91,97 +91,6 @@ struct Engine {
     frame: Option<FrameInfo>,
 }
 
-impl Engine {
-    fn new(policy: Policy, map: SiteMap) -> Self {
-        Self {
-            policy,
-            map: map.into(),
-            belief: Belief::default(),
-            sensor: SensorMemory::default(),
-            next_id: 0,
-            frame: None,
-        }
-    }
-
-    fn next_id(&mut self) -> LookId {
-        self.next_id = self.next_id.wrapping_add(1);
-        LookId(self.next_id)
-    }
-}
-
-impl Monitor {
-    /// A camera's monitor: its policies and its site. The belief starts empty.
-    pub fn new(policy: Policy, map: SiteMap) -> Self {
-        Self {
-            engine: Engine::new(policy, map),
-            chronicle: crate::chronicle::Chronicle::default(),
-            last: None,
-        }
-    }
-
-    /// What was concluded, outwards: the chronicle notes the turn and the
-    /// projection builds the scene and events with what the chronicle remembers.
-    fn project(&mut self, at: SampleRef, conclusion: Conclusion) -> Output {
-        use crate::project::v4;
-        match conclusion {
-            Conclusion::Observed(observation) => {
-                let chronicled = self.chronicle.record(crate::project::entry(&observation));
-                let (scene, events) = crate::project::observed(*observation, &chronicled);
-                let scene = Arc::new(scene);
-                self.last = Some((at, Arc::clone(&scene)));
-                Output { at, scene, events }
-            }
-            Conclusion::Republish {
-                reason,
-                changed,
-                sensor,
-                map,
-            } => {
-                let last = self.last.as_ref().map(|(at, scene)| (scene.as_ref(), *at));
-                Output {
-                    at,
-                    scene: Arc::new(v4::republish(last, reason, sensor, map)),
-                    events: v4::sensor_events(changed, last.map(|(scene, _)| scene)),
-                }
-            }
-        }
-    }
-
-    /// Opens a turn. It is the only way in.
-    pub fn handle(&mut self, input: Input) -> Turn<'_> {
-        let at = match &input {
-            Input::Sample { at, .. } | Input::NoFrame { at, .. } | Input::Sensor { at, .. } => *at,
-        };
-        let mut turn = Turn {
-            monitor: self,
-            at,
-            geometry: Geometry::Valid,
-            phase: Phase::Closed,
-            attention: Attention::default(),
-        };
-        match input {
-            Input::Sample { frame, .. } => turn.open(frame),
-            Input::NoFrame { why, .. } => {
-                let reason = match why {
-                    NoFrame::DecodeFailed => RepublishReason::DecodeFailed,
-                    NoFrame::Empty => RepublishReason::DecodeEmpty,
-                };
-                turn.phase = Phase::Republish {
-                    reason,
-                    changed: None,
-                };
-            }
-            Input::Sensor { state, .. } => {
-                turn.phase = Phase::Republish {
-                    reason: RepublishReason::Sensor,
-                    changed: turn.monitor.engine.sensor.report(at, state),
-                };
-            }
-        }
-        turn
-    }
-}
-
 /// What the turn is waiting for. Each waiting stage carries what the turn has
 /// gathered so far: it cannot move on with missing data.
 #[derive(Debug)]
@@ -195,8 +104,6 @@ enum Phase {
         reason: RepublishReason,
         changed: Option<SensorChanged>,
     },
-    /// The turn closed (or has not started yet).
-    Closed,
 }
 
 /// After believing, each continuation carries the evidence it needs.
@@ -204,85 +111,8 @@ enum Phase {
 struct Observed {
     believed: Believed,
     evidence: Perceived,
-    calibrated: Option<crate::map::BedCalibrated>,
+    calibrated: Option<BedCalibrated>,
 }
-
-/// How far the turn got, with what it gathered: the point from which
-/// [`Turn::next`] continues.
-enum Reached {
-    /// With the main detector's result.
-    Primary(Admission),
-    /// With the sample's bodies (consolidated with reinforcement, if any).
-    Bodies(Admission),
-    /// With all the evidence.
-    Evidence(Perceived),
-    /// With the updated belief.
-    Belief(Observed),
-    /// With the map up to date.
-    Map(Observed),
-    /// With the pose (or without it, if it failed).
-    Pose {
-        observed: Observed,
-        pose: Option<Vec<Keypoint>>,
-        bbox: Rect,
-    },
-    /// With the enrichment resolved.
-    Enriched(Observed, Enrichment),
-}
-
-/// What the core does after each `poll`.
-#[derive(Debug, PartialEq)]
-pub enum Step<'a> {
-    /// The next look the core needs to continue the turn.
-    Look(&'a Request),
-    /// Nothing else to look at: `finish` closes the turn.
-    Done,
-}
-
-/// Protocol misuse by the shell. It never changes anything.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FeedError {
-    /// The id is not the look the turn is waiting for.
-    UnknownId(LookId),
-    /// A result was already delivered for that id; the first is kept.
-    Duplicate(LookId),
-    /// The reading is not of the requested kind.
-    KindMismatch(ProbeKindMismatch),
-}
-
-impl std::fmt::Display for FeedError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::UnknownId(id) => write!(f, "{id} is not the look the turn is waiting for"),
-            Self::Duplicate(id) => write!(f, "{id} was already answered; the first answer is kept"),
-            Self::KindMismatch(mismatch) => mismatch.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for FeedError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::KindMismatch(mismatch) => Some(mismatch),
-            Self::UnknownId(_) | Self::Duplicate(_) => None,
-        }
-    }
-}
-
-/// `finish` too early: returns the turn so it can be completed.
-#[derive(Debug)]
-pub struct Incomplete<'m> {
-    /// The turn, to keep feeding it.
-    pub turn: Box<Turn<'m>>,
-}
-
-impl std::fmt::Display for Incomplete<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("the turn still waits for a look; feed it or cancel it")
-    }
-}
-
-impl std::error::Error for Incomplete<'_> {}
 
 /// What comes out of a turn: the scene of the sample and the events it
 /// explains, in the published contract.
@@ -297,136 +127,66 @@ pub struct Output {
 }
 
 /// A turn of the loop. It holds the belief exclusively: the compiler prevents
-/// opening another while it lives. No turn is abandoned (rule 10).
+/// opening another while it lives. It is driven to the end with [`Turn::drive`]
+/// or [`Turn::cancel`]; there is no other way through, and none is abandoned
+/// (rule 10).
 #[derive(Debug)]
-#[must_use = "a turn is driven with poll/feed and closed with finish (rule 10)"]
+#[must_use = "a turn is closed with drive or cancel (rule 10)"]
 pub struct Turn<'m> {
+    course: Course<'m>,
+    phase: Phase,
+    open: Open,
+}
+
+/// What a turn works on while it runs: the camera, the sample and the ledger.
+#[derive(Debug)]
+struct Course<'m> {
     monitor: &'m mut Monitor,
     at: SampleRef,
     geometry: Geometry,
-    phase: Phase,
     attention: Attention,
 }
 
-impl<'m> Turn<'m> {
-    /// What must be looked at? Until it is answered, returns the same look.
-    pub fn poll(&mut self) -> Step<'_> {
-        self.advance_ready();
-        match &self.phase {
-            Phase::Waiting(waiting) => Step::Look(waiting.request()),
-            _ => Step::Done,
-        }
-    }
+/// The obligation to close the turn: only `drive` discharges it.
+#[derive(Debug)]
+struct Open;
 
-    fn advance_ready(&mut self) {
-        match std::mem::replace(&mut self.phase, Phase::Closed) {
-            Phase::Waiting(waiting) => match waiting.resolve() {
-                Resolution::Ready {
-                    request,
-                    outcome,
-                    stage,
-                } => self.advance(stage, &request, outcome),
-                Resolution::Pending(waiting) => self.phase = Phase::Waiting(waiting),
-            },
-            other => self.phase = other,
-        }
+impl Drop for Open {
+    fn drop(&mut self) {
+        debug_assert!(
+            std::thread::panicking(),
+            "rule 10: a turn is not abandoned; close it with drive or cancel"
+        );
     }
+}
 
-    /// Delivers what the shell saw for the pending look.
-    pub fn feed(&mut self, outcome: Outcome) -> Result<(), FeedError> {
-        let Phase::Waiting(waiting) = &mut self.phase else {
-            return Err(FeedError::UnknownId(outcome.id));
-        };
-        waiting.feed(outcome)
-    }
-
-    /// Closes the turn: the scene and the events.
-    pub fn finish(mut self) -> Result<Output, Incomplete<'m>> {
-        let Some(conclusion) = self.conclude() else {
-            return Err(Incomplete {
-                turn: Box::new(self),
-            });
-        };
-        Ok(self.monitor.project(self.at, conclusion))
-    }
-
-    /// What the engine concludes from the turn, if it finished: what was
-    /// observed or what to republish. It reads neither the chronicle nor the
-    /// last scene.
-    fn conclude(&mut self) -> Option<Conclusion> {
-        let engine = &self.monitor.engine;
-        let sensor = engine.sensor.state();
-        match std::mem::replace(&mut self.phase, Phase::Closed) {
-            Phase::Concluded { observed } => {
-                // The second level reads what was concluded and delivers its result.
-                let refined = crate::refine::refine(
-                    observed.believed.body.as_ref(),
-                    engine.map.bed_for(self.geometry),
-                    engine.policy.enrich.as_ref(),
-                );
-                Some(Conclusion::Observed(Box::new(Observation {
-                    at: self.at,
-                    believed: observed.believed,
-                    refined,
-                    evidence: observed.evidence,
-                    frame: engine.frame,
-                    calibrated: observed.calibrated,
-                    attention: std::mem::take(&mut self.attention),
-                    map: crate::project::map_state(&engine.map, self.geometry),
-                    sensor,
-                    dwell_secs: engine.policy.persistence.dwell_secs,
-                })))
-            }
-            Phase::Republish { reason, changed } => Some(Conclusion::Republish {
-                reason,
-                changed,
-                sensor,
-                map: crate::project::map_state(&engine.map, Geometry::Valid),
-            }),
-            other => {
-                self.phase = other;
-                None
-            }
-        }
-    }
-
+impl Turn<'_> {
     /// Drives the turn to the end: for each probe, `look` looks and returns what
-    /// it saw and how long it took. It is the whole driver in one call; the core
-    /// still does no IO because the shell provides the sense. A reading of
-    /// another kind than the probe counts as a failing sense.
+    /// it saw and how long it took. The core still does no IO because the shell
+    /// provides the sense. A reading of another kind than the probe counts as a
+    /// failing sense.
     pub fn drive(
-        mut self,
+        self,
         mut look: impl FnMut(&Request) -> (Result<Reading, Failure>, Spent),
     ) -> Output {
-        loop {
-            self.advance_ready();
-            let Phase::Waiting(waiting) = &self.phase else {
-                break;
-            };
-            let request = waiting.request();
-            let (result, spent) = look(request);
-            let result = result.and_then(|reading| {
-                if request.probe.accepts(&reading) {
-                    Ok(reading)
-                } else {
-                    Err(Failure::Model)
+        let Turn {
+            mut course,
+            mut phase,
+            open,
+        } = self;
+        let conclusion = loop {
+            phase = match phase {
+                Phase::Waiting(waiting) => {
+                    let (request, stage) = waiting.into_parts();
+                    let (result, spent) = look(&request);
+                    course.advance(stage, &request, Outcome { result, spent })
                 }
-            });
-            let outcome = Outcome {
-                id: request.id,
-                result,
-                spent,
+                Phase::Concluded { observed } => break course.observed(observed),
+                Phase::Republish { reason, changed } => break course.republished(reason, changed),
             };
-            // The probe's borrow ends before the answer is delivered.
-            let fed = self.feed(outcome);
-            debug_assert!(fed.is_ok(), "drive respects the protocol: {fed:?}");
-        }
-        match self.finish() {
-            Ok(output) => output,
-            // After `Done` nothing is pending; if something were, it closes like
-            // a shutdown.
-            Err(Incomplete { turn }) => (*turn).cancel(),
-        }
+        };
+        std::mem::forget(open);
+        course.monitor.project(course.at, conclusion)
     }
 
     /// The shell cannot complete (shutdown): `Cancelled` for what is pending,
@@ -435,303 +195,14 @@ impl<'m> Turn<'m> {
     pub fn cancel(self) -> Output {
         self.drive(|_| (Err(Failure::Cancelled), Spent(0.0)))
     }
-
-    /// Opens a turn over a sample: the geometry and the main detector, which
-    /// always runs. Neither a reconnection nor another image size releases
-    /// anyone: the belief starts from scratch only with the process.
-    fn open(&mut self, frame: FrameInfo) {
-        self.monitor.engine.frame = Some(frame);
-        self.geometry = self.monitor.engine.map.gate(frame);
-        let region = attention::primary_region();
-        self.wait(|id| Waiting::primary(id, region));
-    }
-
-    /// The order of a turn. It lives here and nowhere else: at each
-    /// point `attention` is asked and a look is requested or the turn goes on.
-    ///
-    /// ```text
-    /// Primary → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
-    /// ```
-    fn next(&mut self, mut reached: Reached) {
-        loop {
-            reached = match reached {
-                // First attention point, before believing: a loss to reinforce?
-                Reached::Primary(primary) => match self.reinforce(&primary) {
-                    Decided(Decision::Ask(region)) => {
-                        return self.wait(|id| Waiting::reinforce(id, region, primary));
-                    }
-                    Decided(Decision::Skip(reason)) => {
-                        self.skipped(LookKind::Reinforce, reason);
-                        Reached::Bodies(primary)
-                    }
-                    Disabled | Inapplicable => Reached::Bodies(primary),
-                },
-                // Where to look for faces?
-                Reached::Bodies(bodies) => match self.faces(&bodies) {
-                    Decided(Decision::Ask((region, policy))) => {
-                        return self.wait(|id| Waiting::faces(id, bodies, region, policy));
-                    }
-                    Decided(Decision::Skip(reason)) => {
-                        self.skipped(LookKind::Faces, reason);
-                        Reached::Evidence(Perceived {
-                            bodies,
-                            faces: FaceEvidence::NotLooked,
-                        })
-                    }
-                    Disabled | Inapplicable => Reached::Evidence(Perceived {
-                        bodies,
-                        faces: FaceEvidence::NotLooked,
-                    }),
-                },
-                // Believe.
-                Reached::Evidence(evidence) => {
-                    let believed = self.believe(&evidence.bodies);
-                    Reached::Belief(Observed {
-                        believed,
-                        evidence,
-                        calibrated: None,
-                    })
-                }
-                // Second attention point, after believing: learn the bed?
-                Reached::Belief(observed) => match self.calibrate(&observed) {
-                    Decided(Decision::Ask(points)) => {
-                        self.monitor.engine.map.attempted(self.at);
-                        return self.wait(|id| Waiting::calibrate(id, observed, points));
-                    }
-                    Decided(Decision::Skip(reason)) => {
-                        self.skipped(LookKind::Calibrate, reason);
-                        Reached::Map(observed)
-                    }
-                    Disabled | Inapplicable => Reached::Map(observed),
-                },
-                // Enrich the subject?
-                Reached::Map(observed) => match self.enrich(&observed.believed) {
-                    EnrichPlan::Ask(bbox) => {
-                        return self.wait(|id| Waiting::pose(id, observed, bbox));
-                    }
-                    EnrichPlan::Keep(reason) => {
-                        self.skipped(LookKind::Pose, reason);
-                        Reached::Enriched(observed, Enrichment::Kept)
-                    }
-                    EnrichPlan::Skip(reason) => {
-                        self.skipped(LookKind::Pose, reason);
-                        Reached::Enriched(observed, Enrichment::None)
-                    }
-                    EnrichPlan::Disabled | EnrichPlan::Inapplicable => {
-                        Reached::Enriched(observed, Enrichment::None)
-                    }
-                },
-                // Measure the subject's depth?
-                Reached::Pose {
-                    observed,
-                    pose,
-                    bbox,
-                } => match (self.deepen(pose.as_deref()), pose) {
-                    (Decided(Decision::Ask(points)), Some(pose)) => {
-                        return self.wait(|id| Waiting::depth(id, observed, pose, bbox, points));
-                    }
-                    (decision, pose) => {
-                        if let Decided(Decision::Skip(reason)) = decision {
-                            self.skipped(LookKind::Depth, reason);
-                        }
-                        let e = Enrichment::fresh(pose, None, bbox, &observed.evidence.bodies);
-                        Reached::Enriched(observed, e)
-                    }
-                },
-                // Conclude.
-                Reached::Enriched(mut observed, e) => {
-                    observed.believed =
-                        self.monitor
-                            .engine
-                            .belief
-                            .observe_body(self.at, observed.believed, e);
-                    self.phase = Phase::Concluded { observed };
-                    return;
-                }
-            };
-        }
-    }
-
-    /// The reading arrived: it is interpreted and the turn continues where it was.
-    fn advance(&mut self, stage: Awaiting, request: &Request, outcome: Outcome) {
-        let spent = outcome.spent;
-        let reached = match stage {
-            Awaiting::Primary => {
-                let admission = evidence::admit(
-                    outcome.bodies(),
-                    self.monitor.engine.map.bed_for(self.geometry),
-                    &self.monitor.engine.policy.admission,
-                );
-                self.asked(request, spent, admission.result.clone());
-                Reached::Primary(admission)
-            }
-            Awaiting::Reinforce { primary } => {
-                // The loss counts as checked only if reinforcement looked: a
-                // failing reinforcement is requested again on the next sample.
-                if outcome.result.is_ok() {
-                    self.monitor.engine.belief.reinforced();
-                }
-                let (bodies, result) = evidence::consolidate(
-                    primary,
-                    outcome.bodies(),
-                    self.monitor.engine.map.bed_for(self.geometry),
-                    &self.monitor.engine.policy.admission,
-                );
-                self.asked(request, spent, result);
-                Reached::Bodies(bodies)
-            }
-            Awaiting::Faces {
-                bodies,
-                region,
-                policy,
-            } => {
-                let faces = evidence::faces(outcome.faces(), region.rect(), &policy);
-                self.asked(request, spent, faces.result);
-                Reached::Evidence(Perceived {
-                    bodies,
-                    faces: faces.faces,
-                })
-            }
-            Awaiting::Calibrate { mut observed } => {
-                let (meters, result) = evidence::depth(outcome.depths());
-                self.asked(request, spent, result);
-                observed.calibrated = self.monitor.engine.map.learn(self.at, meters);
-                Reached::Map(observed)
-            }
-            Awaiting::Pose { observed, bbox } => {
-                let (pose, result) = evidence::pose(outcome.into_pose());
-                self.asked(request, spent, result);
-                Reached::Pose {
-                    observed,
-                    pose,
-                    bbox,
-                }
-            }
-            Awaiting::Depth {
-                observed,
-                pose,
-                bbox,
-                at,
-            } => {
-                let (depths, result) = evidence::depths(outcome.depths(), &at, pose.len());
-                self.asked(request, spent, result);
-                let e = Enrichment::fresh(Some(pose), depths, bbox, &observed.evidence.bodies);
-                Reached::Enriched(observed, e)
-            }
-        };
-        self.next(reached);
-    }
-
-    // --- The questions to attention. Without a policy, there is nothing to decide.
-
-    /// What attention sees of this turn.
-    fn glimpse<'g>(&'g self, bodies: &'g Admission, faces: &'g FaceEvidence) -> Glimpse<'g> {
-        Glimpse {
-            at: self.at,
-            geometry: self.geometry,
-            map: &self.monitor.engine.map,
-            bodies: &bodies.bodies,
-            faces,
-        }
-    }
-
-    fn reinforce(&self, primary: &Admission) -> Consideration<Rect> {
-        let Some(policy) = self.monitor.engine.policy.reinforce else {
-            return Disabled;
-        };
-        let g = self.glimpse(primary, &FaceEvidence::NotLooked);
-        let belief = &self.monitor.engine.belief;
-        attention::reinforce(&g, belief.bed_seen(), belief.latch(), &policy)
-    }
-
-    fn faces(&self, bodies: &Admission) -> Consideration<(FaceRegion, FacePolicy)> {
-        let Some(policy) = self.monitor.engine.policy.faces else {
-            return Disabled;
-        };
-        let decision = attention::faces(&self.glimpse(bodies, &FaceEvidence::NotLooked));
-        Decided(match decision {
-            Decision::Ask(region) => Decision::Ask((region, policy)),
-            Decision::Skip(reason) => Decision::Skip(reason),
-        })
-    }
-
-    fn calibrate(&self, observed: &Observed) -> Consideration<Vec<crate::geom::Point>> {
-        let Some(policy) = self.monitor.engine.policy.calibration else {
-            return Disabled;
-        };
-        let Perceived { bodies, faces } = &observed.evidence;
-        attention::calibrate(&self.glimpse(bodies, faces), &observed.believed, &policy)
-    }
-
-    fn enrich(&self, believed: &Believed) -> EnrichPlan {
-        self.monitor
-            .engine
-            .policy
-            .enrich
-            .map_or(EnrichPlan::Disabled, |policy| {
-                attention::enrich(
-                    believed,
-                    self.monitor.engine.belief.pose_reference(),
-                    self.monitor.engine.belief.pose_since(),
-                    self.at,
-                    &policy,
-                )
-            })
-    }
-
-    fn deepen(&self, pose: Option<&[Keypoint]>) -> Consideration<Vec<(usize, crate::geom::Point)>> {
-        let Some(policy) = self.monitor.engine.policy.enrich else {
-            return Disabled;
-        };
-        attention::deepen(pose, &policy)
-    }
-
-    // --- Mechanism.
-
-    /// With all the evidence: the belief is updated.
-    fn believe(&mut self, bodies: &Admission) -> Believed {
-        let Engine { policy, belief, .. } = &mut self.monitor.engine;
-        belief.observe(self.at, bodies, policy)
-    }
-
-    /// Requests a look and waits in `phase`.
-    fn wait(&mut self, make: impl FnOnce(LookId) -> Waiting) {
-        self.phase = Phase::Waiting(make(self.monitor.engine.next_id()));
-    }
-
-    fn asked(&mut self, request: &Request, spent: Spent, result: LookResult) {
-        self.attention.looks.push(Look {
-            kind: request.probe.kind(),
-            outcome: LookOutcome::Asked {
-                region: request.probe.region(),
-                result,
-                spent_ms: spent.0,
-            },
-        });
-    }
-
-    fn skipped(&mut self, kind: LookKind, reason: SkipReason) {
-        self.attention.looks.push(Look {
-            kind,
-            outcome: LookOutcome::Skipped { reason },
-        });
-    }
-}
-
-impl Drop for Turn<'_> {
-    fn drop(&mut self) {
-        debug_assert!(
-            matches!(self.phase, Phase::Closed) || std::thread::panicking(),
-            "rule 10: a turn is not abandoned; close it with finish"
-        );
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::geom::{Quad, Rect};
-    use crate::look::{Probe, Reading, Spent};
+    use crate::look::{LookKind, Probe, Reading, Spent};
+    use crate::map::SiteMap;
     use crate::time::{SessionId, SourceSecs};
 
     fn sample(secs: f64) -> Input {

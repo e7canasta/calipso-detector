@@ -9,7 +9,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 
 struct Server(Child);
 impl Server {
@@ -50,14 +50,14 @@ impl Drop for Server {
 struct Receiver {
     mailbox: Arc<Mailbox<Sample>>,
     events: mpsc::Receiver<StreamEvent>,
-    shutdown: watch::Sender<bool>,
+    shutdown: CancellationToken,
     thread: Option<thread::JoinHandle<()>>,
 }
 impl Receiver {
     fn start(port: u16, keyframe_only: bool) -> Self {
         let mailbox = Arc::new(Mailbox::default());
         let (send, events) = mpsc::channel();
-        let (shutdown, stopped) = watch::channel(false);
+        let shutdown = CancellationToken::new();
         let handle = ingest::spawn(
             IngestConfig {
                 url: format!("rtsp://127.0.0.1:{port}/test"),
@@ -67,7 +67,7 @@ impl Receiver {
             },
             Arc::clone(&mailbox),
             send,
-            stopped,
+            shutdown.clone(),
         );
         Self {
             mailbox,
@@ -95,7 +95,7 @@ impl Receiver {
 }
 impl Drop for Receiver {
     fn drop(&mut self) {
-        let _ = self.shutdown.send(true);
+        self.shutdown.cancel();
         if let Some(handle) = self.thread.take() {
             handle.join().unwrap();
         }

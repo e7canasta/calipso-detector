@@ -1,5 +1,7 @@
 //! Attention: what to look at, where, and why not. Pure policies: they mutate
-//! nothing (rule 12).
+//! nothing (rule 12). Each question reads its own part of the `Policy`:
+//! without it there is nothing to decide, and that is decided here too, not
+//! in `cycle` (rule 11).
 
 use crate::belief::{Believed, LatchState};
 use crate::body::Keypoint;
@@ -10,9 +12,9 @@ use crate::evidence::RejectReason;
 use crate::geom::Point;
 use crate::geom::Rect;
 use crate::look::FaceRegion;
-use crate::look::{FailureKind, LookKind};
+use crate::look::{Failure, LookKind};
 use crate::map::{Geometry, Map};
-use crate::policy::{CalibrationPolicy, EnrichPolicy, ReinforcePolicy};
+use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
 use schemars::JsonSchema;
@@ -70,8 +72,11 @@ pub fn reinforce(
     g: &Glimpse<'_>,
     bed_seen: u32,
     latch: LatchState,
-    policy: &ReinforcePolicy,
+    policy: &Policy,
 ) -> Consideration<Rect> {
+    let Some(policy) = &policy.reinforce else {
+        return Consideration::Disabled;
+    };
     let now = g.bodies.bodies().map_or(0, |b| b.counts().bed);
     if now > 0 && now >= bed_seen {
         return Consideration::Inapplicable;
@@ -88,15 +93,21 @@ pub fn reinforce(
 
 /// Where to look for faces: in the subject's box if seen; otherwise at the
 /// headboard (also when the detector failed). With neither, nothing is searched.
-pub fn faces(g: &Glimpse<'_>) -> Decision<FaceRegion> {
-    match (
-        g.bodies.bodies().and_then(|b| b.best()),
-        g.map.headboard_for(g.geometry),
-    ) {
-        (Some(best), _) => Decision::Ask(FaceRegion::Subject(best.bbox)),
-        (_, Some(headboard)) => Decision::Ask(FaceRegion::Headboard(headboard)),
-        (_, None) => Decision::Skip(SkipReason::NoFaceRegion),
-    }
+/// The face policy goes with the look: evidence admits the faces with it.
+pub fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegion, FacePolicy)> {
+    let Some(policy) = policy.faces else {
+        return Consideration::Disabled;
+    };
+    Consideration::Decided(
+        match (
+            g.bodies.bodies().and_then(|b| b.best()),
+            g.map.headboard_for(g.geometry),
+        ) {
+            (Some(best), _) => Decision::Ask((FaceRegion::Subject(best.bbox), policy)),
+            (_, Some(headboard)) => Decision::Ask((FaceRegion::Headboard(headboard), policy)),
+            (_, None) => Decision::Skip(SkipReason::NoFaceRegion),
+        },
+    )
 }
 
 /// Ask for the pose? Second attention point, after believing: only with a
@@ -108,8 +119,11 @@ pub fn enrich(
     reference: Option<Rect>,
     since: Option<SampleRef>,
     now: SampleRef,
-    policy: &EnrichPolicy,
+    policy: &Policy,
 ) -> EnrichPlan {
+    let Some(policy) = &policy.enrich else {
+        return EnrichPlan::Disabled;
+    };
     let subject = match &believed.subject {
         None => return EnrichPlan::Inapplicable,
         Some(s) if s.provenance == Provenance::Current => s,
@@ -133,13 +147,10 @@ pub fn enrich(
 /// Measure the subject's depth? At the pose keypoints with enough score, each
 /// with its index in the pose so the reading returns to its keypoint;
 /// without a depth model there is nothing to decide.
-pub fn deepen(
-    pose: Option<&[Keypoint]>,
-    policy: &EnrichPolicy,
-) -> Consideration<Vec<(usize, Point)>> {
-    if !policy.depth {
+pub fn deepen(pose: Option<&[Keypoint]>, policy: &Policy) -> Consideration<Vec<(usize, Point)>> {
+    let Some(policy) = policy.enrich.as_ref().filter(|p| p.depth) else {
         return Consideration::Disabled;
-    }
+    };
     let points: Vec<(usize, Point)> = pose
         .unwrap_or_default()
         .iter()
@@ -160,8 +171,11 @@ pub fn deepen(
 pub fn calibrate(
     g: &Glimpse<'_>,
     believed: &Believed,
-    policy: &CalibrationPolicy,
+    policy: &Policy,
 ) -> Consideration<Vec<Point>> {
+    let Some(policy) = &policy.calibration else {
+        return Consideration::Disabled;
+    };
     let (map, at) = (g.map, g.at);
     if map.reference().is_some() {
         return Consideration::Inapplicable;
@@ -234,7 +248,7 @@ pub enum LookResult {
     /// The sense failed: it proves nothing (rule 1).
     Failed {
         /// How it failed.
-        failure: FailureKind,
+        failure: Failure,
     },
 }
 
@@ -320,7 +334,7 @@ impl LookResult {
     }
 
     /// A look whose sense failed.
-    pub fn failed(failure: FailureKind) -> Self {
+    pub fn failed(failure: Failure) -> Self {
         LookResult::Failed { failure }
     }
 }

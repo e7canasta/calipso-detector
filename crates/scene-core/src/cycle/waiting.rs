@@ -1,10 +1,10 @@
-//! Builds each probe with its continuation and guards the delivery protocol.
+//! Builds each probe with its continuation.
 
-use super::{FeedError, Observed};
+use super::Observed;
 use crate::body::Keypoint;
 use crate::evidence::Admission;
 use crate::geom::{Point, Rect};
-use crate::look::{DepthPurpose, FaceRegion, LookId, Outcome, Probe, ProbeKindMismatch, Request};
+use crate::look::{DepthPurpose, FaceRegion, LookId, Probe, Request};
 use crate::policy::FacePolicy;
 
 /// Probe and continuation are created together; their fields cannot be
@@ -12,7 +12,6 @@ use crate::policy::FacePolicy;
 #[derive(Debug)]
 pub(super) struct Waiting {
     request: Request,
-    outcome: Option<Outcome>,
     stage: Awaiting,
 }
 
@@ -41,15 +40,6 @@ pub(super) enum Awaiting {
         bbox: Rect,
         /// The pose index of each requested point.
         at: Vec<usize>,
-    },
-}
-
-pub(super) enum Resolution {
-    Pending(Waiting),
-    Ready {
-        request: Request,
-        outcome: Outcome,
-        stage: Awaiting,
     },
 }
 
@@ -124,47 +114,12 @@ impl Waiting {
     fn new(id: LookId, probe: Probe, stage: Awaiting) -> Self {
         Self {
             request: Request { id, probe },
-            outcome: None,
             stage,
         }
     }
 
-    pub(super) fn request(&self) -> &Request {
-        &self.request
-    }
-
-    /// A rejection keeps both the probe and the first answer received.
-    pub(super) fn feed(&mut self, outcome: Outcome) -> Result<(), FeedError> {
-        if self.request.id != outcome.id {
-            return Err(FeedError::UnknownId(outcome.id));
-        }
-        if self.outcome.is_some() {
-            return Err(FeedError::Duplicate(outcome.id));
-        }
-        if let Ok(reading) = &outcome.result
-            && !self.request.probe.accepts(reading)
-        {
-            return Err(FeedError::KindMismatch(ProbeKindMismatch {
-                expected: self.request.probe.kind(),
-                got: reading.kind(),
-            }));
-        }
-        self.outcome = Some(outcome);
-        Ok(())
-    }
-
-    pub(super) fn resolve(self) -> Resolution {
-        match self {
-            Self {
-                request,
-                outcome: Some(outcome),
-                stage,
-            } => Resolution::Ready {
-                request,
-                outcome,
-                stage,
-            },
-            pending => Resolution::Pending(pending),
-        }
+    /// The probe to look at and what interprets its reading.
+    pub(super) fn into_parts(self) -> (Request, Awaiting) {
+        (self.request, self.stage)
     }
 }

@@ -11,6 +11,7 @@ publish.workspace = true
 retina = "0.4"
 ffmpeg = { package = "ffmpeg-next", version = "^9.0" }
 tokio = { version = "1.5.0", features = ["rt", "time", "sync", "macros", "net"] }
+tokio-util = "0.7"
 futures = "0.3"
 image = { version = "0.25", default-features = false }
 thiserror = "2"

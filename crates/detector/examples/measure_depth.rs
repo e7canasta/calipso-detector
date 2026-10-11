@@ -204,12 +204,12 @@ async fn main() -> Result<()> {
 
     let mailbox = Arc::new(Mailbox::<Sample>::default());
     let (events_tx, events_rx) = mpsc::channel();
-    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let shutdown = tokio_util::sync::CancellationToken::new();
     let stream = ingest::spawn(
         config.ingest(),
         Arc::clone(&mailbox),
         events_tx,
-        shutdown_rx,
+        shutdown.clone(),
     );
     let interval = Duration::from_millis(config.stream.sample_interval_ms);
     let seconds = args.seconds;
@@ -315,7 +315,7 @@ async fn main() -> Result<()> {
             Ok((spans, scale, times))
         }
     })?;
-    shutdown_tx.send_replace(true);
+    shutdown.cancel();
     mailbox.close();
     let _ = tokio::task::spawn_blocking(move || stream.join()).await;
     println!("{}", report(&spans, &points, &scale, &times));

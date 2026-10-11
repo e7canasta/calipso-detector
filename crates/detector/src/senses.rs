@@ -5,8 +5,8 @@ use crate::config::Config;
 use anyhow::{Context, Result};
 use image::DynamicImage;
 use scene_core::{
-    FrameInfo,
     look::{Failure, Reading, Request, Spent},
+    map::FrameInfo,
 };
 
 /// What can be looked at in a sample. It knows its size: the core needs it to

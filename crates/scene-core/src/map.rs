@@ -141,6 +141,24 @@ impl Map {
     pub fn bed_for(&self, geometry: Geometry) -> Option<&Quad> {
         (geometry == Geometry::Valid).then_some(&self.site.bed)
     }
+
+    /// The static world as this turn sees it: the configured geometry and
+    /// what was learned of the empty bed.
+    pub(crate) fn state(&self, geometry: Geometry) -> MapState {
+        MapState {
+            geometry,
+            bed: self.site.bed,
+            headboard: self.site.headboard,
+            calibration: self
+                .reference()
+                .map_or(Calibration::Unavailable, |reference| {
+                    Calibration::Complete {
+                        reference_m: reference.meters,
+                        since: reference.since,
+                    }
+                }),
+        }
+    }
 }
 
 fn bed_points(bed: &Quad) -> Vec<Point> {

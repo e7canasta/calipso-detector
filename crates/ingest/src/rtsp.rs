@@ -8,7 +8,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use super::{Mailbox, Payload, Sample, StreamEvent, decode::FrameDecoder};
@@ -54,7 +54,7 @@ pub fn spawn(
     config: IngestConfig,
     mailbox: Arc<Mailbox<Sample>>,
     events: mpsc::Sender<StreamEvent>,
-    shutdown: watch::Receiver<bool>,
+    shutdown: CancellationToken,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -69,7 +69,7 @@ async fn run(
     config: IngestConfig,
     mailbox: Arc<Mailbox<Sample>>,
     events: mpsc::Sender<StreamEvent>,
-    mut shutdown: watch::Receiver<bool>,
+    shutdown: CancellationToken,
 ) {
     let creds = config
         .username
@@ -87,7 +87,7 @@ async fn run(
         info!("Connecting to {} (session {session})", config.url);
         let result = tokio::select! {
             result = stream_session(&config, creds.clone(), session, &mailbox, &events, &mut stats) => result,
-            _ = shutdown.wait_for(|stopped| *stopped) => return,
+            _ = shutdown.cancelled() => return,
         };
         let reason = match result {
             Ok(()) => IngestError::Unreachable("end of stream".to_owned()),
@@ -100,7 +100,7 @@ async fn run(
         let _ = events.send(StreamEvent::Disconnected { session, reason });
         tokio::select! {
             _ = tokio::time::sleep(config.reconnect_delay) => {}
-            _ = shutdown.wait_for(|stopped| *stopped) => return,
+            _ = shutdown.cancelled() => return,
         }
     }
 }

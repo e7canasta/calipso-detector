@@ -3,7 +3,7 @@
 //! It believes on partial evidence, decides where to look and projects what it
 //! believes. It sees no pixels, calls no models, reads no clocks and touches
 //! no network, disk or threads (rule 8). It is a deterministic function of
-//! `(Policy, SiteMap, Input*, Outcome*)`.
+//! `(Policy, SiteMap, Input*, Reading*)`.
 //!
 //! The design reference, below, is `DESIGN.md`: it reads the same in the
 //! repository and in `cargo doc`.
@@ -66,5 +66,4 @@ mod sensor;
 mod time;
 mod zone;
 
-pub use contract::FrameInfo;
-pub use cycle::{FeedError, Incomplete, Input, Monitor, NoFrame, Output, Step, Turn};
+pub use cycle::{Input, Monitor, NoFrame, Output, Turn};

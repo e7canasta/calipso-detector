@@ -77,6 +77,17 @@ check_domain_contract() {
 step "the domain without contract"
 check_domain_contract
 
+# Rule 11: `cycle` only sequences. Whether a sense is configured is decided by
+# the module that decides with it: the sequencer hands it the whole `Policy`.
+check_cycle_sequences() {
+  local found
+  found=$(grep -rnE 'let Some\(.*\) = .*\.policy\.|\.policy\.[a-z_]+\.(map_or|is_some|is_none)' \
+            crates/scene-core/src/cycle.rs crates/scene-core/src/cycle/ || true)
+  [ -z "$found" ] || fail "rule 11: cycle asks which senses are configured: $found"
+}
+step "cycle only sequences"
+check_cycle_sequences
+
 step "tests"
 cargo test --workspace --quiet || fail "tests"
 

@@ -62,8 +62,6 @@ async fn main() -> Result<()> {
     tracing::info!(run_id=%source.run_id,build=?source.build,profile=?profile,"detector starts");
     let (mut publisher, rx) = PublisherHandle::channel(source, profile);
     let token = CancellationToken::new();
-    // Ingest keeps its watch API; a single cancellation feeds both signals.
-    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     let mailbox = Arc::new(Mailbox::<Sample>::default());
     let (events_tx, events_rx) = mpsc::channel();
     let actor = tokio::spawn(nats::run(
@@ -76,7 +74,7 @@ async fn main() -> Result<()> {
         config.ingest(),
         Arc::clone(&mailbox),
         events_tx,
-        shutdown_rx,
+        token.clone(),
     );
     let mut engine = tokio::task::spawn_blocking({
         let mailbox = Arc::clone(&mailbox);
@@ -107,7 +105,6 @@ async fn main() -> Result<()> {
         _=terminate.recv() => {tracing::info!("SIGTERM; detector closes");None},
     };
     token.cancel();
-    shutdown_tx.send_replace(true);
     mailbox.close();
     let result = match result {
         Some(result) => result,

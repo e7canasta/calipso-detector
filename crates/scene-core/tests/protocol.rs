@@ -1,13 +1,13 @@
-//! The loop protocol, through the public API: `poll`, `feed`, `finish`,
-//! `drive` and `cancel`.
+//! The loop protocol, through the public API: `handle` opens a turn and
+//! `drive` or `cancel` closes it. There is no other way through.
 use scene_core::contract::{
     BedState, LookResult, Mode, RepublishReason, SampleRef, SessionId, SourceSecs,
 };
 use scene_core::geom::{Quad, Rect};
-use scene_core::look::{Detection, Failure, Label, LookId, Outcome, Reading, Request, Spent};
-use scene_core::map::SiteMap;
+use scene_core::look::{Detection, Failure, Label, Reading, Spent};
+use scene_core::map::{FrameInfo, SiteMap};
 use scene_core::policy::Policy;
-use scene_core::{FeedError, FrameInfo, Incomplete, Input, Monitor, Step, Turn};
+use scene_core::{Input, Monitor};
 
 fn monitor() -> Monitor {
     Monitor::new(
@@ -30,122 +30,22 @@ fn sample(secs: f64) -> Input {
     }
 }
 
-fn empty(id: LookId) -> Outcome {
-    Outcome {
-        id,
-        result: Ok(Reading::Bodies(vec![])),
-        spent: Spent(1.0),
-    }
-}
-
-fn first_request(turn: &mut Turn<'_>) -> Request {
-    match turn.poll() {
-        Step::Look(request) => request.clone(),
-        Step::Done => panic!("a probe was expected"),
-    }
-}
-
-#[test]
-fn poll_before_the_answer_returns_the_same_look() {
-    let mut m = monitor();
-    let mut turn = m.handle(sample(1.0));
-    let a = first_request(&mut turn);
-    let b = first_request(&mut turn);
-    assert_eq!(a, b);
-    turn.feed(empty(a.id)).unwrap();
-    assert_eq!(turn.poll(), Step::Done);
-    turn.finish().unwrap();
-}
-
-#[test]
-fn an_id_foreign_to_the_pending_look_changes_nothing() {
-    let mut m = monitor();
-    let mut turn = m.handle(sample(1.0));
-    let r = first_request(&mut turn);
-    assert_eq!(
-        turn.feed(empty(LookId(999))),
-        Err(FeedError::UnknownId(LookId(999)))
-    );
-    assert_eq!(first_request(&mut turn), r);
-    turn.feed(empty(r.id)).unwrap();
-    let _ = turn.poll();
-    turn.finish().unwrap();
-}
-
-#[test]
-fn a_repeated_result_is_rejected_and_the_first_is_kept() {
-    let mut m = monitor();
-    let mut turn = m.handle(sample(1.0));
-    let r = first_request(&mut turn);
-    turn.feed(empty(r.id)).unwrap();
-    let repeated = Outcome {
-        result: Err(Failure::Cancelled),
-        ..empty(r.id)
-    };
-    assert_eq!(turn.feed(repeated), Err(FeedError::Duplicate(r.id)));
-    let _ = turn.poll();
-    let out = turn.finish().unwrap();
-    assert!(matches!(
-        out.scene.attention.looks[0].result(),
-        Some(LookResult::Read { .. })
-    ));
-}
-
-#[test]
-fn a_reading_of_another_kind_is_rejected() {
-    let mut m = monitor();
-    let mut turn = m.handle(sample(1.0));
-    let r = first_request(&mut turn);
-    let faces = Outcome {
-        result: Ok(Reading::Faces(vec![])),
-        ..empty(r.id)
-    };
-    assert!(matches!(turn.feed(faces), Err(FeedError::KindMismatch(_))));
-    turn.feed(empty(r.id)).unwrap();
-    let _ = turn.poll();
-    turn.finish().unwrap();
-}
-
-#[test]
-fn early_finish_returns_the_turn() {
-    let mut m = monitor();
-    let turn = m.handle(sample(1.0));
-    let Err(Incomplete { mut turn }) = turn.finish() else {
-        panic!("Incomplete was expected");
-    };
-    let r = first_request(&mut turn);
-    turn.feed(empty(r.id)).unwrap();
-    let _ = turn.poll();
-    (*turn).finish().unwrap();
-}
-
 #[test]
 fn a_shutdown_closes_the_turn_without_moving_the_belief() {
     let mut m = monitor();
     for s in 1..=3 {
-        let mut turn = m.handle(sample(f64::from(s)));
-        let r = first_request(&mut turn);
-        turn.feed(Outcome {
-            result: Ok(Reading::Bodies(vec![Detection {
+        let _ = m.handle(sample(f64::from(s))).drive(|_| {
+            let body = Detection {
                 bbox: Rect::new(200.0, 150.0, 300.0, 350.0),
                 confidence: 0.8,
                 label: Label::Person,
-            }])),
-            ..empty(r.id)
-        })
-        .unwrap();
-        let _ = turn.poll();
-        turn.finish().unwrap();
+            };
+            (Ok(Reading::Bodies(vec![body])), Spent(1.0))
+        });
     }
-    let mut turn = m.handle(sample(4.0));
-    let r = first_request(&mut turn);
-    turn.feed(Outcome {
-        result: Err(Failure::Cancelled),
-        ..empty(r.id)
-    })
-    .unwrap();
-    let _ = turn.poll();
-    let out = turn.finish().unwrap();
+    let out = m
+        .handle(sample(4.0))
+        .drive(|_| (Err(Failure::Cancelled), Spent(1.0)));
     assert_eq!(out.scene.room.occupants, 1);
     assert_eq!(out.scene.bed.state, BedState::Seen);
     assert!(out.events.is_empty());

@@ -66,19 +66,6 @@ impl Probe {
         }
     }
 
-    /// Does this reading answer this probe?
-    pub fn accepts(&self, reading: &Reading) -> bool {
-        matches!(
-            (self, reading),
-            (
-                Probe::Detect { .. } | Probe::Reinforce { .. },
-                Reading::Bodies(_)
-            ) | (Probe::Faces { .. }, Reading::Faces(_))
-                | (Probe::Pose { .. }, Reading::Pose(_))
-                | (Probe::Depth { .. }, Reading::Depth(_))
-        )
-    }
-
     /// The region recorded in the ledger.
     pub fn region(&self) -> Option<Rect> {
         match self {
@@ -142,37 +129,6 @@ pub enum Reading {
     Depth(Vec<Option<f32>>),
 }
 
-impl Reading {
-    /// The kind of probe this reading answers.
-    pub fn kind(&self) -> LookKind {
-        match self {
-            Reading::Bodies(_) => LookKind::Detect,
-            Reading::Faces(_) => LookKind::Faces,
-            Reading::Pose(_) => LookKind::Pose,
-            Reading::Depth(_) => LookKind::Depth,
-        }
-    }
-}
-
-/// Why a sense could not read. A failure is data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Failure {
-    /// The shell could not complete the probe (shutdown).
-    Cancelled,
-    /// The sense ran and failed.
-    Model,
-}
-
-impl Failure {
-    /// Its published form.
-    pub fn kind(&self) -> FailureKind {
-        match self {
-            Failure::Cancelled => FailureKind::Cancelled,
-            Failure::Model => FailureKind::Model,
-        }
-    }
-}
-
 /// Identifies a probe within a turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LookId(pub u32);
@@ -190,19 +146,14 @@ pub struct Request {
     pub probe: Probe,
 }
 
-/// The shell's answer to a probe.
+/// The shell's answer to a probe, as the turn records it.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Outcome {
-    /// The id of the request it answers.
-    pub id: LookId,
-    /// What the sense read, or why it could not.
-    pub result: Result<Reading, Failure>,
-    /// How long looking took.
-    pub spent: Spent,
+pub(crate) struct Outcome {
+    pub(crate) result: Result<Reading, Failure>,
+    pub(crate) spent: Spent,
 }
 
-// The typed readings. `feed` already rejected those of another kind
-// (KindMismatch), so the last arm does not happen; if it did, it is a failing
+// The typed readings. A reading of another kind than its probe is a failing
 // sense, not a core panic.
 impl Outcome {
     pub(crate) fn bodies(&self) -> Result<&[Detection], Failure> {
@@ -256,15 +207,6 @@ pub enum LookKind {
     Calibrate,
 }
 
-/// A reading that does not match the probe (protocol misuse).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ProbeKindMismatch {
-    /// The probe's kind.
-    pub expected: LookKind,
-    /// The reading's kind.
-    pub got: LookKind,
-}
-
 impl LookKind {
     /// Its published name (`detect`, `faces`…).
     pub fn as_str(self) -> &'static str {
@@ -291,18 +233,13 @@ impl std::fmt::Display for LookId {
     }
 }
 
-impl std::fmt::Display for ProbeKindMismatch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "a {} reading for a {} probe", self.got, self.expected)
-    }
-}
-
-impl std::error::Error for ProbeKindMismatch {}
-
+// A failure is data: the shell returns it and the ledger publishes it as is.
+// The published schema names it `FailureKind`: renaming it changes the contract.
 /// How a look failed, as published.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum FailureKind {
+#[schemars(rename = "FailureKind")]
+pub enum Failure {
     /// The shell could not complete the probe (shutdown).
     Cancelled,
     /// The sense ran and failed (model or backend error).

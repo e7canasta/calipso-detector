@@ -3,10 +3,13 @@
 //! each layer-0 change as a transition with its before, what was seen, the
 //! after and the facts, each with the occupancy it leaves.
 
-use super::{Layer0, Shared, bed_state, empty_bed, republished_at, retained_subject};
-use crate::belief::{BedPhase, Fact, Occupancy as Believed, Tally, ZoneCounts};
+use super::{
+    bed, bed_state, empty_bed, pending, project_evidence, publish_subject, republished_at,
+    retained_subject, unobserved,
+};
+use crate::belief::{self, BedPhase, Fact, Tally, ZoneCounts};
 use crate::chronicle::{BedKind, Chronicled, RoomName, TransitionKey};
-use crate::conclusion::RepublishReason;
+use crate::conclusion::{Observation, RepublishReason};
 use crate::contract::v4::{
     Attention, BedState, Before, Cause, Cell, Context, DerivedBody, DerivedEvent, Evidence,
     Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState, Mode, Occupancy, Phase,
@@ -64,7 +67,7 @@ fn occupancy(tally: Tally, bed_known: bool) -> Occupancy {
     }
 }
 
-fn believed(occupancy_now: &Believed) -> Occupancy {
+fn believed_occupancy(occupancy_now: &belief::Occupancy) -> Occupancy {
     occupancy(
         Tally {
             counts: occupancy_now.totals(),
@@ -89,39 +92,55 @@ fn publish_cell(key: &TransitionKey) -> Cell {
 
 /// The v4 scene of an observed turn and its events in order: the
 /// transition, the calibration and, last, the derived ones.
-pub(super) fn scene(
-    shared: Shared,
-    layer0: &Layer0,
-    chronicled: &Chronicled,
-) -> (Scene, Vec<Event>) {
-    let occupancy_now = &layer0.occupancy;
-    let after = believed(occupancy_now);
+pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Scene, Vec<Event>) {
+    let Observation {
+        at,
+        believed,
+        refined,
+        evidence,
+        frame,
+        calibrated,
+        attention,
+        map,
+        sensor,
+        dwell_secs,
+    } = observation;
+    let evidence = project_evidence(&evidence, believed.subject.as_ref(), &attention);
+    let republished = unobserved(&evidence, chronicled.observed);
+    let subject = publish_subject(&believed, refined);
+    let belief::Believed {
+        occupancy: occupancy_now,
+        transition: changed,
+        ..
+    } = believed;
+    let after = believed_occupancy(&occupancy_now);
     let scene = Scene {
-        frame: shared.frame,
-        evidence: shared.evidence,
+        frame,
+        evidence,
         room: Room {
             mode: after.mode,
             occupants: occupancy_now.occupants(),
             since: Some(chronicled.room.since),
-            pending: shared.pending,
+            pending: pending(&occupancy_now, dwell_secs),
             phase: phase(occupancy_now.phase),
             last_cell: chronicled.last_transition.as_ref().map(publish_cell),
         },
-        bed: shared.bed,
-        floor: shared.floor,
-        subject: shared.subject,
-        attention: shared.attention,
-        map: shared.map,
-        sensor: shared.sensor,
-        republished: shared.republished,
+        bed: bed(&occupancy_now, chronicled),
+        floor: Floor {
+            seen: occupancy_now.counts.floor,
+        },
+        subject,
+        attention,
+        map,
+        sensor,
+        republished,
     };
-    let mut events: Vec<_> = layer0
-        .transition
+    let mut events: Vec<_> = changed
         .as_ref()
         .map(|t| Event::Transition(transition(t, chronicled.transition_since)))
         .into_iter()
         .collect();
-    events.extend(layer0.calibrated.map(|fact| {
+    events.extend(calibrated.map(|fact| {
         Event::Map(MapEvent {
             cause: Cause::MapLearned,
             at: fact.at,
@@ -133,7 +152,7 @@ pub(super) fn scene(
     let derived = |body| {
         Event::Derived(DerivedEvent {
             cause: Cause::Stabilized,
-            at: layer0.at,
+            at,
             body,
             after,
         })

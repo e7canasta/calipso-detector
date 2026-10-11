@@ -10,7 +10,7 @@ pub use crate::body::{BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
 use crate::geom::Rect;
-pub use crate::look::{FailureKind, LookKind, ProbeKindMismatch};
+pub use crate::look::{Failure, LookKind};
 pub use crate::map::{Calibration, FrameInfo, Geometry, MapState};
 pub use crate::provenance::Provenance;
 pub use crate::refine::{Lying, LyingState, Posture, PostureState};

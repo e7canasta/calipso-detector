@@ -1,122 +1,47 @@
 //! The projection: how the belief looks from outside. It does not decide and
 //! is not read back (rule 3). It is the only place that translates the domain
 //! into the contract, one version per module (today `v4`), from the
-//! conclusion and the chronicle. What every version translates the same lives
-//! here, so a version published next to it cannot tell a different thing (C4):
-//! the evidence, the subject, the map, the bed and how what is published
-//! degrades on republishing (rule 2).
+//! conclusion and the chronicle. What no version changes lives here, as
+//! `contract::common` does: the evidence, the subject, the bed and how what
+//! is published degrades on republishing (rule 2).
 
 pub(crate) mod v4;
 
 use crate::attention::Attention;
-use crate::belief::{Believed, Occupancy, Subject as BelievedSubject, Transition, ZoneCounts};
-use crate::chronicle::{BedKind, Chronicled, Entry, RoomName, TransitionKey};
-use crate::conclusion::{Observation, RepublishReason};
+use crate::belief::{Believed, Occupancy, Subject as BelievedSubject, ZoneCounts};
+use crate::chronicle::{BedKind, Chronicled};
+use crate::conclusion::RepublishReason;
 use crate::contract::v4::{
-    Bed, BedState, Evidence, Floor, Held, Pending, Progress, Provenance, Republished, SampleRef,
-    Subject,
+    Bed, BedState, Held, Pending, Progress, Provenance, Republished, SampleRef, Subject,
 };
-use crate::map::{FrameInfo, Geometry, MapState};
-use crate::sensor::SensorState;
 
-/// What every version publishes the same of an observed turn: computed once
-/// and used as is by each version (C4).
-#[derive(Debug, Clone)]
-pub(super) struct Shared {
-    pub frame: Option<FrameInfo>,
-    pub evidence: Evidence,
-    pub bed: Bed,
-    pub floor: Floor,
-    pub subject: Option<Subject>,
-    pub attention: Attention,
-    pub map: MapState,
-    pub sensor: SensorState,
-    pub republished: Option<Republished>,
-    /// The count being stabilized: the room's, the same in every version.
-    pub pending: Option<Pending>,
+/// The bed as layer 0 believes it, dated by the chronicle.
+fn bed(occupancy: &Occupancy, chronicled: &Chronicled) -> Bed {
+    Bed {
+        state: bed_state(occupancy.totals(), occupancy.bed_known),
+        seen: occupancy.counts.bed,
+        since: Some(chronicled.bed.since),
+        held: occupancy
+            .held
+            .iter()
+            .map(|held| Held {
+                bbox: held.detection.bbox,
+                last_seen: held.since,
+            })
+            .collect(),
+        unexplained: occupancy.unexplained,
+    }
 }
 
-/// What of layer 0 each version translates its own way: the room, the
-/// transition and the calibration.
-#[derive(Debug)]
-pub(super) struct Layer0 {
-    pub at: SampleRef,
-    pub occupancy: Occupancy,
-    pub transition: Option<Transition>,
-    pub calibrated: Option<crate::map::BedCalibrated>,
-}
-
-/// Projects an observed turn: the shared part, and the version builds its room
-/// and events with the chronicle.
-pub(crate) fn observed(
-    observation: Observation,
-    chronicled: &Chronicled,
-) -> (v4::Scene, Vec<v4::Event>) {
-    let (shared, layer0) = split(observation, chronicled);
-    v4::scene(shared, &layer0, chronicled)
-}
-
-fn split(observation: Observation, chronicled: &Chronicled) -> (Shared, Layer0) {
-    let Observation {
-        at,
-        believed,
-        refined,
-        evidence,
-        frame,
-        calibrated,
-        attention,
-        map,
-        sensor,
-        dwell_secs,
-    } = observation;
-    let evidence = project_evidence(&evidence, believed.subject.as_ref(), &attention);
-    let republished = unobserved(&evidence, chronicled.observed);
-    let subject = publish_subject(&believed, refined);
-    let Believed {
-        occupancy,
-        transition,
-        ..
-    } = believed;
-    let shared = Shared {
-        frame,
-        evidence,
-        bed: Bed {
-            state: bed_state(occupancy.totals(), occupancy.bed_known),
-            seen: occupancy.counts.bed,
-            since: Some(chronicled.bed.since),
-            held: occupancy
-                .held
-                .iter()
-                .map(|held| Held {
-                    bbox: held.detection.bbox,
-                    last_seen: held.since,
-                })
-                .collect(),
-            unexplained: occupancy.unexplained,
+/// The count being stabilized, against the dwell it needs.
+fn pending(occupancy: &Occupancy, dwell_secs: f64) -> Option<Pending> {
+    occupancy.pending.map(|pending| Pending {
+        counts: pending.counts,
+        duration: Progress {
+            have: pending.source_secs,
+            need: dwell_secs,
         },
-        floor: Floor {
-            seen: occupancy.counts.floor,
-        },
-        subject,
-        attention,
-        map,
-        sensor,
-        republished,
-        pending: occupancy.pending.map(|pending| Pending {
-            counts: pending.counts,
-            duration: Progress {
-                have: pending.source_secs,
-                need: dwell_secs,
-            },
-        }),
-    };
-    let layer0 = Layer0 {
-        at,
-        occupancy,
-        transition,
-        calibrated,
-    };
-    (shared, layer0)
+    })
 }
 
 /// What was current becomes retained on republishing: nothing is `Current`
@@ -169,27 +94,6 @@ fn empty_bed() -> Bed {
 /// otherwise empty, held or seen.
 fn bed_state(counts: ZoneCounts, bed_known: bool) -> BedState {
     v4::publish_bed(BedKind::of(counts, bed_known))
-}
-
-/// What the chronicle notes of a concluded turn: the room's name, the bed's
-/// kind and whether it saw bodies per zone.
-pub(crate) fn entry(observation: &Observation) -> Entry {
-    let occupancy = &observation.believed.occupancy;
-    let totals = occupancy.totals();
-    Entry {
-        at: observation.at,
-        room: RoomName::of(totals),
-        bed: BedKind::of(totals, occupancy.bed_known),
-        seen: matches!(
-            observation.evidence.bodies.bodies,
-            crate::evidence::BodyEvidence::Seen(_)
-        ),
-        transition: observation
-            .believed
-            .transition
-            .as_ref()
-            .map(TransitionKey::of),
-    }
 }
 
 /// A turn in which the main detector failed observed nothing: the belief is
@@ -319,19 +223,4 @@ fn project_evidence(
         },
     };
     Evidence { bodies, faces }
-}
-
-pub(crate) fn map_state(map: &crate::map::Map, geometry: Geometry) -> MapState {
-    MapState {
-        geometry,
-        bed: map.site.bed,
-        headboard: map.site.headboard,
-        calibration: map.reference().map_or(
-            crate::contract::v4::Calibration::Unavailable,
-            |reference| crate::contract::v4::Calibration::Complete {
-                reference_m: reference.meters,
-                since: reference.since,
-            },
-        ),
-    }
 }

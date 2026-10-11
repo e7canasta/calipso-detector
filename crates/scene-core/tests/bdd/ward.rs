@@ -12,9 +12,10 @@ use scene_core::contract::{
 };
 use scene_core::geom::Quad;
 use scene_core::look::Spent;
+use scene_core::map::FrameInfo;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
-use scene_core::{FrameInfo, Input, Monitor, Output};
+use scene_core::{Input, Monitor, Output};
 
 /// Every scenario's geometry is that of the golden scenes: a single one.
 pub use golden::world::{BED, FRAME};
