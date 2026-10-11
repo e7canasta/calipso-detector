@@ -1,6 +1,6 @@
 //! Evidence: which observation counts and how much it is worth. It never
 //! decides what is believed or what is looked at. It receives readings already
-//! typed: `feed` guaranteed each one answers its probe.
+//! typed: one of another kind than its probe arrives as a failing sense.
 
 use crate::attention::LookResult;
 use crate::body::Keypoint;
@@ -80,7 +80,8 @@ pub(crate) enum BodyEvidence {
 }
 
 impl BodyEvidence {
-    pub(crate) fn bodies(&self) -> Option<&Bodies> {
+    /// The bodies seen per zone, if the detector proved them.
+    pub(crate) fn seen(&self) -> Option<&Bodies> {
         match self {
             BodyEvidence::Seen(b) => Some(b),
             _ => None,
@@ -357,10 +358,10 @@ fn same_body(a: &Detection, b: &Detection, iou: f32) -> bool {
     a.bbox.contains_rect(&b.bbox) || b.bbox.contains_rect(&a.bbox) || a.bbox.iou(&b.bbox) >= iou
 }
 
-fn reject(d: &Detection, policy: &AdmissionPolicy) -> Option<RejectReason> {
-    if d.label != Label::Person {
+fn reject(detection: &Detection, policy: &AdmissionPolicy) -> Option<RejectReason> {
+    if detection.label != Label::Person {
         Some(RejectReason::NotPerson)
-    } else if d.confidence < policy.min_confidence {
+    } else if detection.confidence < policy.min_confidence {
         Some(RejectReason::LowConfidence)
     } else {
         None
@@ -518,7 +519,7 @@ mod source_tests {
         for (confidence, source) in [(0.9, BodySource::Reinforcement), (0.7, BodySource::Primary)] {
             let primary = admit(Ok(&[d(0.8)]), Some(&bed), &p);
             let (admission, _) = consolidate(primary, Ok(&[d(confidence)]), Some(&bed), &p);
-            let bodies = admission.bodies.bodies().unwrap();
+            let bodies = admission.bodies.seen().unwrap();
             assert_eq!(bodies.bed.len(), 1);
             assert_eq!(bodies.bed[0].source, source);
         }

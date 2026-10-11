@@ -22,7 +22,7 @@ mod stabilizer;
 pub(super) use machine::Machine;
 pub(crate) use room::{Alone, InBed, Room};
 
-use crate::belief::{Fact, ZoneCounts};
+use crate::belief::{Fact, Occupants};
 use crate::look::Detection;
 use crate::time::SampleRef;
 use crate::zone::Counts;
@@ -63,7 +63,7 @@ pub(crate) struct Transition {
 /// that are nobody (rule 6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Tally {
-    pub counts: ZoneCounts,
+    pub occupants: Occupants,
     pub unexplained: u32,
 }
 
@@ -95,15 +95,12 @@ pub(crate) struct Occupancy {
 }
 
 impl Occupancy {
-    pub(crate) fn totals(&self) -> ZoneCounts {
-        ZoneCounts {
+    /// The occupants it believes in, the held ones included.
+    pub(crate) fn occupants(&self) -> Occupants {
+        Occupants {
             floor: self.counts.floor,
             bed: self.counts.bed,
             held: u32::try_from(self.held.len()).unwrap_or(u32::MAX),
         }
-    }
-
-    pub(crate) fn occupants(&self) -> u32 {
-        self.totals().occupants()
     }
 }

@@ -4,7 +4,7 @@
 //! one that translates the fold into the contract. Nobody reads it to decide
 //! (P1, P4).
 
-use crate::belief::{Alone, Room, Transition, ZoneCounts};
+use crate::belief::{Alone, Occupants, Room, Transition};
 use crate::conclusion::Observation;
 use crate::evidence::BodyEvidence;
 use crate::time::SampleRef;
@@ -63,8 +63,8 @@ pub(crate) enum RoomName {
 }
 
 impl RoomName {
-    pub(crate) fn of(counts: ZoneCounts) -> Self {
-        match Room::of(counts) {
+    pub(crate) fn of(occupants: Occupants) -> Self {
+        match Room::of(occupants) {
             Room::Empty => Self::Empty,
             Room::Alone(alone) => Self::Alone(alone),
             Room::Accompanied(_) => Self::Accompanied,
@@ -84,8 +84,8 @@ pub(crate) enum BedKind {
 }
 
 impl BedKind {
-    pub(crate) fn of(counts: ZoneCounts, known: bool) -> Self {
-        match (known, counts.bed, counts.held) {
+    pub(crate) fn of(occupants: Occupants, known: bool) -> Self {
+        match (known, occupants.bed, occupants.held) {
             (false, _, _) => Self::Unknown,
             (true, 0, 0) => Self::Empty,
             (true, 0, _) => Self::Held,
@@ -98,17 +98,17 @@ impl BedKind {
 /// `project` writes them as the published cell.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct TransitionKey {
-    pub before: ZoneCounts,
+    pub before: Occupants,
     pub seen: Counts,
-    pub after: ZoneCounts,
+    pub after: Occupants,
 }
 
 impl TransitionKey {
     pub(crate) fn of(transition: &Transition) -> Self {
         Self {
-            before: transition.before.counts,
+            before: transition.before.occupants,
             seen: transition.seen.counts,
-            after: transition.after.counts,
+            after: transition.after.occupants,
         }
     }
 }
@@ -130,11 +130,11 @@ impl Entry {
     /// bed's kind and whether it saw bodies per zone.
     pub(crate) fn of(observation: &Observation) -> Self {
         let occupancy = &observation.believed.occupancy;
-        let totals = occupancy.totals();
+        let occupants = occupancy.occupants();
         Self {
             at: observation.at,
-            room: RoomName::of(totals),
-            bed: BedKind::of(totals, occupancy.bed_known),
+            room: RoomName::of(occupants),
+            bed: BedKind::of(occupants, occupancy.bed_known),
             seen: matches!(observation.evidence.bodies.bodies, BodyEvidence::Seen(_)),
             transition: observation
                 .believed
@@ -231,8 +231,8 @@ mod tests {
         }
     }
 
-    fn counts(floor: u32, bed: u32, held: u32) -> ZoneCounts {
-        ZoneCounts { floor, bed, held }
+    fn counts(floor: u32, bed: u32, held: u32) -> Occupants {
+        Occupants { floor, bed, held }
     }
 
     fn entry(secs: f64, room: RoomName, bed: BedKind, seen: bool) -> Entry {

@@ -5,7 +5,6 @@
 use super::Subject;
 use crate::body::{BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 use crate::estimation;
-use crate::evidence::Admission;
 use crate::geom::Rect;
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
@@ -56,14 +55,14 @@ impl Enrichment {
         pose: Option<Vec<Keypoint>>,
         depths: Option<Vec<Option<f32>>>,
         bbox: Rect,
-        bodies: &Admission,
+        primary_seen: bool,
     ) -> Self {
         match pose {
             Some(pose) => Self::Fresh {
                 pose,
                 depths: depths.unwrap_or_default(),
                 bbox,
-                reference: if bodies.primary_seen() {
+                reference: if primary_seen {
                     ReferenceUpdate::Refresh
                 } else {
                     ReferenceUpdate::Preserve
@@ -145,10 +144,10 @@ impl SubjectMemory {
     }
 }
 
-fn body(e: &Enriched, provenance: Provenance) -> SubjectBody {
+fn body(enriched: &Enriched, provenance: Provenance) -> SubjectBody {
     SubjectBody {
         pose: Pose {
-            keypoints: e
+            keypoints: enriched
                 .pose
                 .iter()
                 .enumerate()
@@ -157,11 +156,14 @@ fn body(e: &Enriched, provenance: Provenance) -> SubjectBody {
                     x: k.x,
                     y: k.y,
                     score: k.score,
-                    depth: e.depths.get(i).copied().flatten(),
+                    depth: enriched.depths.get(i).copied().flatten(),
                 })
                 .collect(),
             provenance,
         },
-        depth: e.depth.map(|meters| SubjectDepth { meters, provenance }),
+        depth: enriched.depth.map(|depth| SubjectDepth {
+            meters: depth,
+            provenance,
+        }),
     }
 }

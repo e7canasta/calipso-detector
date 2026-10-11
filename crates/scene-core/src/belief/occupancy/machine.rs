@@ -8,7 +8,7 @@
 use super::conservation::{self, BedPhase, Before, Movement};
 use super::span::{Settled, Span};
 use super::{Happened, HeldBody, Occupancy, PendingCounts, Room, Tally, Transition};
-use crate::belief::{Fact, ZoneCounts};
+use crate::belief::{Fact, Occupants};
 use crate::evidence::Bodies;
 use crate::look::Detection;
 use crate::policy::Persistence;
@@ -106,12 +106,12 @@ impl Machine {
         settled: Settled,
         moves: Vec<Movement>,
     ) -> Transition {
-        let believed = ZoneCounts {
+        let believed = Occupants {
             floor: before.stable.floor,
             bed: before.stable.bed.saturating_sub(before.unexplained),
             held: before.held,
         };
-        let mut counts = believed;
+        let mut occupants = believed;
         let mut facts = Vec::new();
         // Newly retained bodies are chosen together: the last ones seen in bed.
         let held = moves.iter().filter(|m| **m == Movement::Held).count();
@@ -153,11 +153,11 @@ impl Machine {
                     continue;
                 }
             };
-            counts = conservation::evolve(counts, m);
+            occupants = conservation::evolve(occupants, m);
             facts.push(Happened {
                 fact,
                 after: Tally {
-                    counts,
+                    occupants,
                     unexplained: self.unexplained,
                 },
             });
@@ -166,13 +166,13 @@ impl Machine {
             at,
             phase: before.bed_phase,
             before: Tally {
-                counts: believed,
+                occupants: believed,
                 unexplained: before.unexplained,
             },
             seen: settled.seen,
             first_seen: settled.first,
             after: Tally {
-                counts: self.totals(),
+                occupants: self.occupants(),
                 unexplained: self.unexplained,
             },
             facts,
@@ -198,12 +198,12 @@ impl Machine {
 
     /// The room's mode: the machine with names.
     pub(in crate::belief) fn room(&self) -> Room {
-        Room::of(self.totals())
+        Room::of(self.occupants())
     }
 
-    fn totals(&self) -> ZoneCounts {
+    fn occupants(&self) -> Occupants {
         let seen = self.seen();
-        ZoneCounts {
+        Occupants {
             floor: seen.floor,
             bed: seen.bed,
             held: count(self.held.len()),

@@ -4,7 +4,7 @@
 //! count, in publishing order; [`evolve`] says how each one moves the counts.
 //! No state, no events, no boxes: each rule is tested alone.
 
-use crate::belief::ZoneCounts;
+use crate::belief::Occupants;
 use crate::zone::Counts;
 
 /// What we believed before the change: `state[t−1]`.
@@ -129,8 +129,8 @@ pub(super) fn settle(before: Before, seen: Seen) -> Vec<Movement> {
 }
 
 /// How a move changes the occupant counts. What is nobody does not count.
-pub(super) fn evolve(counts: ZoneCounts, m: Movement) -> ZoneCounts {
-    let ZoneCounts { floor, bed, held } = counts;
+pub(super) fn evolve(occupants: Occupants, m: Movement) -> Occupants {
+    let Occupants { floor, bed, held } = occupants;
     let (floor, bed, held) = match m {
         Movement::LeftBed => (floor + 1, bed.saturating_sub(1), held),
         Movement::Held => (floor, bed.saturating_sub(1), held + 1),
@@ -141,7 +141,7 @@ pub(super) fn evolve(counts: ZoneCounts, m: Movement) -> ZoneCounts {
         Movement::Entered => (floor + 1, bed, held),
         Movement::UnexplainedIn | Movement::UnexplainedOut => (floor, bed, held),
     };
-    ZoneCounts { floor, bed, held }
+    Occupants { floor, bed, held }
 }
 
 #[cfg(test)]

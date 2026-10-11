@@ -8,7 +8,7 @@
 pub(crate) mod v4;
 
 use crate::attention::Attention;
-use crate::belief::{Believed, Occupancy, Subject as BelievedSubject, ZoneCounts};
+use crate::belief::{Believed, Occupancy, Occupants, Subject as BelievedSubject};
 use crate::chronicle::{BedKind, Chronicled};
 use crate::conclusion::RepublishReason;
 use crate::contract::v4::{
@@ -18,7 +18,7 @@ use crate::contract::v4::{
 /// The bed as layer 0 believes it, dated by the chronicle.
 fn bed(occupancy: &Occupancy, chronicled: &Chronicled) -> Bed {
     Bed {
-        state: bed_state(occupancy.totals(), occupancy.bed_known),
+        state: bed_state(occupancy.occupants(), occupancy.bed_known),
         seen: occupancy.counts.bed,
         since: Some(chronicled.bed.since),
         held: occupancy
@@ -92,8 +92,8 @@ fn empty_bed() -> Bed {
 
 /// The bed's published state: `unknown` if this turn does not know the zones;
 /// otherwise empty, held or seen.
-fn bed_state(counts: ZoneCounts, bed_known: bool) -> BedState {
-    v4::publish_bed(BedKind::of(counts, bed_known))
+fn bed_state(occupants: Occupants, bed_known: bool) -> BedState {
+    v4::publish_bed(BedKind::of(occupants, bed_known))
 }
 
 /// A turn in which the main detector failed observed nothing: the belief is

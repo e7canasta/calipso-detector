@@ -16,7 +16,7 @@
 //! └── Accompanied(Crowd)                     two or more: 200, 210, 211, …
 //! ```
 
-use crate::belief::ZoneCounts;
+use crate::belief::Occupants;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Room {
@@ -43,18 +43,18 @@ pub(crate) enum InBed {
 /// Two or more occupants, with their counts per zone. Built only from
 /// [`Room::of`]: an accompanied room with fewer than two does not exist.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Crowd(ZoneCounts);
+pub(crate) struct Crowd(Occupants);
 
 impl Crowd {
     #[cfg(test)]
-    pub(crate) fn counts(self) -> ZoneCounts {
+    pub(crate) fn counts(self) -> Occupants {
         self.0
     }
 }
 
 impl Room {
     /// The mode of some occupant counts.
-    pub(crate) fn of(c: ZoneCounts) -> Self {
+    pub(crate) fn of(c: Occupants) -> Self {
         match (c.floor, c.bed, c.held) {
             (0, 0, 0) => Self::Empty,
             (1, 0, 0) => Self::Alone(Alone::Out),
@@ -67,8 +67,8 @@ impl Room {
     /// The occupant counts of this mode. The inverse of [`Room::of`]: it exists
     /// to prove the mode loses no information.
     #[cfg(test)]
-    pub(crate) fn counts(self) -> ZoneCounts {
-        let c = |floor, bed, held| ZoneCounts { floor, bed, held };
+    pub(crate) fn counts(self) -> Occupants {
+        let c = |floor, bed, held| Occupants { floor, bed, held };
         match self {
             Self::Empty => c(0, 0, 0),
             Self::Alone(Alone::Out) => c(1, 0, 0),
@@ -83,10 +83,10 @@ impl Room {
 mod tests {
     use super::*;
 
-    fn all(up_to: u32) -> impl Iterator<Item = ZoneCounts> {
+    fn all(up_to: u32) -> impl Iterator<Item = Occupants> {
         (0..=up_to).flat_map(move |floor| {
             (0..=up_to)
-                .flat_map(move |bed| (0..=up_to).map(move |held| ZoneCounts { floor, bed, held }))
+                .flat_map(move |bed| (0..=up_to).map(move |held| Occupants { floor, bed, held }))
         })
     }
 
@@ -101,7 +101,7 @@ mod tests {
     fn there_is_one_occupant_exactly_when_the_mode_is_alone() {
         for c in all(4) {
             let alone = matches!(Room::of(c), Room::Alone(_));
-            assert_eq!(alone, c.occupants() == 1, "{c:?}");
+            assert_eq!(alone, c.total() == 1, "{c:?}");
         }
     }
 
@@ -109,7 +109,7 @@ mod tests {
     fn accompanied_is_two_or_more() {
         for c in all(4) {
             if let Room::Accompanied(crowd) = Room::of(c) {
-                assert!(crowd.counts().occupants() >= 2, "{c:?}");
+                assert!(crowd.counts().total() >= 2, "{c:?}");
             }
         }
     }

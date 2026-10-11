@@ -3,7 +3,7 @@
 //! requested or the turn goes on, and every answer is interpreted by
 //! `evidence`, `belief` or `map`.
 
-use super::waiting::{Awaiting, Waiting};
+use super::waiting::{Continuation, Waiting};
 use super::{Course, Engine, Observed, Phase};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
@@ -128,18 +128,19 @@ impl Course<'_> {
                             return Phase::Waiting(Waiting::depth(observed, pose, bbox, points));
                         }
                         (_, pose) => {
-                            let e = Enrichment::fresh(pose, None, bbox, &observed.evidence.bodies);
-                            Reached::Enriched(observed, e)
+                            let primary_seen = observed.evidence.bodies.primary_seen();
+                            let enrichment = Enrichment::fresh(pose, None, bbox, primary_seen);
+                            Reached::Enriched(observed, enrichment)
                         }
                     }
                 }
                 // Conclude.
-                Reached::Enriched(mut observed, e) => {
-                    observed.believed =
-                        self.monitor
-                            .engine
-                            .belief
-                            .observe_body(self.at, observed.believed, e);
+                Reached::Enriched(mut observed, enrichment) => {
+                    observed.believed = self.monitor.engine.belief.observe_body(
+                        self.at,
+                        observed.believed,
+                        enrichment,
+                    );
                     return Phase::Concluded { observed };
                 }
             };
@@ -147,10 +148,15 @@ impl Course<'_> {
     }
 
     /// The reading arrived: it is interpreted and the turn continues where it was.
-    pub(super) fn advance(&mut self, stage: Awaiting, probe: &Probe, outcome: Outcome) -> Phase {
+    pub(super) fn advance(
+        &mut self,
+        stage: Continuation,
+        probe: &Probe,
+        outcome: Outcome,
+    ) -> Phase {
         let spent = outcome.spent;
         let reached = match stage {
-            Awaiting::Primary => {
+            Continuation::Primary => {
                 let admission = evidence::admit(
                     outcome.bodies(),
                     self.monitor.engine.map.bed_for(self.geometry),
@@ -159,7 +165,7 @@ impl Course<'_> {
                 self.asked(probe, spent, admission.result.clone());
                 Reached::Primary(admission)
             }
-            Awaiting::Reinforce { primary } => {
+            Continuation::Reinforce { primary } => {
                 // The loss counts as checked only if reinforcement looked: a
                 // failing reinforcement is requested again on the next sample.
                 if outcome.result.is_ok() {
@@ -174,7 +180,7 @@ impl Course<'_> {
                 self.asked(probe, spent, result);
                 Reached::Bodies(bodies)
             }
-            Awaiting::Faces {
+            Continuation::Faces {
                 bodies,
                 region,
                 policy,
@@ -186,13 +192,13 @@ impl Course<'_> {
                     faces: faces.faces,
                 })
             }
-            Awaiting::Calibrate { mut observed } => {
-                let (meters, result) = evidence::depth(outcome.depths());
+            Continuation::Calibrate { mut observed } => {
+                let (depth, result) = evidence::depth(outcome.depths());
                 self.asked(probe, spent, result);
-                observed.calibrated = self.monitor.engine.map.learn(self.at, meters);
+                observed.calibrated = self.monitor.engine.map.learn(self.at, depth);
                 Reached::Map(observed)
             }
-            Awaiting::Pose { observed, bbox } => {
+            Continuation::Pose { observed, bbox } => {
                 let (pose, result) = evidence::pose(outcome.into_pose());
                 self.asked(probe, spent, result);
                 Reached::Pose {
@@ -201,7 +207,7 @@ impl Course<'_> {
                     bbox,
                 }
             }
-            Awaiting::Depth {
+            Continuation::Depth {
                 observed,
                 pose,
                 bbox,
@@ -209,8 +215,9 @@ impl Course<'_> {
             } => {
                 let (depths, result) = evidence::depths(outcome.depths(), &at, pose.len());
                 self.asked(probe, spent, result);
-                let e = Enrichment::fresh(Some(pose), depths, bbox, &observed.evidence.bodies);
-                Reached::Enriched(observed, e)
+                let primary_seen = observed.evidence.bodies.primary_seen();
+                let enrichment = Enrichment::fresh(Some(pose), depths, bbox, primary_seen);
+                Reached::Enriched(observed, enrichment)
             }
         };
         self.next(reached)

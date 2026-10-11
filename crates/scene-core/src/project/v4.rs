@@ -7,7 +7,7 @@ use super::{
     bed, bed_state, empty_bed, pending, project_evidence, publish_subject, republished_at,
     retained_subject, unobserved,
 };
-use crate::belief::{self, BedPhase, Fact, Tally, ZoneCounts};
+use crate::belief::{self, BedPhase, Fact, Occupants, Tally};
 use crate::chronicle::{BedKind, Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::contract::v4::{
@@ -19,8 +19,8 @@ use crate::contract::v4::{
 pub(crate) use crate::contract::v4::{Event, Scene};
 
 /// The machine's mode, said in v4.
-pub(super) fn mode(counts: ZoneCounts) -> Mode {
-    publish_room(RoomName::of(counts))
+pub(super) fn mode(occupants: Occupants) -> Mode {
+    publish_room(RoomName::of(occupants))
 }
 
 pub(super) fn publish_room(name: RoomName) -> Mode {
@@ -54,15 +54,19 @@ fn phase(phase: BedPhase) -> Phase {
 }
 
 /// The `[R, B, H]` triple.
-fn rbh(counts: ZoneCounts) -> Rbh {
-    Rbh(counts.occupants(), counts.bed + counts.held, counts.held)
+fn rbh(occupants: Occupants) -> Rbh {
+    Rbh(
+        occupants.total(),
+        occupants.bed + occupants.held,
+        occupants.held,
+    )
 }
 
 fn occupancy(tally: Tally, bed_known: bool) -> Occupancy {
     Occupancy {
-        rbh: rbh(tally.counts),
-        mode: mode(tally.counts),
-        bed: bed_state(tally.counts, bed_known),
+        rbh: rbh(tally.occupants),
+        mode: mode(tally.occupants),
+        bed: bed_state(tally.occupants, bed_known),
         unexplained: tally.unexplained,
     }
 }
@@ -70,7 +74,7 @@ fn occupancy(tally: Tally, bed_known: bool) -> Occupancy {
 fn believed_occupancy(occupancy_now: &belief::Occupancy) -> Occupancy {
     occupancy(
         Tally {
-            counts: occupancy_now.totals(),
+            occupants: occupancy_now.occupants(),
             unexplained: occupancy_now.unexplained,
         },
         occupancy_now.bed_known,
@@ -119,7 +123,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         evidence,
         room: Room {
             mode: after.mode,
-            occupants: occupancy_now.occupants(),
+            occupants: occupancy_now.occupants().total(),
             since: Some(chronicled.room.since),
             pending: pending(&occupancy_now, dwell_secs),
             phase: phase(occupancy_now.phase),
@@ -237,7 +241,7 @@ fn published(scene: &Scene) -> Occupancy {
 fn empty() -> Occupancy {
     occupancy(
         Tally {
-            counts: ZoneCounts {
+            occupants: Occupants {
                 floor: 0,
                 bed: 0,
                 held: 0,

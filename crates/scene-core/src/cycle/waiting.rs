@@ -12,12 +12,12 @@ use crate::policy::FacePolicy;
 #[derive(Debug)]
 pub(super) struct Waiting {
     probe: Probe,
-    stage: Awaiting,
+    stage: Continuation,
 }
 
 /// Data needed to interpret the probe of a waiting stage.
 #[derive(Debug)]
-pub(super) enum Awaiting {
+pub(super) enum Continuation {
     Primary,
     Reinforce {
         primary: Admission,
@@ -45,17 +45,20 @@ pub(super) enum Awaiting {
 
 impl Waiting {
     pub(super) fn primary(region: Option<Rect>) -> Self {
-        Self::new(Probe::Detect { region }, Awaiting::Primary)
+        Self::new(Probe::Detect { region }, Continuation::Primary)
     }
 
     pub(super) fn reinforce(region: Rect, primary: Admission) -> Self {
-        Self::new(Probe::Reinforce { region }, Awaiting::Reinforce { primary })
+        Self::new(
+            Probe::Reinforce { region },
+            Continuation::Reinforce { primary },
+        )
     }
 
     pub(super) fn faces(bodies: Admission, region: FaceRegion, policy: FacePolicy) -> Self {
         Self::new(
             Probe::Faces { region },
-            Awaiting::Faces {
+            Continuation::Faces {
                 bodies,
                 region,
                 policy,
@@ -69,12 +72,12 @@ impl Waiting {
                 purpose: DepthPurpose::Bed,
                 points,
             },
-            Awaiting::Calibrate { observed },
+            Continuation::Calibrate { observed },
         )
     }
 
     pub(super) fn pose(observed: Observed, bbox: Rect) -> Self {
-        Self::new(Probe::Pose { bbox }, Awaiting::Pose { observed, bbox })
+        Self::new(Probe::Pose { bbox }, Continuation::Pose { observed, bbox })
     }
 
     pub(super) fn depth(
@@ -89,7 +92,7 @@ impl Waiting {
                 purpose: DepthPurpose::Subject,
                 points,
             },
-            Awaiting::Depth {
+            Continuation::Depth {
                 observed,
                 pose,
                 bbox,
@@ -98,12 +101,12 @@ impl Waiting {
         )
     }
 
-    fn new(probe: Probe, stage: Awaiting) -> Self {
+    fn new(probe: Probe, stage: Continuation) -> Self {
         Self { probe, stage }
     }
 
     /// The probe to look at and what interprets its reading.
-    pub(super) fn into_parts(self) -> (Probe, Awaiting) {
+    pub(super) fn into_parts(self) -> (Probe, Continuation) {
         (self.probe, self.stage)
     }
 }

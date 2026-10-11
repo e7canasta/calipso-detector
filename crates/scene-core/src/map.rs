@@ -23,7 +23,7 @@ pub struct SiteMap {
     pub resolution: Option<FrameInfo>,
     /// Where the headboard is: where to look for faces with no subject in sight.
     pub headboard: Option<Rect>,
-    /// The learned depth of the empty bed, in metres.
+    /// The learned depth of the empty bed, in the depth model's relative scale.
     pub bed_reference: Option<f32>,
     /// The last calibration attempt, for the retry delay.
     pub calibration_attempt: Option<SampleRef>,
@@ -39,7 +39,7 @@ pub(crate) struct SiteGeometry {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct BedReference {
-    pub meters: f32,
+    pub depth: f32,
     pub since: Option<SampleRef>,
 }
 
@@ -65,8 +65,8 @@ impl From<SiteMap> for Map {
                 headboard: initial.headboard,
             },
             calibration: CalibrationMemory {
-                reference: initial.bed_reference.map(|meters| BedReference {
-                    meters,
+                reference: initial.bed_reference.map(|depth| BedReference {
+                    depth,
                     since: initial.calibrated_at,
                 }),
                 last_attempt: initial.calibration_attempt,
@@ -115,15 +115,15 @@ impl Map {
 
     /// Learns the depth of the empty bed and says so with a domain event;
     /// without a valid measurement it learns nothing.
-    pub(crate) fn learn(&mut self, at: SampleRef, meters: Option<f32>) -> Option<BedCalibrated> {
-        let meters = meters?;
+    pub(crate) fn learn(&mut self, at: SampleRef, depth: Option<f32>) -> Option<BedCalibrated> {
+        let depth = depth?;
         self.calibration.reference = Some(BedReference {
-            meters,
+            depth,
             since: Some(at),
         });
         Some(BedCalibrated {
             at,
-            reference_m: meters,
+            reference_m: depth,
         })
     }
 
@@ -153,7 +153,7 @@ impl Map {
                 .reference()
                 .map_or(Calibration::Unavailable, |reference| {
                     Calibration::Complete {
-                        reference_m: reference.meters,
+                        reference_m: reference.depth,
                         since: reference.since,
                     }
                 }),

@@ -122,8 +122,8 @@ fn name(h: &Happened) -> &'static str {
 
 /// `RBH`, plus the unexplained bodies if any: `110+u`.
 fn triple(z: &Machine) -> String {
-    let t = z.totals();
-    let (r, b, h) = (t.occupants(), t.bed + t.held, t.held);
+    let t = z.occupants();
+    let (r, b, h) = (t.total(), t.bed + t.held, t.held);
     let unexplained = match z.unexplained {
         0 => String::new(),
         1 => "+u".into(),
@@ -191,8 +191,8 @@ fn table() -> String {
         rows += &format!("{r}{b}{h} | {f}{v}");
         for (context, label) in CONTEXTS {
             let (z, _) = cross(r, b, h, f, v, context);
-            let t = z.totals();
-            states.insert((t.occupants(), t.bed + t.held, t.held));
+            let t = z.occupants();
+            states.insert((t.total(), t.bed + t.held, t.held));
             rows += &format!(" | {label}: {}", cell(r, b, h, f, v, context));
         }
         rows += "\n";
@@ -202,7 +202,7 @@ fn table() -> String {
          # States: the RBH triple and its mode in the machine (Room).\n",
     );
     for (r, b, h) in states {
-        let room = Room::of(ZoneCounts {
+        let room = Room::of(Occupants {
             floor: r - b,
             bed: b - h,
             held: h,
@@ -243,17 +243,20 @@ fn the_layer_0_invariants_hold_across_the_table() {
         for (context, label) in CONTEXTS {
             let (z, events) = cross(r, b, h, f, v, context);
             let cell = format!("{r}{b}{h} | {f}{v} | {label}");
-            let after = z.totals();
+            let after = z.occupants();
             if let Some(last) = facts(&events).last() {
                 assert_eq!(
-                    last.after.counts, after,
+                    last.after.occupants, after,
                     "{cell}: the after of the last fact is the belief"
                 );
             }
             // The transition carries its state (P6): what we believed is the
             // cell, what we saw is the raw count and what we believe is the belief.
             if let Some(last) = events.last() {
-                assert_eq!(last.after.counts, after, "{cell}: after of the transition");
+                assert_eq!(
+                    last.after.occupants, after,
+                    "{cell}: after of the transition"
+                );
                 assert_eq!(
                     last.seen.counts,
                     Counts { floor: f, bed: v },
@@ -262,8 +265,8 @@ fn the_layer_0_invariants_hold_across_the_table() {
             }
             if let Some(first) = events.first() {
                 assert_eq!(
-                    first.before.counts,
-                    ZoneCounts {
+                    first.before.occupants,
+                    Occupants {
                         floor: r - b,
                         bed: b - h,
                         held: h
@@ -286,7 +289,7 @@ fn the_layer_0_invariants_hold_across_the_table() {
             // Only the door changes the total, except for the two named
             // exceptions: adoption at startup and lying down in passing.
             if matches!(context, Context::Base | Context::Far) {
-                let total = i64::from(after.occupants()) - i64::from(r);
+                let total = i64::from(after.total()) - i64::from(r);
                 let entered = how_many(&events, |e| e.fact == Fact::Entered);
                 let left_room = how_many(&events, |e| e.fact == Fact::LeftRoom);
                 assert_eq!(

@@ -250,7 +250,10 @@ One concept, one name.
 | look, probe | `look`, `Probe` | What the core asks the shell to look at |
 | reading | `Reading` | What the shell returns for a probe |
 | evidence | `evidence` | Which reading counts and how much it is worth; it never decides what is believed |
-| count | `zone::Counts`, `ZoneCounts` | Bodies per zone: floor, bed, held |
+| box | `look::Detection` | What a detector returns: a rectangle, a score and a class. It is evidence of a body, not a body |
+| body (in the room) | `evidence::Body`, `Bodies`, `HeldBody` | A person, as an admitted box shows them: what layer 0 counts per zone |
+| count | `zone::Counts` | The bodies seen per zone: floor and bed |
+| occupants | `belief::Occupants` | Who layer 0 believes is there: off the bed, seen in bed and held in bed. The book's `RBH` is `(total, bed + held, held)` |
 | span | `Span` | From the last stable count until a new one holds |
 | stabilize | `Stabilizer` | A value counts once it has held in source time |
 | what we believed / what we saw | `Before` / `Seen` | The two input columns of the table |
@@ -266,7 +269,8 @@ One concept, one name.
 | machine | `occupancy::Machine`, `Machine::step` | Layer 0: receives a sample and returns the transition, if any |
 | mode | `Room` | The name of the layer-0 state |
 | subject | `Subject` | The only occupant, if there is exactly one |
-| body, pose | `body::Pose`, `BodyPoint`, `Joint` | The subject's COCO-17 keypoints and their relative depth |
+| the subject's body, pose | `body::Pose`, `BodyPoint`, `Joint`, `SubjectBody` | The subject's COCO-17 keypoints and their relative depth: what level 2 looks at |
+| enrichment | `Enrichment`, `Belief::observe_body` | What a turn did with the subject's body: a fresh pose (and depth), kept, failed or nothing |
 | provenance | `provenance::Provenance` | Where a claim comes from: current, retained or stable (rule 2) |
 | published language | `contract::v4` (and `contract`) | What a version publishes; it re-exports the domain vocabulary |
 | second level | `refine` | How the resident is: lying, posture |

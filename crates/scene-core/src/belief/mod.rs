@@ -18,15 +18,17 @@ use subject::SubjectMemory;
 pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, Room, Tally, Transition};
 pub(crate) use subject::{Enrichment, SubjectBody};
 
+/// The occupants layer 0 believes in, by where they are: off the bed, seen in
+/// bed and held in bed. The book's `RBH` is `(total, bed + held, held)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ZoneCounts {
+pub(crate) struct Occupants {
     pub floor: u32,
     pub bed: u32,
     pub held: u32,
 }
 
-impl ZoneCounts {
-    pub(crate) fn occupants(self) -> u32 {
+impl Occupants {
+    pub(crate) fn total(self) -> u32 {
         self.floor + self.bed + self.held
     }
 }
@@ -117,11 +119,13 @@ impl Belief {
     pub(crate) fn observe_body(
         &mut self,
         at: SampleRef,
-        mut b: Believed,
-        e: Enrichment,
+        mut believed: Believed,
+        enrichment: Enrichment,
     ) -> Believed {
-        b.body = self.subject.observe(at, b.subject.as_ref(), e);
-        b
+        believed.body = self
+            .subject
+            .observe(at, believed.subject.as_ref(), enrichment);
+        believed
     }
 
     /// Reinforcement looked: the latch is spent until the main detector sees
@@ -138,7 +142,7 @@ impl Belief {
         admission: &Admission,
         policy: &Policy,
     ) -> Believed {
-        let current = admission.bodies.bodies();
+        let current = admission.bodies.seen();
         let transition =
             current.and_then(|bodies| self.occupancy.step(at, bodies, &policy.persistence));
         self.rearm(admission.primary.bed);
@@ -198,11 +202,11 @@ impl Belief {
     }
 }
 
-fn subject(zone: Zone, d: &Detection, provenance: Provenance) -> Subject {
+fn subject(zone: Zone, detection: &Detection, provenance: Provenance) -> Subject {
     Subject {
         zone,
-        bbox: d.bbox,
-        confidence: d.confidence,
+        bbox: detection.bbox,
+        confidence: detection.confidence,
         provenance,
     }
 }

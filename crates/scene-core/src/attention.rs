@@ -77,7 +77,7 @@ pub(crate) fn reinforce(
     let Some(policy) = &policy.reinforce else {
         return Consideration::Disabled;
     };
-    let now = g.bodies.bodies().map_or(0, |b| b.counts().bed);
+    let now = g.bodies.seen().map_or(0, |b| b.counts().bed);
     if now > 0 && now >= bed_seen {
         return Consideration::Inapplicable;
     }
@@ -100,7 +100,7 @@ pub(crate) fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegi
     };
     Consideration::Decided(
         match (
-            g.bodies.bodies().and_then(|b| b.best()),
+            g.bodies.seen().and_then(|b| b.best()),
             g.map.headboard_for(g.geometry),
         ) {
             (Some(best), _) => Decision::Ask((FaceRegion::Subject(best.bbox), policy)),
@@ -190,9 +190,9 @@ pub(crate) fn calibrate(
     if g.faces.seen() {
         return skip(SkipReason::FacesPresent);
     }
-    let occupied = believed.occupancy.occupants() > 0
+    let occupied = believed.occupancy.occupants().total() > 0
         || believed.occupancy.pending.is_some()
-        || !g.bodies.bodies().is_some_and(|b| b.is_empty());
+        || !g.bodies.seen().is_some_and(|b| b.is_empty());
     if occupied {
         return skip(SkipReason::RoomOccupied);
     }
