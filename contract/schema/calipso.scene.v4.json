@@ -1245,7 +1245,7 @@
       ]
     },
     "Scene": {
-      "description": "The scene of one sample: v3's, with v4's room.",
+      "description": "The scene of one sample.",
       "type": "object",
       "properties": {
         "attention": {

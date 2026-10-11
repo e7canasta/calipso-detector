@@ -1,12 +1,8 @@
 # language: en
-Feature: Contract v4, next to v3
+Feature: Contract v4: the transition and the mode
   As someone reading a night
   I want each layer-0 change as a row with its before and after, and a scene that states the mode
   to tell the night in cells without reimplementing the engine's rules
-
-  The core produces v3 and v4 on every turn: these scenarios read
-  both. Which versions are published is decided by the profile, in the shell
-  (profile.feature).
 
   Background:
     Given a room with the bed delimited
@@ -27,13 +23,11 @@ Feature: Contract v4, next to v3
 
   Scenario: The scene states the mode and links the last cell
     Given the resident came in alone and lay down in samples 1 to 10
-    Then the v4 scene of sample 10 says mode "alone_in_bed_seen", phase "running" and last cell "100:01:110"
-    And the v3 scene of sample 10 says state "one"
+    Then the scene of sample 10 says mode "alone_in_bed_seen", phase "running" and last cell "100:01:110"
 
   Scenario: room_changed goes by mode
     Given the resident came in alone and lay down in samples 1 to 10
     Then events.v4 published "room_changed" from "alone_out" to "alone_in_bed_seen"
-    And in events.v3 the room changed only once, from "empty" to "one"
 
   Scenario: A two-digit count is written as a tuple
     # The cell's format, not an engine behaviour: the scenes' world
@@ -43,6 +37,6 @@ Feature: Contract v4, next to v3
     Given a transition from "9,1,1" seeing "10,0" to "10,1,1"
     Then its cell is "911:(10,0):(10,1,1)"
 
-  Scenario: v4 and v3 tell the same night
+  Scenario: Every transition agrees with its facts and its scene
     Given the staff put the resident to bed and left in samples 1 to 25
-    Then on every turn, events.v4 brought down to v3 is events.v3 and room.mode gives room.state
+    Then on every turn, each transition agrees with its facts and its scene

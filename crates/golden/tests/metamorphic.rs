@@ -6,21 +6,18 @@
 
 use golden::language::{InBed, Scene, Sense};
 use golden::world::{self, Sample};
-use scene_core::contract::{
-    BedState, Cause, EventBody, RoomState, SampleRef, SessionId, SourceSecs,
-};
+use scene_core::contract::{BedState, Cause, Event, Mode, SampleRef, SessionId, SourceSecs};
 use scene_core::geom::Quad;
 use scene_core::look::{Failure, Probe, Spent};
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
 use scene_core::{Input, Monitor};
-use std::mem::Discriminant;
 
 /// What is compared: the sequence of facts (without their sample) and the final belief.
 #[derive(Debug, PartialEq)]
 struct Night {
-    facts: Vec<(Discriminant<EventBody>, Cause)>,
-    end: (RoomState, u32, BedState, usize, u32),
+    facts: Vec<(String, Cause)>,
+    end: (Mode, u32, BedState, usize, u32),
 }
 
 fn site() -> SiteMap {
@@ -28,6 +25,22 @@ fn site() -> SiteMap {
     map.resolution = Some(world::FRAME);
     map.headboard = Some(world::HEADBOARD);
     map
+}
+
+/// An event's facts as `(type, cause)`: each layer-0 fact of a transition,
+/// or the event itself.
+fn facts_of(event: &Event) -> Vec<(String, Cause)> {
+    let named = |body: serde_json::Value, cause| (body["type"].as_str().unwrap().to_owned(), cause);
+    match event {
+        Event::Transition(t) => t
+            .facts
+            .iter()
+            .map(|f| named(serde_json::to_value(f.body).unwrap(), f.cause))
+            .collect(),
+        Event::Derived(d) => vec![named(serde_json::to_value(d.body).unwrap(), d.cause)],
+        Event::Sensor(e) => vec![named(serde_json::to_value(e.body).unwrap(), e.cause)],
+        Event::Map(m) => vec![named(serde_json::to_value(m.body).unwrap(), m.cause)],
+    }
 }
 
 /// Drives the night; `failure` says in which sample the main detector fails.
@@ -53,18 +66,14 @@ fn run(samples: &[Sample], failure: Option<u32>) -> Night {
                 };
                 (answer, Spent(0.0))
             });
-        facts.extend(
-            out.events
-                .iter()
-                .map(|e| (std::mem::discriminant(&e.body), e.cause)),
-        );
+        facts.extend(out.events.iter().flat_map(facts_of));
         last = Some(out.scene);
     }
     let s = last.expect("the night has samples");
     Night {
         facts,
         end: (
-            s.room.state,
+            s.room.mode,
             s.room.occupants,
             s.bed.state,
             s.bed.held.len(),

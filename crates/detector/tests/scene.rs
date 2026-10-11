@@ -192,7 +192,7 @@ mod contract_of_the_fake {
 }
 
 #[test]
-fn the_binary_runs_s1_and_writes_v3_and_v4_for_rerun() {
+fn the_binary_runs_s1_and_writes_what_it_publishes_for_rerun() {
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = std::env::temp_dir().join(format!("calipso-s1-{}.jsonl", std::process::id()));
     let status = std::process::Command::new(env!("CARGO_BIN_EXE_calipso-detector"))
@@ -220,19 +220,14 @@ fn the_binary_runs_s1_and_writes_v3_and_v4_for_rerun() {
         )
         .unwrap()
     };
-    let validators: std::collections::HashMap<String, _> = [
-        "calipso.scene.v3",
-        "calipso.events.v3",
-        "calipso.scene.v4",
-        "calipso.events.v4",
-    ]
-    .into_iter()
-    .map(|name| (name.to_owned(), validator(name)))
-    .collect();
+    let validators: std::collections::HashMap<String, _> =
+        ["calipso.scene.v4", "calipso.events.v4"]
+            .into_iter()
+            .map(|name| (name.to_owned(), validator(name)))
+            .collect();
     let text = std::fs::read_to_string(&output).unwrap();
     std::fs::remove_file(&output).ok();
-    // The writer writes what is published: with the default profile, v3
-    // and v4 interleaved, each line against its version's schema.
+    // The writer writes what is published, each line against its schema.
     let mut count: std::collections::HashMap<String, usize> = Default::default();
     for line in text.lines() {
         let value: serde_json::Value = serde_json::from_str(line).unwrap();
@@ -240,10 +235,9 @@ fn the_binary_runs_s1_and_writes_v3_and_v4_for_rerun() {
         assert!(validators[&schema].is_valid(&value), "{line}");
         *count.entry(schema).or_default() += 1;
     }
-    // 25 samples and the transport announcement, in each version; S1's facts.
-    assert_eq!(count["calipso.scene.v3"], 26);
+    // 25 samples and the transport announcement; S1's facts.
     assert_eq!(count["calipso.scene.v4"], 26);
-    assert!(count["calipso.events.v3"] > 0 && count["calipso.events.v4"] > 0);
+    assert!(count["calipso.events.v4"] > 0);
 }
 
 #[test]
@@ -410,7 +404,7 @@ mod round_trip {
     }
 
     /// Runs the scene through the detector: what was published and the night's
-    /// v3 JSONL.
+    /// published JSONL.
     fn run(scene: &Scene, config: &Config) -> (Vec<Output>, String, Verification) {
         let mut driver = Driver::new(
             config.policy(),
@@ -430,7 +424,6 @@ mod round_trip {
                 },
             },
             config.profile().unwrap(),
-            &config.publish.contracts,
         );
         let mut verification = Verification::new(scene);
         let (mut outputs, mut jsonl) = (Vec::new(), String::new());
@@ -485,7 +478,7 @@ mod round_trip {
         let line = jsonl
             .lines()
             .find(|l| {
-                l.contains(r#""schema":"calipso.scene.v3""#) && l.contains(r#""sequence":7,"#)
+                l.contains(r#""schema":"calipso.scene.v4""#) && l.contains(r#""sequence":7,"#)
             })
             .unwrap()
             .to_owned();

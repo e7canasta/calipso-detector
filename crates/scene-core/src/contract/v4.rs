@@ -1,10 +1,9 @@
 //! Contract v4: `calipso.scene.v4` and `calipso.events.v4`.
 //!
-//! It is published next to v3, from the same turn (the contract v4 ADR). The
-//! layer-0 transition is its occupancy event and the scene states the
-//! machine's mode. What no version changes comes from `common`: v4 does not
-//! depend on v3. Like every version, it is defined once and its JSON Schema
-//! comes from these types (rule 13).
+//! The layer-0 transition is its occupancy event and the scene states the
+//! machine's mode. What no version changes comes from `common`. Like every
+//! version, it is defined once and its JSON Schema comes from these types
+//! (rule 13).
 
 pub use super::common::*;
 use schemars::JsonSchema;
@@ -119,7 +118,7 @@ pub struct Seen {
     pub context: Context,
 }
 
-/// A layer-0 fact. The names and the data are those of v3.
+/// A layer-0 fact: what happened to someone, in the order it happened.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FactBody {
@@ -205,7 +204,7 @@ pub struct Transition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DerivedBody {
-    /// The mode changed (in v3, the state).
+    /// The mode changed.
     RoomChanged { from: Mode, to: Mode },
     /// The bed changed; it goes to `unknown` without a transition.
     BedChanged { from: BedState, to: BedState },
@@ -289,7 +288,7 @@ pub struct Room {
     pub last_cell: Option<Cell>,
 }
 
-/// The scene of one sample: v3's, with v4's room.
+/// The scene of one sample.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Scene {
     pub frame: Option<FrameInfo>,

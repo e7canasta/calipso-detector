@@ -89,7 +89,7 @@ Feature: The depth capability
     When samples 1 to 5 arrive
     Then the depth model was called 1 time, in sample 1, with the whole image
     And in sample 1 it was published that the bed was calibrated at 3.0
-    And every published scene validates against the v3 schema
+    And every published message validates against its schema
 
   Scenario: End to end, the new pose is measured at its keypoints
     Given a detector with pose, depth and scripted models
@@ -101,4 +101,4 @@ Feature: The depth capability
     When samples 1 to 8 arrive
     Then the depth model was called 1 time, in sample 3, with the whole image
     And the scene of sample 3 carries the subject at depth 2.0
-    And every published scene validates against the v3 schema
+    And every published message validates against its schema

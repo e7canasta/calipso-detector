@@ -1,5 +1,5 @@
 # language: en
-Feature: The v3 scene says what is seen and what is believed
+Feature: The scene says what is seen and what is believed
   As a consumer of the scene
   I want to tell the seen bed from the held bed, and what is seen from what is believed
   to decide without reimplementing the model
@@ -17,7 +17,7 @@ Feature: The v3 scene says what is seen and what is believed
       | 21-25   | 0        |       | 1      | 1         | occupied, seen |
     Then the bed was observed going from "seen" to "held"
     And the bed was observed going from "held" to "seen"
-    And the room did not change state after sample 10
+    And the number of people in the room did not change after sample 10
 
   Scenario: Each event carries how the room was left
     Given the resident came in alone and lay down in samples 1 to 10

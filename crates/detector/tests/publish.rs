@@ -1,7 +1,7 @@
 mod support;
 use detector::{
     build,
-    publish::{CHANNEL_BUFFER, Contract, Kind, PublisherHandle},
+    publish::{CHANNEL_BUFFER, Kind, PublisherHandle},
 };
 use scene_core::contract::{Profile, ProfileHash, Source, Timing};
 
@@ -22,7 +22,6 @@ fn handle() -> (
             hash: ProfileHash("sha256:0123456789abcdef".into()),
             senses: Vec::new(),
         },
-        &[Contract::V3],
     )
 }
 const TIMING: Timing = Timing {
@@ -33,14 +32,14 @@ const TIMING: Timing = Timing {
 fn s1_valid_envelopes_events_first_and_contiguous_sequences() {
     let scene_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.scene.v3.json"
+            "../../../contract/schema/calipso.scene.v4.json"
         ))
         .unwrap(),
     )
     .unwrap();
     let event_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.events.v3.json"
+            "../../../contract/schema/calipso.events.v4.json"
         ))
         .unwrap(),
     )
@@ -53,21 +52,16 @@ fn s1_valid_envelopes_events_first_and_contiguous_sequences() {
         let scene_arc = std::sync::Arc::clone(&processed.output.scene);
         assert!(h.send(processed.output, processed.timing));
         let publication = rx.try_recv().unwrap();
-        assert!(std::sync::Arc::ptr_eq(
-            &scene_arc,
-            &publication.v3.as_ref().unwrap().scene.body
-        ));
-        assert!(publication.v4.is_none());
+        assert!(std::sync::Arc::ptr_eq(&scene_arc, &publication.scene.body));
         let messages = publication.messages().unwrap();
         for (index, m) in messages.iter().enumerate() {
             let v: serde_json::Value = serde_json::from_slice(&m.bytes).unwrap();
-            assert_eq!(m.stream.contract, Contract::V3);
-            match m.stream.kind {
+            match m.kind {
                 Kind::Events => {
                     event_seq += 1;
                     assert!(event_schema.is_valid(&v), "{v}");
                     assert_eq!(v["seq"], event_seq);
-                    assert_eq!(v["event_id"], format!("run-test-{event_seq}"));
+                    assert_eq!(v["event_id"], format!("run-test-v4-{event_seq}"));
                     assert_eq!(m.msg_id.as_deref(), v["event_id"].as_str());
                     assert!(index + 1 < messages.len());
                 }
@@ -114,7 +108,6 @@ fn a_full_channel_drops_without_waiting_and_leaves_a_seq_gap() {
         .unwrap();
     assert!(h.send(p.output, TIMING));
     let p = rx.try_recv().unwrap();
-    let p = p.v3.unwrap();
     assert_eq!(p.events[0].seq, CHANNEL_BUFFER as u64 + 2);
     assert_eq!(p.scene.seq, CHANNEL_BUFFER as u64 + 2);
 }

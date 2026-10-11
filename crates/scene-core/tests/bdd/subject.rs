@@ -3,8 +3,9 @@
 //! depth or learn the empty bed, with scripted senses. The real models are
 //! shell (`features/shell`); the decision is checked here.
 
+use crate::published::Body;
 use cucumber::{given, then};
-use scene_core::contract::{Calibration, EventBody};
+use scene_core::contract::Calibration;
 use scene_core::contract::{
     LookKind, LookOutcome, LookResult, Provenance, Scene, SkipReason, Zone,
 };
@@ -317,7 +318,7 @@ fn calibrations(ward: &Ward) -> Vec<u64> {
 /// The samples in which the bed was learned (`bed_calibrated`).
 fn learned(ward: &Ward) -> Vec<u64> {
     ward.events()
-        .filter(|e| matches!(e.body, EventBody::BedCalibrated { .. }))
+        .filter(|e| matches!(e.body, Body::BedCalibrated { .. }))
         .map(|e| e.at.sequence)
         .collect()
 }

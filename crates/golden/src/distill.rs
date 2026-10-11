@@ -1,4 +1,4 @@
-//! Distill: a published night (`scene.v3` as JSONL, as the detector,
+//! Distill: a published night (`scene.v4` as JSONL, as the detector,
 //! the meter or the bridge write it) becomes a scene. It is the
 //! anti-corruption layer in reverse: from the core's published language to
 //! the golden scenes' language. No pixels (rule 7): only what the scene
@@ -66,11 +66,11 @@ pub fn distill(jsonl: &str, run: Option<&str>, dwell_s: Option<f64>) -> Result<D
         }
         let value: serde_json::Value =
             serde_json::from_str(line).map_err(|e| error(n, format!("not JSON: {e}")))?;
-        if value.get("schema").and_then(|s| s.as_str()) != Some("calipso.scene.v3") {
+        if value.get("schema").and_then(|s| s.as_str()) != Some("calipso.scene.v4") {
             continue;
         }
         let envelope: Envelope<PublishedScene> =
-            serde_json::from_value(value).map_err(|e| error(n, format!("not scene.v3: {e}")))?;
+            serde_json::from_value(value).map_err(|e| error(n, format!("not scene.v4: {e}")))?;
         let run_id = &envelope.source.run_id;
         match (&chosen, run) {
             (_, Some(r)) if r != run_id => continue,

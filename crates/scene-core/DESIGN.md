@@ -31,7 +31,7 @@ comes back.
 
 `scene-core` is **one bounded context**, "the occupancy of the room", with its
 aggregates (`Belief`, `Map`, `SensorMemory`, `Chronicle`). Outwards it speaks a
-versioned **published language** (`contract::v3`, `contract::v4`) and `project`
+versioned **published language** (`contract::v4`) and `project`
 is its anti-corruption layer: the domain thinks in its own vocabulary and only
 `project` translates it.
 
@@ -39,7 +39,7 @@ is its anti-corruption layer: the domain thinks in its own vocabulary and only
  sense (perception, ONNX) ──ports──► detector (shell: Open Host Service)
  ingest (transport)       ─────────►      │  publishes
                                           ▼
-                scene-core ── published language: contract::v3 and v4
+                scene-core ── published language: contract::v4
                                           │
           consumers in other repositories: calipso-rerun-bridge, calipso-shark
 ```
@@ -66,9 +66,9 @@ number.
 | P7 | **The engine does one thing well.** It computes inside only what it uses to decide where to look | Unix philosophy |
 | C1 | **Consumers are not broken.** A published version keeps going out unchanged, byte for byte, while someone reads it | The kernel's "we don't break userspace" |
 | C2 | **Expand, migrate, contract.** A new version goes out next to the old one; consumers migrate one at a time; the old one is retired | Fowler, *Parallel Change* |
-| C3 | **One version, one source.** Each version is defined once (`contract::v3`, `contract::v4`) and its JSON Schema comes from the types (rule 13) | |
+| C3 | **One version, one source.** Each version is defined once (`contract::v4`) and its JSON Schema comes from the types (rule 13) | |
 | C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same `finish`: they cannot tell different things | |
-| C5 | **A test proves it.** For each turn, what v4 says can be lowered to what v3 says (`tests/equivalence.rs`) | Metamorphic testing |
+| C5 | **A test proves it.** While two versions are published together, a test lowers the new one to the old one on every turn of the suites; it is retired with the old version | Metamorphic testing |
 
 ## 2. Invariants
 
@@ -110,10 +110,10 @@ the chronicle and translates it to the contract.
 `project::observed` splits the observation into what every version publishes
 the same way (`Shared`: evidence, bed, subject, map, …), computed once, and
 layer 0 (`Layer0`: the occupancy, the transition, the calibration), which each
-version translates its own way (`project::v3`, `project::v4`). `Output` always
-carries v3 (`scene`, `events`) and v4 (`v4: Published`): which ones are
-published is the shell's decision. A test net (`tests/equivalence.rs`)
-brings v4 down to v3 on every turn of the suites.
+version translates its own way (`project::v4`). `Output` carries the turn's
+`scene` and `events` in the published version. A version published next to it
+(C2) adds its own module and its own fields, and a test lowers one to the
+other (C5).
 
 ```text
  look ──► evidence ──► belief ──────────────► refine ──► project ──► Output
@@ -262,11 +262,11 @@ One concept, one name.
 | subject | `Subject` | The only occupant, if there is exactly one |
 | body, pose | `body::Pose`, `BodyPoint`, `Joint` | The subject's COCO-17 keypoints and their relative depth |
 | provenance | `provenance::Provenance` | Where a claim comes from: current, retained or stable (rule 2) |
-| published language | `contract::v3`, `contract::v4` | What a version publishes; it re-exports the domain vocabulary |
+| published language | `contract::v4` (and `contract`) | What a version publishes; it re-exports the domain vocabulary |
 | second level | `refine` | How the resident is: lying, posture |
 | projection | `project` | How the belief looks from outside |
 | fold | `chronicle::Chronicle` | A value computed over a sequence: of published states or of transitions |
-| chronicle | `chronicle::Chronicle`, `Entry`, `Chronicled` | The memory of what was published, outside the engine: since when the state (v3) and the mode (v4) hold, what changed, the last transition and its cell |
+| chronicle | `chronicle::Chronicle`, `Entry`, `Chronicled` | The memory of what was published, outside the engine: since when the mode and the bed hold, what changed, the last transition and its cell |
 | since when | `chronicle::Since`, `Stamp` | A state and the sample it holds since; dated on a turn, with the previous one if it changed |
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
@@ -291,8 +291,8 @@ matters as much as the second.
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
 | `chronicle` | The memory of what was published: folds the concluded turns | is read by the engine to decide |
-| `project` (+ `v3`, `v4`) | Translates the domain into the contract, one version per module, from the same conclusion and the same chronicle; the shared part is projected once | decides, mutates the chronicle or is read back |
-| `contract` | The published language, per version. `common`: what no version changes (the envelope without its `SchemaId`, the bed, the subject, the evidence, the causes) and the re-export of the domain vocabulary. `v3` and `v4` define their own, each with its `SchemaId` and schema; neither depends on the other. `contract` re-exports v3 for consumers | changes without a major version and an ADR, or is imported by the domain |
+| `project` (+ `v4`) | Translates the domain into the contract, one version per module, from the same conclusion and the same chronicle; the shared part is projected once | decides, mutates the chronicle or is read back |
+| `contract` | The published language, per version. `common`: what no version changes (the envelope without its `SchemaId`, the bed, the subject, the evidence, the causes) and the re-export of the domain vocabulary. `v4` defines its own `SchemaId` and schema; a next version would not depend on it. `contract` re-exports the published version | changes without a major version and an ADR, or is imported by the domain |
 | `policy` | The policies that come from the profiles | is read from a file |
 | `map` | The site's static world | is inferred from the subject |
 | `sensor` | The reception state the shell reports | is inferred |
@@ -331,8 +331,8 @@ round is integrated.
 | Debt | Why | Round |
 |---|---|---|
 | The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | verifying the held occupant (book 4) |
-| Republishing degrades the last scene of each version (`Monitor.last` keeps both from the same turn) | Both come from the same turn, so they do not diverge; republishing from the last `Observation` would be a single source, but needs keeping published domain. Revisit if a third version appears | none |
-| The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for v4 in a shared type changes v3: `contract_schema` catches it | accepted |
+| The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
+| A transition's `after` can disagree with its last fact's in `unexplained` | The contract says the transition leaves the last fact's occupancy. With bodies in bed that nobody explains (rule 6) the transition counts them and the facts do not: proptest finds it with `bed 2, near 1, far 1 ×3; empty ×1; bed 3, far 3 ×3`. The scripted suites never reach it, so `tests/published.rs::check` runs only on them | domain decision: which one is right |
 | The contract re-exports domain types instead of owning wire types | Consumers depend on `scene-core` to read the contract. A separate wire crate (like the kernel's `uapi` headers) would let consumers depend only on the published language | next |
 
 ## Sources

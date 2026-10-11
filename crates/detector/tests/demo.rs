@@ -261,11 +261,11 @@ fn run_demo(senses: u8) {
         .collect();
     let scenes: Vec<_> = messages
         .iter()
-        .filter(|m| m["schema"] == "calipso.scene.v3" && m["body"]["republished"].is_null())
+        .filter(|m| m["schema"] == "calipso.scene.v4" && m["body"]["republished"].is_null())
         .collect();
     let events: Vec<_> = messages
         .iter()
-        .filter(|m| m["schema"] == "calipso.events.v3")
+        .filter(|m| m["schema"] == "calipso.events.v4")
         .collect();
     assert!(
         scenes.len() >= 10,
@@ -337,21 +337,21 @@ fn run_demo(senses: u8) {
     }
     let scene_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.scene.v3.json"
+            "../../../contract/schema/calipso.scene.v4.json"
         ))
         .unwrap(),
     )
     .unwrap();
     let event_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.events.v3.json"
+            "../../../contract/schema/calipso.events.v4.json"
         ))
         .unwrap(),
     )
     .unwrap();
     for m in &messages {
         assert!(
-            if m["schema"] == "calipso.scene.v3" {
+            if m["schema"] == "calipso.scene.v4" {
                 scene_schema.is_valid(m)
             } else {
                 event_schema.is_valid(m)
@@ -369,7 +369,7 @@ fn run_demo(senses: u8) {
     let mean = spacing.iter().sum::<f64>() / spacing.len() as f64;
     assert!((800.0..=1500.0).contains(&mean), "mean interval {mean}");
     println!(
-        "NATS demo vision.test.>: {} observed scenes, {} events, mean interval {:.0} ms; all validate v3",
+        "NATS demo vision.test.>: {} observed scenes, {} events, mean interval {:.0} ms; all validate v4",
         scenes.len(),
         events.len(),
         mean

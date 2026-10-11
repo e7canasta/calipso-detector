@@ -5,7 +5,6 @@ mod distill;
 pub mod driver;
 mod pose;
 mod profile;
-mod publish;
 #[path = "../support/mod.rs"]
 mod support;
 mod world;

@@ -1,19 +1,18 @@
 //! The projection: how the belief looks from outside. It does not decide and
 //! is not read back (rule 3). It is the only place that translates the domain
-//! into the contract, one version per module (`v3`, `v4`), from the same
-//! conclusion and the same chronicle: the versions cannot tell different
-//! things (C4). What both translate the same lives here: the
-//! evidence, the subject, the map, the bed and how what is published degrades
-//! on republishing (rule 2).
+//! into the contract, one version per module (today `v4`), from the
+//! conclusion and the chronicle. What every version translates the same lives
+//! here, so a version published next to it cannot tell a different thing (C4):
+//! the evidence, the subject, the map, the bed and how what is published
+//! degrades on republishing (rule 2).
 
-pub(crate) mod v3;
 pub(crate) mod v4;
 
 use crate::attention::Attention;
 use crate::belief::{Believed, Occupancy, Subject as BelievedSubject, Transition, ZoneCounts};
 use crate::chronicle::{Chronicled, Entry};
 use crate::conclusion::{Observation, RepublishReason};
-use crate::contract::v3::{
+use crate::contract::v4::{
     Bed, BedState, Evidence, Floor, Held, Pending, Progress, Provenance, Republished, SampleRef,
     Subject,
 };
@@ -47,21 +46,14 @@ pub(super) struct Layer0 {
     pub calibrated: Option<crate::map::BedCalibrated>,
 }
 
-/// The scene and events of an observed turn, in each version.
-#[derive(Debug)]
-pub(crate) struct Projection {
-    pub v3: (v3::Scene, Vec<v3::Event>),
-    pub v4: (v4::Scene, Vec<v4::Event>),
-}
-
-/// Projects an observed turn: the shared part once, and each version builds
-/// its room and events with the same chronicle.
-pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> Projection {
+/// Projects an observed turn: the shared part, and the version builds its room
+/// and events with the chronicle.
+pub(crate) fn observed(
+    observation: Observation,
+    chronicled: &Chronicled,
+) -> (v4::Scene, Vec<v4::Event>) {
     let (shared, layer0) = split(observation, chronicled);
-    Projection {
-        v4: v4::scene(shared.clone(), &layer0, chronicled),
-        v3: v3::scene(shared, &layer0, chronicled),
-    }
+    v4::scene(shared, &layer0, chronicled)
 }
 
 fn split(observation: Observation, chronicled: &Chronicled) -> (Shared, Layer0) {
@@ -190,7 +182,6 @@ pub(crate) fn entry(observation: &Observation) -> Entry {
     let occupancy = &observation.believed.occupancy;
     Entry {
         at: observation.at,
-        room: v3::room_state(occupancy.totals()),
         mode: v4::mode(occupancy.totals()),
         bed: bed_state(occupancy.totals(), occupancy.bed_known),
         seen: matches!(
@@ -205,10 +196,10 @@ pub(crate) fn entry(observation: &Observation) -> Entry {
 /// that of the last observation, and the scene declares it like a
 /// republication (rule 2).
 fn unobserved(
-    evidence: &crate::contract::v3::Evidence,
+    evidence: &crate::contract::v4::Evidence,
     observed: Option<SampleRef>,
 ) -> Option<Republished> {
-    (evidence.bodies.status == crate::contract::v3::BodiesStatus::Unavailable).then_some(
+    (evidence.bodies.status == crate::contract::v4::BodiesStatus::Unavailable).then_some(
         Republished {
             reason: RepublishReason::DetectFailed,
             observed_at: observed,
@@ -221,13 +212,13 @@ fn unobserved(
 fn publish_subject(
     believed: &Believed,
     refined: crate::refine::Refinement,
-) -> Option<crate::contract::v3::Subject> {
+) -> Option<crate::contract::v4::Subject> {
     let s = believed.subject?;
     let (pose, depth) = believed
         .body
         .clone()
         .map_or((None, None), |b| (Some(b.pose), b.depth));
-    Some(crate::contract::v3::Subject {
+    Some(crate::contract::v4::Subject {
         zone: s.zone,
         bbox: s.bbox,
         confidence: s.confidence,
@@ -243,8 +234,8 @@ fn project_evidence(
     evidence: &crate::evidence::Perceived,
     subject: Option<&BelievedSubject>,
     attention: &Attention,
-) -> crate::contract::v3::Evidence {
-    use crate::contract::v3::*;
+) -> crate::contract::v4::Evidence {
+    use crate::contract::v4::*;
     use crate::evidence::{BodyEvidence, FaceEvidence};
     let crate::evidence::Perceived {
         bodies: admission,
@@ -336,8 +327,8 @@ pub(crate) fn map_state(map: &crate::map::Map, geometry: Geometry) -> MapState {
         bed: map.site.bed,
         headboard: map.site.headboard,
         calibration: map.reference().map_or(
-            crate::contract::v3::Calibration::Unavailable,
-            |reference| crate::contract::v3::Calibration::Complete {
+            crate::contract::v4::Calibration::Unavailable,
+            |reference| crate::contract::v4::Calibration::Complete {
                 reference_m: reference.meters,
                 since: reference.since,
             },

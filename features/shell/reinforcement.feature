@@ -61,4 +61,4 @@ Feature: The reinforcement capability
     When samples 1 to 14 arrive
     Then the reinforcement model was called 1 time, in sample 11
     And the scene of sample 11 says the bed is "seen"
-    And every published scene validates against the v3 schema
+    And every published message validates against its schema

@@ -222,7 +222,7 @@
       },
       "oneOf": [
         {
-          "description": "The mode changed (in v3, the state).",
+          "description": "The mode changed.",
           "type": "object",
           "properties": {
             "from": {

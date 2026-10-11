@@ -34,9 +34,8 @@ struct Args {
     /// publish to NATS).
     #[arg(long, requires = "scene", requires = "jsonl")]
     fast: bool,
-    /// With --scene: writes to this file the same it publishes, the `[publish]`
-    /// versions interleaved and each line with its `schema`, for
-    /// `calipso-rerun-bridge --replay`.
+    /// With --scene: writes to this file the same it publishes, each line with
+    /// its `schema`, for `calipso-rerun-bridge --replay`.
     #[arg(long, requires = "scene")]
     jsonl: Option<PathBuf>,
 }
@@ -76,7 +75,7 @@ async fn main() -> Result<()> {
         build: build::current(),
     };
     tracing::info!(run_id=%source.run_id,build=?source.build,profile=?profile,"detector starts");
-    let (mut publisher, rx) = PublisherHandle::channel(source, profile, &config.publish.contracts);
+    let (mut publisher, rx) = PublisherHandle::channel(source, profile);
     let token = CancellationToken::new();
     // Ingest keeps its watch API; a single cancellation feeds both signals.
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
@@ -234,7 +233,7 @@ async fn run_scene(
         build: build::current(),
     };
     tracing::info!(scene = %scene.title, run_id = %source.run_id, fast, "runs scene");
-    let (mut publisher, rx) = PublisherHandle::channel(source, profile, &config.publish.contracts);
+    let (mut publisher, rx) = PublisherHandle::channel(source, profile);
     let token = CancellationToken::new();
     let actor = (!fast).then(|| {
         tokio::spawn(nats::run(

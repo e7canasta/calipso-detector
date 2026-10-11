@@ -26,7 +26,7 @@
 
 // The public API is the loop protocol and its vocabulary: `Monitor` and `Turn`,
 // what is asked and read (`look`), what is published (`contract`, per version:
-// `contract::v3`), what configures it (`policy`, `map`) and the geometry. How
+// `contract::v4`), what configures it (`policy`, `map`) and the geometry. How
 // the core believes and decides is internal: it can be redesigned without
 // breaking anyone.
 //
@@ -64,4 +64,4 @@ mod time;
 mod zone;
 
 pub use contract::FrameInfo;
-pub use cycle::{FeedError, Incomplete, Input, Monitor, NoFrame, Output, Published, Step, Turn};
+pub use cycle::{FeedError, Incomplete, Input, Monitor, NoFrame, Output, Step, Turn};

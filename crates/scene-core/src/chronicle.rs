@@ -4,8 +4,7 @@
 //! since when each state holds and what changed. Nobody reads it to decide
 //! (P1, P4).
 
-use crate::contract::v3::{BedState, RoomState};
-use crate::contract::v4::{Cell, Mode};
+use crate::contract::v4::{BedState, Cell, Mode};
 use crate::time::SampleRef;
 
 /// The chronicle of what was published: since when the room and the bed are
@@ -18,7 +17,6 @@ use crate::time::SampleRef;
 /// fold of transitions: the bed goes to `unknown` without layer 0 changing.
 #[derive(Debug, Clone)]
 pub(crate) struct Chronicle {
-    room: Since<RoomState>,
     mode: Since<Mode>,
     bed: Since<BedState>,
     observed: Option<SampleRef>,
@@ -30,7 +28,6 @@ impl Default for Chronicle {
     /// Before the first scene, the room and the bed are published empty.
     fn default() -> Self {
         Self {
-            room: Since::new(RoomState::Empty),
             mode: Since::new(Mode::Empty),
             bed: Since::new(BedState::Empty),
             observed: None,
@@ -42,9 +39,7 @@ impl Default for Chronicle {
 /// What the fold concludes in a turn: since when each state holds, what it was
 /// before if it changed, and the last observation.
 pub(crate) struct Chronicled {
-    /// The room in v3, by state.
-    pub room: Stamp<RoomState>,
-    /// The room in v4, by mode.
+    /// The room, by mode.
     pub mode: Stamp<Mode>,
     pub bed: Stamp<BedState>,
     pub observed: Option<SampleRef>,
@@ -59,7 +54,6 @@ pub(crate) struct Chronicled {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Entry {
     pub at: SampleRef,
-    pub room: RoomState,
     pub mode: Mode,
     pub bed: BedState,
     /// Whether the turn saw bodies per zone.
@@ -73,7 +67,6 @@ impl Chronicle {
     pub(crate) fn record(&mut self, entry: Entry) -> Chronicled {
         let Entry {
             at,
-            room,
             mode,
             bed,
             seen,
@@ -89,7 +82,6 @@ impl Chronicle {
             self.transition = Some((at, cell));
         }
         Chronicled {
-            room: self.room.update(room, at),
             mode: self.mode.update(mode, at),
             bed: self.bed.update(bed, at),
             observed: self.observed,
@@ -156,11 +148,10 @@ mod tests {
         }
     }
 
-    fn entry(secs: f64, room: RoomState, bed: BedState, seen: bool) -> Entry {
+    fn entry(secs: f64, mode: Mode, bed: BedState, seen: bool) -> Entry {
         Entry {
             at: at(secs),
-            room,
-            mode: Mode::Empty,
+            mode,
             bed,
             seen,
             transition: None,
@@ -170,9 +161,9 @@ mod tests {
     #[test]
     fn the_first_turn_dates_without_change_if_still_empty() {
         let mut c = Chronicle::default();
-        let r = c.record(entry(1.0, RoomState::Empty, BedState::Empty, true));
+        let r = c.record(entry(1.0, Mode::Empty, BedState::Empty, true));
         assert_eq!(
-            r.room,
+            r.mode,
             Stamp {
                 since: at(1.0),
                 changed_from: None
@@ -184,25 +175,25 @@ mod tests {
     #[test]
     fn the_first_occupied_turn_changes_from_empty() {
         let mut c = Chronicle::default();
-        let r = c.record(entry(1.0, RoomState::One, BedState::Seen, true));
-        assert_eq!(r.room.changed_from, Some(RoomState::Empty));
+        let r = c.record(entry(1.0, Mode::AloneOut, BedState::Seen, true));
+        assert_eq!(r.mode.changed_from, Some(Mode::Empty));
         assert_eq!(r.bed.changed_from, Some(BedState::Empty));
     }
 
     #[test]
     fn the_same_state_keeps_its_date_and_a_change_says_where_it_came_from() {
         let mut c = Chronicle::default();
-        c.record(entry(1.0, RoomState::One, BedState::Empty, true));
-        let same = c.record(entry(2.0, RoomState::One, BedState::Empty, true));
+        c.record(entry(1.0, Mode::AloneOut, BedState::Empty, true));
+        let same = c.record(entry(2.0, Mode::AloneOut, BedState::Empty, true));
         assert_eq!(
-            same.room,
+            same.mode,
             Stamp {
                 since: at(1.0),
                 changed_from: None
             }
         );
-        let change = c.record(entry(3.0, RoomState::One, BedState::Seen, true));
-        assert_eq!(change.room.since, at(1.0));
+        let change = c.record(entry(3.0, Mode::AloneOut, BedState::Seen, true));
+        assert_eq!(change.mode.since, at(1.0));
         assert_eq!(
             change.bed,
             Stamp {
@@ -216,12 +207,12 @@ mod tests {
     fn a_turn_without_bodies_does_not_renew_the_last_observation() {
         let mut c = Chronicle::default();
         assert_eq!(
-            c.record(entry(1.0, RoomState::Empty, BedState::Empty, false))
+            c.record(entry(1.0, Mode::Empty, BedState::Empty, false))
                 .observed,
             None
         );
-        c.record(entry(2.0, RoomState::One, BedState::Empty, true));
-        let without = c.record(entry(3.0, RoomState::One, BedState::Unknown, false));
+        c.record(entry(2.0, Mode::AloneOut, BedState::Empty, true));
+        let without = c.record(entry(3.0, Mode::AloneOut, BedState::Unknown, false));
         assert_eq!(without.observed, Some(at(2.0)));
     }
 
@@ -231,7 +222,7 @@ mod tests {
         let cell = |a: u32, b: u32| Cell::new(Rbh(a, 0, 0), Fv(b, 0), Rbh(b, 0, 0));
         let with = |secs: f64, cell: Option<Cell>| Entry {
             transition: cell,
-            ..entry(secs, RoomState::One, BedState::Empty, true)
+            ..entry(secs, Mode::AloneOut, BedState::Empty, true)
         };
         let mut c = Chronicle::default();
         let first = c.record(with(1.0, Some(cell(0, 1))));

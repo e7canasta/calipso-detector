@@ -21,7 +21,7 @@ those facts lives in other repositories.
 
 | Directory | What it holds |
 | --- | --- |
-| [`contract/`](contract) | JSON schemas for `calipso.scene.v{3,4}` and `calipso.events.v{3,4}`, examples, the layer-0 transition table |
+| [`contract/`](contract) | JSON schemas for `calipso.scene.v4` and `calipso.events.v4`, examples, the layer-0 transition table |
 | [`features/`](features) | the executable Gherkin specification, by capability: occupancy, attention, posture, contract, shell |
 | [`golden/`](golden) | golden scenes that run through the real detector without camera or models |
 | [`config/`](config) | example camera profiles |

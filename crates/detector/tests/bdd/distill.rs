@@ -1,7 +1,7 @@
 //! Drive the core and publish its data before trying to distill them.
 use crate::world::Shell;
 use cucumber::{given, then, when};
-use detector::publish::{Contract, PublisherHandle, Stream};
+use detector::publish::{Kind, PublisherHandle};
 use golden::{distill::distill, language::Sense, world};
 use scene_core::{
     Input, Monitor,
@@ -150,7 +150,6 @@ fn distill_night(w: &mut Shell) {
             hash: ProfileHash("test".into()),
             senses: vec![],
         },
-        &[Contract::V3],
     );
     let mut jsonl = String::new();
     for out in &w.night {
@@ -165,7 +164,7 @@ fn distill_night(w: &mut Shell) {
             .messages()
             .unwrap()
         {
-            if m.stream == Stream::scene(Contract::V3) {
+            if m.kind == Kind::Scene {
                 jsonl.push_str(std::str::from_utf8(&m.bytes).unwrap());
                 jsonl.push('\n');
             }

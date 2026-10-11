@@ -59,7 +59,6 @@ fn handle() -> (
             hash: ProfileHash("hash".into()),
             senses: Vec::new(),
         },
-        &[detector::publish::Contract::V3],
     )
 }
 #[tokio::test]
@@ -111,7 +110,7 @@ async fn real_nats_delivers_headers_and_events_before_the_scene() {
     tokio::time::timeout(Duration::from_secs(5), async {
         while let Some(message) = sub.next().await {
             let value: serde_json::Value = serde_json::from_slice(&message.payload).unwrap();
-            if message.subject.ends_with("events.v3") {
+            if message.subject.ends_with("events.v4") {
                 last_event += 1;
                 assert_eq!(value["seq"], last_event);
                 assert_eq!(
@@ -256,7 +255,7 @@ async fn retries_the_connection_without_losing_pending_facts() {
     tokio::time::timeout(Duration::from_secs(5), async {
         while let Some(message) = subscriber.next().await {
             let v: serde_json::Value = serde_json::from_slice(&message.payload).unwrap();
-            if message.subject.ends_with("events.v3") {
+            if message.subject.ends_with("events.v4") {
                 last_event += 1;
                 assert_eq!(v["seq"], last_event);
             } else {

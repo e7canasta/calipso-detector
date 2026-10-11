@@ -1,5 +1,10 @@
-//! Spec 209 properties of the room/bed rules, only through the public API.
+//! Properties of the room and bed rules, only through the public API.
+// Only the rows; `check` runs on the scripted suites (see DESIGN.md §11).
+#[allow(dead_code)]
+mod published;
+
 use proptest::prelude::*;
+use published::{Body, Fact, Kind};
 use scene_core::geom::Rect;
 use scene_core::look::{Detection, Failure, Label};
 
@@ -46,9 +51,7 @@ fn sequences() -> impl Strategy<Value = Vec<Step>> {
     prop::collection::vec(steps(), 0..200)
 }
 
-use scene_core::contract::{
-    BedState, EventBody, EventKind, FrameInfo, SampleRef, Scene, SessionId, SourceSecs,
-};
+use scene_core::contract::{BedState, FrameInfo, SampleRef, Scene, SessionId, SourceSecs};
 use scene_core::geom::Quad;
 use scene_core::look::{Reading, Spent};
 use scene_core::map::SiteMap;
@@ -85,20 +88,18 @@ fn counts(scene: &Scene) -> (u32, u32, usize, u32) {
     )
 }
 
-fn occupation_events(output: &Output) -> impl Iterator<Item = &scene_core::contract::Event> {
-    output.events.iter().filter(|event| {
-        matches!(
-            event.body,
-            EventBody::Entered
-                | EventBody::LeftRoom
-                | EventBody::LayDown
-                | EventBody::LeftBed
-                | EventBody::HeldInBed { .. }
-                | EventBody::Reappeared { .. }
-                | EventBody::RoomChanged { .. }
-                | EventBody::BedChanged { .. }
-        )
-    })
+/// What the turn published about occupancy: the layer-0 facts and the
+/// derived changes, without the sensor or the map.
+fn occupation_events(output: &Output) -> Vec<Fact> {
+    published::facts(output)
+        .into_iter()
+        .filter(|fact| {
+            !matches!(
+                fact.body,
+                Body::SensorChanged { .. } | Body::BedCalibrated { .. }
+            )
+        })
+        .collect()
 }
 
 fn run(
@@ -151,7 +152,7 @@ proptest! {
     fn re2_the_bed_does_not_empty_without_an_exit(sequence in sequences()) {
         run(&sequence,|before,output,_| {
             if matches!(before.bed.state,BedState::Seen | BedState::Held) && output.scene.bed.state == BedState::Empty {
-                prop_assert!(output.events.iter().any(|event| matches!(event.body,EventBody::LeftBed)), "bed emptied without an exit: before={:?}, after={:?}",before.bed,output.scene.bed);
+                prop_assert!(published::facts(output).iter().any(|fact| matches!(fact.body,Body::LeftBed)), "bed emptied without an exit: before={:?}, after={:?}",before.bed,output.scene.bed);
             }
             Ok(())
         })?;
@@ -162,7 +163,7 @@ proptest! {
         run(&sequence,|before,output,_| {
             let after = &output.scene.bed.held;
             let released = before.bed.held.iter().filter(|held| !after.contains(held)).count();
-            let reappeared = output.events.iter().filter(|event| matches!(event.body,EventBody::Reappeared { .. })).count();
+            let reappeared = published::facts(output).iter().filter(|fact| matches!(fact.body,Body::Reappeared { .. })).count();
             prop_assert!(released <= reappeared,"held released={released}, reappeared={reappeared}; before={:?}, after={:?}",before.bed.held,after);
             Ok(())
         })?;
@@ -173,7 +174,7 @@ proptest! {
         run(&sequence,|before,output,step| {
             if step.failure.is_some() {
                 prop_assert_eq!(counts(before),counts(&output.scene));
-                prop_assert!(occupation_events(output).next().is_none(),"occupancy facts during a failure: {:?}",output.events);
+                prop_assert!(occupation_events(output).is_empty(),"occupancy facts during a failure: {:?}",output.events);
             }
             Ok(())
         })?;
@@ -203,9 +204,9 @@ proptest! {
                     let held = |scene: &Scene| scene.bed.held.iter().map(|held| held.bbox).collect::<Vec<_>>();
                     prop_assert_eq!(counts(before),counts(&output.scene));
                     prop_assert_eq!(before.bed.state,output.scene.bed.state);
-                    prop_assert_eq!(before.room.state,output.scene.room.state);
+                    prop_assert_eq!(before.room.mode,output.scene.room.mode);
                     prop_assert_eq!(held(before),held(&output.scene));
-                    prop_assert_eq!(occupation_events(&output).count(),0);
+                    prop_assert_eq!(occupation_events(&output).len(),0);
                     if let Some(pending) = &output.scene.room.pending {
                         prop_assert_eq!(pending.duration.have,0.0);
                     }
@@ -218,7 +219,7 @@ proptest! {
     #[test]
     fn re6_the_last_domain_after_matches_the_scene(sequence in sequences()) {
         run(&sequence,|_,output,_| {
-            if let Some(last) = output.events.iter().rev().find(|event|event.kind == EventKind::Domain) {
+            if let Some(last) = published::facts(output).into_iter().rev().find(|fact|fact.kind == Kind::Domain) {
                 let scene = &output.scene;
                 prop_assert_eq!((last.after.bed_seen,last.after.floor_seen,last.after.bed_held as usize,last.after.occupants),counts(scene),"last fact={:?}",last);
             }

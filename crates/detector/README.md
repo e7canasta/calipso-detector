@@ -1,7 +1,7 @@
 # Per-camera detector
 
 One process reads RTSP, decodes the freshest sample, drives `scene-core` with
-the senses and publishes `scene.v3`/`events.v3` and `scene.v4`/`events.v4`. The
+the senses and publishes `scene.v4` and `events.v4`. The
 core decides what to believe; the binary translates transport and clocks. It
 neither publishes nor records images.
 
@@ -62,8 +62,8 @@ SIGINT. `NATS_BIN` is optional if `nats` is on PATH.
 
 Copy `config/example.toml`, adjust the URL and credentials, identifiers and
 map, check it with `--check` and run it. Default subjects:
-`vision.<site>.<id>.{scene,events}.{v3,v4}`; `[nats].prefix` sets another
-prefix and `[publish].contracts` which versions go out (both by default).
+`vision.<site>.<id>.{scene,events}.v4`; `[nats].prefix` sets another
+prefix.
 SIGINT or SIGTERM cancel reception and engine, close the mailbox and give the
 publisher up to three seconds to deliver what is pending. A model load failure
 also closes the resources and exits with code 1. A panic aborts the whole

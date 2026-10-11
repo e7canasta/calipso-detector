@@ -14,7 +14,7 @@ use crate::belief::{Believed, Enrichment};
 use crate::body::Keypoint;
 use crate::conclusion::RepublishReason;
 use crate::conclusion::{Conclusion, Observation};
-use crate::contract::v3::{Event, Scene};
+use crate::contract::v4::{Event, Scene};
 use crate::evidence::{self, Admission, FaceEvidence, Perceived};
 use crate::geom::Rect;
 use crate::look::{
@@ -57,17 +57,9 @@ pub struct Monitor {
     engine: Engine,
     /// The chronicle of what was published: the projection's memory.
     chronicle: crate::chronicle::Chronicle,
-    /// The last concluded scene, in each version, and its sample, for
-    /// republishing. If it was a failure, the scene keeps the observed origin
-    /// separately.
-    last: Option<Last>,
-}
-
-#[derive(Debug)]
-struct Last {
-    at: SampleRef,
-    v3: Arc<Scene>,
-    v4: Arc<crate::contract::v4::Scene>,
+    /// The last concluded scene and its sample, for republishing. If it was a
+    /// failure, the scene keeps the observed origin separately.
+    last: Option<(SampleRef, Arc<Scene>)>,
 }
 
 /// The deterministic engine: the policy, the map, the belief and the sensor.
@@ -113,29 +105,14 @@ impl Monitor {
     /// What was concluded, outwards: the chronicle notes the turn and the
     /// projection builds the scene and events with what the chronicle remembers.
     fn project(&mut self, at: SampleRef, conclusion: Conclusion) -> Output {
-        use crate::project::{v3, v4};
+        use crate::project::v4;
         match conclusion {
             Conclusion::Observed(observation) => {
                 let chronicled = self.chronicle.record(crate::project::entry(&observation));
-                let projection = crate::project::observed(*observation, &chronicled);
-                let (scene, events) = projection.v3;
-                let (scene_v4, events_v4) = projection.v4;
-                let last = Last {
-                    at,
-                    v3: Arc::new(scene),
-                    v4: Arc::new(scene_v4),
-                };
-                let output = Output {
-                    at,
-                    scene: Arc::clone(&last.v3),
-                    events,
-                    v4: Published {
-                        scene: Arc::clone(&last.v4),
-                        events: events_v4,
-                    },
-                };
-                self.last = Some(last);
-                output
+                let (scene, events) = crate::project::observed(*observation, &chronicled);
+                let scene = Arc::new(scene);
+                self.last = Some((at, Arc::clone(&scene)));
+                Output { at, scene, events }
             }
             Conclusion::Republish {
                 reason,
@@ -143,17 +120,11 @@ impl Monitor {
                 sensor,
                 map,
             } => {
-                let last = self.last.as_ref();
-                let last_v3 = last.map(|l| (l.v3.as_ref(), l.at));
-                let last_v4 = last.map(|l| (l.v4.as_ref(), l.at));
+                let last = self.last.as_ref().map(|(at, scene)| (scene.as_ref(), *at));
                 Output {
                     at,
-                    scene: Arc::new(v3::republish(last_v3, reason, sensor, map)),
-                    events: v3::sensor_events(changed, last_v3.map(|(scene, _)| scene)),
-                    v4: Published {
-                        scene: Arc::new(v4::republish(last_v4, reason, sensor, map)),
-                        events: v4::sensor_events(changed, last_v4.map(|(scene, _)| scene)),
-                    },
+                    scene: Arc::new(v4::republish(last, reason, sensor, map)),
+                    events: v4::sensor_events(changed, last.map(|(scene, _)| scene)),
                 }
             }
         }
@@ -267,24 +238,14 @@ pub struct Incomplete<'m> {
     pub turn: Box<Turn<'m>>,
 }
 
-/// What comes out of a turn.
+/// What comes out of a turn: the scene of the sample and the events it
+/// explains, in the published contract.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Output {
+    /// The sample the turn was opened for.
     pub at: SampleRef,
-    /// The v3 scene.
     pub scene: Arc<Scene>,
-    /// The v3 events.
     pub events: Vec<Event>,
-    /// The same turn in v4: it always comes out of the core; the
-    /// shell decides whether to publish it.
-    pub v4: Published<crate::contract::v4::Scene, crate::contract::v4::Event>,
-}
-
-/// What a contract version publishes of a turn.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Published<S, E> {
-    pub scene: Arc<S>,
-    pub events: Vec<E>,
 }
 
 /// A turn of the loop. It holds the belief exclusively: the compiler prevents
@@ -721,7 +682,7 @@ impl Drop for Turn<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::v3::{BedState, RoomState};
+    use crate::contract::{BedState, Mode};
     use crate::geom::{Quad, Rect};
     use crate::look::{Failure, Probe, Reading, Spent};
     use crate::time::{SessionId, SourceSecs};
@@ -927,7 +888,7 @@ mod tests {
             (Ok(Reading::Bodies(vec![])), Spent(1.0))
         });
         assert_eq!(probes, 1);
-        assert_eq!(out.scene.room.state, RoomState::Empty);
+        assert_eq!(out.scene.room.mode, Mode::Empty);
     }
 
     #[test]

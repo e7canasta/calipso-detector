@@ -1,4 +1,4 @@
-//! Distills a published night (scene.v3 as JSONL) into a golden scene.
+//! Distills a published night (scene.v4 as JSONL) into a golden scene.
 //!
 //! ```text
 //! calipso-distill night.jsonl [--run <run_id>] [--dwell <s>] > golden/night.md

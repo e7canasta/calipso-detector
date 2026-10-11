@@ -27,31 +27,13 @@ fn snapshot(name: &str, schema: schemars::Schema) {
 }
 
 #[test]
-fn scene_v3() {
-    snapshot("calipso.scene.v3", schemars::schema_for!(Envelope<Scene>));
-}
-
-#[test]
-fn events_v3() {
-    snapshot("calipso.events.v3", schemars::schema_for!(Envelope<Event>));
-}
-
-#[test]
 fn scene_v4() {
-    use scene_core::contract::v4;
-    snapshot(
-        "calipso.scene.v4",
-        schemars::schema_for!(v4::Envelope<v4::Scene>),
-    );
+    snapshot("calipso.scene.v4", schemars::schema_for!(Envelope<Scene>));
 }
 
 #[test]
 fn events_v4() {
-    use scene_core::contract::v4;
-    snapshot(
-        "calipso.events.v4",
-        schemars::schema_for!(v4::Envelope<v4::Event>),
-    );
+    snapshot("calipso.events.v4", schemars::schema_for!(Envelope<Event>));
 }
 
 /// A v4 transition, as is: it reads and writes back the same.

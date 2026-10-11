@@ -141,20 +141,12 @@ fn depth_once(w: &mut Shell, count: usize, sample: u64) {
 
 #[then(regex = r"^in sample (\d+) it was published that the bed was calibrated at ([\d.]+)$")]
 fn calibrated(w: &mut Shell, sample: u64, reference: f32) {
-    // One per published version (v3 and v4), and both say the
-    // same.
     let events: Vec<_> = w
         .messages
         .iter()
         .filter(|m| m["body"]["type"] == "bed_calibrated")
         .collect();
-    let mut versions: Vec<_> = events
-        .iter()
-        .map(|m| m["schema"].as_str().unwrap())
-        .collect();
-    versions.dedup();
-    assert_eq!(events.len(), versions.len(), "one per version: {events:?}");
-    assert!(!events.is_empty());
+    assert_eq!(events.len(), 1, "one calibration: {events:?}");
     for event in &events {
         assert_eq!(event["observed_at"]["sequence"], sample);
         assert_eq!(event["body"]["reference_m"], reference);

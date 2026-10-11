@@ -15,8 +15,8 @@ One directory per capability of the engine, one feature per behaviour:
 | [`occupancy/`](occupancy) | Layer 0: how many are in the room and in bed, what the bed retains, the staff who come and go, stabilization by source time, what the scene declares when it did not observe | `belief/occupancy` |
 | [`attention/`](attention) | What the core decides to look at, where, in what order and why not: reinforcement, faces, pose, depth, when to look again, calibrating the empty bed | `attention`, `belief/subject` |
 | [`posture/`](posture) | The second level: the depth of each keypoint, truly lying, posture by disparity | `refine` |
-| [`contract/`](contract) | What `calipso.scene` and `calipso.events` publish, v3 and v4, and the layer-0 transition | `project`, `contract` |
-| [`shell/`](shell) | The shell's side: each capability answered by a real model adapter, the profile, publishing, distilling a night | `sense`, `detector`, `golden` |
+| [`contract/`](contract) | What `calipso.scene` and `calipso.events` publish: the scene, the mode and the layer-0 transition | `project`, `contract` |
+| [`shell/`](shell) | The shell's side: each capability answered by a real model adapter, the profile, distilling a night | `sense`, `detector`, `golden` |
 
 The tables of `occupancy/` and `attention/` are the same language as the
 [golden scenes](../golden/README.md): a span per row, what is seen on the left,

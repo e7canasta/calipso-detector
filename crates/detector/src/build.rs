@@ -1,4 +1,4 @@
-//! The binary's identification in the public v3 contract.
+//! The binary's identification in the published contract.
 use scene_core::contract::Build;
 
 pub fn current() -> Build {

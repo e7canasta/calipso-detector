@@ -11,7 +11,7 @@ use crate::ward::Ward;
 fn transitions(ward: &Ward) -> Vec<Value> {
     ward.turns
         .iter()
-        .flat_map(|t| &t.output.v4.events)
+        .flat_map(|t| &t.output.events)
         .map(|e| serde_json::to_value(e).expect("the event serializes"))
         .filter(|e| e["kind"] == "transition")
         .collect()
@@ -194,22 +194,16 @@ fn turn(ward: &Ward, n: u64) -> &scene_core::Output {
 }
 
 #[then(
-    expr = "the v4 scene of sample {int} says mode {string}, phase {string} and last cell {string}"
+    expr = "the scene of sample {int} says mode {string}, phase {string} and last cell {string}"
 )]
 fn scene_v4(ward: &mut Ward, n: u64, mode: String, phase: String, last: String) {
-    let scene = serde_json::to_value(&*turn(ward, n).v4.scene).expect("the scene serializes");
+    let scene = serde_json::to_value(&*turn(ward, n).scene).expect("the scene serializes");
     let room = &scene["room"];
     assert_eq!(
         (&room["mode"], &room["phase"], &room["last_cell"]),
         (&Value::from(mode), &Value::from(phase), &Value::from(last)),
-        "the v4 room at sample {n}: {room}"
+        "the room at sample {n}: {room}"
     );
-}
-
-#[then(expr = "the v3 scene of sample {int} says state {string}")]
-fn scene_v3(ward: &mut Ward, n: u64, state: String) {
-    let scene = serde_json::to_value(&*turn(ward, n).scene).expect("the scene serializes");
-    assert_eq!(scene["room"]["state"], Value::from(state));
 }
 
 /// A version's `room_changed`, as `(from, to)`.
@@ -232,7 +226,7 @@ fn v4_published(ward: &mut Ward, kind: String, from: String, to: String) {
     let events = ward
         .turns
         .iter()
-        .flat_map(|t| &t.output.v4.events)
+        .flat_map(|t| &t.output.events)
         .map(|e| serde_json::to_value(e).expect("the event serializes"))
         .collect();
     let changes = room_changes(events);
@@ -242,22 +236,11 @@ fn v4_published(ward: &mut Ward, kind: String, from: String, to: String) {
     );
 }
 
-#[then(expr = "in events.v3 the room changed only once, from {string} to {string}")]
-fn v3_once(ward: &mut Ward, from: String, to: String) {
-    let events = ward
-        .turns
-        .iter()
-        .flat_map(|t| &t.output.events)
-        .map(|e| serde_json::to_value(e).expect("the event serializes"))
-        .collect();
-    assert_eq!(room_changes(events), vec![(from, to)]);
-}
-
-#[then("on every turn, events.v4 brought down to v3 is events.v3 and room.mode gives room.state")]
-fn same_night(ward: &mut Ward) {
+#[then("on every turn, each transition agrees with its facts and its scene")]
+fn transitions_agree(ward: &mut Ward) {
     assert!(!ward.turns.is_empty(), "there were turns");
     for t in &ward.turns {
-        crate::equivalence::check(&t.output);
+        crate::published::check(&t.output);
     }
 }
 

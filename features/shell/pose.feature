@@ -75,4 +75,4 @@ Feature: The pose capability
     Then the pose model was called 1 time, in sample 3, with the resident's box
     And the scene of sample 3 carries the current pose with a keypoint at 40,50
     And the scene of sample 8 carries the pose stable since sample 3
-    And every published scene validates against the v3 schema
+    And every published message validates against its schema

@@ -14,10 +14,10 @@
 
 mod attention;
 mod contract;
-#[path = "../equivalence.rs"]
-mod equivalence;
 mod occupancy;
 mod posture;
+#[path = "../published.rs"]
+mod published;
 #[path = "../script.rs"]
 mod script;
 mod subject;

@@ -1,4 +1,4 @@
-//! Spec 209 protocol properties, using only the public API.
+//! Properties of the loop protocol, using only the public API.
 use proptest::prelude::*;
 use scene_core::contract::{FrameInfo, Keypoint, SampleRef, SensorState, SessionId, SourceSecs};
 use scene_core::geom::Rect;
@@ -123,7 +123,7 @@ fn sequences() -> impl Strategy<Value = Vec<ScriptStep>> {
     prop::collection::vec((inputs(), prop::collection::vec(responses(), 1..7)), 0..200)
 }
 
-use scene_core::contract::{BedState, EventBody, EventKind, LookKind, LookResult, Provenance};
+use scene_core::contract::{BedState, Event, LookKind, LookResult, Provenance};
 use scene_core::geom::Quad;
 use scene_core::look::{LookId, Outcome, Probe, Request};
 use scene_core::map::SiteMap;
@@ -196,11 +196,12 @@ fn invariants(output: &Output) -> Result<(), TestCaseError> {
             prop_assert!(read(&[LookKind::Depth]));
         }
     }
-    let rank = |event: &scene_core::contract::Event| match (event.kind, &event.body) {
-        (EventKind::Sensor, _) => 0,
-        (EventKind::Domain, EventBody::BedCalibrated { .. }) => 3,
-        (EventKind::Domain, _) => 2,
-        (EventKind::Derived, _) => 4,
+    // Rule 4: sensor → layer 0 → map → derived.
+    let rank = |event: &Event| match event {
+        Event::Sensor(_) => 0,
+        Event::Transition(_) => 1,
+        Event::Map(_) => 2,
+        Event::Derived(_) => 3,
     };
     prop_assert!(
         output

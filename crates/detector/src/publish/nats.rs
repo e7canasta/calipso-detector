@@ -1,8 +1,5 @@
-//! An actor owns the client, the event queue and the last scene of each version.
-use super::{
-    EVENT_BUFFER, EventPublication, EventV4Publication, Publication, ScenePublication,
-    SceneV4Publication, WireMessage, Wired,
-};
+//! An actor owns the client, the event queue and the last scene.
+use super::{EVENT_BUFFER, EventPublication, Publication, ScenePublication, WireMessage, Wired};
 use crate::config::NatsConfig;
 use std::{collections::VecDeque, time::Duration};
 use tokio::{
@@ -14,60 +11,27 @@ use tokio_util::sync::CancellationToken;
 const NETWORK_TIMEOUT: Duration = Duration::from_secs(1);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(3);
 
-/// An event in the queue, whatever its version: a single FIFO keeps the order
-/// in which they were numbered.
-#[derive(Debug)]
-enum Queued {
-    V3(EventPublication),
-    V4(EventV4Publication),
-}
-
-impl Queued {
-    fn seq(&self) -> u64 {
-        match self {
-            Self::V3(event) => event.seq,
-            Self::V4(event) => event.seq,
-        }
-    }
-
-    fn wire(&self) -> serde_json::Result<WireMessage> {
-        match self {
-            Self::V3(event) => event.wire(),
-            Self::V4(event) => event.wire(),
-        }
-    }
-}
-
-/// Per version: the last event that actually went out, for the
-/// `last_event_seq` of its next scene (gaps included).
+/// The last event that actually went out, for the `last_event_seq` of the
+/// next scene (gaps included).
 #[derive(Debug, Default, Clone, Copy)]
-struct Sent {
-    v3: u64,
-    v4: u64,
-}
+struct Sent(u64);
 
 #[derive(Debug, Default)]
 struct Pending {
-    events: VecDeque<Queued>,
-    /// The last scene of each version: a new one replaces the previous one.
-    v3: Option<ScenePublication>,
-    v4: Option<SceneV4Publication>,
+    events: VecDeque<EventPublication>,
+    /// The last scene: a new one replaces the previous one.
+    scene: Option<ScenePublication>,
     dropped_events: u64,
 }
+
 impl Pending {
     fn ingest(&mut self, publication: Publication) {
-        let Publication { v3, v4 } = publication;
-        let (v3_events, v3_scene) = v3.map_or((Vec::new(), None), |p| (p.events, Some(p.scene)));
-        let (v4_events, v4_scene) = v4.map_or((Vec::new(), None), |p| (p.events, Some(p.scene)));
-        let events = v3_events
-            .into_iter()
-            .map(Queued::V3)
-            .chain(v4_events.into_iter().map(Queued::V4));
+        let Publication { events, scene } = publication;
         for event in events {
             if self.events.len() == EVENT_BUFFER {
                 self.dropped_events += 1;
                 tracing::warn!(
-                    seq = event.seq(),
+                    seq = event.seq,
                     dropped_events = self.dropped_events,
                     "FIFO full; the newest event is dropped"
                 );
@@ -75,37 +39,31 @@ impl Pending {
                 self.events.push_back(event);
             }
         }
-        self.v3 = v3_scene.or(self.v3.take());
-        self.v4 = v4_scene.or(self.v4.take());
+        self.scene = Some(scene);
     }
+
     fn is_empty(&self) -> bool {
-        self.events.is_empty() && self.v3.is_none() && self.v4.is_none()
+        self.events.is_empty() && self.scene.is_none()
     }
-    /// The front: events first; with the queue empty, v3's scene and then v4's,
-    /// each with the last event of its version that went out.
+
+    /// The front: events first; with the queue empty, the scene, with the
+    /// last event that went out.
     fn front(&mut self, sent: Sent) -> Option<serde_json::Result<WireMessage>> {
         if let Some(event) = self.events.front() {
             Some(event.wire())
-        } else if let Some(scene) = self.v3.as_mut() {
-            scene.last_event_seq = Some(sent.v3);
-            Some(scene.wire())
-        } else if let Some(scene) = self.v4.as_mut() {
-            scene.last_event_seq = Some(sent.v4);
+        } else if let Some(scene) = self.scene.as_mut() {
+            scene.last_event_seq = Some(sent.0);
             Some(scene.wire())
         } else {
             None
         }
     }
+
     /// Removes the front that went out and notes its event.
     fn pop(&mut self, sent: &mut Sent) {
         match self.events.pop_front() {
-            Some(Queued::V3(event)) => sent.v3 = event.seq,
-            Some(Queued::V4(event)) => sent.v4 = event.seq,
-            None => {
-                if self.v3.take().is_none() {
-                    self.v4 = None;
-                }
-            }
+            Some(event) => sent.0 = event.seq,
+            None => self.scene = None,
         }
     }
 }
@@ -116,7 +74,7 @@ pub async fn run(
     mut rx: mpsc::Receiver<Publication>,
     token: CancellationToken,
 ) {
-    tracing::info!(%prefix, "NATS subjects: {{prefix}}.{{scene,events}}.{{version}}");
+    tracing::info!(%prefix, version = super::VERSION, "NATS subjects: {{prefix}}.{{scene,events}}.{{version}}");
     let mut pending = Pending::default();
     let mut client: Option<async_nats::Client> = None;
     let mut closed = false;
@@ -191,7 +149,7 @@ async fn publish(
     prefix: &str,
     message: WireMessage,
 ) -> anyhow::Result<()> {
-    let subject = message.stream.subject(prefix);
+    let subject = message.kind.subject(prefix);
     match message.headers() {
         Some(headers) => {
             client
@@ -231,7 +189,6 @@ mod tests {
                 hash: ProfileHash("h".into()),
                 senses: Vec::new(),
             },
-            &[crate::publish::Contract::V3],
         );
         let mut monitor = Monitor::new(
             Policy::default(),
@@ -263,15 +220,15 @@ mod tests {
             ));
         }
         assert_eq!(queue.events.len(), 1024);
-        assert_eq!(queue.events.front().unwrap().seq(), 1);
-        assert_eq!(queue.events.back().unwrap().seq(), 1024);
+        assert_eq!(queue.events.front().unwrap().seq, 1);
+        assert_eq!(queue.events.back().unwrap().seq, 1024);
         assert_eq!(queue.dropped_events, 1);
-        assert_eq!(queue.v3.as_ref().unwrap().seq, 1025);
+        assert_eq!(queue.scene.as_ref().unwrap().seq, 1025);
     }
 
     #[test]
-    fn with_v3_and_v4_one_fifo_and_last_event_seq_per_version() {
-        use crate::publish::{Contract, Kind, Stream};
+    fn events_go_out_first_and_the_last_scene_says_the_last_event_sent() {
+        use crate::publish::Kind;
         let (mut handle, _) = PublisherHandle::channel(
             Source {
                 site: "s".into(),
@@ -285,7 +242,6 @@ mod tests {
                 hash: ProfileHash("h".into()),
                 senses: Vec::new(),
             },
-            &[Contract::V3, Contract::V4],
         );
         let mut monitor = Monitor::new(
             Policy::default(),
@@ -313,32 +269,23 @@ mod tests {
         while let Some(message) = queue.front(sent) {
             let message = message.unwrap();
             let json: serde_json::Value = serde_json::from_slice(&message.bytes).unwrap();
-            wire.push((message.stream, json));
+            wire.push((message.kind, json));
             queue.pop(&mut sent);
         }
-        let streams: Vec<Stream> = wire.iter().map(|(stream, _)| *stream).collect();
-        let events = streams.iter().filter(|s| s.kind == Kind::Events).count();
-        assert!(events >= 4, "{streams:?}");
-        // First all events in numbered order; then one scene per version, v3
-        // before v4: the last one of each.
-        assert!(streams[..events].iter().all(|s| s.kind == Kind::Events));
-        assert_eq!(
-            streams[events..],
-            [Stream::scene(Contract::V3), Stream::scene(Contract::V4)]
-        );
-        for (contract, scene) in [
-            (Contract::V3, &wire[events].1),
-            (Contract::V4, &wire[events + 1].1),
-        ] {
-            let last = wire[..events]
-                .iter()
-                .filter(|(stream, _)| stream.contract == contract)
-                .map(|(_, json)| json["seq"].as_u64().unwrap())
-                .max()
-                .unwrap();
-            assert_eq!(scene["seq"], 2, "{scene}");
-            assert_eq!(scene["last_event_seq"], last, "{contract:?}");
-        }
+        let kinds: Vec<Kind> = wire.iter().map(|(kind, _)| *kind).collect();
+        let events = kinds.iter().filter(|k| **k == Kind::Events).count();
+        assert!(events >= 2, "{kinds:?}");
+        // First all events in numbered order; then only the last scene.
+        assert!(kinds[..events].iter().all(|k| *k == Kind::Events));
+        assert_eq!(kinds[events..], [Kind::Scene]);
+        let last = wire[..events]
+            .iter()
+            .map(|(_, json)| json["seq"].as_u64().unwrap())
+            .max()
+            .unwrap();
+        let scene = &wire[events].1;
+        assert_eq!(scene["seq"], 2, "{scene}");
+        assert_eq!(scene["last_event_seq"], last);
         assert!(queue.is_empty());
     }
 }

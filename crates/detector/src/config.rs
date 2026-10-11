@@ -1,5 +1,4 @@
 //! Minimal shell configuration; policies are handed over by value.
-use crate::publish::Contract;
 use anyhow::{Context, Result, ensure};
 use scene_core::{
     FrameInfo,
@@ -23,10 +22,6 @@ pub struct Config {
     pub policy: PolicyConfig,
     pub map: MapConfig,
     pub nats: NatsConfig,
-    /// Which contract versions are published; it is not perception and does not
-    /// enter the profile hash.
-    #[serde(default)]
-    pub publish: PublishConfig,
     /// Learn the empty bed with depth: without the section, no calibration.
     pub calibration: Option<CalibrationConfig>,
 }
@@ -151,23 +146,6 @@ pub struct MapConfig {
     pub bed: [[f32; 2]; 4],
     pub headboard: Option<[f32; 4]>,
 }
-/// The contract versions the shell publishes. Without the section, v3
-/// and v4: the rerun bridge reads v4, and v3 keeps going out
-/// unchanged for whoever still consumes it, until it is retired.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PublishConfig {
-    pub contracts: Vec<Contract>,
-}
-
-impl Default for PublishConfig {
-    fn default() -> Self {
-        Self {
-            contracts: vec![Contract::V3, Contract::V4],
-        }
-    }
-}
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NatsConfig {
@@ -267,18 +245,6 @@ impl Config {
         ensure!(
             matches!(nats_url.scheme(), "nats" | "tls") && nats_url.host_str().is_some(),
             "nats.url: NATS with a host is required"
-        );
-        let contracts = &self.publish.contracts;
-        ensure!(
-            !contracts.is_empty(),
-            "publish.contracts: at least one version is required"
-        );
-        ensure!(
-            contracts
-                .iter()
-                .enumerate()
-                .all(|(i, c)| !contracts[..i].contains(c)),
-            "publish.contracts: repeated version"
         );
         if let Some(prefix) = &self.nats.prefix {
             ensure!(
@@ -891,28 +857,5 @@ mod tests {
         }
         assert!(Config::parse(&format!("{VALID}\n[stability]\nobservations = 3")).is_err());
         assert!(Config::parse(&VALID.replace("[800, 600]", "[0, 600]")).is_err());
-    }
-    #[test]
-    fn publish_picks_the_versions_without_touching_the_hash() {
-        let baseline = Config::parse(VALID).unwrap();
-        assert_eq!(baseline.publish.contracts, [Contract::V3, Contract::V4]);
-        let both = Config::parse(&format!(
-            "{VALID}\n[publish]\ncontracts = [\"v3\", \"v4\"]\n"
-        ))
-        .unwrap();
-        assert_eq!(both.publish.contracts, [Contract::V3, Contract::V4]);
-        assert_eq!(
-            both.profile().unwrap().hash,
-            baseline.profile().unwrap().hash
-        );
-        for (contracts, reason) in [
-            ("[]", "at least one"),
-            ("[\"v3\", \"v3\"]", "repeated"),
-            ("[\"v5\"]", "v5"),
-        ] {
-            let e = Config::parse(&format!("{VALID}\n[publish]\ncontracts = {contracts}\n"))
-                .unwrap_err();
-            assert!(format!("{e:#}").contains(reason), "{contracts}: {e:#}");
-        }
     }
 }

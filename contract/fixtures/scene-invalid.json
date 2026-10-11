@@ -1,12 +1,12 @@
 {
-  "schema": "calipso.scene.v3",
+  "schema": "calipso.scene.v4",
   "source": {
-    "site": "ejemplo",
-    "camera": "habitacion",
-    "run_id": "ejemplo",
+    "site": "example",
+    "camera": "room",
+    "run_id": "example",
     "build": {
       "version": "0.1.0",
-      "git": "ejemplo"
+      "git": "example"
     }
   },
   "seq": 1,
@@ -18,11 +18,11 @@
   "published_at_ms": 0,
   "profile": {
     "camera": {
-      "id": "habitacion",
+      "id": "room",
       "version": 1
     },
     "resident": null,
-    "hash": "ejemplo"
+    "hash": "example"
   },
   "timing": {
     "wait_ms": 0.0,
@@ -71,7 +71,7 @@
       }
     },
     "room": {
-      "state": "empty",
+      "mode": "empty",
       "occupants": 0,
       "since": {
         "session": 1,
@@ -83,12 +83,13 @@
           "floor": 2,
           "bed": 0
         },
-        "observations": {
-          "have": 1,
-          "need": 3
-        },
-        "duration": null
-      }
+        "duration": {
+          "have": 0.0,
+          "need": 2.0
+        }
+      },
+      "phase": "booting",
+      "last_cell": null
     },
     "bed": {
       "state": "empty",
@@ -98,7 +99,8 @@
         "sequence": 1,
         "source_secs": 1.0
       },
-      "held": []
+      "held": [],
+      "unexplained": 0
     },
     "floor": {
       "seen": 0

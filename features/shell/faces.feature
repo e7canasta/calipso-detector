@@ -54,4 +54,4 @@ Feature: The face capability
     When samples 1 to 3 arrive
     Then the face model was called 3 times
     And the scene of sample 3 carries 1 accepted face
-    And every published scene validates against the v3 schema
+    And every published message validates against its schema

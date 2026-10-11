@@ -4,8 +4,9 @@
 
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when};
-use scene_core::contract::{Event, EventBody, EventKind, RoomState, Zone};
+use scene_core::contract::Zone;
 
+use crate::published::{Body, Fact, Kind};
 use crate::ward::{Ward, later};
 
 // --- Background
@@ -180,15 +181,20 @@ fn split_column(rows: &[Vec<String>], name: &str) -> (Vec<Vec<String>>, Vec<Stri
 
 // --- What is believed
 
+/// How many people the room holds, in the words of the scenarios.
 #[then(expr = "the room is {string}")]
 fn the_room(ward: &mut Ward, state: String) {
-    let expected = match state.as_str() {
-        "Empty" => RoomState::Empty,
-        "One" => RoomState::One,
-        "Several" => RoomState::Several,
+    let occupants = ward.last().output.scene.room.occupants;
+    let matches = match state.as_str() {
+        "Empty" => occupants == 0,
+        "One" => occupants == 1,
+        "Several" => occupants >= 2,
         other => panic!("unknown room state: {other}"),
     };
-    assert_eq!(ward.last().output.scene.room.state, expected);
+    assert!(
+        matches,
+        "the room is not \"{state}\": {occupants} occupants"
+    );
 }
 
 #[then("there is no subject")]
@@ -222,17 +228,17 @@ fn held_since(ward: &mut Ward, n: u32) {
 
 // --- What was observed (events)
 
-fn observed(ward: &Ward, which: impl Fn(&EventBody) -> bool) -> Vec<Event> {
-    ward.events().filter(|e| which(&e.body)).cloned().collect()
+fn observed(ward: &Ward, which: impl Fn(&Body) -> bool) -> Vec<Fact> {
+    ward.events().filter(|e| which(&e.body)).copied().collect()
 }
 
-pub fn event(which: &str) -> fn(&EventBody) -> bool {
+pub fn event(which: &str) -> fn(&Body) -> bool {
     match which {
-        "an entry into the room" => |b| matches!(b, EventBody::Entered),
-        "an exit from the room" => |b| matches!(b, EventBody::LeftRoom),
-        "an exit from the bed" => |b| matches!(b, EventBody::LeftBed),
-        "someone lying down" => |b| matches!(b, EventBody::LayDown),
-        "the bed occupant reappearing" => |b| matches!(b, EventBody::Reappeared { .. }),
+        "an entry into the room" => |b| matches!(b, Body::Entered),
+        "an exit from the room" => |b| matches!(b, Body::LeftRoom),
+        "an exit from the bed" => |b| matches!(b, Body::LeftBed),
+        "someone lying down" => |b| matches!(b, Body::LayDown),
+        "the bed occupant reappearing" => |b| matches!(b, Body::Reappeared { .. }),
         other => panic!("unknown event: {other}"),
     }
 }
@@ -269,36 +275,56 @@ fn no_events_after(ward: &mut Ward, n: u32) {
     let limit = ward.sample(n);
     let late: Vec<_> = ward
         .events()
-        .filter(|e| e.kind == EventKind::Domain && later(e.at, limit))
+        .filter(|e| e.kind == Kind::Domain && later(e.at, limit))
         .collect();
     assert!(late.is_empty(), "events after sample {n}: {late:?}");
 }
 
-// --- Contract v3: expectations on the published language.
-#[then(expr = "the bed was observed going from {string} to {string}")]
-fn bed_changed(ward: &mut Ward, from: String, to: String) {
-    assert!(ward.events().any(|e| {
-        let b = serde_json::to_value(&e.body).unwrap();
-        b["type"] == "bed_changed" && b["from"] == from && b["to"] == to
-    }));
+// --- The published language: what a consumer reads.
+
+/// A published value as its JSON name (`seen`, `held`…).
+fn name(value: impl serde::Serialize) -> String {
+    serde_json::to_value(value)
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_owned()
 }
 
-#[then(expr = "the room did not change state after sample {int}")]
-fn room_did_not_change(ward: &mut Ward, n: u32) {
-    assert!(!ward.events().any(|e| later(e.at, ward.sample(n))
-        && serde_json::to_value(&e.body).unwrap()["type"] == "room_changed"));
+#[then(expr = "the bed was observed going from {string} to {string}")]
+fn bed_changed(ward: &mut Ward, from: String, to: String) {
+    assert!(ward.events().any(|e| matches!(
+        e.body,
+        Body::BedChanged { from: f, to: t } if name(f) == from && name(t) == to
+    )));
+}
+
+#[then(expr = "the number of people in the room did not change after sample {int}")]
+fn occupants_did_not_change(ward: &mut Ward, n: u32) {
+    let limit = ward.sample(n);
+    let at_limit = ward
+        .turns
+        .iter()
+        .find(|t| t.output.at == limit)
+        .expect("a turn at that sample")
+        .output
+        .scene
+        .room
+        .occupants;
+    for t in ward.turns.iter().filter(|t| later(t.output.at, limit)) {
+        assert_eq!(t.output.scene.room.occupants, at_limit, "{:?}", t.output.at);
+    }
 }
 
 #[then(expr = "the {string} event left the bed {string} with {int} seen and {int} held")]
 fn state_after(ward: &mut Ward, kind: String, bed: String, seen: u32, held: u32) {
     let e = ward
         .events()
-        .find(|e| serde_json::to_value(&e.body).unwrap()["type"] == kind)
-        .unwrap();
-    let e = serde_json::to_value(e).unwrap();
-    assert_eq!(e["after"]["bed"], bed);
-    assert_eq!(e["after"]["bed_seen"], seen);
-    assert_eq!(e["after"]["bed_held"], held);
+        .find(|e| e.type_name() == kind)
+        .unwrap_or_else(|| panic!("no {kind} event"));
+    assert_eq!(name(e.after.bed), bed);
+    assert_eq!(e.after.bed_seen, seen);
+    assert_eq!(e.after.bed_held, held);
 }
 
 #[then("the evidence of the last sample has no bodies")]

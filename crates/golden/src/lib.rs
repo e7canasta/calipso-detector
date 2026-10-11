@@ -5,7 +5,7 @@
 //! - [`language`]: read a scene (`.md`) or a Gherkin table as spans.
 //! - [`world`]: what each sense sees in each sample (the scripted frame).
 //! - [`expected`]: what the engine must believe at the end of each span.
-//! - [`distill`]: a published night (`scene.v3`) turned into a scene, without
+//! - [`distill`]: a published night (`scene.v4`) turned into a scene, without
 //!   pixels.
 
 // The same rules as the core: no panics; the impossible is an error with the

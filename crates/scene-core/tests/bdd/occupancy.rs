@@ -2,8 +2,9 @@
 //! stabilization by time, failing reinforcement and the scene that declares
 //! when it did not observe.
 
+use crate::published::Body;
 use cucumber::{given, then, when};
-use scene_core::contract::{Cause, EventBody, LookKind, LookOutcome, RepublishReason, SampleRef};
+use scene_core::contract::{Cause, LookKind, LookOutcome, RepublishReason, SampleRef};
 use scene_core::look::Failure;
 use scene_core::policy::ReinforcePolicy;
 
@@ -31,7 +32,7 @@ fn lay_down_after(ward: &mut Ward, n: u32) {
     let limit = ward.sample(n);
     assert!(
         ward.events()
-            .any(|e| matches!(e.body, EventBody::LayDown) && crate::ward::later(e.at, limit)),
+            .any(|e| matches!(e.body, Body::LayDown) && crate::ward::later(e.at, limit)),
         "nobody lay down after sample {n}: {:?}",
         ward.events().collect::<Vec<_>>()
     );
@@ -41,7 +42,7 @@ fn lay_down_after(ward: &mut Ward, n: u32) {
 fn adopted(ward: &mut Ward) {
     assert!(
         ward.events()
-            .any(|e| matches!(e.body, EventBody::LayDown) && e.cause == Cause::Baseline),
+            .any(|e| matches!(e.body, Body::LayDown) && e.cause == Cause::Baseline),
         "the bed was not adopted: {:?}",
         ward.events().collect::<Vec<_>>()
     );
@@ -64,7 +65,7 @@ fn entry_after(ward: &mut Ward, secs: f64) {
     let first = ward.sample(1).source_secs.0;
     let entry = ward
         .events()
-        .find(|e| matches!(e.body, EventBody::Entered))
+        .find(|e| matches!(e.body, Body::Entered))
         .expect("an entry was observed");
     assert_eq!(entry.at.source_secs.0 - first, secs);
 }
@@ -73,7 +74,7 @@ fn entry_after(ward: &mut Ward, secs: f64) {
 fn no_entry(ward: &mut Ward) {
     let entries: Vec<_> = ward
         .events()
-        .filter(|e| matches!(e.body, EventBody::Entered))
+        .filter(|e| matches!(e.body, Body::Entered))
         .collect();
     assert!(entries.is_empty(), "observed: {entries:?}");
 }

@@ -4,11 +4,11 @@
 
 use std::fmt;
 
+use crate::published::{Body, Fact, Kind};
 pub use crate::script::Script;
 use cucumber::World;
 use scene_core::contract::{
-    Event, EventBody, EventKind, LookKind, LookResult, Provenance, SampleRef, Scene, SessionId,
-    SourceSecs,
+    LookKind, LookResult, Provenance, SampleRef, Scene, SessionId, SourceSecs,
 };
 use scene_core::geom::Quad;
 use scene_core::look::Spent;
@@ -19,10 +19,11 @@ use scene_core::{FrameInfo, Input, Monitor, Output};
 /// Every scenario's geometry is that of the golden scenes: a single one.
 pub use golden::world::{BED, FRAME};
 
-/// A driven turn: what the core published.
+/// A driven turn: what the core published, and its events as rows.
 #[derive(Debug)]
 pub struct Turn {
     pub output: Output,
+    pub facts: Vec<Fact>,
 }
 
 #[derive(Default, World)]
@@ -121,19 +122,20 @@ impl Ward {
         let output = monitor
             .handle(input.clone())
             .drive(|request| (script.respond(&request.probe), Spent(1.0)));
-        invariants(&output.scene, &output.events);
-        crate::equivalence::check(&output);
+        let facts = crate::published::facts(&output);
+        invariants(&output.scene, &facts);
+        crate::published::check(&output);
         self.recording.push((input, script.clone()));
-        self.turns.push(Turn { output });
+        self.turns.push(Turn { output, facts });
     }
 
     pub fn last(&self) -> &Turn {
         self.turns.last().expect("no sample arrived")
     }
 
-    /// Every event published in the scenario, in order.
-    pub fn events(&self) -> impl Iterator<Item = &Event> {
-        self.turns.iter().flat_map(|t| &t.output.events)
+    /// Every event published in the scenario, as rows, in order.
+    pub fn events(&self) -> impl Iterator<Item = &Fact> {
+        self.turns.iter().flat_map(|t| &t.facts)
     }
 }
 
@@ -191,7 +193,7 @@ pub fn later(a: SampleRef, b: SampleRef) -> bool {
 }
 
 /// The rules' guardians, checked on every turn of every scenario.
-fn invariants(scene: &Scene, events: &[Event]) {
+fn invariants(scene: &Scene, events: &[Fact]) {
     use scene_core::contract::BedState;
     if scene.bed.state == BedState::Held {
         assert_eq!(scene.bed.seen, 0);
@@ -242,11 +244,11 @@ fn invariants(scene: &Scene, events: &[Event]) {
         }
     }
     // Rule 4: sensor → occupancy → calibration → derived.
-    let rank = |e: &Event| match (e.kind, &e.body) {
-        (EventKind::Sensor, _) => 0,
-        (EventKind::Domain, EventBody::BedCalibrated { .. }) => 3,
-        (EventKind::Domain, _) => 2,
-        (EventKind::Derived, _) => 4,
+    let rank = |e: &Fact| match (e.kind, &e.body) {
+        (Kind::Sensor, _) => 0,
+        (Kind::Domain, Body::BedCalibrated { .. }) => 3,
+        (Kind::Domain, _) => 2,
+        (Kind::Derived, _) => 4,
     };
     let ranks: Vec<u8> = events.iter().map(rank).collect();
     assert!(

@@ -111,7 +111,7 @@ fn reinforces_resident(w: &mut Shell) {
 fn samples(w: &mut Shell, first: u64, last: u64) {
     let config = w.config().clone();
     for (n, json) in publish_samples(w, &config, first, last) {
-        if json["schema"] == "calipso.scene.v3" {
+        if json["schema"] == "calipso.scene.v4" {
             w.scenes.insert(n, json.clone());
         }
         w.messages.push(json);
@@ -138,8 +138,7 @@ pub fn publish_samples(
         run_id: "bdd-capability".into(),
         build: detector::build::current(),
     };
-    let (mut publisher, _receiver) =
-        PublisherHandle::channel(source, config.profile().unwrap(), &config.publish.contracts);
+    let (mut publisher, _receiver) = PublisherHandle::channel(source, config.profile().unwrap());
     let mut published = Vec::new();
     for n in first..=last {
         for model in [&w.main, &w.reinforce, &w.faces].into_iter().flatten() {
@@ -179,11 +178,10 @@ fn bed(w: &mut Shell, sample: u64, expected: String) {
     );
 }
 
-/// Each message validates against its version's schema: v3 against v3 (what
-/// the step says) and v4 against v4.
-#[then("every published scene validates against the v3 schema")]
+/// Each message validates against the schema it names.
+#[then("every published message validates against its schema")]
 fn valid_publications(w: &mut Shell) {
-    assert!(w.messages.iter().any(|m| m["schema"] == "calipso.scene.v3"));
+    assert!(w.messages.iter().any(|m| m["schema"] == "calipso.scene.v4"));
     let validator = |name: &str| {
         let path = format!(
             "{}/../../contract/schema/{name}.json",
@@ -192,15 +190,10 @@ fn valid_publications(w: &mut Shell) {
         let schema = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         jsonschema::validator_for(&schema).unwrap()
     };
-    let validators: std::collections::HashMap<&str, _> = [
-        "calipso.scene.v3",
-        "calipso.events.v3",
-        "calipso.scene.v4",
-        "calipso.events.v4",
-    ]
-    .into_iter()
-    .map(|name| (name, validator(name)))
-    .collect();
+    let validators: std::collections::HashMap<&str, _> = ["calipso.scene.v4", "calipso.events.v4"]
+        .into_iter()
+        .map(|name| (name, validator(name)))
+        .collect();
     for json in &w.messages {
         let schema = json["schema"].as_str().expect("schema");
         assert!(validators[schema].is_valid(json), "{json}");
