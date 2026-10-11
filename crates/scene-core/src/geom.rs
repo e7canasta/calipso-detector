@@ -39,6 +39,11 @@ impl Rect {
         }
     }
 
+    /// Does it contain the point? The edges count as inside.
+    pub(crate) fn contains(&self, p: Point) -> bool {
+        p.x >= self.x0 && p.x <= self.x1 && p.y >= self.y0 && p.y <= self.y1
+    }
+
     /// In square pixels; zero if it is inverted.
     pub fn area(&self) -> f32 {
         (self.x1 - self.x0).max(0.0) * (self.y1 - self.y0).max(0.0)

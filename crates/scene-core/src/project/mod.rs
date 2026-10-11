@@ -3,7 +3,9 @@
 //! into the contract, one version per module (today `v4`), from the
 //! conclusion and the chronicle. What no version changes lives here, as
 //! `contract::common` does: the evidence, the subject, the bed and how what
-//! is published degrades on republishing (rule 2).
+//! is published degrades on republishing (rule 2). It names only
+//! `contract::common`, so a next version shares it without depending on v4
+//! (C2).
 
 pub(crate) mod v4;
 
@@ -11,9 +13,14 @@ use crate::attention::Attention;
 use crate::belief::{Believed, Occupancy, Occupants, Subject as BelievedSubject};
 use crate::chronicle::{BedKind, Chronicled};
 use crate::conclusion::RepublishReason;
-use crate::contract::v4::{
-    Bed, BedState, Held, Pending, Progress, Provenance, Republished, SampleRef, Subject,
+use crate::contract::common::{
+    Bed, BedState, BodiesEvidence, BodiesStatus, BodySeen, Evidence, FaceSeen, FacesEvidence,
+    FacesStatus, Held, LookKind, LookOutcome, Pending, Progress, Provenance, Republished,
+    SampleRef, SkipReason, Subject, Zone,
 };
+use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
+use crate::look::Detection;
+use crate::refine::Refinement;
 
 /// The bed as layer 0 believes it, dated by the chronicle.
 fn bed(occupancy: &Occupancy, chronicled: &Chronicled) -> Bed {
@@ -93,36 +100,38 @@ fn empty_bed() -> Bed {
 /// The bed's published state: `unknown` if this turn does not know the zones;
 /// otherwise empty, held or seen.
 fn bed_state(occupants: Occupants, bed_known: bool) -> BedState {
-    v4::publish_bed(BedKind::of(occupants, bed_known))
+    publish_bed(BedKind::of(occupants, bed_known))
+}
+
+/// The bed's kind, as published.
+fn publish_bed(kind: BedKind) -> BedState {
+    match kind {
+        BedKind::Unknown => BedState::Unknown,
+        BedKind::Empty => BedState::Empty,
+        BedKind::Held => BedState::Held,
+        BedKind::Seen => BedState::Seen,
+    }
 }
 
 /// A turn in which the main detector failed observed nothing: the belief is
 /// that of the last observation, and the scene declares it like a
 /// republication (rule 2).
-fn unobserved(
-    evidence: &crate::contract::v4::Evidence,
-    observed: Option<SampleRef>,
-) -> Option<Republished> {
-    (evidence.bodies.status == crate::contract::v4::BodiesStatus::Unavailable).then_some(
-        Republished {
-            reason: RepublishReason::DetectFailed,
-            observed_at: observed,
-        },
-    )
+fn unobserved(bodies: &BodyEvidence, observed: Option<SampleRef>) -> Option<Republished> {
+    matches!(bodies, BodyEvidence::Unavailable(_)).then_some(Republished {
+        reason: RepublishReason::DetectFailed,
+        observed_at: observed,
+    })
 }
 
 /// The published subject: what layer 0 believes, with its pose and depth and
 /// what the second level derived.
-fn publish_subject(
-    believed: &Believed,
-    refined: crate::refine::Refinement,
-) -> Option<crate::contract::v4::Subject> {
+fn publish_subject(believed: &Believed, refined: Refinement) -> Option<Subject> {
     let s = believed.subject?;
     let (pose, depth) = believed
         .body
         .clone()
         .map_or((None, None), |b| (Some(b.pose), b.depth));
-    Some(crate::contract::v4::Subject {
+    Some(Subject {
         zone: s.zone,
         bbox: s.bbox,
         confidence: s.confidence,
@@ -134,48 +143,61 @@ fn publish_subject(
     })
 }
 
+/// The evidence of the turn, as published: the bodies and the faces.
 fn project_evidence(
-    evidence: &crate::evidence::Perceived,
+    evidence: &Perceived,
     subject: Option<&BelievedSubject>,
     attention: &Attention,
-) -> crate::contract::v4::Evidence {
-    use crate::contract::v4::*;
-    use crate::evidence::{BodyEvidence, FaceEvidence};
-    let crate::evidence::Perceived {
-        bodies: admission,
-        faces,
-    } = evidence;
-    let body = |d: &crate::look::Detection, source, zone, near_bed| BodySeen {
+) -> Evidence {
+    Evidence {
+        bodies: bodies(&evidence.bodies.bodies),
+        faces: faces(&evidence.faces, subject, attention),
+    }
+}
+
+/// The admitted bodies, with their zone when the bed geometry applied.
+fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
+    let seen = |d: &Detection, source, zone, near_bed| BodySeen {
         zone,
         near_bed,
         bbox: d.bbox,
         confidence: d.confidence,
         source,
     };
-    let bodies = match &admission.bodies {
+    match evidence {
         BodyEvidence::Unavailable(_) => BodiesEvidence::default(),
-        BodyEvidence::Unzoned(b) => BodiesEvidence {
+        BodyEvidence::Unzoned(unzoned) => BodiesEvidence {
             status: BodiesStatus::Unzoned,
-            items: b
+            items: unzoned
                 .iter()
-                .map(|b| body(&b.detection, b.source, None, None))
+                .map(|b| seen(&b.detection, b.source, None, None))
                 .collect(),
         },
-        BodyEvidence::Seen(b) => BodiesEvidence {
+        BodyEvidence::Seen(bodies) => BodiesEvidence {
             status: BodiesStatus::Seen,
-            items: b
+            items: bodies
                 .bed
                 .iter()
-                .map(|b| body(&b.detection, b.source, Some(Zone::Bed), None))
+                .map(|b| seen(&b.detection, b.source, Some(Zone::Bed), None))
                 .chain(
-                    b.floor
+                    bodies
+                        .floor
                         .iter()
-                        .map(|b| body(&b.detection, b.source, Some(Zone::Floor), Some(b.near_bed))),
+                        .map(|b| seen(&b.detection, b.source, Some(Zone::Floor), Some(b.near_bed))),
                 )
                 .collect(),
         },
-    };
-    let faces = match faces {
+    }
+}
+
+/// The faces, and which fall on the subject seen in this turn. Not looked
+/// for: the ledger says why.
+fn faces(
+    evidence: &FaceEvidence,
+    subject: Option<&BelievedSubject>,
+    attention: &Attention,
+) -> FacesEvidence {
+    match evidence {
         FaceEvidence::NotLooked => FacesEvidence {
             reason: Some(
                 attention
@@ -204,23 +226,14 @@ fn project_evidence(
             reason: None,
             items: faces
                 .iter()
-                .map(|d| {
-                    let c = d.bbox.centroid();
-                    let on_subject = subject.is_some_and(|s| {
-                        s.provenance == Provenance::Current
-                            && c.x >= s.bbox.x0
-                            && c.x <= s.bbox.x1
-                            && c.y >= s.bbox.y0
-                            && c.y <= s.bbox.y1
-                    });
-                    FaceSeen {
-                        bbox: d.bbox,
-                        confidence: d.confidence,
-                        on_subject,
-                    }
+                .map(|face| FaceSeen {
+                    bbox: face.bbox,
+                    confidence: face.confidence,
+                    on_subject: subject.is_some_and(|s| {
+                        s.provenance == Provenance::Current && s.bbox.contains(face.bbox.centroid())
+                    }),
                 })
                 .collect(),
         },
-    };
-    Evidence { bodies, faces }
+    }
 }

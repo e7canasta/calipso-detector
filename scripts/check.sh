@@ -73,6 +73,10 @@ check_domain_contract() {
             | grep -vE '^crates/scene-core/src/(contract/|project/|cycle\.rs$)' \
             || true)
   [ -z "$found" ] || fail "the domain imports the contract: $found"
+  # What no version changes is projected into `contract::common`: a next
+  # version shares it without depending on v4 (C2).
+  found=$(grep -nE 'contract::v[0-9]|v[0-9]+::' crates/scene-core/src/project/mod.rs || true)
+  [ -z "$found" ] || fail "C2: the common projection names a version: $found"
 }
 step "the domain without contract"
 check_domain_contract

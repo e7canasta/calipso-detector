@@ -89,7 +89,7 @@ What no change may break. Each one has someone watching it.
 | One contract, one source: the JSON Schema comes from the types | 13 | the contract snapshots |
 | No panics: no `unwrap`, `expect` or indexing | 21 | `#![deny(...)]` in `lib.rs` |
 | Layer 0 decides as the golden table does | P2 | `belief/occupancy/machine/table.rs` |
-| The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain | P3, P4 | `scripts/check.sh` (the domain without contract) |
+| The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
 | Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
 
 ## 3. The loop: one turn per sample

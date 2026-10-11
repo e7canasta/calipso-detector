@@ -6,7 +6,8 @@
 //! it in full (`scene_core::contract::v4::Scene`): when the next version is
 //! published next to it (C2), its code does not change.
 
-mod common;
+// What no version changes: `project` translates into it without naming a version.
+pub(crate) mod common;
 pub mod v4;
 
 pub use v4::*;

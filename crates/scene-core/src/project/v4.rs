@@ -4,19 +4,21 @@
 //! after and the facts, each with the occupancy it leaves.
 
 use super::{
-    bed, bed_state, empty_bed, pending, project_evidence, publish_subject, republished_at,
-    retained_subject, unobserved,
+    bed, bed_state, empty_bed, pending, project_evidence, publish_bed, publish_subject,
+    republished_at, retained_subject, unobserved,
 };
-use crate::belief::{self, BedPhase, Fact, Occupants, Tally};
-use crate::chronicle::{BedKind, Chronicled, RoomName, TransitionKey};
+use crate::belief::{self, Alone, BedPhase, Fact, InBed, Occupants, Tally};
+use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::contract::v4::{
-    Attention, BedState, Before, Cause, Cell, Context, DerivedBody, DerivedEvent, Evidence,
+    Attention, Before, Cause, Cell, Context, DerivedBody, DerivedEvent, Evidence,
     Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState, Mode, Occupancy, Phase,
     Rbh, Republished, Room, SampleRef, Seen, SensorBody, SensorEvent, SensorState, Span,
     Transition,
 };
 pub(crate) use crate::contract::v4::{Event, Scene};
+use crate::map::BedCalibrated;
+use crate::sensor::SensorChanged;
 
 /// The machine's mode, said in v4.
 pub(super) fn mode(occupants: Occupants) -> Mode {
@@ -26,23 +28,10 @@ pub(super) fn mode(occupants: Occupants) -> Mode {
 pub(super) fn publish_room(name: RoomName) -> Mode {
     match name {
         RoomName::Empty => Mode::Empty,
-        RoomName::Alone(crate::belief::Alone::Out) => Mode::AloneOut,
-        RoomName::Alone(crate::belief::Alone::InBed(crate::belief::InBed::Seen)) => {
-            Mode::AloneInBedSeen
-        }
-        RoomName::Alone(crate::belief::Alone::InBed(crate::belief::InBed::Held)) => {
-            Mode::AloneInBedHeld
-        }
+        RoomName::Alone(Alone::Out) => Mode::AloneOut,
+        RoomName::Alone(Alone::InBed(InBed::Seen)) => Mode::AloneInBedSeen,
+        RoomName::Alone(Alone::InBed(InBed::Held)) => Mode::AloneInBedHeld,
         RoomName::Accompanied => Mode::Accompanied,
-    }
-}
-
-pub(super) fn publish_bed(kind: BedKind) -> BedState {
-    match kind {
-        BedKind::Unknown => BedState::Unknown,
-        BedKind::Empty => BedState::Empty,
-        BedKind::Held => BedState::Held,
-        BedKind::Seen => BedState::Seen,
     }
 }
 
@@ -82,7 +71,7 @@ fn believed_occupancy(occupancy_now: &belief::Occupancy) -> Occupancy {
 }
 
 /// The cell of a transition: `before:seen:after`.
-pub(super) fn cell(transition: &crate::belief::Transition) -> Cell {
+fn cell(transition: &belief::Transition) -> Cell {
     publish_cell(&TransitionKey::of(transition))
 }
 
@@ -109,8 +98,8 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         sensor,
         dwell_secs,
     } = observation;
+    let republished = unobserved(&evidence.bodies.bodies, chronicled.observed);
     let evidence = project_evidence(&evidence, believed.subject.as_ref(), &attention);
-    let republished = unobserved(&evidence, chronicled.observed);
     let subject = publish_subject(&believed, refined);
     let belief::Believed {
         occupancy: occupancy_now,
@@ -139,8 +128,21 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         sensor,
         republished,
     };
+    let events = events(at, changed.as_ref(), calibrated, chronicled, after, &scene);
+    (scene, events)
+}
+
+/// The events of an observed turn, in order: the layer-0 transition, the
+/// calibration and, last, the derived ones, each with the occupancy after.
+fn events(
+    at: SampleRef,
+    changed: Option<&belief::Transition>,
+    calibrated: Option<BedCalibrated>,
+    chronicled: &Chronicled,
+    after: Occupancy,
+    scene: &Scene,
+) -> Vec<Event> {
     let mut events: Vec<_> = changed
-        .as_ref()
         .map(|t| Event::Transition(transition(t, chronicled.transition_since)))
         .into_iter()
         .collect();
@@ -173,12 +175,12 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
             to: scene.bed.state,
         })
     }));
-    (scene, events)
+    events
 }
 
 /// A layer-0 transition, with since when what we believed held. A transition
 /// always has the zones: the bed is known.
-fn transition(t: &crate::belief::Transition, since: Option<SampleRef>) -> Transition {
+fn transition(t: &belief::Transition, since: Option<SampleRef>) -> Transition {
     Transition {
         at: t.at,
         cell: cell(t),
@@ -253,7 +255,7 @@ fn empty() -> Occupancy {
 }
 
 pub(crate) fn sensor_events(
-    changed: Option<crate::sensor::SensorChanged>,
+    changed: Option<SensorChanged>,
     previous: Option<&Scene>,
 ) -> Vec<Event> {
     let after = previous.map_or_else(empty, published);
