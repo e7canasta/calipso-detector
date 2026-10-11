@@ -64,14 +64,13 @@ step "sense dependencies (with ONNX)"
 check_sense_deps
 
 # The domain does not speak contract (DESIGN.md §2): it decides with its own
-# vocabulary (`time`, `zone`, `body`, `provenance`, `look`, `evidence`,
-# `attention`, `map`, `sensor`, `refine`) and `contract` re-exports it. Only
-# these publish: `project` (translates), `chronicle` (remembers what was
-# published) and `cycle` (composes the `Output`).
+# vocabulary and `contract` re-exports it. Only `project` translates, and
+# `cycle` names the contract because `Output` carries it. The chronicle
+# remembers the domain.
 check_domain_contract() {
   local found
   found=$(grep -rl 'crate::contract' crates/scene-core/src \
-            | grep -vE '^crates/scene-core/src/(contract/|project/|chronicle\.rs$|cycle\.rs$)' \
+            | grep -vE '^crates/scene-core/src/(contract/|project/|cycle\.rs$)' \
             || true)
   [ -z "$found" ] || fail "the domain imports the contract: $found"
 }

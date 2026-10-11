@@ -4,11 +4,11 @@
 //! after and the facts, each with the occupancy it leaves.
 
 use super::{Layer0, Shared, bed_state, empty_bed, republished_at, retained_subject};
-use crate::belief::{Alone, BedPhase, Fact, InBed, Occupancy as Believed, Tally, ZoneCounts};
-use crate::chronicle::Chronicled;
+use crate::belief::{BedPhase, Fact, Occupancy as Believed, Tally, ZoneCounts};
+use crate::chronicle::{BedKind, Chronicled, RoomName, TransitionKey};
 use crate::conclusion::RepublishReason;
 use crate::contract::v4::{
-    Attention, Before, Cause, Cell, Context, DerivedBody, DerivedEvent, Evidence,
+    Attention, BedState, Before, Cause, Cell, Context, DerivedBody, DerivedEvent, Evidence,
     Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState, Mode, Occupancy, Phase,
     Rbh, Republished, Room, SampleRef, Seen, SensorBody, SensorEvent, SensorState, Span,
     Transition,
@@ -17,12 +17,29 @@ pub(crate) use crate::contract::v4::{Event, Scene};
 
 /// The machine's mode, said in v4.
 pub(super) fn mode(counts: ZoneCounts) -> Mode {
-    match crate::belief::Room::of(counts) {
-        crate::belief::Room::Empty => Mode::Empty,
-        crate::belief::Room::Alone(Alone::Out) => Mode::AloneOut,
-        crate::belief::Room::Alone(Alone::InBed(InBed::Seen)) => Mode::AloneInBedSeen,
-        crate::belief::Room::Alone(Alone::InBed(InBed::Held)) => Mode::AloneInBedHeld,
-        crate::belief::Room::Accompanied(_) => Mode::Accompanied,
+    publish_room(RoomName::of(counts))
+}
+
+pub(super) fn publish_room(name: RoomName) -> Mode {
+    match name {
+        RoomName::Empty => Mode::Empty,
+        RoomName::Alone(crate::belief::Alone::Out) => Mode::AloneOut,
+        RoomName::Alone(crate::belief::Alone::InBed(crate::belief::InBed::Seen)) => {
+            Mode::AloneInBedSeen
+        }
+        RoomName::Alone(crate::belief::Alone::InBed(crate::belief::InBed::Held)) => {
+            Mode::AloneInBedHeld
+        }
+        RoomName::Accompanied => Mode::Accompanied,
+    }
+}
+
+pub(super) fn publish_bed(kind: BedKind) -> BedState {
+    match kind {
+        BedKind::Unknown => BedState::Unknown,
+        BedKind::Empty => BedState::Empty,
+        BedKind::Held => BedState::Held,
+        BedKind::Seen => BedState::Seen,
     }
 }
 
@@ -59,11 +76,14 @@ fn believed(occupancy_now: &Believed) -> Occupancy {
 
 /// The cell of a transition: `before:seen:after`.
 pub(super) fn cell(transition: &crate::belief::Transition) -> Cell {
-    let seen = transition.seen.counts;
+    publish_cell(&TransitionKey::of(transition))
+}
+
+fn publish_cell(key: &TransitionKey) -> Cell {
     Cell::new(
-        rbh(transition.before.counts),
-        Fv(seen.floor, seen.bed),
-        rbh(transition.after.counts),
+        rbh(key.before),
+        Fv(key.seen.floor, key.seen.bed),
+        rbh(key.after),
     )
 }
 
@@ -82,10 +102,10 @@ pub(super) fn scene(
         room: Room {
             mode: after.mode,
             occupants: occupancy_now.occupants(),
-            since: Some(chronicled.mode.since),
+            since: Some(chronicled.room.since),
             pending: shared.pending,
             phase: phase(occupancy_now.phase),
-            last_cell: chronicled.last_cell.clone(),
+            last_cell: chronicled.last_transition.as_ref().map(publish_cell),
         },
         bed: shared.bed,
         floor: shared.floor,
@@ -118,15 +138,15 @@ pub(super) fn scene(
             after,
         })
     };
-    events.extend(chronicled.mode.changed_from.map(|from| {
+    events.extend(chronicled.room.changed_from.map(|from| {
         derived(DerivedBody::RoomChanged {
-            from,
+            from: publish_room(from),
             to: scene.room.mode,
         })
     }));
     events.extend(chronicled.bed.changed_from.map(|from| {
         derived(DerivedBody::BedChanged {
-            from,
+            from: publish_bed(from),
             to: scene.bed.state,
         })
     }));

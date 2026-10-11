@@ -61,7 +61,7 @@ number.
 | P1 | **The core is Markov.** The machine keeps only what it needs to decide the next transition and the identity of what is believed (which box is held). No "since when" | Automata theory |
 | P2 | **The machine does not emit: it returns.** `step(state, input) → (state, transition)`. The transition is a value with `before`, `seen`, `after` and the facts | Chassaing, *Decider* (2021) |
 | P3 | **Mechanism, not policy.** The core offers the point of observation; what is recorded, published or aggregated is decided by whoever observes | The Linux kernel's tracepoints |
-| P4 | **History is a fold.** "Since when", "how long", the episode and the counts of a night are projections over published turns, kept outside the engine in `chronicle` | Fowler, *Event Sourcing* (2005) |
+| P4 | **History is a fold.** "Since when" the room's name and the bed's kind hold is a fold of concluded turns, kept outside the engine in `chronicle`; `project` translates it. The episode and the counts of a night stay outside the core | Fowler, *Event Sourcing* (2005) |
 | P5 | **Every observer sees the same, in order, and none writes to the core.** Recorder, publisher, projections and TUI are a `tee` of one sequence | Unix pipelines |
 | P6 | **The transition carries its state** (`before`, `seen`, `after`): whoever receives it does not need to ask the core | Fowler, *event-carried state transfer* (2017) |
 | P7 | **The engine does one thing well.** It computes inside only what it uses to decide where to look | Unix philosophy |
@@ -89,7 +89,7 @@ What no change may break. Each one has someone watching it.
 | One contract, one source: the JSON Schema comes from the types | 13 | the contract snapshots |
 | No panics: no `unwrap`, `expect` or indexing | 21 | `#![deny(...)]` in `lib.rs` |
 | Layer 0 decides as the golden table does | P2 | `belief/occupancy/machine/table.rs` |
-| The domain does not import the contract: it decides with its own vocabulary, and only `project`, `chronicle` and `cycle` (the `Output`) name `contract` | P3, P4 | `scripts/check.sh` (the domain without contract) |
+| The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain | P3, P4 | `scripts/check.sh` (the domain without contract) |
 | Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
 
 ## 3. The loop: one turn per sample
@@ -100,8 +100,8 @@ turn asks for looks (`Step::Look`), receives readings (`feed`) and closes with
 
 `Monitor` composes three pieces that do not mix (P4, P5): the
 **engine** (`Engine`: policy, map, belief, sensor), which decides with what it
-sees; the **chronicle** (`chronicle::Chronicle`), which remembers what was
-published; and the last scene, for republishing. `finish` splits the turn in
+sees; the **chronicle** (`chronicle::Chronicle`), which remembers the
+domain; and the last scene, for republishing. `finish` splits the turn in
 two phases: the engine returns a `Conclusion` (an `Observation` or what to
 republish) without reading the chronicle, and `Monitor::project` notes it in
 the chronicle and translates it to the contract.
@@ -214,21 +214,21 @@ in `conservation`, and a concept has a single name.
 ## 6. Projections and observers
 
 The core is Markov: it keeps only what it needs to decide what comes next
-(P1). Everything else is a **fold** over a sequence, of transitions
-or of published states (P4):
+(P1). Everything else is a **fold** over a sequence, in the domain (P4):
 
-- **`project`**: translates the belief into the contract. It is the only module
-  that speaks `contract`; it does not decide and is not read back.
-- **`chronicle::Chronicle`**: since when the room and the bed are as they are,
-  and the last turn that observed bodies per zone (the `observed_at` of a turn
-  without the detector). It is a fold of the **published states** of each
-  observed turn (`Entry`), not of transitions: the bed goes to `unknown` without
-  layer 0 changing. It lives **outside the engine**: `Monitor` keeps it, the
-  engine does not see it, and `project` reads it already folded (`Chronicled`),
-  without mutating it. A state change is both a new "since when" and a derived
-  event (`room_changed`, `bed_changed`): both come out of the same fold. A
-  single chronicle feeds every contract version, so they cannot tell different
-  stories. The previous scene (`Monitor.last`) stays only for republishing.
+- **`project`**: translates the belief and the chronicle into the contract.
+  It is the only module that speaks `contract`, besides `cycle`'s `Output`;
+  it does not decide and is not read back.
+- **`chronicle::Chronicle`**: since when the room's name and the bed's kind
+  hold, and the last turn that observed bodies per zone (the `observed_at` of
+  a turn without the detector). It folds the domain (`RoomName`, `BedKind`,
+  the transition's counts), not the wire: the bed goes to unknown without
+  layer 0 changing, and `project` translates the fold. It lives **outside the
+  engine**: `Monitor` keeps it, the engine does not see it, and `project`
+  reads it already folded (`Chronicled`), without mutating it. A state change
+  is both a new "since when" and a derived event (`room_changed`,
+  `bed_changed`): both come out of the same fold. The previous scene
+  (`Monitor.last`) stays only for republishing.
 - **Outside the core**: dwell analysis, episodes and recordings are folds over
   the published contract, in other repositories (`calipso-shark`).
 
@@ -270,8 +270,8 @@ One concept, one name.
 | published language | `contract::v4` (and `contract`) | What a version publishes; it re-exports the domain vocabulary |
 | second level | `refine` | How the resident is: lying, posture |
 | projection | `project` | How the belief looks from outside |
-| fold | `chronicle::Chronicle` | A value computed over a sequence: of published states or of transitions |
-| chronicle | `chronicle::Chronicle`, `Entry`, `Chronicled` | The memory of what was published, outside the engine: since when the mode and the bed hold, what changed, the last transition and its cell |
+| fold | `chronicle::Chronicle` | A value computed over a sequence: of the domain (the room's name, the bed's kind, a transition's counts) |
+| chronicle | `chronicle::Chronicle`, `Entry`, `Chronicled` | The memory outside the engine, in the domain: since when the room's name and the bed's kind hold, what changed, and the last transition's counts. `project` translates it |
 | since when | `chronicle::Since`, `Stamp` | A state and the sample it holds since; dated on a turn, with the previous one if it changed |
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
@@ -295,7 +295,7 @@ matters as much as the second.
 | `body` | Body vocabulary: the COCO-17 pose and its depth | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
-| `chronicle` | The memory of what was published: folds the concluded turns | is read by the engine to decide |
+| `chronicle` | The memory of what was concluded, in the domain: folds the turns | is read by the engine to decide, or imports the contract |
 | `project` (+ `v4`) | Translates the domain into the contract, one version per module, from the same conclusion and the same chronicle; the shared part is projected once | decides, mutates the chronicle or is read back |
 | `contract` | The published language, per version. `common`: what no version changes (the envelope without its `SchemaId`, the bed, the subject, the evidence, the causes) and the re-export of the domain vocabulary. `v4` defines its own `SchemaId` and schema; a next version would not depend on it. `contract` re-exports the published version | changes without a major version and an ADR, or is imported by the domain |
 | `policy` | The policies that come from the profiles | is read from a file |

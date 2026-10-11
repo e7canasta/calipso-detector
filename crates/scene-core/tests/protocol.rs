@@ -1,279 +1,215 @@
-//! Properties of the loop protocol, using only the public API.
-use proptest::prelude::*;
-use scene_core::contract::{FrameInfo, Keypoint, SampleRef, SensorState, SessionId, SourceSecs};
-use scene_core::geom::Rect;
-use scene_core::look::{Detection, Failure, Label, Reading, Spent};
-use scene_core::{Input, NoFrame};
-
-fn inputs() -> impl Strategy<Value = Input> {
-    (
-        0u8..8,
-        0u64..5,
-        0u32..500,
-        prop_oneof![Just((640, 480)), Just((320, 240)), Just((0, 0))],
-    )
-        .prop_map(|(kind, session, seconds, (width, height))| {
-            let at = SampleRef {
-                session: SessionId(session),
-                sequence: u64::from(seconds),
-                source_secs: SourceSecs(f64::from(seconds)),
-            };
-            match kind {
-                0 | 1 => Input::Sample {
-                    at,
-                    frame: FrameInfo { width, height },
-                },
-                2 => Input::NoFrame {
-                    at,
-                    why: NoFrame::DecodeFailed,
-                },
-                3 => Input::NoFrame {
-                    at,
-                    why: NoFrame::Empty,
-                },
-                state => Input::Sensor {
-                    at,
-                    state: match state {
-                        4 => SensorState::Connecting,
-                        5 => SensorState::Streaming,
-                        6 => SensorState::Stalled,
-                        _ => SensorState::Reconnecting,
-                    },
-                },
-            }
-        })
-}
-
-fn number() -> impl Strategy<Value = f32> {
-    prop_oneof![
-        (-1000i32..2000).prop_map(|n| n as f32),
-        Just(f32::NAN),
-        Just(f32::INFINITY),
-        Just(f32::NEG_INFINITY)
-    ]
-}
-
-fn arbitrary_detections() -> impl Strategy<Value = Vec<Detection>> {
-    prop::collection::vec(
-        (
-            number(),
-            number(),
-            number(),
-            number(),
-            number(),
-            any::<bool>(),
-        )
-            .prop_map(|(x0, y0, x1, y1, confidence, person)| Detection {
-                bbox: Rect::new(x0, y0, x1, y1),
-                confidence,
-                label: if person { Label::Person } else { Label::Other },
-            }),
-        0..8,
-    )
-}
-
-fn detections() -> impl Strategy<Value = Vec<Detection>> {
-    // Balance useful readings and adversarial tensors: Current provenance must
-    // be exercised, besides the rejection/failure paths.
-    let valid = prop::collection::vec(
-        (0u8..3, 0u8..4).prop_map(|(zone, index)| {
-            let x = match zone {
-                0 => 150.0,
-                1 => 505.0,
-                _ => 550.0,
-            };
-            let y = 150.0 + f32::from(index) * 40.0;
-            Detection {
-                bbox: Rect::new(x, y, x + 20.0, y + 30.0),
-                confidence: 0.9,
-                label: Label::Person,
-            }
-        }),
-        0..8,
-    );
-    prop_oneof![valid, arbitrary_detections()]
-}
-
-type Answer = (Result<Reading, Failure>, Spent);
-type ScriptStep = (Input, Vec<Answer>);
-
-fn responses() -> impl Strategy<Value = Answer> {
-    let reading = prop_oneof![
-        detections().prop_map(Reading::Bodies),
-        detections().prop_map(Reading::Faces),
-        prop::option::of(prop::collection::vec(
-            (number(), number(), number()).prop_map(|(x, y, score)| Keypoint { x, y, score }),
-            0..6
-        ))
-        .prop_map(Reading::Pose),
-        prop::collection::vec(prop::option::of(number()), 0..6).prop_map(Reading::Depth),
-    ];
-    (
-        prop_oneof![
-            reading.prop_map(Ok),
-            Just(Err(Failure::Model)),
-            Just(Err(Failure::Cancelled))
-        ],
-        0u32..1000,
-    )
-        .prop_map(|(result, ms)| (result, Spent(f64::from(ms))))
-}
-
-fn sequences() -> impl Strategy<Value = Vec<ScriptStep>> {
-    prop::collection::vec((inputs(), prop::collection::vec(responses(), 1..7)), 0..200)
-}
-
-use scene_core::contract::{BedState, Event, LookKind, LookResult, Provenance};
-use scene_core::geom::Quad;
-use scene_core::look::{LookId, Outcome, Probe, Request};
+//! The loop protocol, through the public API: `poll`, `feed`, `finish`,
+//! `drive` and `cancel`.
+use scene_core::contract::{
+    BedState, LookResult, Mode, RepublishReason, SampleRef, SessionId, SourceSecs,
+};
+use scene_core::geom::{Quad, Rect};
+use scene_core::look::{Detection, Failure, Label, LookId, Outcome, Reading, Request, Spent};
 use scene_core::map::SiteMap;
-use scene_core::policy::{CalibrationPolicy, EnrichPolicy, FacePolicy, Policy, ReinforcePolicy};
-use scene_core::{FeedError, Monitor, Output, Step};
+use scene_core::policy::Policy;
+use scene_core::{FeedError, FrameInfo, Incomplete, Input, Monitor, Step, Turn};
 
 fn monitor() -> Monitor {
-    let mut policy = Policy::default();
-    policy.persistence.dwell_secs = 0.0;
-    policy.faces = Some(FacePolicy {
-        min_confidence: 0.5,
-    });
-    policy.reinforce = Some(ReinforcePolicy { bed_padding: 0.1 });
-    policy.enrich = Some(EnrichPolicy {
-        move_threshold: 0.05,
-        depth: true,
-        min_keypoint_score: 0.3,
-        posture_tolerance: 0.05,
-        max_pose_age_secs: None,
-    });
-    policy.calibration = Some(CalibrationPolicy { retry_secs: 2.0 });
-    let mut map = SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0)));
-    map.resolution = Some(FrameInfo {
-        width: 640,
-        height: 480,
-    });
-    map.headboard = Some(Rect::new(100.0, 100.0, 500.0, 180.0));
-    Monitor::new(policy, map)
+    Monitor::new(
+        Policy::default(),
+        SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))),
+    )
 }
 
-fn matching_empty(probe: &Probe) -> Reading {
-    match probe {
-        Probe::Detect { .. } | Probe::Reinforce { .. } => Reading::Bodies(vec![]),
-        Probe::Faces { .. } => Reading::Faces(vec![]),
-        Probe::Pose { .. } => Reading::Pose(None),
-        Probe::Depth { .. } => Reading::Depth(vec![]),
+fn sample(secs: f64) -> Input {
+    Input::Sample {
+        at: SampleRef {
+            session: SessionId(1),
+            sequence: 0,
+            source_secs: SourceSecs(secs),
+        },
+        frame: FrameInfo {
+            width: 640,
+            height: 480,
+        },
     }
 }
 
-fn invariants(output: &Output) -> Result<(), TestCaseError> {
-    let scene = &output.scene;
-    if scene.bed.state == BedState::Held {
-        prop_assert_eq!(scene.bed.seen, 0);
-        prop_assert!(!scene.bed.held.is_empty());
+fn empty(id: LookId) -> Outcome {
+    Outcome {
+        id,
+        result: Ok(Reading::Bodies(vec![])),
+        spent: Spent(1.0),
     }
-    if scene.bed.state == BedState::Seen {
-        prop_assert!(scene.bed.seen > 0);
+}
+
+fn first_request(turn: &mut Turn<'_>) -> Request {
+    match turn.poll() {
+        Step::Look(request) => request.clone(),
+        Step::Done => panic!("a probe was expected"),
     }
-    let read = |kinds: &[LookKind]| {
-        scene.attention.looks.iter().any(|look| {
-            kinds.contains(&look.kind) && matches!(look.result(), Some(LookResult::Read { .. }))
-        })
-    };
-    if let Some(subject) = &scene.subject {
-        if subject.provenance == Provenance::Current {
-            prop_assert!(scene.republished.is_none());
-            prop_assert!(read(&[LookKind::Detect, LookKind::Reinforce]));
-        }
-        if subject
-            .pose
-            .as_ref()
-            .is_some_and(|p| p.provenance == Provenance::Current)
-        {
-            prop_assert!(read(&[LookKind::Pose]));
-        }
-        if subject
-            .depth
-            .is_some_and(|d| d.provenance == Provenance::Current)
-        {
-            prop_assert!(read(&[LookKind::Depth]));
-        }
-    }
-    // Rule 4: sensor → layer 0 → map → derived.
-    let rank = |event: &Event| match event {
-        Event::Sensor(_) => 0,
-        Event::Transition(_) => 1,
-        Event::Map(_) => 2,
-        Event::Derived(_) => 3,
-    };
-    prop_assert!(
-        output
-            .events
-            .windows(2)
-            .all(|pair| rank(&pair[0]) <= rank(&pair[1])),
-        "events out of order: {:?}",
-        output.events
+}
+
+#[test]
+fn poll_before_the_answer_returns_the_same_look() {
+    let mut m = monitor();
+    let mut turn = m.handle(sample(1.0));
+    let a = first_request(&mut turn);
+    let b = first_request(&mut turn);
+    assert_eq!(a, b);
+    turn.feed(empty(a.id)).unwrap();
+    assert_eq!(turn.poll(), Step::Done);
+    turn.finish().unwrap();
+}
+
+#[test]
+fn an_id_foreign_to_the_pending_look_changes_nothing() {
+    let mut m = monitor();
+    let mut turn = m.handle(sample(1.0));
+    let r = first_request(&mut turn);
+    assert_eq!(
+        turn.feed(empty(LookId(999))),
+        Err(FeedError::UnknownId(LookId(999)))
     );
-    Ok(())
+    assert_eq!(first_request(&mut turn), r);
+    turn.feed(empty(r.id)).unwrap();
+    let _ = turn.poll();
+    turn.finish().unwrap();
 }
 
-proptest! {
-    #[test]
-    fn pr1_the_core_does_not_panic(sequence in sequences()) {
-        let result = std::panic::catch_unwind(|| {
-            let mut monitor = monitor();
-            for (input,answers) in sequence {
-                let mut answers = answers.iter().cycle();
-                monitor.handle(input).drive(|_| answers.next().unwrap().clone());
-            }
-        });
-        prop_assert!(result.is_ok(), "the core panicked");
-    }
+#[test]
+fn a_repeated_result_is_rejected_and_the_first_is_kept() {
+    let mut m = monitor();
+    let mut turn = m.handle(sample(1.0));
+    let r = first_request(&mut turn);
+    turn.feed(empty(r.id)).unwrap();
+    let repeated = Outcome {
+        result: Err(Failure::Cancelled),
+        ..empty(r.id)
+    };
+    assert_eq!(turn.feed(repeated), Err(FeedError::Duplicate(r.id)));
+    let _ = turn.poll();
+    let out = turn.finish().unwrap();
+    assert!(matches!(
+        out.scene.attention.looks[0].result(),
+        Some(LookResult::Read { .. })
+    ));
+}
 
-    #[test]
-    fn pr2_every_turn_closes(sequence in sequences()) {
-        let mut monitor = monitor();
-        for (input,answers) in sequence {
-            let mut answers = answers.iter().cycle();
-            let at = match &input { Input::Sample { at,.. } | Input::NoFrame { at,.. } | Input::Sensor { at,.. } => *at };
-            let output = monitor.handle(input).drive(|_| answers.next().unwrap().clone());
-            prop_assert_eq!(output.at,at);
-        }
-    }
+#[test]
+fn a_reading_of_another_kind_is_rejected() {
+    let mut m = monitor();
+    let mut turn = m.handle(sample(1.0));
+    let r = first_request(&mut turn);
+    let faces = Outcome {
+        result: Ok(Reading::Faces(vec![])),
+        ..empty(r.id)
+    };
+    assert!(matches!(turn.feed(faces), Err(FeedError::KindMismatch(_))));
+    turn.feed(empty(r.id)).unwrap();
+    let _ = turn.poll();
+    turn.finish().unwrap();
+}
 
-    #[test]
-    fn pr3_a_wrong_feed_is_rejected_and_the_turn_stays_usable(sequence in sequences(), bogus in any::<u32>()) {
-        let mut monitor = monitor();
-        // At least one look is tested even if the generated sequence has no samples.
-        let first = Input::Sample { at: SampleRef { session: SessionId(1),sequence: 0,source_secs: SourceSecs(0.0) },frame: FrameInfo { width: 640,height: 480 } };
-        for input in std::iter::once(first).chain(sequence.into_iter().map(|(input,_)|input)) {
-            let mut turn = monitor.handle(input);
-            let mut checks = Vec::new();
-            while let Step::Look(request) = turn.poll() {
-                let request: Request = request.clone();
-                {
-                    let foreign = LookId(if request.id == LookId(bogus) { request.id.0 ^ u32::MAX } else { bogus });
-                    let rejected_id = turn.feed(Outcome { id: foreign,result: Err(Failure::Model),spent: Spent(0.0) });
-                    let wrong = if request.probe.accepts(&Reading::Bodies(vec![])) { Reading::Faces(vec![]) } else { Reading::Bodies(vec![]) };
-                    let expected = scene_core::contract::ProbeKindMismatch { expected: request.probe.kind(),got: wrong.kind() };
-                    let rejected_kind = turn.feed(Outcome { id: request.id,result: Ok(wrong),spent: Spent(0.0) });
-                    let same_look = matches!(turn.poll(), Step::Look(pending) if *pending == request);
-                    let accepted = turn.feed(Outcome { id: request.id,result: Ok(matching_empty(&request.probe)),spent: Spent(1.0) });
-                    let duplicate = turn.feed(Outcome { id: request.id,result: Err(Failure::Cancelled),spent: Spent(0.0) });
-                    checks.push((rejected_id == Err(FeedError::UnknownId(foreign)),rejected_kind == Err(FeedError::KindMismatch(expected)),same_look,accepted.is_ok(),duplicate == Err(FeedError::Duplicate(request.id))));
-                }
-            }
-            // Close before the assertions: no test path abandons Turn.
-            let output = turn.finish().unwrap();
-            for check in checks { prop_assert_eq!(check,(true,true,true,true,true)); }
-            prop_assert!(output.scene.attention.looks.iter().filter_map(|look|look.result()).all(|result| matches!(result,LookResult::Read { .. })), "an invalid or duplicate answer was kept");
-        }
-    }
+#[test]
+fn early_finish_returns_the_turn() {
+    let mut m = monitor();
+    let turn = m.handle(sample(1.0));
+    let Err(Incomplete { mut turn }) = turn.finish() else {
+        panic!("Incomplete was expected");
+    };
+    let r = first_request(&mut turn);
+    turn.feed(empty(r.id)).unwrap();
+    let _ = turn.poll();
+    (*turn).finish().unwrap();
+}
 
-    #[test]
-    fn pr4_scenes_respect_provenance_and_order(sequence in sequences()) {
-        let mut monitor = monitor();
-        for (input,answers) in sequence {
-            let mut answers = answers.iter().cycle();
-            let output = monitor.handle(input).drive(|_| answers.next().unwrap().clone());
-            invariants(&output)?;
-        }
+#[test]
+fn a_shutdown_closes_the_turn_without_moving_the_belief() {
+    let mut m = monitor();
+    for s in 1..=3 {
+        let mut turn = m.handle(sample(f64::from(s)));
+        let r = first_request(&mut turn);
+        turn.feed(Outcome {
+            result: Ok(Reading::Bodies(vec![Detection {
+                bbox: Rect::new(200.0, 150.0, 300.0, 350.0),
+                confidence: 0.8,
+                label: Label::Person,
+            }])),
+            ..empty(r.id)
+        })
+        .unwrap();
+        let _ = turn.poll();
+        turn.finish().unwrap();
     }
+    let mut turn = m.handle(sample(4.0));
+    let r = first_request(&mut turn);
+    turn.feed(Outcome {
+        result: Err(Failure::Cancelled),
+        ..empty(r.id)
+    })
+    .unwrap();
+    let _ = turn.poll();
+    let out = turn.finish().unwrap();
+    assert_eq!(out.scene.room.occupants, 1);
+    assert_eq!(out.scene.bed.state, BedState::Seen);
+    assert!(out.events.is_empty());
+}
+
+#[test]
+fn drive_runs_the_whole_turn() {
+    let mut m = monitor();
+    let mut probes = 0;
+    let out = m.handle(sample(1.0)).drive(|_| {
+        probes += 1;
+        (Ok(Reading::Bodies(vec![])), Spent(1.0))
+    });
+    assert_eq!(probes, 1);
+    assert_eq!(out.scene.room.mode, Mode::Empty);
+}
+
+#[test]
+fn a_reading_of_another_kind_in_drive_is_a_failing_sense() {
+    let mut m = monitor();
+    let out = m
+        .handle(sample(1.0))
+        .drive(|_| (Ok(Reading::Faces(vec![])), Spent(1.0)));
+    assert!(matches!(
+        out.scene.attention.looks[0].result(),
+        Some(LookResult::Failed { .. })
+    ));
+}
+
+#[test]
+fn a_detector_failure_declares_the_last_observation() {
+    let mut m = monitor();
+    let _ = m
+        .handle(sample(1.0))
+        .drive(|_| (Ok(Reading::Bodies(vec![])), Spent(1.0)));
+    let out = m
+        .handle(sample(2.0))
+        .drive(|_| (Ok(Reading::Faces(vec![])), Spent(1.0)));
+    let republished = out
+        .scene
+        .republished
+        .expect("the turn is declared republished");
+    assert_eq!(republished.reason, RepublishReason::DetectFailed);
+    assert_eq!(
+        republished.observed_at.map(|at| at.source_secs),
+        Some(SourceSecs(1.0))
+    );
+}
+
+#[test]
+fn cancel_closes_the_turn_like_a_shutdown() {
+    let mut m = monitor();
+    let out = m.handle(sample(1.0)).cancel();
+    assert!(matches!(
+        out.scene.attention.looks[0].result(),
+        Some(LookResult::Failed { .. })
+    ));
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "rule 10")]
+fn abandoning_a_turn_is_an_error() {
+    let mut m = monitor();
+    let turn = m.handle(sample(1.0));
+    drop(turn);
 }

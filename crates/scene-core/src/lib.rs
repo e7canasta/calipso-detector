@@ -37,8 +37,8 @@
 //   look (ask) → evidence (admit) → belief (believe: layer 0 in
 //   `belief::occupancy`, and the subject) → refine (the second level) →
 //   conclusion (what the engine delivers) → chronicle (what is remembered of
-//   what was published) → project (the only one that translates to
-//   `contract`). `attention` decides, at each point of the turn, what else to
+//   the domain) → project (the only one that translates to `contract`).
+//   `attention` decides, at each point of the turn, what else to
 //   look at: it reads the belief and never writes it.
 // `cycle` sequences the turn and `Monitor` composes engine, chronicle and
 // projection; `policy` and `map` configure; `geom` and `estimation` are

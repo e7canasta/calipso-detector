@@ -10,7 +10,7 @@ pub(crate) mod v4;
 
 use crate::attention::Attention;
 use crate::belief::{Believed, Occupancy, Subject as BelievedSubject, Transition, ZoneCounts};
-use crate::chronicle::{Chronicled, Entry};
+use crate::chronicle::{BedKind, Chronicled, Entry, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::contract::v4::{
     Bed, BedState, Evidence, Floor, Held, Pending, Progress, Provenance, Republished, SampleRef,
@@ -168,27 +168,27 @@ fn empty_bed() -> Bed {
 /// The bed's published state: `unknown` if this turn does not know the zones;
 /// otherwise empty, held or seen.
 fn bed_state(counts: ZoneCounts, bed_known: bool) -> BedState {
-    match (bed_known, counts.bed, counts.held) {
-        (false, _, _) => BedState::Unknown,
-        (true, 0, 0) => BedState::Empty,
-        (true, 0, _) => BedState::Held,
-        (true, _, _) => BedState::Seen,
-    }
+    v4::publish_bed(BedKind::of(counts, bed_known))
 }
 
-/// What the chronicle notes of a concluded turn: the published states and
-/// whether it saw bodies per zone.
+/// What the chronicle notes of a concluded turn: the room's name, the bed's
+/// kind and whether it saw bodies per zone.
 pub(crate) fn entry(observation: &Observation) -> Entry {
     let occupancy = &observation.believed.occupancy;
+    let totals = occupancy.totals();
     Entry {
         at: observation.at,
-        mode: v4::mode(occupancy.totals()),
-        bed: bed_state(occupancy.totals(), occupancy.bed_known),
+        room: RoomName::of(totals),
+        bed: BedKind::of(totals, occupancy.bed_known),
         seen: matches!(
             observation.evidence.bodies.bodies,
             crate::evidence::BodyEvidence::Seen(_)
         ),
-        transition: observation.believed.transition.as_ref().map(v4::cell),
+        transition: observation
+            .believed
+            .transition
+            .as_ref()
+            .map(TransitionKey::of),
     }
 }
 
