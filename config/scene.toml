@@ -1,5 +1,5 @@
-# The golden scenes' profile (R7): the geometry of golden::world (bed from
-# 100,100 to 500,400 in 640×480) and the policy of the R4 and R5 scenarios.
+# The golden scenes' profile: the geometry of golden::world (bed from
+# 100,100 to 500,400 in 640×480) and the policy of the occupancy scenarios.
 #   calipso-detector --config config/scene.toml --scene golden/s1-staff-put-to-bed.md
 # In scene mode no camera is opened and no models are loaded: it looks at the scene.
 [camera]

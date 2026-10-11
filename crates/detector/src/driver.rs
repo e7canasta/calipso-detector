@@ -1,6 +1,6 @@
 //! Translates and delivers: every scene decision belongs to Monitor. The
 //! driver does not know where samples come from or who looks: a
-//! [`SampleSource`] and some [`Senses`] are injected into it (R7).
+//! [`SampleSource`] and some [`Senses`] are injected into it.
 use crate::senses::{Frame, Senses};
 use crate::sensor::{self, Sensor};
 use crate::source::{Arrival, SampleSource};

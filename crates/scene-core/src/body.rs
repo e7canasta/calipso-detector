@@ -1,4 +1,4 @@
-//! The subject's body: the COCO-17 pose and its depth (901). It is the
+//! The subject's body: the COCO-17 pose and its depth. It is the
 //! vocabulary shared by the shell (which reads it from the model), the belief
 //! (which remembers it), the second level (which interprets it) and the
 //! contract (which publishes it).
@@ -16,7 +16,7 @@ pub struct Keypoint {
 }
 
 /// A body joint per COCO-17: the keypoint's index in the pose gives its
-/// name (901-1).
+/// name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Joint {
@@ -69,7 +69,7 @@ impl Joint {
 
 /// A published pose point: where it is, how confident the model is and, if
 /// measured, its depth on the depth model's scale, which is relative and not
-/// metres (901-2). An unmeasured point carries `depth: null` (901-3).
+/// metres. An unmeasured point carries `depth: null`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct BodyPoint {
     pub name: Option<Joint>,
@@ -87,7 +87,7 @@ pub struct Pose {
 }
 
 /// The subject's depth (the median of its measured points), with its own
-/// provenance. Kept for compatibility (901-4).
+/// provenance. Kept for compatibility.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SubjectDepth {
     pub meters: f32,

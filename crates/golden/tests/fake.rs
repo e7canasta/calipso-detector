@@ -1,4 +1,4 @@
-//! The fake senses (R7-1c): they answer each probe with what the scene says
+//! The fake senses: they answer each probe with what the scene says
 //! that sense sees, cropped to the requested region, like the real sense.
 #![allow(clippy::disallowed_methods)]
 

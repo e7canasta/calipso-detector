@@ -1,4 +1,4 @@
-//! Metamorphic tests (R7-4, design table): with no per-sample oracle, the night
+//! Metamorphic tests: with no per-sample oracle, the night
 //! is compared with itself under transformations that must not change what the
 //! engine believes. They work the same for written scenes and for distilled
 //! nights, which bring no expectations.

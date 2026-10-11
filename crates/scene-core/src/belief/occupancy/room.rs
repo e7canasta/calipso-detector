@@ -1,4 +1,4 @@
-//! Layer-0 state as a machine with names (book 3, statechart): the room is
+//! Layer-0 state as a machine with names: the room is
 //! empty, with a single occupant (on the floor, or in bed seen or retained) or
 //! accompanied. The counts are the machine's data; the mode is its name, and it
 //! derives from them in a single place ([`Room::of`]), without loss (its tests

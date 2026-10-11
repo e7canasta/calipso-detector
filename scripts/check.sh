@@ -26,33 +26,31 @@ cargo clippy --workspace --all-targets --quiet -- -D warnings || fail "clippy"
 step "core dependencies"
 check_core_deps
 
-# 302 — ingest hides the transport, without depending on the domain (A-5).
+# ingest hides the transport, without depending on the domain.
 check_ingest_deps() {
   local tree
   tree=$(cargo tree -p ingest -e normal --prefix none --format '{p}') \
     || fail "could not read the ingest tree"
   if printf '%s\n' "$tree" | awk '{print $1}' | grep -qx scene-core; then
-    fail "302 A-5: ingest depends on scene-core"
+    fail "ingest depends on scene-core"
   fi
 }
 step "ingest dependencies"
 check_ingest_deps
-# /302
 
-# 303 — sense is synchronous: its ONNX adapters stay without transport too.
+# sense is synchronous: its ONNX adapters stay without transport too.
 check_sense_deps() {
   local tree found
   tree=$(cargo tree -p sense --all-features -e normal --prefix none --format '{p}') \
     || fail "could not read the sense tree"
   found=$(printf '%s\n' "$tree" \
     | awk '$1 == "tokio" || $1 == "async-nats" { print $1 }' | sort -u)
-  [ -z "$found" ] || fail "303: sense depends on async transport: $found"
+  [ -z "$found" ] || fail "sense depends on async transport: $found"
 }
 step "sense dependencies (with ONNX)"
 check_sense_deps
-# /303
 
-# R12-2, R13-1 — the domain does not speak contract: it decides with its own
+# The domain does not speak contract (DESIGN.md §2): it decides with its own
 # vocabulary (`time`, `zone`, `body`, `provenance`, `look`, `evidence`,
 # `attention`, `map`, `sensor`, `refine`) and `contract` re-exports it. Only
 # these publish: `project` (translates), `chronicle` (remembers what was
@@ -62,11 +60,10 @@ check_domain_contract() {
   found=$(grep -rl 'crate::contract' crates/scene-core/src \
             | grep -vE '^crates/scene-core/src/(contract/|project/|chronicle\.rs$|cycle\.rs$)' \
             || true)
-  [ -z "$found" ] || fail "R13-1: the domain imports the contract: $found"
+  [ -z "$found" ] || fail "the domain imports the contract: $found"
 }
 step "the domain without contract"
 check_domain_contract
-# /R12-2
 
 step "tests"
 cargo test --workspace --quiet || fail "tests"

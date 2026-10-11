@@ -21,9 +21,9 @@ pub enum ReferenceUpdate {
 #[derive(Debug, Clone)]
 struct Enriched {
     pose: Vec<Keypoint>,
-    /// The depth of each pose keypoint, aligned (901).
+    /// The depth of each pose keypoint, aligned.
     depths: Vec<Option<f32>>,
-    /// The median of the measured keypoints (901-4).
+    /// The median of the measured keypoints.
     depth: Option<f32>,
     since: SampleRef,
     /// The box it was taken with: the motion reference.
@@ -98,7 +98,7 @@ impl SubjectMemory {
         self.enriched.as_ref().map(|e| e.reference)
     }
 
-    /// The sample of the last pose: since when it holds (903).
+    /// The sample of the last pose: since when it holds.
     pub(super) fn since(&self) -> Option<SampleRef> {
         self.enriched.as_ref().map(|e| e.since)
     }

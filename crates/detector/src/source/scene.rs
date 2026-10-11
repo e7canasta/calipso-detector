@@ -1,4 +1,4 @@
-//! The source of a golden scene (R7): it emits each sample of the scene with
+//! The source of a golden scene: it emits each sample of the scene with
 //! its source time, at real pace (like a camera) or as fast as possible. Each
 //! sample's frame is what each sense sees: [`Scripted`] looks at it.
 //!

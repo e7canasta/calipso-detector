@@ -1,4 +1,4 @@
-//! The v4 → v3 equivalence (project 24, V5; spec 1301): for each turn, what v4
+//! The v4 → v3 equivalence (C5): for each turn, what v4
 //! says can be brought down to what v3 says. If it holds on every turn of the
 //! suites, the two versions cannot tell two different stories.
 //!

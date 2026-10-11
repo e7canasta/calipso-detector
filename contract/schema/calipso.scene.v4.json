@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Envelope",
-  "description": "The envelope of every v4 message: the usual one, with v4's `SchemaId` (D9-3).",
+  "description": "The envelope of every v4 message: the usual one, with v4's `SchemaId`.",
   "type": "object",
   "properties": {
     "body": {
@@ -176,7 +176,7 @@
       ]
     },
     "BodyPoint": {
-      "description": "A published pose point: where it is, how confident the model is and, if\nmeasured, its depth on the depth model's scale, which is relative and not\nmetres (901-2). An unmeasured point carries `depth: null` (901-3).",
+      "description": "A published pose point: where it is, how confident the model is and, if\nmeasured, its depth on the depth model's scale, which is relative and not\nmetres. An unmeasured point carries `depth: null`.",
       "type": "object",
       "properties": {
         "depth": {
@@ -319,7 +319,7 @@
       ]
     },
     "Cell": {
-      "description": "The cell of a transition: `before:seen:after`, the natural key of the row\n(D2). Each part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`), as in book 3.",
+      "description": "The cell of a transition: `before:seen:after`, the natural key of the row.\nEach part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`).",
       "type": "string",
       "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$"
     },
@@ -520,7 +520,7 @@
       ]
     },
     "Joint": {
-      "description": "A body joint per COCO-17: the keypoint's index in the pose gives its\nname (901-1).",
+      "description": "A body joint per COCO-17: the keypoint's index in the pose gives its\nname.",
       "type": "string",
       "enum": [
         "nose",
@@ -730,7 +730,7 @@
       ]
     },
     "LyingState": {
-      "description": "Is the subject truly lying down? (902). Second level: it changes no count.",
+      "description": "Is the subject truly lying down? Second level: it changes no count.",
       "oneOf": [
         {
           "description": "Torso, hips, most keypoints and the visible feet inside the bed.",
@@ -918,7 +918,7 @@
       ]
     },
     "PostureState": {
-      "description": "The posture by how head, torso and hips are ordered in depth (904).\nMonocular depth separates lying from upright by the magnitude of the\ndisparity, not by its sign (912's measurement): sitting and standing are not\ndistinguished and are published together.",
+      "description": "The posture by how head, torso and hips are ordered in depth.\nMonocular depth separates lying from upright by the magnitude of the\ndisparity, not by its sign (measured on real nights): sitting and standing are not\ndistinguished and are published together.",
       "oneOf": [
         {
           "description": "The hips clearly closer to the camera than the head and shoulders.",
@@ -1477,7 +1477,7 @@
           ]
         },
         "lying": {
-          "description": "Second level (902): absent without a pose or without bed geometry.",
+          "description": "Second level: absent without a pose or without bed geometry.",
           "anyOf": [
             {
               "$ref": "#/$defs/Lying"
@@ -1498,7 +1498,7 @@
           ]
         },
         "posture": {
-          "description": "Second level (904): absent without a pose or without per-point depth.",
+          "description": "Second level: absent without a pose or without per-point depth.",
           "anyOf": [
             {
               "$ref": "#/$defs/Posture"
@@ -1523,7 +1523,7 @@
       ]
     },
     "SubjectDepth": {
-      "description": "The subject's depth (the median of its measured points), with its own\nprovenance. Kept for compatibility (901-4).",
+      "description": "The subject's depth (the median of its measured points), with its own\nprovenance. Kept for compatibility.",
       "type": "object",
       "properties": {
         "meters": {

@@ -1,7 +1,7 @@
-//! Stabilizing: a new value counts only once it has held (against flicker,
-//! R4-4). It is pure mechanism: it does not know what it counts, only when a
-//! value held long enough in source time (rule 9, R5-2). Counting samples
-//! would make the same policy depend on the camera cadence.
+//! Stabilizing: a new value counts only once it has held (against flicker).
+//! It is pure mechanism: it does not know what it counts, only when a value
+//! held long enough in source time (rule 9). Counting samples would make the
+//! same policy depend on the camera cadence.
 
 use crate::policy::Persistence;
 use crate::time::SampleRef;

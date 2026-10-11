@@ -1,4 +1,4 @@
-//! Measures the bed's depth (813, A-3): the five points calibration asks for
+//! Measures the bed's depth: the five points calibration asks for
 //! (`SiteMap::bed_points`: four corners and the centre) in each sample of the
 //! profile's RTSP, with the depth model, split by span (empty bed, occupied and
 //! seen, occupied unseen). No pixels (rule 7): only numbers. Whoever measures

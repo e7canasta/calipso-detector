@@ -29,7 +29,7 @@ pub enum Probe {
 pub enum DepthPurpose {
     /// The subject's pose keypoints.
     Subject,
-    /// The bed's points, to calibrate it (spec 008).
+    /// The bed's points, to calibrate it.
     Bed,
 }
 

@@ -82,17 +82,17 @@ may end with pending events if the broker stays unreachable.
 ## Profile: pose, depth and the second level
 
 `config/example.toml` comments every key; `config/sample1.toml` is the measured
-profile (813, 912). The optional sections switch core policies on: without the
+profile. The optional sections switch core policies on: without the
 section, the policy stays off.
 
 | Section | Key | Default | What it does |
 | --- | --- | --- | --- |
-| `[senses.pose]` | `model`, `backend_confidence`, `move_threshold`, `min_keypoint_score` | —, 0.25, 0.1, 0.3 | The subject's pose (801, 811): requested when they moved that fraction of their diagonal; depth is measured at keypoints with that score |
-| `[senses.pose]` | `max_age_secs` | absent | (903) Requests again the pose of a seen, still subject when the last one is that old, in source seconds. Without the key, a still pose is not requested again |
+| `[senses.pose]` | `model`, `backend_confidence`, `move_threshold`, `min_keypoint_score` | —, 0.25, 0.1, 0.3 | The subject's pose: requested when they moved that fraction of their diagonal; depth is measured at keypoints with that score |
+| `[senses.pose]` | `max_age_secs` | absent | Requests again the pose of a seen, still subject when the last one is that old, in source seconds. Without the key, a still pose is not requested again |
 | `[senses.depth]` | `model` | — | The subject's depth (with pose) and the empty bed's (with `[calibration]`) |
-| `[senses.depth]` | `posture_tolerance` | 0.05 | (904) The relative disparity `(upper − lower) / mean` up to which the posture is "sitting". Provisional |
+| `[senses.depth]` | `posture_tolerance` | 0.05 | The relative disparity `(upper − lower) / mean` up to which the posture is "sitting". Provisional |
 
 Both second-level keys are serialized only when present (the tolerance, only
 when it changes), so the hash of a profile that does not use them does not
-change. Measurement 912 proposes leaving `posture_tolerance` at 0.05 and not
+change. Measurements on real nights propose leaving `posture_tolerance` at 0.05 and not
 setting `max_age_secs` for `sample1`.

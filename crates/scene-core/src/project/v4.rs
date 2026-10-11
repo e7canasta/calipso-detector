@@ -1,4 +1,4 @@
-//! The translation to v4 (spec 1301): `calipso.scene.v4` and
+//! The translation to v4: `calipso.scene.v4` and
 //! `calipso.events.v4`. The room by machine mode, with its phase and last cell;
 //! each layer-0 change as a transition with its before, what was seen, the
 //! after and the facts, each with the occupancy it leaves.

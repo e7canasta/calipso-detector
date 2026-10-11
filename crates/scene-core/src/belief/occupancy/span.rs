@@ -1,4 +1,4 @@
-//! The span (book 3, ch. 07): since the last stable count, the samples whose
+//! The span: since the last stable count, the samples whose
 //! raw count has not held yet, with what was seen along the way. It joins what
 //! used to be synchronized by hand: when the count changed
 //! ([`stabilizer`](super::stabilizer)) and where whoever changed it came from

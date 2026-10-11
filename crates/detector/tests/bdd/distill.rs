@@ -1,4 +1,4 @@
-//! R7-5: drive the core and publish its data before trying to distill them.
+//! Drive the core and publish its data before trying to distill them.
 use crate::world::Shell;
 use cucumber::{given, then, when};
 use detector::publish::{Contract, PublisherHandle, Stream};

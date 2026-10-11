@@ -48,7 +48,7 @@ Feature: The reinforcement capability
 
   Scenario: A profile without reinforcement does not change its hash
     Given a profile without "[senses.reinforce]"
-    Then the profile hash is the one from before R6
+    Then the profile hash is the baseline one
 
   Scenario: The profile rejects a reinforcement that hides what the policy would accept
     Given a profile with "[senses.reinforce]" with backend confidence 0.60 and policy minimum confidence 0.50

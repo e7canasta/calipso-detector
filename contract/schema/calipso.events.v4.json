@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Envelope",
-  "description": "The envelope of every v4 message: the usual one, with v4's `SchemaId` (D9-3).",
+  "description": "The envelope of every v4 message: the usual one, with v4's `SchemaId`.",
   "type": "object",
   "properties": {
     "body": {
@@ -180,7 +180,7 @@
       ]
     },
     "Cell": {
-      "description": "The cell of a transition: `before:seen:after`, the natural key of the row\n(D2). Each part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`), as in book 3.",
+      "description": "The cell of a transition: `before:seen:after`, the natural key of the row.\nEach part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`).",
       "type": "string",
       "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$"
     },
@@ -872,7 +872,7 @@
       ]
     },
     "Transition": {
-      "description": "A layer-0 change: what we believed, what we saw, what we believe and the\nfacts, in order (D9-1).",
+      "description": "A layer-0 change: what we believed, what we saw, what we believe and the\nfacts, in order.",
       "type": "object",
       "properties": {
         "after": {

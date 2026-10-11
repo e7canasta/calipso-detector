@@ -54,7 +54,7 @@ fn events_v4() {
     );
 }
 
-/// The transition of spec 1301, as is: it reads and writes back the same.
+/// A v4 transition, as is: it reads and writes back the same.
 #[test]
 fn the_v4_transition_is_the_specs() {
     use scene_core::contract::v4::{Cell, Event};

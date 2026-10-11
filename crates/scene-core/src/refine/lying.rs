@@ -1,5 +1,4 @@
-//! Head 1 of the second level: is the subject truly lying down? (902; book 2,
-//! ch. 02).
+//! Head 1 of the second level: is the subject truly lying down?
 
 use super::BedPlane;
 use crate::body::{BodyPoint, Joint};
@@ -11,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Torso and hips inside the bed plane, and more than half of the visible
 /// keypoints: lying. Visible feet confirm it if they are inside and deny it if
 /// any is outside; with no feet in sight, it is assumed. Without a visible
-/// torso or hips, it is unknown. The head is not required (902-3).
+/// torso or hips, it is unknown. The head is not required.
 pub(super) fn classify(points: &[BodyPoint], plane: &BedPlane, min_score: f32) -> LyingState {
     let visible: Vec<&BodyPoint> = points.iter().filter(|p| p.score >= min_score).collect();
     let part = |joints: [Joint; 2]| -> Option<Point> {
@@ -49,7 +48,7 @@ pub(super) fn classify(points: &[BodyPoint], plane: &BedPlane, min_score: f32) -
     }
 }
 
-/// Is the subject truly lying down? (902). Second level: it changes no count.
+/// Is the subject truly lying down? Second level: it changes no count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LyingState {

@@ -27,7 +27,7 @@ pub struct Config {
     /// enter the profile hash.
     #[serde(default)]
     pub publish: PublishConfig,
-    /// Learn the empty bed with depth (812): without the section, no calibration.
+    /// Learn the empty bed with depth: without the section, no calibration.
     pub calibration: Option<CalibrationConfig>,
 }
 #[derive(Debug, Clone, Deserialize)]
@@ -64,12 +64,12 @@ pub struct SensesConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub depth: Option<Depth>,
 }
-/// Depth (812): one model for the subject and for the bed.
+/// Depth: one model for the subject and for the bed.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Depth {
     pub model: PathBuf,
-    /// Relative disparity of "sitting" (904-3); serialized only if it changes, so
+    /// Relative disparity of "sitting"; serialized only if it changes, so
     /// the hash of a profile that does not touch it does not change.
     #[serde(default = "five_percent", skip_serializing_if = "is_five_percent")]
     pub posture_tolerance: f32,
@@ -81,7 +81,7 @@ pub struct CalibrationConfig {
     #[serde(default = "two")]
     pub retry_secs: f64,
 }
-/// The subject's pose (811): the model and the `EnrichPolicy` parameters.
+/// The subject's pose: the model and the `EnrichPolicy` parameters.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pose {
@@ -95,7 +95,7 @@ pub struct Pose {
     /// Minimum score of a pose keypoint to measure depth at it.
     #[serde(default = "thirty_percent")]
     pub min_keypoint_score: f32,
-    /// Age from which a still pose is requested again (903); without it, as
+    /// Age from which a still pose is requested again; without it, as
     /// always. Serialized only if present, so the hash does not change.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_age_secs: Option<f64>,
@@ -131,7 +131,7 @@ pub struct PolicyConfig {
     pub min_confidence: f32,
     pub same_body_iou: f32,
     pub near_bed_margin: f32,
-    /// Source seconds a new count must hold (R5-2).
+    /// Source seconds a new count must hold.
     pub dwell_secs: f64,
 }
 impl Default for PolicyConfig {
@@ -151,9 +151,9 @@ pub struct MapConfig {
     pub bed: [[f32; 2]; 4],
     pub headboard: Option<[f32; 4]>,
 }
-/// The contract versions the shell publishes (D9-4). Without the section, v3
-/// and v4: since R13-5 the rerun bridge reads v4, and v3 keeps going out
-/// unchanged for whoever still consumes it, until it is retired (R13-6).
+/// The contract versions the shell publishes. Without the section, v3
+/// and v4: the rerun bridge reads v4, and v3 keeps going out
+/// unchanged for whoever still consumes it, until it is retired.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PublishConfig {
@@ -506,7 +506,7 @@ impl Config {
     pub fn profile(&self) -> Result<scene_core::contract::Profile> {
         use scene_core::contract::{LayerRef, LookKind, Profile, ProfileHash};
         use sha2::{Digest, Sha256};
-        // Calibration enters the hash only if present: without it, the previous one (R6-5).
+        // Calibration enters the hash only if present: without it, the previous one.
         let canonical = match &self.calibration {
             None => serde_json::to_vec(&(&self.policy, &self.map, &self.senses))?,
             Some(c) => serde_json::to_vec(&(&self.policy, &self.map, &self.senses, c))?,

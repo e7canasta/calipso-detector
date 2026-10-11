@@ -1,4 +1,4 @@
-//! Distill (R7-5): a published night (`scene.v3` as JSONL, as the detector,
+//! Distill: a published night (`scene.v3` as JSONL, as the detector,
 //! the meter or the bridge write it) becomes a scene. It is the
 //! anti-corruption layer in reverse: from the core's published language to
 //! the golden scenes' language. No pixels (rule 7): only what the scene
@@ -175,7 +175,7 @@ fn same(s: &Span, v: &Seen) -> bool {
 
 /// The consolidated evidence keeps only the winning box per body: it is not a
 /// recording of each detector. The ledger shows readings that were lost, but
-/// cannot rebuild their zones and overlaps. R7-5: they are rejected.
+/// cannot rebuild their zones and overlaps: they are rejected.
 fn check_readings(n: usize, sample: u64, scene: &PublishedScene) -> Result<(), Error> {
     for look in &scene.attention.looks {
         let LookOutcome::Asked { result, .. } = &look.outcome else {

@@ -1,8 +1,7 @@
 //! The conclusion: what the engine delivers when a turn closes, before the
 //! chronicle and the contract. It is the seam between deciding and publishing:
 //! the engine (`cycle`) produces it, the chronicle and the projection
-//! (`chronicle`, `project`) consume it, and neither is read back (project 24,
-//! D6).
+//! (`chronicle`, `project`) consume it, and neither is read back (P4).
 
 use crate::attention::Attention;
 use crate::belief::Believed;

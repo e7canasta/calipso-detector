@@ -1,4 +1,4 @@
-//! The second level of the loop (book 2): how the resident is, on top of what
+//! The second level of the loop: how the resident is, on top of what
 //! the first level already believes about where they are. It reads the
 //! concluded pose and returns its own result; it never writes the belief or
 //! changes a count (second-level rule 1). `project` builds the published scene.
@@ -23,8 +23,8 @@ pub(crate) struct Refinement {
 }
 
 /// What the second level derives from the subject's pose: whether they are
-/// truly lying down (902, with the bed geometry) and their posture by depth
-/// (904, with measured keypoints). What cannot be derived is not published.
+/// truly lying down (with the bed geometry) and their posture by depth
+/// (with measured keypoints). What cannot be derived is not published.
 pub(crate) fn refine(
     body: Option<&SubjectBody>,
     bed: Option<&Quad>,

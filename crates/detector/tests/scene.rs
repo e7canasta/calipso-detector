@@ -1,4 +1,4 @@
-//! R7-3: a golden scene runs through the real detector (scene source, scripted
+//! A golden scene runs through the real detector (scene source, scripted
 //! senses, driver, publisher) and gives exactly the same as the loop driven
 //! directly with the same scene, as the BDD harness does. If they ever differ,
 //! there is logic in the shell that should not be there.
@@ -88,7 +88,7 @@ fn s1_through_the_detector_equals_the_direct_loop() {
 }
 
 mod contract_of_the_fake {
-    //! M-3 of the R7 design table: the fake is tested against the real one. A
+    //! The fake is tested against the real one. A
     //! "perfect model" sees exactly the boxes whose centre falls in the crop it
     //! receives, in its local coordinates; `sense::Senses` crops and takes them
     //! to the frame. For each probe, the real one with perfect models and the
@@ -231,7 +231,7 @@ fn the_binary_runs_s1_and_writes_v3_and_v4_for_rerun() {
     .collect();
     let text = std::fs::read_to_string(&output).unwrap();
     std::fs::remove_file(&output).ok();
-    // The writer writes what is published: with the default profile (R13-5), v3
+    // The writer writes what is published: with the default profile, v3
     // and v4 interleaved, each line against its version's schema.
     let mut count: std::collections::HashMap<String, usize> = Default::default();
     for line in text.lines() {
@@ -300,7 +300,7 @@ fn a_scene_that_does_not_match_fails_and_names_the_span() {
 }
 
 mod every_scene {
-    //! R7-4: each scene in golden/ runs through the real detector with the
+    //! Each scene in golden/ runs through the real detector with the
     //! profile it asks for (senses), matches its expectations span by span and
     //! is identical to the direct loop. It is the scenes' CI net.
     use super::*;
@@ -384,7 +384,7 @@ fn the_binary_rejects_a_scene_that_assumes_senses_the_profile_lacks() {
 }
 
 mod round_trip {
-    //! R7-5: a published night is distilled into a scene, and the distilled
+    //! A published night is distilled into a scene, and the distilled
     //! scene, run again through the detector, publishes exactly the same. That
     //! way a real night can be carried (without pixels) and replayed without a
     //! camera.
@@ -481,7 +481,7 @@ mod round_trip {
         let scene = Scene::parse(S1).unwrap();
         let config = profile(&scene);
         let (_, jsonl, _) = run(&scene, &config);
-        // Sample 7 arrives with the detector down (504): it was not observed.
+        // Sample 7 arrives with the detector down: it was not observed.
         let line = jsonl
             .lines()
             .find(|l| {

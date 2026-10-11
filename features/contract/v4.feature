@@ -4,7 +4,7 @@ Feature: Contract v4, next to v3
   I want each layer-0 change as a row with its before and after, and a scene that states the mode
   to tell the night in cells without reimplementing the engine's rules
 
-  The core produces v3 and v4 on every turn (D9-4): these scenarios read
+  The core produces v3 and v4 on every turn: these scenarios read
   both. Which versions are published is decided by the profile, in the shell
   (profile.feature).
 

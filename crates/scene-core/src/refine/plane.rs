@@ -1,7 +1,6 @@
 //! The bed plane: the homography that takes an image point to bed
 //! coordinates, `u` across and `v` from the foot (0) to the headboard (1). It
-//! is scene-analytics' convention (`spatial`), so the values are comparable
-//! (902-1).
+//! is scene-analytics' convention (`spatial`), so the values are comparable.
 
 use crate::geom::{Point, Quad};
 

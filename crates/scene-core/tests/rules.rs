@@ -183,7 +183,7 @@ proptest! {
     fn re5_changing_session_neither_alters_counts_nor_creates_facts(sequence in sequences()) {
         // A reconnection does not change the belief: the first reading of the new
         // session keeps what was confirmed (counts, states, held) and creates no facts.
-        // A pending change does not cross sessions (spec 202): it restarts from one, so
+        // A pending change does not cross sessions: it restarts from one, so
         // confirmation may arrive later than without a reconnection.
         let mut monitor = monitor();
         let mut previous: Option<std::sync::Arc<Scene>> = None;

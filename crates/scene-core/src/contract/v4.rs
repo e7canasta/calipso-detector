@@ -1,4 +1,4 @@
-//! Contract v4: `calipso.scene.v4` and `calipso.events.v4` (spec 1301).
+//! Contract v4: `calipso.scene.v4` and `calipso.events.v4`.
 //!
 //! It is published next to v3, from the same turn (the contract v4 ADR). The
 //! layer-0 transition is its occupancy event and the scene states the
@@ -19,7 +19,7 @@ pub enum SchemaId {
     EventsV4,
 }
 
-/// The envelope of every v4 message: the usual one, with v4's `SchemaId` (D9-3).
+/// The envelope of every v4 message: the usual one, with v4's `SchemaId`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Envelope<T> {
     pub schema: SchemaId,
@@ -147,9 +147,9 @@ pub struct Fact {
     pub after: Occupancy,
 }
 
-/// The cell of a transition: `before:seen:after`, the natural key of the row
-/// (D2). Each part is written as decimal digits if all its counts are below
-/// 10; otherwise as a tuple (`(12,1,1)`), as in book 3.
+/// The cell of a transition: `before:seen:after`, the natural key of the row.
+/// Each part is written as decimal digits if all its counts are below
+/// 10; otherwise as a tuple (`(12,1,1)`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Cell(
@@ -187,7 +187,7 @@ fn part(counts: &[u32]) -> String {
 }
 
 /// A layer-0 change: what we believed, what we saw, what we believe and the
-/// facts, in order (D9-1).
+/// facts, in order.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Transition {
     pub at: SampleRef,

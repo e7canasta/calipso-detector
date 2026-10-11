@@ -18,7 +18,7 @@ fn real_onnx_detects_a_person() {
     let Ok(Reading::Bodies(boxes)) = result else {
         panic!("model failed: {result:?}")
     };
-    println!("A-6: boxes={boxes:?}; spent_ms={:.3}", spent.0);
+    println!("boxes={boxes:?}; spent_ms={:.3}", spent.0);
     assert!(
         boxes
             .iter()

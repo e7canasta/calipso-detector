@@ -37,24 +37,24 @@ pub struct Ward {
     /// The samples a new session starts with: the camera reconnected and
     /// source time starts over.
     pub reconnections: Vec<u32>,
-    /// The reinforcement detector fails on every probe (spec 503).
+    /// The reinforcement detector fails on every probe.
     pub reinforcement_fails: bool,
-    /// The resident moved in bed and ended up elsewhere (801): their boxes in
+    /// The resident moved in bed and ended up elsewhere: their boxes in
     /// bed look shifted. Each "subject moves" toggles it.
     pub shifted: bool,
-    /// The resident changed shape in bed without shifting (903): their boxes in
+    /// The resident changed shape in bed without shifting: their boxes in
     /// bed look wider and shorter, with the same centre. Each "subject changes
     /// shape" toggles it.
     pub reshaped: bool,
-    /// How many keypoints the pose brings and how many good ones (802); `None`:
+    /// How many keypoints the pose brings and how many good ones; `None`:
     /// the usual ones.
     pub keypoints: Option<(usize, usize)>,
     /// Each turn with what the senses answered: the recorded night, to replay
-    /// it without a camera (601, 602).
+    /// it without a camera.
     pub recording: Vec<(Input, Script)>,
     pub monitor: Option<Monitor>,
     pub turns: Vec<Turn>,
-    /// The cell a contract-format scenario builds (1301).
+    /// The cell a contract-format scenario builds.
     pub cell: Option<String>,
 }
 

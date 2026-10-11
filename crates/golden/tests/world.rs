@@ -1,5 +1,5 @@
 //! The world of a scene: what each sense sees in each sample. It must be
-//! exactly what the BDD harness used to script (R7-1b).
+//! exactly what the BDD harness used to script.
 #![allow(clippy::disallowed_methods)]
 
 use golden::language::{Location, Scene};
@@ -7,9 +7,8 @@ use golden::world::{in_bed, on_floor};
 
 const S1: &str = include_str!("../../../golden/s1-staff-put-to-bed.md");
 
-/// Up to R7-1d it was compared with the BDD harness sample by sample; now the
-/// harness uses this world, and the 56 scenarios and the S1–S8 examples are the
-/// equivalence proof. What S1 says stays here, written from outside.
+/// The BDD harness uses this world, and its scenarios and the S1–S8 examples
+/// are the equivalence proof. What S1 says stays here, written from outside.
 #[test]
 fn s1_sees_what_its_table_says() {
     let samples = Scene::parse(S1).unwrap().samples();

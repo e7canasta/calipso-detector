@@ -1,4 +1,4 @@
-//! 811–812 steps on the profile: the pose, depth and calibration sections are
+//! Profile steps for pose and depth: the pose, depth and calibration sections are
 //! the only switches of `Policy.enrich` and `Policy.calibration`.
 use crate::world::Shell;
 use cucumber::{given, then};

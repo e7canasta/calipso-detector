@@ -1,4 +1,4 @@
-# Fixture A-6
+# Test fixture
 
 `astronaut.jpg`: public portrait of astronaut Eileen Collins, NASA.
 512 × 512, converted to JPEG quality 85 (53 177 bytes); these are not pixels

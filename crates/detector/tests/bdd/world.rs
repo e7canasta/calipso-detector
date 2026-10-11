@@ -296,7 +296,7 @@ fn no_section(w: &mut Shell, _section: String) {
     w.parse_config("");
 }
 
-#[then("the profile hash is the one from before R6")]
+#[then("the profile hash is the baseline one")]
 fn legacy_hash(w: &mut Shell) {
     assert_eq!(
         w.config().profile().unwrap().hash.0,

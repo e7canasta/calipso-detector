@@ -123,18 +123,18 @@ fn sequence(ward: &mut Ward, step: &Step) {
 }
 
 /// Script column: in each sample of the span, the resident changes place in
-/// bed and stays there (801). It lives in the harness and not in
+/// bed and stays there. It lives in the harness and not in
 /// `golden::language` while no golden scene needs it.
 const SUBJECT_MOVES: &str = "subject moves";
 
 /// Script column: in each sample of the span, the resident changes shape in
-/// bed without shifting, and stays so (903).
+/// bed without shifting, and stays so.
 const SUBJECT_CHANGES_SHAPE: &str = "subject changes shape";
 
-/// Script column: what the pose model answers in the span (801).
+/// Script column: what the pose model answers in the span.
 const POSE: &str = "pose";
 
-/// A body figure by its name in the table (902).
+/// A body figure by its name in the table.
 fn figure(name: &str) -> crate::script::Figure {
     use crate::script::Figure;
     match name {
@@ -149,10 +149,10 @@ fn figure(name: &str) -> crate::script::Figure {
     }
 }
 
-/// Script column: what the subject's depth model answers (802).
+/// Script column: what the subject's depth model answers.
 const DEPTH: &str = "depth";
 
-/// Script column: what depth answers at the bed's points (803).
+/// Script column: what depth answers at the bed's points.
 const BED_DEPTH: &str = "bed depth";
 
 /// The table without the `name` column, and that column's values per data row

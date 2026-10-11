@@ -1,5 +1,5 @@
 //! The world of a scene: what each sense sees in each sample, in frame
-//! coordinates. It is the scenarios' geometry (the same since R4): a 640×480
+//! coordinates. It is the scenarios' geometry: a 640×480
 //! frame, the bed from x=100 to 500 and y=100 to 400, the headboard in its top
 //! strip. Making it configurable waits until a scene asks for it.
 
@@ -31,7 +31,7 @@ pub const HEADBOARD: Rect = Rect {
 };
 
 /// What can be looked at in a sample: what each sense would see if it looked
-/// at the whole frame. It is the scripted frame (R7, memory §3).
+/// at the whole frame. It is the scripted frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sample {
     pub n: u32,

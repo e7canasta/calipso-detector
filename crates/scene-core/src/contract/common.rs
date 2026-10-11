@@ -139,10 +139,10 @@ pub struct Subject {
     pub provenance: Provenance,
     pub pose: Option<Pose>,
     pub depth: Option<SubjectDepth>,
-    /// Second level (902): absent without a pose or without bed geometry.
+    /// Second level: absent without a pose or without bed geometry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lying: Option<Lying>,
-    /// Second level (904): absent without a pose or without per-point depth.
+    /// Second level: absent without a pose or without per-point depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub posture: Option<Posture>,
 }

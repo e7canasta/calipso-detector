@@ -1,6 +1,6 @@
 //! The harness adapter: a `Script` answers the probes of a turn. What the box
 //! senses see is decided by the scene's world (`golden::world`): a single fake,
-//! with the real sense's region semantics (R7). Only failures and what the
+//! with the real sense's region semantics. Only failures and what the
 //! scene does not model (pose, depth) are scripted here.
 use golden::language::{Expected, InBed, Location, Samples, Span, spans_from_cells};
 use golden::world::{self, Sample};
@@ -17,12 +17,12 @@ pub struct Script {
     pub pose: Result<(), Failure>,
     /// How many keypoints the pose brings and how many with a high score (0.9;
     /// the rest 0.1). The high-score ones are the **last**: that way it shows if
-    /// depth is assigned to other keypoints than the measured ones (901). With
+    /// depth is assigned to other keypoints than the measured ones. With
     /// configured keypoints, each one's depth depends on where it is
     /// ([`depth_at`]). `None`: the usual five, all with a high score, and the
     /// same depth for all.
     pub keypoints: Option<(usize, usize)>,
-    /// A body figure with the 17 COCO keypoints (902); it takes precedence over
+    /// A body figure with the 17 COCO keypoints; it takes precedence over
     /// `keypoints`.
     pub figure: Option<Figure>,
     /// The subject's depth at each requested point.
@@ -138,8 +138,8 @@ impl Script {
     }
 }
 
-/// A body figure: the 17 COCO keypoints around the centre of the subject's box
-/// (902). The box in bed is 100×200 and its centre is 50 px from the bed's edges
+/// A body figure: the 17 COCO keypoints around the centre of the subject's box.
+/// The box in bed is 100×200 and its centre is 50 px from the bed's edges
 /// across and 100 along.
 // Only the BDD harness builds figures; the other tests share this file.
 #[allow(dead_code)]
@@ -157,7 +157,7 @@ pub enum Figure {
     SittingUp,
     /// Lying, with the shoulders covered.
     NoTorso,
-    /// Standing: the same keypoints, with the head closer to the camera (904).
+    /// Standing: the same keypoints, with the head closer to the camera.
     Standing,
 }
 
@@ -213,7 +213,7 @@ impl Figure {
         p
     }
 
-    /// The depth of a figure keypoint at height `y` in the frame (904): lying,
+    /// The depth of a figure keypoint at height `y` in the frame: lying,
     /// the head (higher in the image) is farther from the camera than the hips;
     /// standing, the other way round; sitting or sitting up, all the same.
     /// Slope of 0.002 per pixel around 2.0.

@@ -44,7 +44,7 @@ fn threshold(ward: &mut Ward, move_threshold: f32) {
 #[given("there is a depth model")]
 fn depth_model(ward: &mut Ward) {
     // Without a pose there is no subject depth; calibration turns on the
-    // bed's (803).
+    // bed's.
     if let Some(enrich) = ward.policy.enrich.as_mut() {
         enrich.depth = true;
     }
@@ -299,7 +299,7 @@ fn depth_without_pose(ward: &mut Ward, n: u32) {
     assert_eq!(skipped(ward, n, LookKind::Depth), Some(SkipReason::NoPose));
 }
 
-// --- Calibration (803)
+// --- Calibration
 
 /// The samples in which calibration was requested, across the scenario.
 fn calibrations(ward: &Ward) -> Vec<u64> {

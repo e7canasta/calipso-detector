@@ -1,4 +1,4 @@
-//! Layer 0 of the loop (book 3): occupancy by zones. How many are on the
+//! Layer 0 of the loop: occupancy by zones. How many are on the
 //! floor, how many in bed and who is still in bed unseen, under the six
 //! conservation rules. It works alone: it does not know the second level
 //! exists.
@@ -39,7 +39,7 @@ pub(crate) struct HeldBody {
 
 /// A layer-0 transition: the table row, `state[t−1] | input[t] | state[t]`,
 /// with the facts that explain it, in order. It is a value: the machine
-/// returns it and neither emits nor stores it (project 23, P2); whoever
+/// returns it and neither emits nor stores it (P2); whoever
 /// receives it need not query the machine (P6).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Transition {

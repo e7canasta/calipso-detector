@@ -60,7 +60,7 @@ Feature: The pose capability
 
   Scenario: A profile without pose or depth does not change its hash
     Given a profile without "[senses.pose]"
-    Then the profile hash is the one from before R6
+    Then the profile hash is the baseline one
     And the core neither requests the pose nor calibrates the bed
 
   Scenario: The profile rejects an invalid motion threshold

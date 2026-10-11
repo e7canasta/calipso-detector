@@ -180,7 +180,7 @@ fn bed(w: &mut Shell, sample: u64, expected: String) {
 }
 
 /// Each message validates against its version's schema: v3 against v3 (what
-/// the step says) and, since R13-5, v4 against v4.
+/// the step says) and v4 against v4.
 #[then("every published scene validates against the v3 schema")]
 fn valid_publications(w: &mut Shell) {
     assert!(w.messages.iter().any(|m| m["schema"] == "calipso.scene.v3"));

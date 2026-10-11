@@ -2,7 +2,7 @@
 //! engine decides with what it sees and does not remember what was published;
 //! the chronicle folds the concluded turns and the projection reads it to say
 //! since when each state holds and what changed. Nobody reads it to decide
-//! (project 23, P1; project 24, D6).
+//! (P1, P4).
 
 use crate::contract::v3::{BedState, RoomState};
 use crate::contract::v4::{Cell, Mode};
@@ -11,7 +11,7 @@ use crate::time::SampleRef;
 /// The chronicle of what was published: since when the room and the bed are
 /// as they are, and the last turn that observed bodies per zone. It is a fold
 /// of the observed turns and the memory of the projection, not of the machine
-/// (project 23, P1 and P4): nobody reads it to decide.
+/// (P1, P4): nobody reads it to decide.
 ///
 /// A state change is both a new "since when" and a derived event
 /// (`room_changed`, `bed_changed`): both come out of this fold. It is not a

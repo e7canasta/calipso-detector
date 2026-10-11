@@ -19,7 +19,7 @@ pub(super) struct Before {
     pub(super) bed_phase: BedPhase,
 }
 
-/// The bed phase for rule 6 (R5-3): what book 3 calls "the bed without
+/// The bed phase for rule 6: "the bed without
 /// history" and "with history". It is a decision bit, not a record: layer 0
 /// keeps no history.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

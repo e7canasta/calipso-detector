@@ -1,5 +1,5 @@
-//! The source port: where samples come from and what happens to the transport
-//! (R7). Live, RTSP with decode; in a scene, the spans.
+//! The source port: where samples come from and what happens to the transport.
+//! Live, RTSP with decode; in a scene, the spans.
 pub mod rtsp;
 pub mod scene;
 

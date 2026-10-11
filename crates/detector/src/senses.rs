@@ -1,4 +1,4 @@
-//! The senses port: who answers the core's probes over a frame (R7). Live,
+//! The senses port: who answers the core's probes over a frame. Live,
 //! the `sense` models over an image; in a scene, the scripted world. The core
 //! cannot tell: it only sees `Request → Outcome`.
 use image::DynamicImage;

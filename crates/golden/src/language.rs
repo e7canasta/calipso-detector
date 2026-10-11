@@ -1,6 +1,6 @@
 //! The language of a scene: an `.md` with properties (front matter), a title
 //! and a table of spans. It is the same language as the Gherkin tables of
-//! 201–203 and R6; reading them is the same function.
+//! `features/occupancy` and `features/attention`; reading them is the same function.
 //!
 //! ```text
 //! ---

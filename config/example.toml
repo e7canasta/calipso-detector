@@ -33,15 +33,15 @@ backend_confidence = 0.25
 # backend_confidence = 0.25 # backend floor for each person's box
 # move_threshold = 0.1 # requested again if the subject shifts this fraction of their diagonal
 # min_keypoint_score = 0.3 # pose keypoints where depth is measured
-# max_age_secs = 60.0 # (903) request again the pose of someone still at this age, in
+# max_age_secs = 60.0 # request again the pose of someone still at this age, in
 #                     # source seconds; without the key, a still pose is not requested again
 
 # Optional depth: with [senses.pose] it measures the subject; with [calibration],
 # the empty bed. With neither, the profile is rejected.
 # [senses.depth]
 # model = "yolo26s-depth.onnx"
-# posture_tolerance = 0.05 # (904) |relative disparity| up to which the posture is "sitting";
-#                          # 0.05 by default, provisional (measurement 912)
+# posture_tolerance = 0.05 # |relative disparity| up to which the posture is "sitting";
+#                          # 0.05 by default, provisional
 
 # Calibrate the empty bed: requires [senses.depth].
 # [calibration]

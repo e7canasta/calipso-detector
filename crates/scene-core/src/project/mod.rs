@@ -2,7 +2,7 @@
 //! is not read back (rule 3). It is the only place that translates the domain
 //! into the contract, one version per module (`v3`, `v4`), from the same
 //! conclusion and the same chronicle: the versions cannot tell different
-//! things (project 24, V4). What both translate the same lives here: the
+//! things (C4). What both translate the same lives here: the
 //! evidence, the subject, the map, the bed and how what is published degrades
 //! on republishing (rule 2).
 
@@ -21,7 +21,7 @@ use crate::map::{FrameInfo, Geometry, MapState};
 use crate::sensor::SensorState;
 
 /// What every version publishes the same of an observed turn: computed once
-/// and used as is by each version (V4).
+/// and used as is by each version (C4).
 #[derive(Debug, Clone)]
 pub(super) struct Shared {
     pub frame: Option<FrameInfo>,

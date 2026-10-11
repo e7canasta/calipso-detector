@@ -1,5 +1,5 @@
-//! 1301 steps in the shell (`profile.feature`): the profile decides which
-//! contract versions are published (D9-4).
+//! Publishing steps (`features/shell/profile.feature`): the profile decides which
+//! contract versions are published.
 use crate::{
     driver::{detector_profile, publish_samples},
     world::{Shell, models::Model},

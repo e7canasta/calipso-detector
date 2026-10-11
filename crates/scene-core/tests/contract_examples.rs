@@ -220,7 +220,7 @@ fn examples_s1_to_s8_are_reproducible() {
     }
 }
 
-/// The S1–S8 examples in v4 (spec 1301): the same nights, from the same loop,
+/// The S1–S8 examples in v4: the same nights, from the same loop,
 /// validated against the v4 schema. Each transition links its turn's scene
 /// (`room.last_cell`).
 #[test]

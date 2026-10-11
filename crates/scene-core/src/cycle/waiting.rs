@@ -39,7 +39,7 @@ pub(super) enum Awaiting {
         observed: Observed,
         pose: Vec<Keypoint>,
         bbox: Rect,
-        /// The pose index of each requested point (901).
+        /// The pose index of each requested point.
         at: Vec<usize>,
     },
 }

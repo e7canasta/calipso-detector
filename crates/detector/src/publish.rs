@@ -33,8 +33,7 @@ pub struct Publication {
     pub v4: Option<Part<EventV4Publication, SceneV4Publication>>,
 }
 
-/// A contract version the shell knows how to publish; the profile picks which
-/// (D9-4).
+/// A contract version the shell knows how to publish; the profile picks which.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Contract {

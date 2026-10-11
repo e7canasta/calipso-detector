@@ -1,6 +1,6 @@
 //! The belief: how many are in the room, who is still in bed even when unseen,
 //! and who the subject is. One aggregate per camera; it never sees a raw
-//! reading (R4 functional memory).
+//! reading.
 
 mod occupancy;
 mod subject;
@@ -34,7 +34,7 @@ impl ZoneCounts {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Fact {
     Entered,
-    /// Was in bed before the bed had a history: adopted (rule 6, R5-3).
+    /// Was in bed before the bed had a history: adopted (rule 6).
     /// Published as `lay_down` with cause `baseline`.
     Adopted,
     LeftRoom,
@@ -71,7 +71,7 @@ pub enum LatchState {
 
 /// The subject as layer 0 believes it: the only occupant, where and with what
 /// provenance. It knows nothing of the second level; `project` builds the
-/// published scene (spec 1006).
+/// published scene.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Subject {
     pub zone: Zone,
@@ -106,7 +106,7 @@ impl Belief {
         self.subject.reference()
     }
 
-    /// The sample of the subject's last pose: its age (903).
+    /// The sample of the subject's last pose: its age.
     pub fn pose_since(&self) -> Option<SampleRef> {
         self.subject.since()
     }

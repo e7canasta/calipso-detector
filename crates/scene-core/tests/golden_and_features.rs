@@ -1,5 +1,5 @@
-//! The golden scenes S1–S8 and their scenarios in the features say the same
-//! (R7-4). The table is written twice (the feature is the specification, the
+//! The golden scenes S1–S8 and their scenarios in the features say the same.
+//! The table is written twice (the feature is the specification, the
 //! scene is the data that runs all the way to Rerun): if one changes without
 //! the other, this turns red.
 #![allow(clippy::disallowed_methods)]

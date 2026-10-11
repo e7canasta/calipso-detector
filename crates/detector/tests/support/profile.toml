@@ -1,4 +1,4 @@
-# Pre-R6 profile: fixed hash sha256:239a5803f0c15901.
+# The baseline profile, without optional senses: fixed hash sha256:239a5803f0c15901.
 [camera]
 site = "test"
 id = "room-1"

@@ -50,11 +50,31 @@ The vocabulary the domain and the contract share is **owned by the domain**
 version shares it without depending on the previous one, and retiring one does
 not touch the core.
 
+### Principles
+
+The code cites these by their id, as it cites the rules of `RULES.md` by
+number.
+
+| Id | Principle | Source |
+|---|---|---|
+| P1 | **The core is Markov.** The machine keeps only what it needs to decide the next transition and the identity of what is believed (which box is held). No "since when" | Automata theory |
+| P2 | **The machine does not emit: it returns.** `step(state, input) → (state, transition)`. The transition is a value with `before`, `seen`, `after` and the facts | Chassaing, *Decider* (2021) |
+| P3 | **Mechanism, not policy.** The core offers the point of observation; what is recorded, published or aggregated is decided by whoever observes | The Linux kernel's tracepoints |
+| P4 | **History is a fold.** "Since when", "how long", the episode and the counts of a night are projections over published turns, kept outside the engine in `chronicle` | Fowler, *Event Sourcing* (2005) |
+| P5 | **Every observer sees the same, in order, and none writes to the core.** Recorder, publisher, projections and TUI are a `tee` of one sequence | Unix pipelines |
+| P6 | **The transition carries its state** (`before`, `seen`, `after`): whoever receives it does not need to ask the core | Fowler, *event-carried state transfer* (2017) |
+| P7 | **The engine does one thing well.** It computes inside only what it uses to decide where to look | Unix philosophy |
+| C1 | **Consumers are not broken.** A published version keeps going out unchanged, byte for byte, while someone reads it | The kernel's "we don't break userspace" |
+| C2 | **Expand, migrate, contract.** A new version goes out next to the old one; consumers migrate one at a time; the old one is retired | Fowler, *Parallel Change* |
+| C3 | **One version, one source.** Each version is defined once (`contract::v3`, `contract::v4`) and its JSON Schema comes from the types (rule 13) | |
+| C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same `finish`: they cannot tell different things | |
+| C5 | **A test proves it.** For each turn, what v4 says can be lowered to what v3 says (`tests/equivalence.rs`) | Metamorphic testing |
+
 ## 2. Invariants
 
 What no change may break. Each one has someone watching it.
 
-| Invariant | Rule | Who watches it |
+| Invariant | Rule or principle | Who watches it |
 |---|---|---|
 | No IO: no clocks, files, network or threads | 8 | `clippy.toml`, `scripts/check.sh` (dependency tree) |
 | Only source time; never compared across sessions | 9 | `SampleRef::secs_since` returns `None` across sessions |
@@ -63,9 +83,9 @@ What no change may break. Each one has someone watching it.
 | Every attention decision has a reason | 12 | `SkipReason` on every no |
 | One contract, one source: the JSON Schema comes from the types | 13 | the contract snapshots |
 | No panics: no `unwrap`, `expect` or indexing | 21 | `#![deny(...)]` in `lib.rs` |
-| Layer 0 decides as the golden table does | spec 1001 | `belief/occupancy/machine/table.rs` |
-| The domain does not import the contract: it decides with its own vocabulary, and only `project`, `chronicle` and `cycle` (the `Output`) name `contract` | projects 23 and 24 | `scripts/check.sh` (the domain without contract) |
-| Determinism: a replay gives the same | R7 | golden scenes and the detector's replay |
+| Layer 0 decides as the golden table does | P2 | `belief/occupancy/machine/table.rs` |
+| The domain does not import the contract: it decides with its own vocabulary, and only `project`, `chronicle` and `cycle` (the `Output`) name `contract` | P3, P4 | `scripts/check.sh` (the domain without contract) |
+| Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
 
 ## 3. The loop: one turn per sample
 
@@ -73,7 +93,7 @@ The public API is the loop protocol: `Monitor` opens a `Turn` per sample; the
 turn asks for looks (`Step::Look`), receives readings (`feed`) and closes with
 `finish`, which returns the `Output` (`at`, `scene`, `events`).
 
-`Monitor` composes three pieces that do not mix (project 24, D6): the
+`Monitor` composes three pieces that do not mix (P4, P5): the
 **engine** (`Engine`: policy, map, belief, sensor), which decides with what it
 sees; the **chronicle** (`chronicle::Chronicle`), which remembers what was
 published; and the last scene, for republishing. `finish` splits the turn in
@@ -92,7 +112,7 @@ the same way (`Shared`: evidence, bed, subject, map, …), computed once, and
 layer 0 (`Layer0`: the occupancy, the transition, the calibration), which each
 version translates its own way (`project::v3`, `project::v4`). `Output` always
 carries v3 (`scene`, `events`) and v4 (`v4: Published`): which ones are
-published is the shell's decision (D9-4). A test net (`tests/equivalence.rs`)
+published is the shell's decision. A test net (`tests/equivalence.rs`)
 brings v4 down to v3 on every turn of the suites.
 
 ```text
@@ -117,7 +137,7 @@ The core is mechanism; policy comes from outside, and so does observation.
 - **Mechanism**: how to stabilize, which rules conserve people, what to ask to
   look at. It is core code and is not configurable.
 - **Observation**: what is published, recorded or aggregated over a night. The
-  observers decide it, outside the core (project 23, P3 and P5).
+  observers decide it, outside the core (P3, P5).
 
 It is the rule of the kernel's tracepoints: the core marks the point, whoever
 observes decides what to do with it.
@@ -161,7 +181,7 @@ Bodies ──► Span ──(Before, Seen)──► settle ──[Movement]─�
   box stays held, where the subject came from). `Machine::step` **returns**
   `Option<Transition>`: the table row (`before`, `seen`, `after`) and the facts
   in order, each with the occupants it leaves. It neither emits nor publishes
-  (project 23, P2).
+  (P2).
 - Facts (`Fact`) are domain facts and have no cause: adoption at startup is its
   own fact, `Fact::Adopted`, and `project` decides it is published as
   `lay_down` with cause `baseline`.
@@ -169,7 +189,7 @@ Bodies ──► Span ──(Before, Seen)──► settle ──[Movement]─�
 ### What `Machine` keeps
 
 Only what it needs to decide the next transition and the identity of what is
-believed (project 23, P1):
+believed (P1):
 
 | Field | What it is | What it decides |
 |---|---|---|
@@ -189,7 +209,7 @@ in `conservation`, and a concept has a single name.
 ## 6. Projections and observers
 
 The core is Markov: it keeps only what it needs to decide what comes next
-(project 23, P1). Everything else is a **fold** over a sequence, of transitions
+(P1). Everything else is a **fold** over a sequence, of transitions
 or of published states (P4):
 
 - **`project`**: translates the belief into the contract. It is the only module
@@ -249,7 +269,7 @@ One concept, one name.
 | chronicle | `chronicle::Chronicle`, `Entry`, `Chronicled` | The memory of what was published, outside the engine: since when the state (v3) and the mode (v4) hold, what changed, the last transition and its cell |
 | since when | `chronicle::Since`, `Stamp` | A state and the sample it holds since; dated on a turn, with the previous one if it changed |
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
-| table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result (book 3) |
+| table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
 
 ## 8. Module map
 
@@ -272,7 +292,7 @@ matters as much as the second.
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
 | `chronicle` | The memory of what was published: folds the concluded turns | is read by the engine to decide |
 | `project` (+ `v3`, `v4`) | Translates the domain into the contract, one version per module, from the same conclusion and the same chronicle; the shared part is projected once | decides, mutates the chronicle or is read back |
-| `contract` | The published language, per version. `common`: what no version changes (the envelope without its `SchemaId`, the bed, the subject, the evidence, the causes) and the re-export of the domain vocabulary. `v3` and `v4` (spec 1301) define their own, each with its `SchemaId` and schema; neither depends on the other. `contract` re-exports v3 for consumers | changes without a major version and an ADR, or is imported by the domain |
+| `contract` | The published language, per version. `common`: what no version changes (the envelope without its `SchemaId`, the bed, the subject, the evidence, the causes) and the re-export of the domain vocabulary. `v3` and `v4` define their own, each with its `SchemaId` and schema; neither depends on the other. `contract` re-exports v3 for consumers | changes without a major version and an ADR, or is imported by the domain |
 | `policy` | The policies that come from the profiles | is read from a file |
 | `map` | The site's static world | is inferred from the subject |
 | `sensor` | The reception state the shell reports | is inferred |
@@ -300,7 +320,7 @@ are for local scope.
   `git rebase -x scripts/check.sh main`.
 - The layer-0 table: if a rule changed on purpose, the test prints the new
   table to copy into the golden file, and the diff goes into the commit.
-- The golden scenes and the R7 replay: the contract gives the same.
+- The golden scenes and their replay through the detector: the contract gives the same.
 - A refactor does not change a table cell, a published event or a `.feature`.
 
 ## 11. Design debt
@@ -310,9 +330,9 @@ round is integrated.
 
 | Debt | Why | Round |
 |---|---|---|
-| The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | book 4, ch. 01 |
+| The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | verifying the held occupant (book 4) |
 | Republishing degrades the last scene of each version (`Monitor.last` keeps both from the same turn) | Both come from the same turn, so they do not diverge; republishing from the last `Observation` would be a single source, but needs keeping published domain. Revisit if a third version appears | none |
-| The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for v4 in a shared type changes v3: `contract_schema` catches it | accepted (R13-1) |
+| The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for v4 in a shared type changes v3: `contract_schema` catches it | accepted |
 | The contract re-exports domain types instead of owning wire types | Consumers depend on `scene-core` to read the contract. A separate wire crate (like the kernel's `uapi` headers) would let consumers depend only on the published language | next |
 
 ## Sources
@@ -320,7 +340,6 @@ round is integrated.
 - Book 1, ch. 03 (a core without IO) and ch. 06 (events and projections). Book 3
   (layer 0 and the table). Book 4 (verifying the held occupant). In
   `calipso-docs`.
-- Project 23 in `calipso-roadmap` (the machine and its observers).
 - J. Chassaing, *Functional Event Sourcing Decider* (2021). M. Fowler, *Event
   Sourcing* (2005). E. Evans, *Domain-Driven Design* (2003): the ubiquitous
   language. G. Booch, *Object-Oriented Analysis and Design* (2007): abstraction

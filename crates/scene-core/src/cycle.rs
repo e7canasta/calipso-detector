@@ -51,7 +51,7 @@ pub enum NoFrame {
 /// It composes three pieces that do not mix: the engine, which decides with
 /// what it sees; the chronicle, which remembers what was published; and the
 /// last scene, for republishing. The engine reads neither of the other two
-/// (project 24, D6).
+/// (P4).
 #[derive(Debug)]
 pub struct Monitor {
     engine: Engine,
@@ -275,8 +275,8 @@ pub struct Output {
     pub scene: Arc<Scene>,
     /// Los eventos v3.
     pub events: Vec<Event>,
-    /// The same turn in v4 (spec 1301): it always comes out of the core; the
-    /// shell decides whether to publish it (D9-4).
+    /// The same turn in v4: it always comes out of the core; the
+    /// shell decides whether to publish it.
     pub v4: Published<crate::contract::v4::Scene, crate::contract::v4::Event>,
 }
 
@@ -945,7 +945,7 @@ mod tests {
     #[test]
     fn a_detector_failure_declares_the_last_observation() {
         // Without the detector the turn did not observe: it republishes the
-        // belief and says which sample it is from (rule 2, 504).
+        // belief and says which sample it is from (rule 2).
         let mut m = monitor();
         let _ = m
             .handle(sample(1.0))

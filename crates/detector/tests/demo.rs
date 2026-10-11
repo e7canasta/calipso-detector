@@ -375,7 +375,7 @@ fn run_demo(senses: u8) {
         mean
     );
     println!(
-        "613 A-1 · 813 A-1: senses={senses}; reinforcement, faces, pose, depth and calibration checked when switched on"
+        "senses={senses}; reinforcement, faces, pose, depth and calibration checked when switched on"
     );
     for m in events {
         println!("{}", serde_json::to_string(m).unwrap());
@@ -392,7 +392,7 @@ fn run_demo(senses: u8) {
     );
     thread::sleep(Duration::from_secs(2));
     second.stop("-INT");
-    println!("A-8: SIGTERM and SIGINT closed with code 0; no processes of our own left");
+    println!("SIGTERM and SIGINT closed with code 0; no processes of our own left");
     drop(rtsp);
     drop(subscriber);
     drop(server);

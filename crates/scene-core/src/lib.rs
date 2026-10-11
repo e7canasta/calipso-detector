@@ -30,7 +30,7 @@
 // the core believes and decides is internal: it can be redesigned without
 // breaking anyone.
 //
-// The loop, in the order of one turn (book 1, ch. 02; book 3, ch. 08):
+// The loop, in the order of one turn:
 //   look (ask) → evidence (admit) → belief (believe: layer 0 in
 //   `belief::occupancy`, and the subject) → refine (the second level) →
 //   conclusion (what the engine delivers) → chronicle (what is remembered of

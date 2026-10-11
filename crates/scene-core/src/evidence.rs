@@ -313,7 +313,7 @@ pub fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult) {
 
 /// The depth of each keypoint of a pose of `len` keypoints: reading `i` goes
 /// back to keypoint `at[i]`; unmeasured ones and non-finite values stay
-/// without depth (901). If the sense failed, none.
+/// without depth. If the sense failed, none.
 pub fn depths(
     reading: Sensed<&[Option<f32>]>,
     at: &[usize],

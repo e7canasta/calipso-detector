@@ -1,4 +1,5 @@
-//! 811 steps: the pose capability, with a scripted pose model.
+//! Pose capability steps (`features/shell/pose.feature`), with a scripted pose
+//! model.
 use crate::driver::{RESIDENT, detector_profile, scene};
 use crate::world::{Shell, models::PoseModel};
 use cucumber::{given, then, when};
@@ -146,7 +147,7 @@ fn current_pose(w: &mut Shell, sample: u64, x: f32, y: f32) {
     let pose = &scene(w, sample)["body"]["subject"]["pose"];
     assert_eq!(pose["provenance"]["type"], "current", "{pose}");
     // What the capability proves: where the keypoint ended up in the frame. The
-    // name and the per-keypoint depth belong to the core (901).
+    // name and the per-keypoint depth belong to the core.
     let keypoints = pose["keypoints"].as_array().expect("there are keypoints");
     let places: Vec<_> = keypoints
         .iter()

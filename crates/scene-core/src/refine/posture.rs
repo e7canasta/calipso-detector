@@ -1,5 +1,5 @@
-//! Head 2 of the second level: posture by depth disparity (904; book 2, ch.
-//! 03). Stateless: each pose gives its posture.
+//! Head 2 of the second level: posture by depth disparity.
+//! Stateless: each pose gives its posture.
 
 use crate::body::{BodyPoint, Joint};
 use crate::estimation;
@@ -18,8 +18,8 @@ pub(super) struct Reading {
 
 /// Upper (head and shoulders) against lower (hips and ankles), with the median
 /// of each group's visible measured keypoints. The disparity is relative to the
-/// body's mean depth (904-2): above `tolerance`, lying; otherwise upright
-/// (904-5: with this depth the sign does not separate sitting from standing).
+/// body's mean depth: above `tolerance`, lying; otherwise upright
+/// (with this depth the sign does not separate sitting from standing).
 /// With no measured keypoint, nothing.
 pub(super) fn classify(points: &[BodyPoint], min_score: f32, tolerance: f32) -> Option<Reading> {
     let measured: Vec<&BodyPoint> = points
@@ -72,9 +72,9 @@ pub(super) fn classify(points: &[BodyPoint], min_score: f32, tolerance: f32) -> 
     })
 }
 
-/// The posture by how head, torso and hips are ordered in depth (904).
+/// The posture by how head, torso and hips are ordered in depth.
 /// Monocular depth separates lying from upright by the magnitude of the
-/// disparity, not by its sign (912's measurement): sitting and standing are not
+/// disparity, not by its sign (measured on real nights): sitting and standing are not
 /// distinguished and are published together.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

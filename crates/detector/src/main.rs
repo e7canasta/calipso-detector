@@ -27,7 +27,7 @@ struct Args {
     #[arg(long)]
     check: bool,
     /// Runs a golden scene instead of the camera: the source is the scene and
-    /// the senses are what it says they see (R7). Opens no camera or models.
+    /// the senses are what it says they see. Opens no camera or models.
     #[arg(long)]
     scene: Option<PathBuf>,
     /// With --scene: without waiting between samples. Requires --jsonl (does not
@@ -175,7 +175,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// The replay engine (R7): the same composition as live, with the scene's
+/// The replay engine: the same composition as live, with the scene's
 /// source and the scripted senses instead of RTSP and the models. The core, the
 /// driver and the publisher are the usual ones.
 async fn run_scene(

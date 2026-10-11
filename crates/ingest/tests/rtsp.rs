@@ -143,7 +143,7 @@ fn rtsp_samples_and_reconnection() {
         assert!(sample.received_at <= Instant::now());
     }
     println!(
-        "A-3 OK: session=1 sequences={},{},{} source_secs={:.3},{:.3},{:.3}",
+        "session=1 sequences={},{},{} source_secs={:.3},{:.3},{:.3}",
         first.stamp.sequence,
         second.stamp.sequence,
         third.stamp.sequence,
@@ -166,7 +166,7 @@ fn rtsp_samples_and_reconnection() {
     let resumed = receiver.sample(2);
     assert!(resumed.stamp.sequence > third.stamp.sequence);
     println!(
-        "A-4 OK: {disconnected:?} -> Connecting -> Streaming {{ session: 2 }}; sequence={} source_secs={:.3}",
+        "{disconnected:?} -> Connecting -> Streaming {{ session: 2 }}; sequence={} source_secs={:.3}",
         resumed.stamp.sequence, resumed.stamp.source_secs
     );
 }

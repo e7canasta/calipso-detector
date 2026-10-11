@@ -8,7 +8,7 @@ use crate::attention::scene;
 use crate::script::depth_at;
 use crate::ward::Ward;
 
-/// The 17 COCO keypoints, in order (901-1).
+/// The 17 COCO keypoints, in order.
 const COCO: [&str; 17] = [
     "nose",
     "left_eye",
@@ -131,7 +131,7 @@ fn the_median(ward: &mut Ward, n: u32) {
     );
 }
 
-// --- Truly lying (902)
+// --- Truly lying
 
 /// `subject.lying` published in sample `n`, as JSON.
 fn lying(ward: &Ward, n: u32) -> Value {
@@ -164,7 +164,7 @@ fn lying_stable(ward: &mut Ward, n: u32, m: u32) {
     );
 }
 
-// --- Posture by disparity (904)
+// --- Posture by disparity
 
 /// `subject.posture` published in sample `n`, as JSON.
 fn posture(ward: &Ward, n: u32) -> Value {
@@ -198,7 +198,7 @@ fn stable_posture(ward: &mut Ward, n: u32, m: u32) {
     );
 }
 
-// --- The pose's maximum age (903)
+// --- The pose's maximum age
 
 #[given(expr = "the pose expires after {int} seconds of source time")]
 fn expires(ward: &mut Ward, secs: u32) {

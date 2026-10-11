@@ -1,4 +1,4 @@
-//! Golden scenes (R7): scenes written by the pair or distilled from a real
+//! Golden scenes: scenes written by the pair or distilled from a real
 //! night. It is a context of its own, with its own language (span, on floor,
 //! near bed); it fits the core's public API and the core does not know it.
 //!

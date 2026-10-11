@@ -9,7 +9,7 @@ pub struct AdmissionPolicy {
     /// Two boxes with an IoU from this value up are the same body.
     pub same_body_iou: f32,
     /// A body on the floor is "near the bed" if its box touches the bed grown
-    /// by this fraction of its width and height on each side (R4-7).
+    /// by this fraction of its width and height on each side.
     pub near_bed_margin: f32,
 }
 
@@ -21,8 +21,8 @@ pub struct ReinforcePolicy {
 }
 
 /// How long a new count must hold for the zones to change: the stabilization
-/// against flicker (R4-4). It is measured in source time, not in samples: the
-/// same policy holds at any camera cadence (R5-2).
+/// against flicker. It is measured in source time, not in samples: the
+/// same policy holds at any camera cadence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Persistence {
     /// Source seconds the new count must hold, from the first observation that
@@ -47,10 +47,10 @@ pub struct EnrichPolicy {
     /// Minimum score of a pose keypoint to measure depth at it.
     pub min_keypoint_score: f32,
     /// Relative disparity between top and bottom within which the posture is
-    /// "sitting" (904-3).
+    /// "sitting".
     pub posture_tolerance: f32,
-    /// Age from which a still pose is requested again, in source seconds (903).
-    /// `None`: while still, it holds forever (801).
+    /// Age from which a still pose is requested again, in source seconds.
+    /// `None`: while still, it holds forever.
     pub max_pose_age_secs: Option<f64>,
 }
 

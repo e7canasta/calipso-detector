@@ -1,4 +1,4 @@
-//! 812 steps: the depth capability, with a scripted model that sees a map the
+//! Depth capability steps (`features/shell/depth.feature`): the depth capability, with a scripted model that sees a map the
 //! scenario builds.
 use crate::driver::{detector_profile, scene};
 use crate::world::{Shell, models::DepthModel};
@@ -141,7 +141,7 @@ fn depth_once(w: &mut Shell, count: usize, sample: u64) {
 
 #[then(regex = r"^in sample (\d+) it was published that the bed was calibrated at ([\d.]+)$")]
 fn calibrated(w: &mut Shell, sample: u64, reference: f32) {
-    // One per published version (v3 and, since R13-5, v4), and both say the
+    // One per published version (v3 and v4), and both say the
     // same.
     let events: Vec<_> = w
         .messages
