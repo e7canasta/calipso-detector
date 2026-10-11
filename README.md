@@ -22,7 +22,7 @@ those facts lives in other repositories.
 | Directory | What it holds |
 | --- | --- |
 | [`contract/`](contract) | JSON schemas for `calipso.scene.v{3,4}` and `calipso.events.v{3,4}`, examples, the layer-0 transition table |
-| [`features/`](features) | the executable Gherkin specification of the core and the shell |
+| [`features/`](features) | the executable Gherkin specification, by capability: occupancy, attention, posture, contract, shell |
 | [`golden/`](golden) | golden scenes that run through the real detector without camera or models |
 | [`config/`](config) | example camera profiles |
 | [`scripts/`](scripts) | `check.sh` (the per-commit gate) and its own tests |
@@ -43,6 +43,7 @@ cargo run -p detector -- --config config/scene.toml --scene golden/s1-staff-put-
 | [`crates/scene-core/DESIGN.md`](crates/scene-core/DESIGN.md) | The engine's reference: invariants, the loop, layer 0, module map, glossary |
 | [`RULES.md`](RULES.md) | What is not negotiable, each rule with its guardian; the code cites them by number |
 | [`crates/detector/README.md`](crates/detector/README.md) | Running the per-camera binary: profiles, NATS, golden scenes |
+| [`features/README.md`](features/README.md) | How the specification is organized and how to write a scenario |
 | [`golden/README.md`](golden/README.md) | The golden scene language |
 | [`contract/`](contract) | The published JSON schemas, examples and the layer-0 table |
 
