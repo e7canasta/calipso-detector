@@ -3,6 +3,8 @@
 //! Policy: the freshest sample wins. Nothing is queued; whatever the engine
 //! does not take in time is replaced, and pixels are produced only for
 //! samples the engine is going to analyse.
+// What is `pub` is reachable from outside; the rest says `pub(crate)`.
+#![warn(unreachable_pub)]
 
 pub mod decode;
 mod error;

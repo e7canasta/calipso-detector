@@ -1,5 +1,7 @@
 //! Senses: runs each core `Probe` on a frame and returns an `Outcome`.
 //! It returns everything it sees; it knows no policies (rule 6).
+// What is `pub` is reachable from outside; the rest says `pub(crate)`.
+#![warn(unreachable_pub)]
 
 pub mod crop;
 

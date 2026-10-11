@@ -95,7 +95,7 @@ pub(crate) struct Occupancy {
 }
 
 impl Occupancy {
-    pub fn totals(&self) -> ZoneCounts {
+    pub(crate) fn totals(&self) -> ZoneCounts {
         ZoneCounts {
             floor: self.counts.floor,
             bed: self.counts.bed,
@@ -103,7 +103,7 @@ impl Occupancy {
         }
     }
 
-    pub fn occupants(&self) -> u32 {
+    pub(crate) fn occupants(&self) -> u32 {
         self.totals().occupants()
     }
 }

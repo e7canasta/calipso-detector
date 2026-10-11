@@ -12,7 +12,7 @@ use crate::time::SampleRef;
 
 /// What to do with the motion reference on receiving a new pose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReferenceUpdate {
+pub(crate) enum ReferenceUpdate {
     Refresh,
     Preserve,
 }
@@ -32,7 +32,7 @@ struct Enriched {
 
 /// What happened to the enrichment in this turn.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Enrichment {
+pub(crate) enum Enrichment {
     /// There was nothing to enrich.
     None,
     /// The subject did not move: the previous one holds.
@@ -52,7 +52,7 @@ pub enum Enrichment {
 
 impl Enrichment {
     /// Only the main detector renews an existing reference; reinforcement keeps it.
-    pub fn fresh(
+    pub(crate) fn fresh(
         pose: Option<Vec<Keypoint>>,
         depths: Option<Vec<Option<f32>>>,
         bbox: Rect,
@@ -76,7 +76,7 @@ impl Enrichment {
 
 /// The subject's pose and depth in this turn, with their provenance.
 #[derive(Debug, Clone, PartialEq)]
-pub struct SubjectBody {
+pub(crate) struct SubjectBody {
     pub pose: Pose,
     pub depth: Option<SubjectDepth>,
 }

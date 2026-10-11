@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 /// What attention can see of the current turn. Read-only: deciding what to
 /// look at never changes what is seen (rule 12).
 #[derive(Debug, Clone, Copy)]
-pub struct Glimpse<'a> {
+pub(crate) struct Glimpse<'a> {
     pub at: SampleRef,
     pub geometry: Geometry,
     pub map: &'a Map,
@@ -33,14 +33,14 @@ pub struct Glimpse<'a> {
 
 /// Ask or do not ask, with a reason. Everything goes to the ledger.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Decision<T> {
+pub(crate) enum Decision<T> {
     Ask(T),
     Skip(SkipReason),
 }
 
 /// Without a policy, or out of context, nothing is decided and no ledger entry is added.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Consideration<T> {
+pub(crate) enum Consideration<T> {
     Disabled,
     Inapplicable,
     Decided(Decision<T>),
@@ -48,7 +48,7 @@ pub enum Consideration<T> {
 
 /// The pose and its memory are decided together; the reason only explains the decision.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum EnrichPlan {
+pub(crate) enum EnrichPlan {
     Disabled,
     /// No subject: there is no decision to record.
     Inapplicable,
@@ -60,7 +60,7 @@ pub enum EnrichPlan {
 /// Where the main detector runs, which always runs: over the whole room
 /// (`None`), to count everyone, in bed or not. When the map has a room
 /// region, it is decided here.
-pub fn primary_region() -> Option<Rect> {
+pub(crate) fn primary_region() -> Option<Rect> {
     None
 }
 
@@ -68,7 +68,7 @@ pub fn primary_region() -> Option<Rect> {
 /// decide if the main detector sees fewer in bed than were seen: a possible
 /// loss. While it sees someone in bed and no fewer than before, nobody was
 /// lost.
-pub fn reinforce(
+pub(crate) fn reinforce(
     g: &Glimpse<'_>,
     bed_seen: u32,
     latch: LatchState,
@@ -94,7 +94,7 @@ pub fn reinforce(
 /// Where to look for faces: in the subject's box if seen; otherwise at the
 /// headboard (also when the detector failed). With neither, nothing is searched.
 /// The face policy goes with the look: evidence admits the faces with it.
-pub fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegion, FacePolicy)> {
+pub(crate) fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegion, FacePolicy)> {
     let Some(policy) = policy.faces else {
         return Consideration::Disabled;
     };
@@ -114,7 +114,7 @@ pub fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegion, Fac
 /// subject (a single occupant) seen in this sample, and only if it moved since
 /// the last pose or, with a maximum age, if the last one expired. Without
 /// a subject there is nothing to decide.
-pub fn enrich(
+pub(crate) fn enrich(
     believed: &Believed,
     reference: Option<Rect>,
     since: Option<SampleRef>,
@@ -147,7 +147,10 @@ pub fn enrich(
 /// Measure the subject's depth? At the pose keypoints with enough score, each
 /// with its index in the pose so the reading returns to its keypoint;
 /// without a depth model there is nothing to decide.
-pub fn deepen(pose: Option<&[Keypoint]>, policy: &Policy) -> Consideration<Vec<(usize, Point)>> {
+pub(crate) fn deepen(
+    pose: Option<&[Keypoint]>,
+    policy: &Policy,
+) -> Consideration<Vec<(usize, Point)>> {
     let Some(policy) = policy.enrich.as_ref().filter(|p| p.depth) else {
         return Consideration::Disabled;
     };
@@ -168,7 +171,7 @@ pub fn deepen(pose: Option<&[Keypoint]>, policy: &Policy) -> Consideration<Vec<(
 /// Measure the empty bed to learn it? Only with an incomplete map and a truly
 /// empty room: no faces, no bodies, no occupants and nothing pending. The
 /// retry is measured in source time (rule 9).
-pub fn calibrate(
+pub(crate) fn calibrate(
     g: &Glimpse<'_>,
     believed: &Believed,
     policy: &Policy,

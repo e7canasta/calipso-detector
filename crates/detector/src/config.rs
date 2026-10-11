@@ -163,40 +163,40 @@ pub struct NatsConfig {
 /// What a profile gets when it leaves a field out. Each value is named by what
 /// it means: two fields that share a number do not share a default.
 mod defaults {
-    pub fn keyframe_only() -> bool {
+    pub(super) fn keyframe_only() -> bool {
         true
     }
-    pub fn reconnect_delay_secs() -> u64 {
+    pub(super) fn reconnect_delay_secs() -> u64 {
         5
     }
-    pub fn sample_interval_ms() -> u64 {
+    pub(super) fn sample_interval_ms() -> u64 {
         1000
     }
-    pub fn stall_timeout_secs() -> u64 {
+    pub(super) fn stall_timeout_secs() -> u64 {
         10
     }
-    pub fn backend_confidence() -> f32 {
+    pub(super) fn backend_confidence() -> f32 {
         0.25
     }
-    pub fn calibration_retry_secs() -> f64 {
+    pub(super) fn calibration_retry_secs() -> f64 {
         2.0
     }
-    pub fn posture_tolerance() -> f32 {
+    pub(super) fn posture_tolerance() -> f32 {
         0.05
     }
-    pub fn is_posture_tolerance(value: &f32) -> bool {
+    pub(super) fn is_posture_tolerance(value: &f32) -> bool {
         *value == posture_tolerance()
     }
-    pub fn move_threshold() -> f32 {
+    pub(super) fn move_threshold() -> f32 {
         0.10
     }
-    pub fn bed_padding() -> f32 {
+    pub(super) fn bed_padding() -> f32 {
         0.15
     }
-    pub fn face_min_confidence() -> f32 {
+    pub(super) fn face_min_confidence() -> f32 {
         0.30
     }
-    pub fn min_keypoint_score() -> f32 {
+    pub(super) fn min_keypoint_score() -> f32 {
         0.30
     }
 }
@@ -567,7 +567,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    pub const VALID: &str = include_str!("../tests/support/profile.toml");
+    pub(super) const VALID: &str = include_str!("../tests/support/profile.toml");
     #[test]
     fn reinforce_section_enables_policy_and_rejects_invalid_parameters() {
         let section = "\n[senses.reinforce]\nmodel = \"yolo26l.onnx\"\nbackend_confidence = 0.25\nbed_padding = 0.15\n";

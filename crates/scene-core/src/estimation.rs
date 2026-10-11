@@ -6,7 +6,7 @@ use crate::geom::Rect;
 /// diagonal of the reference box, or the width or height changed by more than
 /// `threshold` proportionally: lying down or turning over in place changes the
 /// shape of the box, not its centre (903; v2's criterion, `SubjectMotion`).
-pub fn moved(reference: &Rect, now: &Rect, threshold: f32) -> bool {
+pub(crate) fn moved(reference: &Rect, now: &Rect, threshold: f32) -> bool {
     let (a, b) = (reference.centroid(), now.centroid());
     let shift = (b.x - a.x).hypot(b.y - a.y);
     let (w0, h0) = (reference.x1 - reference.x0, reference.y1 - reference.y0);
@@ -16,7 +16,7 @@ pub fn moved(reference: &Rect, now: &Rect, threshold: f32) -> bool {
 }
 
 /// The median of the valid depths; `None` if there are none.
-pub fn median(values: &[Option<f32>]) -> Option<f32> {
+pub(crate) fn median(values: &[Option<f32>]) -> Option<f32> {
     let mut v: Vec<f32> = values
         .iter()
         .flatten()

@@ -15,7 +15,7 @@ pub(crate) struct SessionDecoder {
 }
 
 impl SessionDecoder {
-    pub fn decode(
+    pub(crate) fn decode(
         &mut self,
         session: u64,
         payload: Payload,

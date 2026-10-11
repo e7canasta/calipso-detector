@@ -15,18 +15,18 @@ use serde::{Deserialize, Serialize};
 const NONE: Counts = Counts { floor: 0, bed: 0 };
 
 /// What a sense read, or why it could not.
-pub type Sensed<T> = Result<T, Failure>;
+pub(crate) type Sensed<T> = Result<T, Failure>;
 
 /// An admitted box, keeping which instrument produced it.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Body {
+pub(crate) struct Body {
     pub detection: Detection,
     pub source: BodySource,
 }
 
 /// A body off the bed, and whether it is near it.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FloorBody {
+pub(crate) struct FloorBody {
     pub detection: Detection,
     pub near_bed: bool,
     pub source: BodySource,
@@ -34,14 +34,14 @@ pub struct FloorBody {
 
 /// The accepted bodies of a sample, per zone, from most to least confident.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Bodies {
+pub(crate) struct Bodies {
     pub bed: Vec<Body>,
     pub floor: Vec<FloorBody>,
 }
 
 impl Bodies {
     /// How many are in each zone.
-    pub fn counts(&self) -> Counts {
+    pub(crate) fn counts(&self) -> Counts {
         Counts {
             floor: count(self.floor.len()),
             bed: count(self.bed.len()),
@@ -49,16 +49,16 @@ impl Bodies {
     }
 
     /// How many are on the floor far from the bed: they come from the door, not from the bed.
-    pub fn far(&self) -> u32 {
+    pub(crate) fn far(&self) -> u32 {
         count(self.floor.iter().filter(|b| !b.near_bed).count())
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.bed.is_empty() && self.floor.is_empty()
     }
 
     /// The most confident body, those in bed first.
-    pub fn best(&self) -> Option<&Detection> {
+    pub(crate) fn best(&self) -> Option<&Detection> {
         self.bed
             .first()
             .map(|b| &b.detection)
@@ -69,7 +69,7 @@ impl Bodies {
 /// What the body detector proves in this sample (rule 1). The belief's `match`
 /// must handle every case.
 #[derive(Debug, Clone, PartialEq)]
-pub enum BodyEvidence {
+pub(crate) enum BodyEvidence {
     /// The instrument failed: it proves nothing.
     Unavailable(Failure),
     /// It ran, but without bed geometry the zone of each body is unknown: it
@@ -80,7 +80,7 @@ pub enum BodyEvidence {
 }
 
 impl BodyEvidence {
-    pub fn bodies(&self) -> Option<&Bodies> {
+    pub(crate) fn bodies(&self) -> Option<&Bodies> {
         match self {
             BodyEvidence::Seen(b) => Some(b),
             _ => None,
@@ -90,7 +90,7 @@ impl BodyEvidence {
 
 /// The body evidence and what is recorded in the ledger.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Admission {
+pub(crate) struct Admission {
     pub bodies: BodyEvidence,
     /// What the main detector saw, per zone. Reinforcement does not change it:
     /// it does not re-arm reinforcement and is not a motion reference.
@@ -100,21 +100,21 @@ pub struct Admission {
 
 /// All the evidence of a turn, available from before believing until projecting.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Perceived {
+pub(crate) struct Perceived {
     pub bodies: Admission,
     pub faces: FaceEvidence,
 }
 
 impl Admission {
     /// Did the main detector see anyone?
-    pub fn primary_seen(&self) -> bool {
+    pub(crate) fn primary_seen(&self) -> bool {
         self.primary.bed + self.primary.floor > 0
     }
 }
 
 /// What the faces of this sample prove.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub enum FaceEvidence {
+pub(crate) enum FaceEvidence {
     /// Faces were not looked for.
     #[default]
     NotLooked,
@@ -125,20 +125,24 @@ pub enum FaceEvidence {
 }
 
 impl FaceEvidence {
-    pub fn seen(&self) -> bool {
+    pub(crate) fn seen(&self) -> bool {
         matches!(self, FaceEvidence::Seen(_))
     }
 }
 
 /// The face evidence and what is recorded in the ledger.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FaceAdmission {
+pub(crate) struct FaceAdmission {
     pub faces: FaceEvidence,
     pub result: LookResult,
 }
 
 /// Accepts the faces with enough confidence inside the requested region.
-pub fn faces(reading: Sensed<&[Detection]>, region: Rect, policy: &FacePolicy) -> FaceAdmission {
+pub(crate) fn faces(
+    reading: Sensed<&[Detection]>,
+    region: Rect,
+    policy: &FacePolicy,
+) -> FaceAdmission {
     let detections = match reading {
         Err(failure) => {
             return FaceAdmission {
@@ -178,7 +182,7 @@ pub fn faces(reading: Sensed<&[Detection]>, region: Rect, policy: &FacePolicy) -
 
 /// Admits the bodies: people with enough confidence, each in its zone.
 /// Nobody is rejected for being off the bed.
-pub fn admit(
+pub(crate) fn admit(
     reading: Sensed<&[Detection]>,
     bed: Option<&Quad>,
     policy: &AdmissionPolicy,
@@ -249,7 +253,7 @@ fn admit_from(
 /// Consolidates what reinforcement saw with what the main detector saw.
 /// Returns the consolidated evidence and the reinforcement result for the
 /// ledger. If reinforcement fails, the main detector's evidence holds.
-pub fn consolidate(
+pub(crate) fn consolidate(
     primary: Admission,
     reinforcement: Sensed<&[Detection]>,
     bed: Option<&Quad>,
@@ -289,7 +293,7 @@ pub fn consolidate(
 }
 
 /// The pose the sense brought: `None` if it failed or brought no keypoints.
-pub fn pose(reading: Sensed<Option<Vec<Keypoint>>>) -> (Option<Vec<Keypoint>>, LookResult) {
+pub(crate) fn pose(reading: Sensed<Option<Vec<Keypoint>>>) -> (Option<Vec<Keypoint>>, LookResult) {
     match reading {
         Err(failure) => (None, LookResult::failed(failure)),
         Ok(Some(kp)) if !kp.is_empty() => {
@@ -301,7 +305,7 @@ pub fn pose(reading: Sensed<Option<Vec<Keypoint>>>) -> (Option<Vec<Keypoint>>, L
 }
 
 /// The depth over a set of points: the median of the valid readings.
-pub fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult) {
+pub(crate) fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult) {
     match reading {
         Err(failure) => (None, LookResult::failed(failure)),
         Ok(values) => (
@@ -314,7 +318,7 @@ pub fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult) {
 /// The depth of each keypoint of a pose of `len` keypoints: reading `i` goes
 /// back to keypoint `at[i]`; unmeasured ones and non-finite values stay
 /// without depth. If the sense failed, none.
-pub fn depths(
+pub(crate) fn depths(
     reading: Sensed<&[Option<f32>]>,
     at: &[usize],
     len: usize,

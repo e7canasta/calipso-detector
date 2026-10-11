@@ -16,7 +16,7 @@ use occupancy::Machine;
 use subject::SubjectMemory;
 
 pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, Room, Tally, Transition};
-pub use subject::{Enrichment, SubjectBody};
+pub(crate) use subject::{Enrichment, SubjectBody};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ZoneCounts {
@@ -26,7 +26,7 @@ pub(crate) struct ZoneCounts {
 }
 
 impl ZoneCounts {
-    pub fn occupants(self) -> u32 {
+    pub(crate) fn occupants(self) -> u32 {
         self.floor + self.bed + self.held
     }
 }
@@ -50,7 +50,7 @@ pub(crate) enum Fact {
 
 /// What we believe about one camera.
 #[derive(Debug, Clone, Default)]
-pub struct Belief {
+pub(crate) struct Belief {
     occupancy: Machine,
     subject: SubjectMemory,
     latch: LatchState,
@@ -59,7 +59,7 @@ pub struct Belief {
 /// The reinforcement memory: "someone was seen in bed". It is belief; firing
 /// it is attention.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum LatchState {
+pub(crate) enum LatchState {
     /// Nobody was seen in bed.
     #[default]
     Disarmed,
@@ -73,7 +73,7 @@ pub enum LatchState {
 /// provenance. It knows nothing of the second level; `project` builds the
 /// published scene.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Subject {
+pub(crate) struct Subject {
     pub zone: Zone,
     pub bbox: Rect,
     pub confidence: f32,
@@ -82,7 +82,7 @@ pub struct Subject {
 
 /// What the turn concluded, with the layer-0 transition if there was one.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Believed {
+pub(crate) struct Believed {
     pub occupancy: Occupancy,
     pub subject: Option<Subject>,
     /// The subject's pose and depth, if enriched or kept.
@@ -91,23 +91,23 @@ pub struct Believed {
 }
 
 impl Belief {
-    pub fn latch(&self) -> LatchState {
+    pub(crate) fn latch(&self) -> LatchState {
         self.latch
     }
 
     /// How many are seen in bed, stabilized: if the main detector sees fewer,
     /// it is a possible loss.
-    pub fn bed_seen(&self) -> u32 {
+    pub(crate) fn bed_seen(&self) -> u32 {
         self.occupancy.seen().bed
     }
 
     /// The box of the subject's last pose: the motion reference.
-    pub fn pose_reference(&self) -> Option<Rect> {
+    pub(crate) fn pose_reference(&self) -> Option<Rect> {
         self.subject.reference()
     }
 
     /// The sample of the subject's last pose: its age.
-    pub fn pose_since(&self) -> Option<SampleRef> {
+    pub(crate) fn pose_since(&self) -> Option<SampleRef> {
         self.subject.since()
     }
 

@@ -11,6 +11,8 @@
 // The public API is the published language and the loop protocol: every
 // public item says what it is (`cargo doc` and the JSON Schema read it).
 #![warn(missing_docs)]
+// What is `pub` is reachable from outside; the rest says `pub(crate)`.
+#![warn(unreachable_pub)]
 // Rule 21: the core does not panic. No `unwrap`, no `expect`, no indexing that
 // could go out of bounds: every impossible case is modelled in the types. Tests
 // are shell and stay outside.

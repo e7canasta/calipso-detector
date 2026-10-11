@@ -16,20 +16,20 @@ pub(super) fn load(path: &Path, confidence: f32) -> Result<YOLOModel, ModelError
 
 /// Shared model execution and box decoding; no acceptance policy.
 #[derive(Debug)]
-pub struct BoxDetector {
+pub(super) struct BoxDetector {
     model: YOLOModel,
 }
 
 impl BoxDetector {
     /// `confidence` is the backend threshold; the core applies the acceptance
     /// policy afterwards.
-    pub fn load(path: &Path, confidence: f32) -> Result<Self, ModelError> {
+    pub(super) fn load(path: &Path, confidence: f32) -> Result<Self, ModelError> {
         Ok(Self {
             model: load(path, confidence)?,
         })
     }
 
-    pub fn predict(&mut self, image: &DynamicImage) -> Result<Vec<Detection>, ModelError> {
+    pub(super) fn predict(&mut self, image: &DynamicImage) -> Result<Vec<Detection>, ModelError> {
         let results = self
             .model
             .predict_image(image, "detect".into())

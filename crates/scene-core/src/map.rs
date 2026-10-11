@@ -96,15 +96,15 @@ impl SiteMap {
 }
 
 impl Map {
-    pub fn reference(&self) -> Option<BedReference> {
+    pub(crate) fn reference(&self) -> Option<BedReference> {
         self.calibration.reference
     }
 
-    pub fn last_attempt(&self) -> Option<SampleRef> {
+    pub(crate) fn last_attempt(&self) -> Option<SampleRef> {
         self.calibration.last_attempt
     }
 
-    pub fn bed_points(&self) -> Vec<Point> {
+    pub(crate) fn bed_points(&self) -> Vec<Point> {
         bed_points(&self.site.bed)
     }
 
@@ -128,17 +128,17 @@ impl Map {
     }
 
     /// Does the bed geometry apply to this frame? (F-09)
-    pub fn gate(&self, frame: FrameInfo) -> Geometry {
+    pub(crate) fn gate(&self, frame: FrameInfo) -> Geometry {
         gate(self.site.resolution, frame)
     }
 
     /// The headboard, if the geometry applies.
-    pub fn headboard_for(&self, geometry: Geometry) -> Option<Rect> {
+    pub(crate) fn headboard_for(&self, geometry: Geometry) -> Option<Rect> {
         self.site.headboard.filter(|_| geometry == Geometry::Valid)
     }
 
     /// The bed, if the geometry applies.
-    pub fn bed_for(&self, geometry: Geometry) -> Option<&Quad> {
+    pub(crate) fn bed_for(&self, geometry: Geometry) -> Option<&Quad> {
         (geometry == Geometry::Valid).then_some(&self.site.bed)
     }
 
