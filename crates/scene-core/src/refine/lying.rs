@@ -66,7 +66,9 @@ pub enum LyingState {
 /// pose's provenance.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Lying {
+    /// Confirmed, assumed, no or unknown.
     pub state: LyingState,
+    /// That of the pose it was concluded from.
     pub provenance: Provenance,
 }
 

@@ -17,8 +17,11 @@ pub struct SourceSecs(pub f64);
 /// (rule 9).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SampleRef {
+    /// The stream session: a reconnection starts a new one.
     pub session: SessionId,
+    /// The sample's number, increasing within the run.
     pub sequence: u64,
+    /// The sample's presentation time, comparable only within its session.
     pub source_secs: SourceSecs,
 }
 

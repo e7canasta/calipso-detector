@@ -10,16 +10,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Probe {
     /// The main person detector over a region (`None`: the whole frame).
-    Detect { region: Option<Rect> },
+    Detect {
+        /// Where; `None`: the whole frame.
+        region: Option<Rect>,
+    },
     /// The face detector over the subject's box or the headboard.
-    Faces { region: FaceRegion },
+    Faces {
+        /// Where faces are looked for.
+        region: FaceRegion,
+    },
     /// The finer detector over the expanded bed.
-    Reinforce { region: Rect },
+    Reinforce {
+        /// The bed grown by the policy's padding.
+        region: Rect,
+    },
     /// The pose over the subject's box.
-    Pose { bbox: Rect },
+    Pose {
+        /// The subject's box.
+        bbox: Rect,
+    },
     /// The depth at these points.
     Depth {
+        /// The subject or the empty bed.
         purpose: DepthPurpose,
+        /// Where to measure; the reading keeps this order.
         points: Vec<Point>,
     },
 }
@@ -34,6 +48,7 @@ pub enum DepthPurpose {
 }
 
 impl Probe {
+    /// The look this probe is recorded as in the ledger.
     pub fn kind(&self) -> LookKind {
         match self {
             Probe::Detect { .. } => LookKind::Detect,
@@ -86,6 +101,7 @@ pub enum FaceRegion {
 }
 
 impl FaceRegion {
+    /// The rectangle, whichever it is.
     pub fn rect(&self) -> Rect {
         match self {
             FaceRegion::Subject(r) | FaceRegion::Headboard(r) => *r,
@@ -96,22 +112,29 @@ impl FaceRegion {
 /// Which class the model detected. The sense returns all of them (rule 6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Label {
+    /// A person.
     Person,
+    /// Any other class: the policy discards it, with its reason.
     Other,
 }
 
 /// A box a model returned, unfiltered.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Detection {
+    /// The box, in whole-frame pixels.
     pub bbox: Rect,
+    /// The model's score.
     pub confidence: f32,
+    /// The class it detected.
     pub label: Label,
 }
 
 /// What the shell read. Mirrors `Probe` one to one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Reading {
+    /// What a person detector saw (`Detect`, `Reinforce`).
     Bodies(Vec<Detection>),
+    /// What the face detector saw.
     Faces(Vec<Detection>),
     /// `None`: the model found no pose.
     Pose(Option<Vec<Keypoint>>),
@@ -141,6 +164,7 @@ pub enum Failure {
 }
 
 impl Failure {
+    /// Its published form.
     pub fn kind(&self) -> FailureKind {
         match self {
             Failure::Cancelled => FailureKind::Cancelled,
@@ -157,18 +181,23 @@ pub struct LookId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Spent(pub f64);
 
-/// A probe of the current batch.
+/// The look the turn waits for.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Request {
+    /// Its id within the turn: the answer must carry it.
     pub id: LookId,
+    /// What to look at, and where.
     pub probe: Probe,
 }
 
 /// The shell's answer to a probe.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Outcome {
+    /// The id of the request it answers.
     pub id: LookId,
+    /// What the sense read, or why it could not.
     pub result: Result<Reading, Failure>,
+    /// How long looking took.
     pub spent: Spent,
 }
 
@@ -230,7 +259,9 @@ pub enum LookKind {
 /// A reading that does not match the probe (protocol misuse).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProbeKindMismatch {
+    /// The probe's kind.
     pub expected: LookKind,
+    /// The reading's kind.
     pub got: LookKind,
 }
 
@@ -268,6 +299,7 @@ impl std::fmt::Display for ProbeKindMismatch {
 
 impl std::error::Error for ProbeKindMismatch {}
 
+/// How a look failed, as published.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum FailureKind {

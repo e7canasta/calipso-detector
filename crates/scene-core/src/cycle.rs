@@ -32,17 +32,34 @@ use waiting::{Awaiting, Resolution, Waiting};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Input {
     /// A decoded sample.
-    Sample { at: SampleRef, frame: FrameInfo },
+    Sample {
+        /// Which sample, in source time.
+        at: SampleRef,
+        /// Its size.
+        frame: FrameInfo,
+    },
     /// A sample that produced no image: there is nothing to look at.
-    NoFrame { at: SampleRef, why: NoFrame },
+    NoFrame {
+        /// Which sample, in source time.
+        at: SampleRef,
+        /// Why there is no image.
+        why: NoFrame,
+    },
     /// The shell reports a reception change.
-    Sensor { at: SampleRef, state: SensorState },
+    Sensor {
+        /// The last sample's reference, for the record.
+        at: SampleRef,
+        /// The new reception state.
+        state: SensorState,
+    },
 }
 
 /// Why a sample produced no image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoFrame {
+    /// The decoder failed.
     DecodeFailed,
+    /// The decoder returned nothing.
     Empty,
 }
 
@@ -94,6 +111,7 @@ impl Engine {
 }
 
 impl Monitor {
+    /// A camera's monitor: its policies and its site. The belief starts empty.
     pub fn new(policy: Policy, map: SiteMap) -> Self {
         Self {
             engine: Engine::new(policy, map),
@@ -218,6 +236,7 @@ enum Reached {
 pub enum Step<'a> {
     /// The next look the core needs to continue the turn.
     Look(&'a Request),
+    /// Nothing else to look at: `finish` closes the turn.
     Done,
 }
 
@@ -254,6 +273,7 @@ impl std::error::Error for FeedError {
 /// `finish` too early: returns the turn so it can be completed.
 #[derive(Debug)]
 pub struct Incomplete<'m> {
+    /// The turn, to keep feeding it.
     pub turn: Box<Turn<'m>>,
 }
 
@@ -271,7 +291,9 @@ impl std::error::Error for Incomplete<'_> {}
 pub struct Output {
     /// The sample the turn was opened for.
     pub at: SampleRef,
+    /// The scene of the sample.
     pub scene: Arc<Scene>,
+    /// The events it explains, in order.
     pub events: Vec<Event>,
 }
 

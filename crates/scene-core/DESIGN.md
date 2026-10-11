@@ -337,6 +337,7 @@ round is integrated.
 | The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | verifying the held occupant (book 4) |
 | The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
 | A transition's `after` can disagree with its last fact's in `unexplained` | The contract says the transition leaves the last fact's occupancy. With bodies in bed that nobody explains (rule 6) the transition counts them and the facts do not: proptest finds it with `bed 2, near 1, far 1 ×3; empty ×1; bed 3, far 3 ×3`. The scripted suites never reach it, so `tests/published.rs::check` runs only on them | domain decision: which one is right |
+| `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Their descriptions say so; renaming them changes the wire, so it waits for the next contract version (C2), together with the positional `rbh` and `fv` | next contract version |
 | The contract re-exports domain types instead of owning wire types | Consumers depend on `scene-core` to read the contract. A separate wire crate (like the kernel's `uapi` headers) would let consumers depend only on the published language | next |
 
 ## Sources

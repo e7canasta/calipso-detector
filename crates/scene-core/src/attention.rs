@@ -224,23 +224,31 @@ pub enum LookResult {
     /// The sense read: how many candidates, and why those that did not count
     /// were discarded.
     Read {
+        /// How many the sense returned, before admission.
         candidates: u32,
+        /// The discarded ones, grouped by reason.
         #[serde(with = "rejections")]
         #[schemars(with = "Vec<Rejected>")]
         rejected: Vec<RejectReason>,
     },
     /// The sense failed: it proves nothing (rule 1).
-    Failed { failure: FailureKind },
+    Failed {
+        /// How it failed.
+        failure: FailureKind,
+    },
 }
 
 /// An entry of attention's ledger (rule 12): what was decided to look at or
 /// not, and what happened.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Look {
+    /// Which sense.
     pub kind: LookKind,
+    /// Asked, with what came back, or skipped, with why.
     pub outcome: LookOutcome,
 }
 
+/// What came of a look.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LookOutcome {
@@ -248,18 +256,24 @@ pub enum LookOutcome {
     Asked {
         /// `None`: the whole frame.
         region: Option<Rect>,
+        /// What the sense returned.
         result: LookResult,
         /// What the shell measured; the core only records it (rule 9).
         spent_ms: f64,
     },
     /// It was decided not to look, with a reason.
-    Skipped { reason: SkipReason },
+    Skipped {
+        /// Why not.
+        reason: SkipReason,
+    },
 }
 
 // The published form groups the rejections; the internal ledger keeps each reason.
 #[derive(Serialize, Deserialize, JsonSchema)]
 struct Rejected {
+    /// Why they did not count.
     reason: RejectReason,
+    /// How many, for that reason.
     count: u32,
 }
 
@@ -305,6 +319,7 @@ impl LookResult {
         }
     }
 
+    /// A look whose sense failed.
     pub fn failed(failure: FailureKind) -> Self {
         LookResult::Failed { failure }
     }
@@ -323,5 +338,6 @@ impl Look {
 /// What was looked at during the turn, in order.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Attention {
+    /// One per sense considered, in the order of the turn.
     pub looks: Vec<Look>,
 }

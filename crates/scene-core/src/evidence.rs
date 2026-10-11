@@ -372,7 +372,9 @@ fn count(n: usize) -> u32 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BodySource {
+    /// The main detector, over the whole frame.
     Primary,
+    /// The finer detector, over the bed.
     Reinforcement,
 }
 
@@ -380,7 +382,9 @@ pub enum BodySource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RejectReason {
+    /// Another class than a person.
     NotPerson,
+    /// Below the policy's minimum confidence.
     LowConfidence,
     /// Outside the region where the look was requested.
     OutsideRegion,

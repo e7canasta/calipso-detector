@@ -45,8 +45,12 @@ impl SensorMemory {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SensorState {
+    /// Opening the stream.
     Connecting,
+    /// Samples are arriving.
     Streaming,
+    /// Connected, but no sample within the stall timeout.
     Stalled,
+    /// The stream dropped; trying again.
     Reconnecting,
 }

@@ -10,8 +10,11 @@ use serde::{Deserialize, Serialize};
 /// A pose keypoint, in whole-frame coordinates.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Keypoint {
+    /// Pixels from the left edge.
     pub x: f32,
+    /// Pixels from the top edge.
     pub y: f32,
+    /// The pose model's confidence in this keypoint.
     pub score: f32,
 }
 
@@ -19,6 +22,8 @@ pub struct Keypoint {
 /// name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+// The COCO-17 names document themselves.
+#[allow(missing_docs)]
 pub enum Joint {
     Nose,
     LeftEye,
@@ -72,17 +77,25 @@ impl Joint {
 /// metres. An unmeasured point carries `depth: null`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct BodyPoint {
+    /// The COCO-17 joint; `None` beyond the 17th keypoint.
     pub name: Option<Joint>,
+    /// Pixels from the left edge.
     pub x: f32,
+    /// Pixels from the top edge.
     pub y: f32,
+    /// The pose model's confidence in this keypoint.
     pub score: f32,
+    /// Its depth, if it was measured.
     pub depth: Option<f32>,
 }
 
 /// The subject's pose, with its own provenance (rule 2).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Pose {
+    /// In COCO-17 order.
     pub keypoints: Vec<BodyPoint>,
+    /// Taken in this sample, or stable since a sample in which the subject
+    /// did not move.
     pub provenance: Provenance,
 }
 
@@ -90,6 +103,9 @@ pub struct Pose {
 /// provenance. Kept for compatibility.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SubjectDepth {
+    /// On the depth model's scale (the name says metres, the value is
+    /// relative).
     pub meters: f32,
+    /// Measured in this sample, or stable with the pose.
     pub provenance: Provenance,
 }

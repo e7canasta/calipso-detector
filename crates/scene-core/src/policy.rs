@@ -33,6 +33,7 @@ pub struct Persistence {
 /// Which face counts as evidence.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FacePolicy {
+    /// Below this score a face does not count.
     pub min_confidence: f32,
 }
 
@@ -64,7 +65,9 @@ pub struct CalibrationPolicy {
 /// The policies of one camera. Optional senses start switched off.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Policy {
+    /// Which body counts, and where.
     pub admission: AdmissionPolicy,
+    /// How long a new count must hold.
     pub persistence: Persistence,
     /// `None`: there is no face detector.
     pub faces: Option<FacePolicy>,

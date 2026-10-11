@@ -3,6 +3,7 @@ name = "ingest"
 description = "Ingest: RTSP, a one-slot mailbox and decode"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

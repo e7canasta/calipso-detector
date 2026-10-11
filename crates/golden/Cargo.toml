@@ -3,6 +3,7 @@ name = "golden"
 description = "Golden scenes, written or distilled, and what each sense sees in them"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

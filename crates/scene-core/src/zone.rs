@@ -17,6 +17,8 @@ pub enum Zone {
 /// What is seen in each zone, stabilized or yet to stabilize.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Counts {
+    /// Seen off the bed.
     pub floor: u32,
+    /// Seen in the bed.
     pub bed: u32,
 }

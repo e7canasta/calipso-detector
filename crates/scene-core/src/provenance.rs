@@ -13,7 +13,13 @@ pub enum Provenance {
     /// Observed in this sample.
     Current,
     /// Observed earlier and retained without a current observation.
-    Retained { since: SampleRef },
+    Retained {
+        /// The last sample it was observed in.
+        since: SampleRef,
+    },
     /// Computed earlier and still valid because the subject did not move.
-    Stable { since: SampleRef },
+    Stable {
+        /// The sample it was computed in.
+        since: SampleRef,
+    },
 }

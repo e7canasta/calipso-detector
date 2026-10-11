@@ -3,6 +3,7 @@ name = "detector"
 description = "The per-camera binary: composition, loop driver and publishing"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

@@ -94,6 +94,7 @@ pub enum PostureState {
 /// scale and the pose's provenance.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Posture {
+    /// Lying, upright or unknown.
     pub state: PostureState,
     /// Median of the measured head and shoulders.
     pub upper: Option<f32>,
@@ -101,6 +102,7 @@ pub struct Posture {
     pub lower: Option<f32>,
     /// `(upper − lower) / mean`: relative, without scale.
     pub disparity: Option<f32>,
+    /// That of the pose it was concluded from.
     pub provenance: Provenance,
 }
 

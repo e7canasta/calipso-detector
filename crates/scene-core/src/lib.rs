@@ -8,6 +8,9 @@
 //! The design reference, below, is `DESIGN.md`: it reads the same in the
 //! repository and in `cargo doc`.
 #![doc = include_str!("../DESIGN.md")]
+// The public API is the published language and the loop protocol: every
+// public item says what it is (`cargo doc` and the JSON Schema read it).
+#![warn(missing_docs)]
 // Rule 21: the core does not panic. No `unwrap`, no `expect`, no indexing that
 // could go out of bounds: every impossible case is modelled in the types. Tests
 // are shell and stay outside.

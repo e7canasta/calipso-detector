@@ -5,15 +5,18 @@
   "type": "object",
   "properties": {
     "body": {
+      "description": "The scene or the event.",
       "$ref": "#/$defs/Event"
     },
     "event_id": {
+      "description": "Events only: unique per event, for deduplication on redelivery.",
       "type": [
         "string",
         "null"
       ]
     },
     "last_event_seq": {
+      "description": "Scenes only: the `seq` of the last event published before this scene,\nso a consumer knows which events the scene already reflects.",
       "type": [
         "integer",
         "null"
@@ -26,6 +29,7 @@
       "$ref": "#/$defs/SampleRef"
     },
     "profile": {
+      "description": "The configuration the engine ran with.",
       "$ref": "#/$defs/Profile"
     },
     "published_at_ms": {
@@ -35,17 +39,21 @@
       "minimum": 0
     },
     "schema": {
+      "description": "What the body is: a scene or an event.",
       "$ref": "#/$defs/SchemaId"
     },
     "seq": {
+      "description": "Contiguous from 1 per run and per schema; a gap is a lost message.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
     },
     "source": {
+      "description": "Who published it.",
       "$ref": "#/$defs/Source"
     },
     "timing": {
+      "description": "Scenes only: how long the shell took with the sample.",
       "anyOf": [
         {
           "$ref": "#/$defs/Timing"
@@ -70,10 +78,9 @@
       "description": "Is someone in the bed?",
       "oneOf": [
         {
+          "description": "Nobody in the bed.",
           "type": "string",
-          "enum": [
-            "empty"
-          ]
+          "const": "empty"
         },
         {
           "description": "At least one visible occupant in the bed's stable count.",
@@ -109,9 +116,11 @@
           "format": "double"
         },
         "mode": {
+          "description": "The machine's state those counts name.",
           "$ref": "#/$defs/Mode"
         },
         "rbh": {
+          "description": "Occupants of the room, of the bed and retained in it.",
           "$ref": "#/$defs/Rbh"
         },
         "since": {
@@ -140,12 +149,15 @@
       ]
     },
     "Build": {
+      "description": "The publishing binary.",
       "type": "object",
       "properties": {
         "git": {
+          "description": "The commit it was built from.",
           "type": "string"
         },
         "version": {
+          "description": "The crate version.",
           "type": "string"
         }
       },
@@ -211,12 +223,15 @@
       "type": "object",
       "properties": {
         "after": {
+          "description": "The occupancy at the end of the turn.",
           "$ref": "#/$defs/Occupancy"
         },
         "at": {
+          "description": "The sample in which it changed.",
           "$ref": "#/$defs/SampleRef"
         },
         "cause": {
+          "description": "Why it changed.",
           "$ref": "#/$defs/Cause"
         }
       },
@@ -226,9 +241,11 @@
           "type": "object",
           "properties": {
             "from": {
+              "description": "The previous mode.",
               "$ref": "#/$defs/Mode"
             },
             "to": {
+              "description": "The new mode.",
               "$ref": "#/$defs/Mode"
             },
             "type": {
@@ -247,9 +264,11 @@
           "type": "object",
           "properties": {
             "from": {
+              "description": "The previous state.",
               "$ref": "#/$defs/BedState"
             },
             "to": {
+              "description": "The new state.",
               "$ref": "#/$defs/BedState"
             },
             "type": {
@@ -274,6 +293,7 @@
       "description": "A message of `events.v4`. Within a turn they come out in order: `sensor`,\n`transition`, `map`, `derived`.",
       "oneOf": [
         {
+          "description": "A layer-0 change, with its facts.",
           "type": "object",
           "properties": {
             "kind": {
@@ -287,6 +307,7 @@
           ]
         },
         {
+          "description": "A change in what was published, by comparing turns.",
           "type": "object",
           "properties": {
             "kind": {
@@ -300,6 +321,7 @@
           ]
         },
         {
+          "description": "A reception change.",
           "type": "object",
           "properties": {
             "kind": {
@@ -313,6 +335,7 @@
           ]
         },
         {
+          "description": "What the map learned.",
           "type": "object",
           "properties": {
             "kind": {
@@ -332,9 +355,11 @@
       "type": "object",
       "properties": {
         "after": {
+          "description": "The occupancy this fact leaves, before the next one.",
           "$ref": "#/$defs/Occupancy"
         },
         "cause": {
+          "description": "Why it happened.",
           "$ref": "#/$defs/Cause"
         }
       },
@@ -396,6 +421,7 @@
           "type": "object",
           "properties": {
             "last_seen": {
+              "description": "The last sample they were seen in.",
               "$ref": "#/$defs/SampleRef"
             },
             "type": {
@@ -413,6 +439,7 @@
           "type": "object",
           "properties": {
             "held_since": {
+              "description": "The sample since which they were retained.",
               "$ref": "#/$defs/SampleRef"
             },
             "type": {
@@ -450,12 +477,15 @@
       ]
     },
     "LayerRef": {
+      "description": "A layer of the profile, by name and revision.",
       "type": "object",
       "properties": {
         "id": {
+          "description": "The layer's name.",
           "type": "string"
         },
         "version": {
+          "description": "Its revision; `0` while layers are not versioned.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -506,9 +536,11 @@
       "type": "object",
       "properties": {
         "at": {
+          "description": "The sample it was learned in.",
           "$ref": "#/$defs/SampleRef"
         },
         "cause": {
+          "description": "Always `map_learned`.",
           "$ref": "#/$defs/Cause"
         }
       },
@@ -518,6 +550,7 @@
           "type": "object",
           "properties": {
             "reference_m": {
+              "description": "The empty bed's depth, on the depth model's scale.",
               "type": "number",
               "format": "float"
             },
@@ -541,10 +574,9 @@
       "description": "The mode of the layer-0 machine: the name of its state.",
       "oneOf": [
         {
+          "description": "Nobody in the room.",
           "type": "string",
-          "enum": [
-            "empty"
-          ]
+          "const": "empty"
         },
         {
           "description": "One occupant, off the bed.",
@@ -577,9 +609,11 @@
           "$ref": "#/$defs/BedState"
         },
         "mode": {
+          "description": "The machine's state those counts name.",
           "$ref": "#/$defs/Mode"
         },
         "rbh": {
+          "description": "Occupants of the room, of the bed and retained in it.",
           "$ref": "#/$defs/Rbh"
         },
         "unexplained": {
@@ -598,16 +632,25 @@
     },
     "Phase": {
       "description": "The phase of rule 6: until the first climb into bed, whatever appears in\nit is adopted.",
-      "type": "string",
-      "enum": [
-        "booting",
-        "running"
+      "oneOf": [
+        {
+          "description": "The bed has no history yet: whoever is clearly seen in it is adopted.",
+          "type": "string",
+          "const": "booting"
+        },
+        {
+          "description": "Someone climbed into bed from the floor: the bed only rises from it.",
+          "type": "string",
+          "const": "running"
+        }
       ]
     },
     "Profile": {
+      "description": "The configuration the engine ran with, as the consumer needs to compare runs.",
       "type": "object",
       "properties": {
         "camera": {
+          "description": "The camera layer of the profile.",
           "anyOf": [
             {
               "$ref": "#/$defs/LayerRef"
@@ -618,9 +661,11 @@
           ]
         },
         "hash": {
+          "description": "Two runs with the same hash believed with the same policy and map.",
           "$ref": "#/$defs/ProfileHash"
         },
         "resident": {
+          "description": "The resident layer of the profile; `None` while there is none.",
           "anyOf": [
             {
               "$ref": "#/$defs/LayerRef"
@@ -674,14 +719,17 @@
       "type": "object",
       "properties": {
         "sequence": {
+          "description": "The sample's number, increasing within the run.",
           "type": "integer",
           "format": "uint64",
           "minimum": 0
         },
         "session": {
+          "description": "The stream session: a reconnection starts a new one.",
           "$ref": "#/$defs/SessionId"
         },
         "source_secs": {
+          "description": "The sample's presentation time, comparable only within its session.",
           "$ref": "#/$defs/SourceSecs"
         }
       },
@@ -693,10 +741,17 @@
     },
     "SchemaId": {
       "description": "Which schema a v4 message carries.",
-      "type": "string",
-      "enum": [
-        "calipso.scene.v4",
-        "calipso.events.v4"
+      "oneOf": [
+        {
+          "description": "One scene per sample.",
+          "type": "string",
+          "const": "calipso.scene.v4"
+        },
+        {
+          "description": "Every event, in order.",
+          "type": "string",
+          "const": "calipso.events.v4"
+        }
       ]
     },
     "Seen": {
@@ -704,12 +759,15 @@
       "type": "object",
       "properties": {
         "context": {
+          "description": "What happened meanwhile, which decided the cell.",
           "$ref": "#/$defs/Context"
         },
         "fv": {
+          "description": "The bodies seen on the floor and in bed, as they held.",
           "$ref": "#/$defs/Fv"
         },
         "span": {
+          "description": "How long they held before counting.",
           "$ref": "#/$defs/Span"
         }
       },
@@ -729,6 +787,7 @@
           "format": "float"
         },
         "kind": {
+          "description": "The look this sense answers.",
           "$ref": "#/$defs/LookKind"
         },
         "min_confidence": {
@@ -755,23 +814,29 @@
       "type": "object",
       "properties": {
         "after": {
+          "description": "The occupancy, which a reception change does not touch.",
           "$ref": "#/$defs/Occupancy"
         },
         "at": {
+          "description": "The sample the shell reported it with.",
           "$ref": "#/$defs/SampleRef"
         },
         "cause": {
+          "description": "Always `sensor_reported`.",
           "$ref": "#/$defs/Cause"
         }
       },
       "oneOf": [
         {
+          "description": "The reception changed.",
           "type": "object",
           "properties": {
             "from": {
+              "description": "The previous state.",
               "$ref": "#/$defs/SensorState"
             },
             "to": {
+              "description": "The new state.",
               "$ref": "#/$defs/SensorState"
             },
             "type": {
@@ -794,12 +859,27 @@
     },
     "SensorState": {
       "description": "The reception state, as the shell reports it. It says nothing about the bed.",
-      "type": "string",
-      "enum": [
-        "connecting",
-        "streaming",
-        "stalled",
-        "reconnecting"
+      "oneOf": [
+        {
+          "description": "Opening the stream.",
+          "type": "string",
+          "const": "connecting"
+        },
+        {
+          "description": "Samples are arriving.",
+          "type": "string",
+          "const": "streaming"
+        },
+        {
+          "description": "Connected, but no sample within the stall timeout.",
+          "type": "string",
+          "const": "stalled"
+        },
+        {
+          "description": "The stream dropped; trying again.",
+          "type": "string",
+          "const": "reconnecting"
+        }
       ]
     },
     "SessionId": {
@@ -813,15 +893,19 @@
       "type": "object",
       "properties": {
         "build": {
+          "description": "The binary that published.",
           "$ref": "#/$defs/Build"
         },
         "camera": {
+          "description": "The camera within the site (a subject token).",
           "type": "string"
         },
         "run_id": {
+          "description": "One per process start: a new run restarts every numbering.",
           "type": "string"
         },
         "site": {
+          "description": "The site the camera belongs to (a subject token).",
           "type": "string"
         }
       },
@@ -842,9 +926,11 @@
       "type": "object",
       "properties": {
         "first": {
+          "description": "The first sample that saw the new count.",
           "$ref": "#/$defs/SampleRef"
         },
         "secs": {
+          "description": "Source seconds it held before counting.",
           "type": "number",
           "format": "double"
         }
@@ -855,13 +941,16 @@
       ]
     },
     "Timing": {
+      "description": "How long the shell took with a sample, in wall-clock milliseconds. It is\nmeasured by the shell and never decides anything (rule 9).",
       "type": "object",
       "properties": {
         "processing_ms": {
+          "description": "The whole turn: decoding, every look and the projection.",
           "type": "number",
           "format": "double"
         },
         "wait_ms": {
+          "description": "From the sample's arrival to the start of its turn.",
           "type": "number",
           "format": "double"
         }
@@ -880,15 +969,19 @@
           "$ref": "#/$defs/Occupancy"
         },
         "at": {
+          "description": "The sample in which the new count held.",
           "$ref": "#/$defs/SampleRef"
         },
         "before": {
+          "description": "What we believed, and since when.",
           "$ref": "#/$defs/Before"
         },
         "cell": {
+          "description": "The row of the layer-0 table this change crossed.",
           "$ref": "#/$defs/Cell"
         },
         "facts": {
+          "description": "What happened to each person, in order.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/Fact"
@@ -899,6 +992,7 @@
           "$ref": "#/$defs/Phase"
         },
         "seen": {
+          "description": "What we saw hold.",
           "$ref": "#/$defs/Seen"
         }
       },

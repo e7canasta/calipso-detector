@@ -6,24 +6,32 @@ use serde::{Deserialize, Serialize};
 /// A point on the image plane.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Point {
+    /// Pixels from the left edge.
     pub x: f32,
+    /// Pixels from the top edge.
     pub y: f32,
 }
 
 /// An axis-aligned rectangle: top-left and bottom-right corners.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Rect {
+    /// Left edge, in pixels.
     pub x0: f32,
+    /// Top edge, in pixels.
     pub y0: f32,
+    /// Right edge, in pixels.
     pub x1: f32,
+    /// Bottom edge, in pixels.
     pub y1: f32,
 }
 
 impl Rect {
+    /// From its corners: top-left `(x0, y0)` and bottom-right `(x1, y1)`.
     pub fn new(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
         Self { x0, y0, x1, y1 }
     }
 
+    /// Its centre.
     pub fn centroid(&self) -> Point {
         Point {
             x: (self.x0 + self.x1) / 2.0,
@@ -31,6 +39,7 @@ impl Rect {
         }
     }
 
+    /// In square pixels; zero if it is inverted.
     pub fn area(&self) -> f32 {
         (self.x1 - self.x0).max(0.0) * (self.y1 - self.y0).max(0.0)
     }

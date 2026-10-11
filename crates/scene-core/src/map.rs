@@ -76,6 +76,7 @@ impl From<SiteMap> for Map {
 }
 
 impl SiteMap {
+    /// A site with only its bed: no resolution, headboard or calibration.
     pub fn new(bed: Quad) -> Self {
         Self {
             bed,
@@ -161,7 +162,9 @@ fn gate(resolution: Option<FrameInfo>, frame: FrameInfo) -> Geometry {
 /// Size of a decoded frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FrameInfo {
+    /// In pixels.
     pub width: u32,
+    /// In pixels.
     pub height: u32,
 }
 
@@ -169,10 +172,13 @@ pub struct FrameInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Geometry {
+    /// The image has the resolution the bed was delimited for.
     Valid,
     /// The resolution is not the declared one: "in bed" cannot be claimed.
     Invalid {
+        /// The resolution the bed was delimited for.
         declared: FrameInfo,
+        /// The resolution of the incoming image.
         actual: FrameInfo,
     },
 }
@@ -180,9 +186,13 @@ pub enum Geometry {
 /// What is published of the static world.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MapState {
+    /// Whether the delimited bed applies to this image.
     pub geometry: Geometry,
+    /// The bed's four corners on the image, clockwise.
     pub bed: Quad,
+    /// Where faces are looked for when nobody is in sight.
     pub headboard: Option<Rect>,
+    /// What the map learned about the empty bed.
     pub calibration: Calibration,
 }
 
@@ -190,10 +200,15 @@ pub struct MapState {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum Calibration {
+    /// The empty bed has not been learned.
     #[default]
     Unavailable,
+    /// The empty bed was learned.
     Complete {
+        /// Its depth, on the depth model's scale (the name says metres, the
+        /// value is relative: see `BodyPoint`).
         reference_m: f32,
+        /// The sample it was learned in; `None` if the profile brought it.
         since: Option<SampleRef>,
     },
 }

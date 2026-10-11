@@ -5,15 +5,18 @@
   "type": "object",
   "properties": {
     "body": {
+      "description": "The scene or the event.",
       "$ref": "#/$defs/Scene"
     },
     "event_id": {
+      "description": "Events only: unique per event, for deduplication on redelivery.",
       "type": [
         "string",
         "null"
       ]
     },
     "last_event_seq": {
+      "description": "Scenes only: the `seq` of the last event published before this scene,\nso a consumer knows which events the scene already reflects.",
       "type": [
         "integer",
         "null"
@@ -26,6 +29,7 @@
       "$ref": "#/$defs/SampleRef"
     },
     "profile": {
+      "description": "The configuration the engine ran with.",
       "$ref": "#/$defs/Profile"
     },
     "published_at_ms": {
@@ -35,17 +39,21 @@
       "minimum": 0
     },
     "schema": {
+      "description": "What the body is: a scene or an event.",
       "$ref": "#/$defs/SchemaId"
     },
     "seq": {
+      "description": "Contiguous from 1 per run and per schema; a gap is a lost message.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
     },
     "source": {
+      "description": "Who published it.",
       "$ref": "#/$defs/Source"
     },
     "timing": {
+      "description": "Scenes only: how long the shell took with the sample.",
       "anyOf": [
         {
           "$ref": "#/$defs/Timing"
@@ -71,6 +79,7 @@
       "type": "object",
       "properties": {
         "looks": {
+          "description": "One per sense considered, in the order of the turn.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/Look"
@@ -82,9 +91,11 @@
       ]
     },
     "Bed": {
+      "description": "The bed: who is believed in it, seen or held.",
       "type": "object",
       "properties": {
         "held": {
+          "description": "Who is retained in the bed without being seen, oldest first.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/Held"
@@ -97,6 +108,7 @@
           "minimum": 0
         },
         "since": {
+          "description": "Since when `state` holds; `None` before the first turn.",
           "anyOf": [
             {
               "$ref": "#/$defs/SampleRef"
@@ -107,6 +119,7 @@
           ]
         },
         "state": {
+          "description": "Empty, seen, held or unknown.",
           "$ref": "#/$defs/BedState"
         },
         "unexplained": {
@@ -127,10 +140,9 @@
       "description": "Is someone in the bed?",
       "oneOf": [
         {
+          "description": "Nobody in the bed.",
           "type": "string",
-          "enum": [
-            "empty"
-          ]
+          "const": "empty"
         },
         {
           "description": "At least one visible occupant in the bed's stable count.",
@@ -150,15 +162,18 @@
       ]
     },
     "BodiesEvidence": {
+      "description": "The bodies of this sample.",
       "type": "object",
       "properties": {
         "items": {
+          "description": "One per admitted person, after consolidating overlapping boxes.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/BodySeen"
           }
         },
         "status": {
+          "description": "Whether there was a reading, with or without zones.",
           "$ref": "#/$defs/BodiesStatus"
         }
       },
@@ -168,11 +183,23 @@
       ]
     },
     "BodiesStatus": {
-      "type": "string",
-      "enum": [
-        "seen",
-        "unzoned",
-        "unavailable"
+      "description": "Whether this sample has bodies to show.",
+      "oneOf": [
+        {
+          "description": "The detector read and each body has its zone.",
+          "type": "string",
+          "const": "seen"
+        },
+        {
+          "description": "The detector read, but the bed geometry does not apply: no zones.",
+          "type": "string",
+          "const": "unzoned"
+        },
+        {
+          "description": "No body reading in this sample (the detector failed or nothing was\ndecoded).",
+          "type": "string",
+          "const": "unavailable"
+        }
       ]
     },
     "BodyPoint": {
@@ -180,6 +207,7 @@
       "type": "object",
       "properties": {
         "depth": {
+          "description": "Its depth, if it was measured.",
           "type": [
             "number",
             "null"
@@ -187,6 +215,7 @@
           "format": "float"
         },
         "name": {
+          "description": "The COCO-17 joint; `None` beyond the 17th keypoint.",
           "anyOf": [
             {
               "$ref": "#/$defs/Joint"
@@ -197,14 +226,17 @@
           ]
         },
         "score": {
+          "description": "The pose model's confidence in this keypoint.",
           "type": "number",
           "format": "float"
         },
         "x": {
+          "description": "Pixels from the left edge.",
           "type": "number",
           "format": "float"
         },
         "y": {
+          "description": "Pixels from the top edge.",
           "type": "number",
           "format": "float"
         }
@@ -216,25 +248,31 @@
       ]
     },
     "BodySeen": {
+      "description": "A body admitted in this sample.",
       "type": "object",
       "properties": {
         "bbox": {
+          "description": "The box, in image pixels.",
           "$ref": "#/$defs/Rect"
         },
         "confidence": {
+          "description": "The detector's score.",
           "type": "number",
           "format": "float"
         },
         "near_bed": {
+          "description": "On the floor: whether it touches the grown bed. Absent in bed.",
           "type": [
             "boolean",
             "null"
           ]
         },
         "source": {
+          "description": "Which detector saw it.",
           "$ref": "#/$defs/BodySource"
         },
         "zone": {
+          "description": "In bed or on the floor; `None` when the bed geometry does not apply.",
           "anyOf": [
             {
               "$ref": "#/$defs/Zone"
@@ -253,19 +291,29 @@
     },
     "BodySource": {
       "description": "Which detector the admitted body came from.",
-      "type": "string",
-      "enum": [
-        "primary",
-        "reinforcement"
+      "oneOf": [
+        {
+          "description": "The main detector, over the whole frame.",
+          "type": "string",
+          "const": "primary"
+        },
+        {
+          "description": "The finer detector, over the bed.",
+          "type": "string",
+          "const": "reinforcement"
+        }
       ]
     },
     "Build": {
+      "description": "The publishing binary.",
       "type": "object",
       "properties": {
         "git": {
+          "description": "The commit it was built from.",
           "type": "string"
         },
         "version": {
+          "description": "The crate version.",
           "type": "string"
         }
       },
@@ -278,6 +326,7 @@
       "description": "The learned bed depth and the sample it came from.",
       "oneOf": [
         {
+          "description": "The empty bed has not been learned.",
           "type": "object",
           "properties": {
             "status": {
@@ -290,13 +339,16 @@
           ]
         },
         {
+          "description": "The empty bed was learned.",
           "type": "object",
           "properties": {
             "reference_m": {
+              "description": "Its depth, on the depth model's scale (the name says metres, the\nvalue is relative: see `BodyPoint`).",
               "type": "number",
               "format": "float"
             },
             "since": {
+              "description": "The sample it was learned in; `None` if the profile brought it.",
               "anyOf": [
                 {
                   "$ref": "#/$defs/SampleRef"
@@ -328,11 +380,13 @@
       "type": "object",
       "properties": {
         "bed": {
+          "description": "Seen in the bed.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "floor": {
+          "description": "Seen off the bed.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -348,9 +402,11 @@
       "type": "object",
       "properties": {
         "bodies": {
+          "description": "The bodies admitted from the person detectors.",
           "$ref": "#/$defs/BodiesEvidence"
         },
         "faces": {
+          "description": "The faces admitted from the face detector.",
           "$ref": "#/$defs/FacesEvidence"
         }
       },
@@ -360,16 +416,20 @@
       ]
     },
     "FaceSeen": {
+      "description": "A face admitted in this sample.",
       "type": "object",
       "properties": {
         "bbox": {
+          "description": "The box, in image pixels.",
           "$ref": "#/$defs/Rect"
         },
         "confidence": {
+          "description": "The face detector's score.",
           "type": "number",
           "format": "float"
         },
         "on_subject": {
+          "description": "Whether it lies on the subject seen in this sample.",
           "type": "boolean"
         }
       },
@@ -380,15 +440,18 @@
       ]
     },
     "FacesEvidence": {
+      "description": "The faces of this sample.",
       "type": "object",
       "properties": {
         "items": {
+          "description": "The admitted faces.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/FaceSeen"
           }
         },
         "reason": {
+          "description": "Why faces were not looked for; only with `skipped`.",
           "anyOf": [
             {
               "$ref": "#/$defs/SkipReason"
@@ -399,6 +462,7 @@
           ]
         },
         "status": {
+          "description": "Whether faces were looked for and what came of it.",
           "$ref": "#/$defs/FacesStatus"
         }
       },
@@ -408,15 +472,32 @@
       ]
     },
     "FacesStatus": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "empty",
-        "failed",
-        "skipped"
+      "description": "What happened with faces in this sample.",
+      "oneOf": [
+        {
+          "description": "Looked for, and at least one admitted.",
+          "type": "string",
+          "const": "ok"
+        },
+        {
+          "description": "Looked for, and none admitted.",
+          "type": "string",
+          "const": "empty"
+        },
+        {
+          "description": "The face detector failed.",
+          "type": "string",
+          "const": "failed"
+        },
+        {
+          "description": "Not looked for; `reason` says why.",
+          "type": "string",
+          "const": "skipped"
+        }
       ]
     },
     "FailureKind": {
+      "description": "How a look failed, as published.",
       "oneOf": [
         {
           "description": "The shell could not complete the probe (shutdown).",
@@ -435,6 +516,7 @@
       "type": "object",
       "properties": {
         "seen": {
+          "description": "Occupants seen off the bed, in the stable count.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -449,11 +531,13 @@
       "type": "object",
       "properties": {
         "height": {
+          "description": "In pixels.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "width": {
+          "description": "In pixels.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -468,6 +552,7 @@
       "description": "Whether the delimited bed matches the incoming image.",
       "oneOf": [
         {
+          "description": "The image has the resolution the bed was delimited for.",
           "type": "object",
           "properties": {
             "type": {
@@ -484,9 +569,11 @@
           "type": "object",
           "properties": {
             "actual": {
+              "description": "The resolution of the incoming image.",
               "$ref": "#/$defs/FrameInfo"
             },
             "declared": {
+              "description": "The resolution the bed was delimited for.",
               "$ref": "#/$defs/FrameInfo"
             },
             "type": {
@@ -507,6 +594,7 @@
       "type": "object",
       "properties": {
         "bbox": {
+          "description": "Where they were last seen, in image pixels.",
           "$ref": "#/$defs/Rect"
         },
         "last_seen": {
@@ -543,12 +631,15 @@
       ]
     },
     "LayerRef": {
+      "description": "A layer of the profile, by name and revision.",
       "type": "object",
       "properties": {
         "id": {
+          "description": "The layer's name.",
           "type": "string"
         },
         "version": {
+          "description": "Its revision; `0` while layers are not versioned.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -564,9 +655,11 @@
       "type": "object",
       "properties": {
         "kind": {
+          "description": "Which sense.",
           "$ref": "#/$defs/LookKind"
         },
         "outcome": {
+          "description": "Asked, with what came back, or skipped, with why.",
           "$ref": "#/$defs/LookOutcome"
         }
       },
@@ -611,6 +704,7 @@
       ]
     },
     "LookOutcome": {
+      "description": "What came of a look.",
       "oneOf": [
         {
           "description": "A look was requested.",
@@ -628,6 +722,7 @@
               ]
             },
             "result": {
+              "description": "What the sense returned.",
               "$ref": "#/$defs/LookResult"
             },
             "spent_ms": {
@@ -651,6 +746,7 @@
           "type": "object",
           "properties": {
             "reason": {
+              "description": "Why not.",
               "$ref": "#/$defs/SkipReason"
             },
             "type": {
@@ -673,11 +769,13 @@
           "type": "object",
           "properties": {
             "candidates": {
+              "description": "How many the sense returned, before admission.",
               "type": "integer",
               "format": "uint32",
               "minimum": 0
             },
             "rejected": {
+              "description": "The discarded ones, grouped by reason.",
               "type": "array",
               "items": {
                 "$ref": "#/$defs/Rejected"
@@ -699,6 +797,7 @@
           "type": "object",
           "properties": {
             "failure": {
+              "description": "How it failed.",
               "$ref": "#/$defs/FailureKind"
             },
             "type": {
@@ -718,9 +817,11 @@
       "type": "object",
       "properties": {
         "provenance": {
+          "description": "That of the pose it was concluded from.",
           "$ref": "#/$defs/Provenance"
         },
         "state": {
+          "description": "Confirmed, assumed, no or unknown.",
           "$ref": "#/$defs/LyingState"
         }
       },
@@ -759,15 +860,19 @@
       "type": "object",
       "properties": {
         "bed": {
+          "description": "The bed's four corners on the image, clockwise.",
           "$ref": "#/$defs/Quad"
         },
         "calibration": {
+          "description": "What the map learned about the empty bed.",
           "$ref": "#/$defs/Calibration"
         },
         "geometry": {
+          "description": "Whether the delimited bed applies to this image.",
           "$ref": "#/$defs/Geometry"
         },
         "headboard": {
+          "description": "Where faces are looked for when nobody is in sight.",
           "anyOf": [
             {
               "$ref": "#/$defs/Rect"
@@ -788,10 +893,9 @@
       "description": "The mode of the layer-0 machine: the name of its state.",
       "oneOf": [
         {
+          "description": "Nobody in the room.",
           "type": "string",
-          "enum": [
-            "empty"
-          ]
+          "const": "empty"
         },
         {
           "description": "One occupant, off the bed.",
@@ -820,6 +924,7 @@
       "type": "object",
       "properties": {
         "counts": {
+          "description": "The new count per zone, waiting to hold.",
           "$ref": "#/$defs/Counts"
         },
         "duration": {
@@ -834,10 +939,17 @@
     },
     "Phase": {
       "description": "The phase of rule 6: until the first climb into bed, whatever appears in\nit is adopted.",
-      "type": "string",
-      "enum": [
-        "booting",
-        "running"
+      "oneOf": [
+        {
+          "description": "The bed has no history yet: whoever is clearly seen in it is adopted.",
+          "type": "string",
+          "const": "booting"
+        },
+        {
+          "description": "Someone climbed into bed from the floor: the bed only rises from it.",
+          "type": "string",
+          "const": "running"
+        }
       ]
     },
     "Point": {
@@ -845,10 +957,12 @@
       "type": "object",
       "properties": {
         "x": {
+          "description": "Pixels from the left edge.",
           "type": "number",
           "format": "float"
         },
         "y": {
+          "description": "Pixels from the top edge.",
           "type": "number",
           "format": "float"
         }
@@ -863,12 +977,14 @@
       "type": "object",
       "properties": {
         "keypoints": {
+          "description": "In COCO-17 order.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/BodyPoint"
           }
         },
         "provenance": {
+          "description": "Taken in this sample, or stable since a sample in which the subject\ndid not move.",
           "$ref": "#/$defs/Provenance"
         }
       },
@@ -898,9 +1014,11 @@
           "format": "float"
         },
         "provenance": {
+          "description": "That of the pose it was concluded from.",
           "$ref": "#/$defs/Provenance"
         },
         "state": {
+          "description": "Lying, upright or unknown.",
           "$ref": "#/$defs/PostureState"
         },
         "upper": {
@@ -938,9 +1056,11 @@
       ]
     },
     "Profile": {
+      "description": "The configuration the engine ran with, as the consumer needs to compare runs.",
       "type": "object",
       "properties": {
         "camera": {
+          "description": "The camera layer of the profile.",
           "anyOf": [
             {
               "$ref": "#/$defs/LayerRef"
@@ -951,9 +1071,11 @@
           ]
         },
         "hash": {
+          "description": "Two runs with the same hash believed with the same policy and map.",
           "$ref": "#/$defs/ProfileHash"
         },
         "resident": {
+          "description": "The resident layer of the profile; `None` while there is none.",
           "anyOf": [
             {
               "$ref": "#/$defs/LayerRef"
@@ -984,10 +1106,12 @@
       "type": "object",
       "properties": {
         "have": {
+          "description": "What has been reached.",
           "type": "number",
           "format": "double"
         },
         "need": {
+          "description": "What is required.",
           "type": "number",
           "format": "double"
         }
@@ -1018,6 +1142,7 @@
           "type": "object",
           "properties": {
             "since": {
+              "description": "The last sample it was observed in.",
               "$ref": "#/$defs/SampleRef"
             },
             "type": {
@@ -1035,6 +1160,7 @@
           "type": "object",
           "properties": {
             "since": {
+              "description": "The sample it was computed in.",
               "$ref": "#/$defs/SampleRef"
             },
             "type": {
@@ -1063,18 +1189,22 @@
       "type": "object",
       "properties": {
         "x0": {
+          "description": "Left edge, in pixels.",
           "type": "number",
           "format": "float"
         },
         "x1": {
+          "description": "Right edge, in pixels.",
           "type": "number",
           "format": "float"
         },
         "y0": {
+          "description": "Top edge, in pixels.",
           "type": "number",
           "format": "float"
         },
         "y1": {
+          "description": "Bottom edge, in pixels.",
           "type": "number",
           "format": "float"
         }
@@ -1090,11 +1220,14 @@
       "description": "Why a candidate did not count as evidence.",
       "oneOf": [
         {
+          "description": "Another class than a person.",
           "type": "string",
-          "enum": [
-            "not_person",
-            "low_confidence"
-          ]
+          "const": "not_person"
+        },
+        {
+          "description": "Below the policy's minimum confidence.",
+          "type": "string",
+          "const": "low_confidence"
         },
         {
           "description": "Outside the region where the look was requested.",
@@ -1107,11 +1240,13 @@
       "type": "object",
       "properties": {
         "count": {
+          "description": "How many, for that reason.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "reason": {
+          "description": "Why they did not count.",
           "$ref": "#/$defs/RejectReason"
         }
       },
@@ -1161,6 +1296,7 @@
           ]
         },
         "reason": {
+          "description": "Why this sample was not observed.",
           "$ref": "#/$defs/RepublishReason"
         }
       },
@@ -1184,14 +1320,17 @@
           ]
         },
         "mode": {
+          "description": "The machine's state.",
           "$ref": "#/$defs/Mode"
         },
         "occupants": {
+          "description": "How many people are in the room, seen or retained.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "pending": {
+          "description": "A new count that has not held long enough yet.",
           "anyOf": [
             {
               "$ref": "#/$defs/Pending"
@@ -1202,6 +1341,7 @@
           ]
         },
         "phase": {
+          "description": "Whether the bed has history yet (rule 6).",
           "$ref": "#/$defs/Phase"
         },
         "since": {
@@ -1227,14 +1367,17 @@
       "type": "object",
       "properties": {
         "sequence": {
+          "description": "The sample's number, increasing within the run.",
           "type": "integer",
           "format": "uint64",
           "minimum": 0
         },
         "session": {
+          "description": "The stream session: a reconnection starts a new one.",
           "$ref": "#/$defs/SessionId"
         },
         "source_secs": {
+          "description": "The sample's presentation time, comparable only within its session.",
           "$ref": "#/$defs/SourceSecs"
         }
       },
@@ -1249,18 +1392,23 @@
       "type": "object",
       "properties": {
         "attention": {
+          "description": "What the core looked at in this turn, and why not the rest.",
           "$ref": "#/$defs/Attention"
         },
         "bed": {
+          "description": "Who is believed in bed.",
           "$ref": "#/$defs/Bed"
         },
         "evidence": {
+          "description": "What was admitted in this sample.",
           "$ref": "#/$defs/Evidence"
         },
         "floor": {
+          "description": "Who is seen off the bed.",
           "$ref": "#/$defs/Floor"
         },
         "frame": {
+          "description": "The image size the turn worked on; `None` before the first image.",
           "anyOf": [
             {
               "$ref": "#/$defs/FrameInfo"
@@ -1271,10 +1419,11 @@
           ]
         },
         "map": {
+          "description": "The bed geometry and what the map learned.",
           "$ref": "#/$defs/MapState"
         },
         "republished": {
-          "description": "Present only if this scene does not come from a new observation (P-5).",
+          "description": "Present only if this scene does not come from a new observation (rule 2).",
           "anyOf": [
             {
               "$ref": "#/$defs/Republished"
@@ -1285,12 +1434,15 @@
           ]
         },
         "room": {
+          "description": "How many are in the room and the machine's mode.",
           "$ref": "#/$defs/Room"
         },
         "sensor": {
+          "description": "The reception, as the shell reported it.",
           "$ref": "#/$defs/SensorState"
         },
         "subject": {
+          "description": "The room's only occupant, when there is exactly one.",
           "anyOf": [
             {
               "$ref": "#/$defs/Subject"
@@ -1313,10 +1465,17 @@
     },
     "SchemaId": {
       "description": "Which schema a v4 message carries.",
-      "type": "string",
-      "enum": [
-        "calipso.scene.v4",
-        "calipso.events.v4"
+      "oneOf": [
+        {
+          "description": "One scene per sample.",
+          "type": "string",
+          "const": "calipso.scene.v4"
+        },
+        {
+          "description": "Every event, in order.",
+          "type": "string",
+          "const": "calipso.events.v4"
+        }
       ]
     },
     "SenseProfile": {
@@ -1329,6 +1488,7 @@
           "format": "float"
         },
         "kind": {
+          "description": "The look this sense answers.",
           "$ref": "#/$defs/LookKind"
         },
         "min_confidence": {
@@ -1352,12 +1512,27 @@
     },
     "SensorState": {
       "description": "The reception state, as the shell reports it. It says nothing about the bed.",
-      "type": "string",
-      "enum": [
-        "connecting",
-        "streaming",
-        "stalled",
-        "reconnecting"
+      "oneOf": [
+        {
+          "description": "Opening the stream.",
+          "type": "string",
+          "const": "connecting"
+        },
+        {
+          "description": "Samples are arriving.",
+          "type": "string",
+          "const": "streaming"
+        },
+        {
+          "description": "Connected, but no sample within the stall timeout.",
+          "type": "string",
+          "const": "stalled"
+        },
+        {
+          "description": "The stream dropped; trying again.",
+          "type": "string",
+          "const": "reconnecting"
+        }
       ]
     },
     "SessionId": {
@@ -1431,15 +1606,19 @@
       "type": "object",
       "properties": {
         "build": {
+          "description": "The binary that published.",
           "$ref": "#/$defs/Build"
         },
         "camera": {
+          "description": "The camera within the site (a subject token).",
           "type": "string"
         },
         "run_id": {
+          "description": "One per process start: a new run restarts every numbering.",
           "type": "string"
         },
         "site": {
+          "description": "The site the camera belongs to (a subject token).",
           "type": "string"
         }
       },
@@ -1460,13 +1639,16 @@
       "type": "object",
       "properties": {
         "bbox": {
+          "description": "Their box, in image pixels.",
           "$ref": "#/$defs/Rect"
         },
         "confidence": {
+          "description": "The detector's score for that box.",
           "type": "number",
           "format": "float"
         },
         "depth": {
+          "description": "The subject's depth, when the policy measures it.",
           "anyOf": [
             {
               "$ref": "#/$defs/SubjectDepth"
@@ -1488,6 +1670,7 @@
           ]
         },
         "pose": {
+          "description": "The subject's pose, when the policy takes it.",
           "anyOf": [
             {
               "$ref": "#/$defs/Pose"
@@ -1509,9 +1692,11 @@
           ]
         },
         "provenance": {
+          "description": "Whether the box was seen in this turn or is held from before.",
           "$ref": "#/$defs/Provenance"
         },
         "zone": {
+          "description": "Where the subject is: in bed or on the floor.",
           "$ref": "#/$defs/Zone"
         }
       },
@@ -1527,10 +1712,12 @@
       "type": "object",
       "properties": {
         "meters": {
+          "description": "On the depth model's scale (the name says metres, the value is\nrelative).",
           "type": "number",
           "format": "float"
         },
         "provenance": {
+          "description": "Measured in this sample, or stable with the pose.",
           "$ref": "#/$defs/Provenance"
         }
       },
@@ -1540,13 +1727,16 @@
       ]
     },
     "Timing": {
+      "description": "How long the shell took with a sample, in wall-clock milliseconds. It is\nmeasured by the shell and never decides anything (rule 9).",
       "type": "object",
       "properties": {
         "processing_ms": {
+          "description": "The whole turn: decoding, every look and the projection.",
           "type": "number",
           "format": "double"
         },
         "wait_ms": {
+          "description": "From the sample's arrival to the start of its turn.",
           "type": "number",
           "format": "double"
         }
