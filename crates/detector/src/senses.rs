@@ -23,14 +23,14 @@ impl Frame for DynamicImage {
 }
 
 /// Who looks: it answers each probe over the sample's frame.
-pub trait Senses {
+pub trait SensesPort {
     type Frame: Frame;
     fn look(&mut self, frame: &Self::Frame, request: &Request)
     -> (Result<Reading, Failure>, Spent);
 }
 
 /// Live: the models over the image.
-impl Senses for sense::Senses {
+impl SensesPort for sense::Senses {
     type Frame = DynamicImage;
     fn look(
         &mut self,
@@ -54,7 +54,7 @@ impl Frame for golden::world::Sample {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Scripted;
 
-impl Senses for Scripted {
+impl SensesPort for Scripted {
     type Frame = golden::world::Sample;
     fn look(
         &mut self,

@@ -241,23 +241,23 @@ proptest! {
     #[test]
     fn pr3_a_wrong_feed_is_rejected_and_the_turn_stays_usable(sequence in sequences(), bogus in any::<u32>()) {
         let mut monitor = monitor();
-        // At least one batch is tested even if the generated sequence has no samples.
+        // At least one look is tested even if the generated sequence has no samples.
         let first = Input::Sample { at: SampleRef { session: SessionId(1),sequence: 0,source_secs: SourceSecs(0.0) },frame: FrameInfo { width: 640,height: 480 } };
         for input in std::iter::once(first).chain(sequence.into_iter().map(|(input,_)|input)) {
             let mut turn = monitor.handle(input);
             let mut checks = Vec::new();
-            while let Step::Look(batch) = turn.poll() {
-                let requests: Vec<Request> = batch.to_vec();
-                for request in &requests {
-                    let foreign = LookId(if requests.iter().any(|r|r.id == LookId(bogus)) { request.id.0 ^ u32::MAX } else { bogus });
+            while let Step::Look(request) = turn.poll() {
+                let request: Request = request.clone();
+                {
+                    let foreign = LookId(if request.id == LookId(bogus) { request.id.0 ^ u32::MAX } else { bogus });
                     let rejected_id = turn.feed(Outcome { id: foreign,result: Err(Failure::Model),spent: Spent(0.0) });
                     let wrong = if request.probe.accepts(&Reading::Bodies(vec![])) { Reading::Faces(vec![]) } else { Reading::Bodies(vec![]) };
                     let expected = scene_core::contract::ProbeKindMismatch { expected: request.probe.kind(),got: wrong.kind() };
                     let rejected_kind = turn.feed(Outcome { id: request.id,result: Ok(wrong),spent: Spent(0.0) });
-                    let same_batch = matches!(turn.poll(), Step::Look(batch) if batch == requests);
+                    let same_look = matches!(turn.poll(), Step::Look(pending) if *pending == request);
                     let accepted = turn.feed(Outcome { id: request.id,result: Ok(matching_empty(&request.probe)),spent: Spent(1.0) });
                     let duplicate = turn.feed(Outcome { id: request.id,result: Err(Failure::Cancelled),spent: Spent(0.0) });
-                    checks.push((rejected_id == Err(FeedError::UnknownId(foreign)),rejected_kind == Err(FeedError::KindMismatch(expected)),same_batch,accepted.is_ok(),duplicate == Err(FeedError::Duplicate(request.id))));
+                    checks.push((rejected_id == Err(FeedError::UnknownId(foreign)),rejected_kind == Err(FeedError::KindMismatch(expected)),same_look,accepted.is_ok(),duplicate == Err(FeedError::Duplicate(request.id))));
                 }
             }
             // Close before the assertions: no test path abandons Turn.

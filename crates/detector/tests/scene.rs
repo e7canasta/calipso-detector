@@ -94,7 +94,7 @@ mod contract_of_the_fake {
     //! to the frame. For each probe, the real one with perfect models and the
     //! fake answer the same.
     use super::*;
-    use detector::senses::Senses;
+    use detector::senses::SensesPort;
     use golden::language::{Expected, Faces, InBed, Location, Samples, Span};
     use image::DynamicImage;
     use scene_core::geom::Rect;
@@ -184,7 +184,7 @@ mod contract_of_the_fake {
                     probe: probe.clone(),
                 };
                 let (from_real, _) = real.look(&image, &request);
-                let (from_fake, _) = Senses::look(&mut fake, &m, &request);
+                let (from_fake, _) = SensesPort::look(&mut fake, &m, &request);
                 assert_eq!(from_real, from_fake, "{faces:?} {probe:?}");
             }
         }

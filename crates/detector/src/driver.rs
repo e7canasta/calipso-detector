@@ -1,7 +1,7 @@
 //! Translates and delivers: every scene decision belongs to Monitor. The
 //! driver does not know where samples come from or who looks: a
-//! [`SampleSource`] and some [`Senses`] are injected into it.
-use crate::senses::{Frame, Senses};
+//! [`SampleSource`] and a [`SensesPort`] are injected into it.
+use crate::senses::{Frame, SensesPort};
 use crate::sensor::{self, Sensor};
 use crate::source::{Arrival, SampleSource};
 use ingest::{IngestError, Stamp, StreamEvent};
@@ -30,7 +30,7 @@ pub fn stamp_to_ref(stamp: Stamp) -> SampleRef {
 }
 /// The driver of one camera. By default, with the live senses.
 #[derive(Debug)]
-pub struct Driver<S: Senses = sense::Senses> {
+pub struct Driver<S: SensesPort = sense::Senses> {
     monitor: Monitor,
     senses: S,
     sensor: Sensor,
@@ -38,7 +38,7 @@ pub struct Driver<S: Senses = sense::Senses> {
     session: u64,
     stall_timeout: Duration,
 }
-impl<S: Senses> Driver<S> {
+impl<S: SensesPort> Driver<S> {
     pub fn new(policy: Policy, map: SiteMap, senses: S, stall_timeout: Duration) -> Self {
         Self {
             monitor: Monitor::new(policy, map),

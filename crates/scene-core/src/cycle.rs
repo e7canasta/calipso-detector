@@ -216,15 +216,15 @@ enum Reached {
 /// What the core does after each `poll`.
 #[derive(Debug, PartialEq)]
 pub enum Step<'a> {
-    /// A batch of looks, in order.
-    Look(&'a [Request]),
+    /// The next look the core needs to continue the turn.
+    Look(&'a Request),
     Done,
 }
 
 /// Protocol misuse by the shell. It never changes anything.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeedError {
-    /// The id does not belong to the current batch.
+    /// The id is not the look the turn is waiting for.
     UnknownId(LookId),
     /// A result was already delivered for that id; the first is kept.
     Duplicate(LookId),
@@ -232,11 +232,38 @@ pub enum FeedError {
     KindMismatch(ProbeKindMismatch),
 }
 
+impl std::fmt::Display for FeedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownId(id) => write!(f, "{id} is not the look the turn is waiting for"),
+            Self::Duplicate(id) => write!(f, "{id} was already answered; the first answer is kept"),
+            Self::KindMismatch(mismatch) => mismatch.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for FeedError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::KindMismatch(mismatch) => Some(mismatch),
+            Self::UnknownId(_) | Self::Duplicate(_) => None,
+        }
+    }
+}
+
 /// `finish` too early: returns the turn so it can be completed.
 #[derive(Debug)]
 pub struct Incomplete<'m> {
     pub turn: Box<Turn<'m>>,
 }
+
+impl std::fmt::Display for Incomplete<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the turn still waits for a look; feed it or cancel it")
+    }
+}
+
+impl std::error::Error for Incomplete<'_> {}
 
 /// What comes out of a turn: the scene of the sample and the events it
 /// explains, in the published contract.
@@ -261,11 +288,11 @@ pub struct Turn<'m> {
 }
 
 impl<'m> Turn<'m> {
-    /// What must be looked at? With the batch incomplete, returns the same one.
+    /// What must be looked at? Until it is answered, returns the same look.
     pub fn poll(&mut self) -> Step<'_> {
         self.advance_ready();
         match &self.phase {
-            Phase::Waiting(waiting) => Step::Look(std::slice::from_ref(waiting.request())),
+            Phase::Waiting(waiting) => Step::Look(waiting.request()),
             _ => Step::Done,
         }
     }
@@ -284,7 +311,7 @@ impl<'m> Turn<'m> {
         }
     }
 
-    /// Delivers what the shell saw for a probe of the batch.
+    /// Delivers what the shell saw for the pending look.
     pub fn feed(&mut self, outcome: Outcome) -> Result<(), FeedError> {
         let Phase::Waiting(waiting) = &mut self.phase else {
             return Err(FeedError::UnknownId(outcome.id));
@@ -398,8 +425,8 @@ impl<'m> Turn<'m> {
         self.wait(|id| Waiting::primary(id, region));
     }
 
-    /// The order of a turn (chapter 02). It lives here and nowhere else: at each
-    /// point `attention` is asked and a batch is requested or the turn goes on.
+    /// The order of a turn. It lives here and nowhere else: at each
+    /// point `attention` is asked and a look is requested or the turn goes on.
     ///
     /// ```text
     /// Primary → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
@@ -504,7 +531,7 @@ impl<'m> Turn<'m> {
         }
     }
 
-    /// The batch arrived: it is interpreted and the turn continues where it was.
+    /// The reading arrived: it is interpreted and the turn continues where it was.
     fn advance(&mut self, stage: Awaiting, request: &Request, outcome: Outcome) {
         let spent = outcome.spent;
         let reached = match stage {
@@ -646,7 +673,7 @@ impl<'m> Turn<'m> {
         belief.observe(self.at, bodies, policy)
     }
 
-    /// Requests a batch and waits in `phase`.
+    /// Requests a look and waits in `phase`.
     fn wait(&mut self, make: impl FnOnce(LookId) -> Waiting) {
         self.phase = Phase::Waiting(make(self.monitor.engine.next_id()));
     }
@@ -718,7 +745,7 @@ mod tests {
 
     fn first_request(turn: &mut Turn<'_>) -> Request {
         match turn.poll() {
-            Step::Look(batch) => batch[0].clone(),
+            Step::Look(request) => request.clone(),
             Step::Done => panic!("a probe was expected"),
         }
     }
@@ -774,7 +801,7 @@ mod tests {
     }
 
     #[test]
-    fn poll_with_an_incomplete_batch_returns_the_same_one() {
+    fn poll_before_the_answer_returns_the_same_look() {
         let mut m = monitor();
         let mut turn = m.handle(sample(1.0));
         let a = first_request(&mut turn);
@@ -786,7 +813,7 @@ mod tests {
     }
 
     #[test]
-    fn an_id_foreign_to_the_batch_changes_nothing() {
+    fn an_id_foreign_to_the_pending_look_changes_nothing() {
         let mut m = monitor();
         let mut turn = m.handle(sample(1.0));
         let r = first_request(&mut turn);

@@ -234,6 +234,40 @@ pub struct ProbeKindMismatch {
     pub got: LookKind,
 }
 
+impl LookKind {
+    /// Its published name (`detect`, `faces`…).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Detect => "detect",
+            Self::Faces => "faces",
+            Self::Reinforce => "reinforce",
+            Self::Pose => "pose",
+            Self::Depth => "depth",
+            Self::Calibrate => "calibrate",
+        }
+    }
+}
+
+impl std::fmt::Display for LookKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::fmt::Display for LookId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "look {}", self.0)
+    }
+}
+
+impl std::fmt::Display for ProbeKindMismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "a {} reading for a {} probe", self.got, self.expected)
+    }
+}
+
+impl std::error::Error for ProbeKindMismatch {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum FailureKind {

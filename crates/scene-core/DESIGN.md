@@ -70,6 +70,10 @@ number.
 | C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same `finish`: they cannot tell different things | |
 | C5 | **A test proves it.** While two versions are published together, a test lowers the new one to the old one on every turn of the suites; it is retired with the old version | Metamorphic testing |
 
+A published version is frozen (C1), so its types are deliberately **not**
+`#[non_exhaustive]`: a consumer may `match` them exhaustively, and the compiler
+tells them what a new version changed when they move to it.
+
 ## 2. Invariants
 
 What no change may break. Each one has someone watching it.
