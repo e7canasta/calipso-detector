@@ -1,6 +1,6 @@
 # Rule 15 in the shell (R6-7): a @shell scenario with an undefined step must
 # make the detector harness fail.
-cat > features/r6/fixture-shell-without-steps.feature <<'FEATURE'
+cat > features/shell/fixture-without-steps.feature <<'FEATURE'
 # language: en
 @shell
 Feature: Shell fixture

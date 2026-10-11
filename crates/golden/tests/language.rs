@@ -7,7 +7,7 @@ use golden::language::{
 };
 
 const S1: &str = include_str!("../../../golden/s1-staff-put-to-bed.md");
-const FEATURE_203: &str = include_str!("../../../features/r4/203-accompanied/accompanied.feature");
+const FEATURE_203: &str = include_str!("../../../features/occupancy/accompanied.feature");
 
 /// The table rows of a scenario of a feature.
 fn scenario_rows<'a>(feature: &'a str, name: &str) -> Vec<&'a str> {

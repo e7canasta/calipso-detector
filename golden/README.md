@@ -1,7 +1,7 @@
 # Golden scenes
 
 Each file is a scene: a night in spans, in the same language as the Gherkin
-tables of `features/r4` and `features/r6`. The `golden` crate reads it
+tables of `features/occupancy` and `features/attention`. The `golden` crate reads it
 ([language](../crates/golden/src/language.rs)).
 
 ```markdown

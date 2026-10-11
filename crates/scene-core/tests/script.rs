@@ -285,11 +285,9 @@ pub enum Setup {
 /// The scenario of a canonical episode, read with the cucumber parser: its
 /// set-up and its span table.
 pub fn episode_scenario(n: u32) -> (Setup, Vec<Span>) {
-    const RETENTION: &str =
-        include_str!("../../../features/r4/202-the-bed-retains/retention.feature");
-    const ACCOMPANIED: &str =
-        include_str!("../../../features/r4/203-accompanied/accompanied.feature");
-    const CONTRACT: &str = include_str!("../../../features/r4/301-contract-v3/contract.feature");
+    const RETENTION: &str = include_str!("../../../features/occupancy/retention.feature");
+    const ACCOMPANIED: &str = include_str!("../../../features/occupancy/accompanied.feature");
+    const CONTRACT: &str = include_str!("../../../features/contract/v3.feature");
     let (feature, name) = match n {
         1 => (ACCOMPANIED, "The staff put the resident to bed and leave"),
         2 => (

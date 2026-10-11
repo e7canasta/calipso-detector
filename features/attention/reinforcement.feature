@@ -75,3 +75,26 @@ Feature: The reinforcement policy
       | 12-15   | 0        |       | 0      | 0                    | 1         | occupied, held |
       | 16-20   | 0        |       | 1      | 0                    | 1         | occupied, seen |
     Then the same night, replayed with the same readings, gives the same scenes and events
+
+  Rule: Failing reinforcement does not spend the loss
+    If the finer detector fails looking at the bed, it tries again on the next
+    sample: a loss is not left unchecked because of an instrument failure.
+
+    Scenario: While the main detector sees someone in bed, there is no loss to reinforce
+      Given the resident came in alone and lay down in samples 1 to 10
+      Then reinforcement was not requested
+
+    Scenario: If reinforcement fails, it is requested again on the next sample
+      Given the resident came in alone and lay down in samples 1 to 10
+      And reinforcement fails
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | occupants | bed            |
+        | 11-12   | 0        |       | 0      | 1         | occupied, seen |
+      Then reinforcement was requested in samples 11 and 12
+
+    Scenario: If reinforcement looked, the loss is checked only once
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | occupants | bed            |
+        | 11-14   | 0        |       | 0      | 1         | occupied, held |
+      Then reinforcement was requested only in sample 11
