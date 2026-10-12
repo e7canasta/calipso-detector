@@ -136,6 +136,49 @@
         "unexplained"
       ]
     },
+    "BedPoint": {
+      "description": "A published bed point: which site, where it falls in the image and its\ndepth, read in the same depth map as the body's keypoints.",
+      "type": "object",
+      "properties": {
+        "depth": {
+          "description": "Its depth on the depth model's scale, if it was read.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "name": {
+          "description": "The site.",
+          "$ref": "#/$defs/BedSite"
+        },
+        "x": {
+          "description": "Pixels from the left edge.",
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "description": "Pixels from the top edge.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "name",
+        "x",
+        "y"
+      ]
+    },
+    "BedSite": {
+      "description": "A fixed place on the bed where depth is read in the same look as the body:\ncovered, the bed stands in for what the pose does not see (R17).",
+      "oneOf": [
+        {
+          "description": "The middle of the bed: lying, the hips, under the blanket or not.",
+          "type": "string",
+          "const": "centre"
+        }
+      ]
+    },
     "BedState": {
       "description": "Is someone in the bed?",
       "oneOf": [
@@ -464,6 +507,14 @@
         },
         "shoulders_pelvis": {
           "description": "The shoulders alone against the pelvis.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "upper_bed_centre": {
+          "description": "Head and shoulders against the bed's centre: the stand-in for the\nhips, the baseline when the blanket hides them (R17). Absent in scenes\nrecorded before it, and without the bed's points.",
           "type": [
             "number",
             "null"
@@ -1101,6 +1152,13 @@
       "description": "The published posture, with its evidence on the depth model's (relative)\nscale and the pose's provenance.",
       "type": "object",
       "properties": {
+        "bed_points": {
+          "description": "The bed's points, read in the same depth map as the keypoints: covered,\nthe bed's centre is the blanket over the hips (R17). Absent in scenes\nrecorded before them, and without the bed's geometry.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BedPoint"
+          }
+        },
         "disparities": {
           "description": "Each disparity against the pelvis; `upper_pelvis` is `disparity`.",
           "anyOf": [

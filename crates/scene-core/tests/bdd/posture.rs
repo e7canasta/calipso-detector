@@ -369,3 +369,35 @@ fn subject_on_the_floor(ward: &mut Ward, n: u32) {
     let scene = serde_json::to_value(scene(ward, n)).expect("the scene serializes");
     assert_eq!(scene["subject"]["zone"], "floor", "{}", scene["subject"]);
 }
+
+// --- The bed's points (R17): measured in the same look as the body
+
+/// The bed point `name` the posture of sample `n` published.
+fn bed_point(ward: &Ward, n: u32, name: &str) -> Value {
+    let posture = posture(ward, n);
+    posture["bed_points"]
+        .as_array()
+        .and_then(|points| points.iter().find(|p| p["name"] == name))
+        .unwrap_or_else(|| panic!("in sample {n} there is no bed point {name}: {posture}"))
+        .clone()
+}
+
+#[then(expr = "in sample {int} the bed point {string} was measured at the bed's centre")]
+fn bed_point_at_the_centre(ward: &mut Ward, n: u32, name: String) {
+    let p = bed_point(ward, n, &name);
+    let centre = crate::ward::BED.centroid();
+    let at = |key: &str| p[key].as_f64().unwrap_or_else(|| panic!("{p}"));
+    assert!((at("x") - f64::from(centre.x)).abs() < 1e-3, "{p}");
+    assert!((at("y") - f64::from(centre.y)).abs() < 1e-3, "{p}");
+    assert!(p["depth"].is_number(), "{p}");
+}
+
+#[then(expr = "in sample {int} the head is farther from the camera than the bed point {string}")]
+fn head_beyond_the_bed_point(ward: &mut Ward, n: u32, name: String) {
+    let head = posture(ward, n)["groups"]["head"]["depth"].as_f64();
+    let point = bed_point(ward, n, &name)["depth"].as_f64();
+    assert!(
+        head.zip(point).is_some_and(|(head, point)| head > point),
+        "head {head:?}, {name} {point:?}"
+    );
+}

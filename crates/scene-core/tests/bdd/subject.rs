@@ -340,8 +340,9 @@ fn depth_over_the_frame(ward: &mut Ward, n: u32, which: String) {
     assert_eq!(depth_region(ward, n, &which), None);
 }
 
-#[then(expr = "in sample {int} depth was requested at {int} points")]
-fn depth_at_points(ward: &mut Ward, n: u32, points: u32) {
+#[then(expr = "in sample {int} depth was requested at {int} keypoints and {int} bed point(s)")]
+fn depth_at_points(ward: &mut Ward, n: u32, keypoints: u32, bed: u32) {
+    let points = keypoints + bed;
     let read = scene(ward, n)
         .attention
         .looks

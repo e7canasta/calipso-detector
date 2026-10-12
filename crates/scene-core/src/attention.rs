@@ -4,7 +4,7 @@
 //! in `cycle` (rule 11).
 
 use crate::belief::{Alone, Belief, Believed, InBed, LatchState, Room};
-use crate::body::Keypoint;
+use crate::body::{BedSite, Keypoint};
 use crate::estimation;
 use crate::evidence::BodyEvidence;
 use crate::evidence::FaceEvidence;
@@ -16,6 +16,7 @@ use crate::look::{Failure, LookKind};
 use crate::map::{Geometry, Map};
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
+use crate::refine::BedPlane;
 use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -238,27 +239,45 @@ fn depth_lens(g: &Glimpse<'_>, policy: &Policy) -> Result<Option<Rect>, SkipReas
     }
 }
 
+/// Whose depth a point of the subject's look reads: a pose keypoint's, by its
+/// index in the pose, or a bed site's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Target {
+    Keypoint(usize),
+    Bed(BedSite),
+}
+
 /// Measure the subject's depth? At the pose keypoints with enough score, each
-/// with its index in the pose so the reading returns to its keypoint, through
-/// the depth lens; without a depth model there is nothing to decide.
+/// with its index in the pose so the reading returns to its keypoint, and at
+/// the bed's sites, in the same look: covered, the bed stands in for what the
+/// pose does not see, read in the same depth map (R17). Through the depth
+/// lens; without a depth model there is nothing to decide.
 pub(crate) fn deepen(
     g: &Glimpse<'_>,
     pose: Option<&[Keypoint]>,
     policy: &Policy,
-) -> Consideration<DepthLook<(usize, Point)>> {
+) -> Consideration<DepthLook<(Target, Point)>> {
     let lens = depth_lens(g, policy);
     let Some(policy) = policy.enrich.as_ref().filter(|p| p.depth) else {
         return Consideration::Disabled;
     };
-    let points: Vec<(usize, Point)> = pose
+    let mut points: Vec<(Target, Point)> = pose
         .unwrap_or_default()
         .iter()
         .enumerate()
         .filter(|(_, k)| k.score >= policy.min_keypoint_score)
-        .map(|(i, k)| (i, Point { x: k.x, y: k.y }))
+        .map(|(i, k)| (Target::Keypoint(i), Point { x: k.x, y: k.y }))
         .collect();
+    if points.is_empty() {
+        return Consideration::Decided(Decision::Skip(SkipReason::NoPose));
+    }
+    if let Some(plane) = g.map.bed_for(g.geometry).and_then(BedPlane::of) {
+        points.extend(BedSite::ALL.map(|site| {
+            let (u, v) = site.at();
+            (Target::Bed(site), plane.point(u, v))
+        }));
+    }
     Consideration::Decided(match lens {
-        _ if points.is_empty() => Decision::Skip(SkipReason::NoPose),
         Err(reason) => Decision::Skip(reason),
         Ok(region) => Decision::Ask(DepthLook { region, points }),
     })

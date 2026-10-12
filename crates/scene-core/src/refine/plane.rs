@@ -4,11 +4,14 @@
 
 use crate::geom::{Point, Quad};
 
-/// The bed homography, from the image to the `(u, v)` plane: the nine
-/// coefficients of `u = (a·x + b·y + c) / (g·x + h·y + i)` and
-/// `v = (d·x + e·y + f) / (g·x + h·y + i)`.
+/// The bed homography both ways, each as the nine coefficients of
+/// `u = (a·x + b·y + c) / (g·x + h·y + i)` and `v = (d·x + e·y + f) / (g·x + h·y + i)`:
+/// from the image to the `(u, v)` plane, and back.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct BedPlane([f64; 9]);
+pub(crate) struct BedPlane {
+    to_bed: [f64; 9],
+    to_image: [f64; 9],
+}
 
 impl BedPlane {
     /// From the four corners in top-left, top-right, bottom-right, bottom-left
@@ -49,15 +52,24 @@ impl BedPlane {
         ];
         let [aa, _, _, dd, _, _, gg, _, _] = adj;
         let det = a * aa + b * dd + c * gg;
-        (det.abs() >= 1e-10 && adj.iter().all(|v| v.is_finite())).then_some(Self(adj))
+        (det.abs() >= 1e-10 && adj.iter().all(|v| v.is_finite())).then_some(Self {
+            to_bed: adj,
+            to_image: [a, b, c, d, e, f, g, h, 1.0],
+        })
     }
 
     /// The point in bed coordinates.
     pub(crate) fn project(&self, p: Point) -> (f64, f64) {
-        let [a, b, c, d, e, f, g, h, i] = self.0;
-        let (x, y) = (f64::from(p.x), f64::from(p.y));
-        let w = g * x + h * y + i;
-        ((a * x + b * y + c) / w, (d * x + e * y + f) / w)
+        apply(self.to_bed, f64::from(p.x), f64::from(p.y))
+    }
+
+    /// The image point at these bed coordinates.
+    pub(crate) fn point(&self, u: f64, v: f64) -> Point {
+        let (x, y) = apply(self.to_image, u, v);
+        Point {
+            x: x as f32,
+            y: y as f32,
+        }
     }
 
     /// Does the point fall inside the bed, `[0, 1]²`, edges included? A rounding
@@ -67,6 +79,11 @@ impl BedPlane {
         let (u, v) = self.project(p);
         (-TOL..=1.0 + TOL).contains(&u) && (-TOL..=1.0 + TOL).contains(&v)
     }
+}
+
+fn apply([a, b, c, d, e, f, g, h, i]: [f64; 9], x: f64, y: f64) -> (f64, f64) {
+    let w = g * x + h * y + i;
+    ((a * x + b * y + c) / w, (d * x + e * y + f) / w)
 }
 
 #[cfg(test)]
@@ -103,6 +120,21 @@ mod tests {
         assert!(close(p.project(Point { x: 110.0, y: 100.0 }), (1.0, 0.0)));
         assert!(p.inside(Point { x: 50.0, y: 50.0 }));
         assert!(!p.inside(Point { x: -20.0, y: 50.0 }));
+    }
+
+    #[test]
+    fn and_back_to_the_image() {
+        let q = Quad([
+            Point { x: 0.0, y: 0.0 },
+            Point { x: 100.0, y: 0.0 },
+            Point { x: 110.0, y: 100.0 },
+            Point { x: -10.0, y: 100.0 },
+        ]);
+        let p = BedPlane::of(&q).unwrap();
+        let corner = p.point(1.0, 0.0);
+        assert!((corner.x - 110.0).abs() < 1e-3 && (corner.y - 100.0).abs() < 1e-3);
+        let (u, v) = p.project(p.point(0.3, 0.7));
+        assert!((u - 0.3).abs() < 1e-6 && (v - 0.7).abs() < 1e-6);
     }
 
     #[test]

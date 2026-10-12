@@ -109,3 +109,39 @@ pub struct SubjectDepth {
     /// Measured in this sample, or stable with the pose.
     pub provenance: Provenance,
 }
+
+/// A fixed place on the bed where depth is read in the same look as the body:
+/// covered, the bed stands in for what the pose does not see (R17).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BedSite {
+    /// The middle of the bed: lying, the hips, under the blanket or not.
+    Centre,
+}
+
+impl BedSite {
+    /// Every site, in the order they are measured and published.
+    pub const ALL: [BedSite; 1] = [BedSite::Centre];
+
+    /// Where it is in bed coordinates: `u` across, `v` from the foot (0) to
+    /// the headboard (1).
+    pub fn at(self) -> (f64, f64) {
+        match self {
+            BedSite::Centre => (0.5, 0.5),
+        }
+    }
+}
+
+/// A published bed point: which site, where it falls in the image and its
+/// depth, read in the same depth map as the body's keypoints.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BedPoint {
+    /// The site.
+    pub name: BedSite,
+    /// Pixels from the left edge.
+    pub x: f32,
+    /// Pixels from the top edge.
+    pub y: f32,
+    /// Its depth on the depth model's scale, if it was read.
+    pub depth: Option<f32>,
+}

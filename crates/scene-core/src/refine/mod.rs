@@ -48,6 +48,7 @@ pub(crate) fn refine(
     });
     let posture = posture::classify(
         &pose.keypoints,
+        &body.bed_points,
         enrich.min_keypoint_score,
         enrich.posture_tolerance,
     )
@@ -60,8 +61,9 @@ pub(crate) fn refine(
         groups: Some(r.groups),
         disparities: Some(r.disparities),
         tolerance: Some(enrich.posture_tolerance),
+        bed_points: body.bed_points.clone(),
     });
-    let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.map(|p| p.state)));
+    let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.as_ref().map(|p| p.state)));
     Refinement {
         lying,
         posture,

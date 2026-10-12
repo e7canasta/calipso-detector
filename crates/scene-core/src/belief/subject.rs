@@ -3,8 +3,9 @@
 //! occupancy: it is the only occupant, if there is exactly one.
 
 use super::Subject;
-use crate::body::{BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
+use crate::body::{BedPoint, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 use crate::estimation;
+use crate::evidence::SubjectDepths;
 use crate::geom::Rect;
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
@@ -24,6 +25,8 @@ struct Enriched {
     depths: Vec<Option<f32>>,
     /// The median of the measured keypoints.
     depth: Option<f32>,
+    /// The bed's points, read in the same look as the keypoints.
+    bed_points: Vec<BedPoint>,
     since: SampleRef,
     /// The box it was taken with: the motion reference.
     reference: Rect,
@@ -42,6 +45,8 @@ pub(crate) enum Enrichment {
         /// The depth of each keypoint, aligned with the pose; empty if not
         /// measured.
         depths: Vec<Option<f32>>,
+        /// The bed's points, read in the same look; empty if not measured.
+        bed_points: Vec<BedPoint>,
         bbox: Rect,
         reference: ReferenceUpdate,
     },
@@ -53,14 +58,19 @@ impl Enrichment {
     /// Only the main detector renews an existing reference; reinforcement keeps it.
     pub(crate) fn fresh(
         pose: Option<Vec<Keypoint>>,
-        depths: Option<Vec<Option<f32>>>,
+        depths: Option<SubjectDepths>,
         bbox: Rect,
         primary_seen: bool,
     ) -> Self {
+        let SubjectDepths { keypoints, bed } = depths.unwrap_or(SubjectDepths {
+            keypoints: Vec::new(),
+            bed: Vec::new(),
+        });
         match pose {
             Some(pose) => Self::Fresh {
                 pose,
-                depths: depths.unwrap_or_default(),
+                depths: keypoints,
+                bed_points: bed,
                 bbox,
                 reference: if primary_seen {
                     ReferenceUpdate::Refresh
@@ -78,6 +88,8 @@ impl Enrichment {
 pub(crate) struct SubjectBody {
     pub pose: Pose,
     pub depth: Option<SubjectDepth>,
+    /// The bed's points, read with the pose's depth: they hold with it.
+    pub bed_points: Vec<BedPoint>,
 }
 
 /// What is known of the subject beyond its box: its last pose and depth.
@@ -119,6 +131,7 @@ impl SubjectMemory {
             Enrichment::Fresh {
                 pose,
                 depths,
+                bed_points,
                 bbox,
                 reference,
             } => {
@@ -130,6 +143,7 @@ impl SubjectMemory {
                     pose,
                     depth: estimation::median(&depths),
                     depths,
+                    bed_points,
                     since: at,
                     reference,
                 });
@@ -165,5 +179,6 @@ fn body(enriched: &Enriched, provenance: Provenance) -> SubjectBody {
             meters: depth,
             provenance,
         }),
+        bed_points: enriched.bed_points.clone(),
     }
 }

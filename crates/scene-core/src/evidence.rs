@@ -2,10 +2,10 @@
 //! decides what is believed or what is looked at. It receives readings already
 //! typed: one of another kind than its probe arrives as a failing sense.
 
-use crate::attention::LookResult;
-use crate::body::Keypoint;
+use crate::attention::{LookResult, Target};
+use crate::body::{BedPoint, Keypoint};
 use crate::estimation;
-use crate::geom::{Quad, Rect};
+use crate::geom::{Point, Quad, Rect};
 use crate::look::{Detection, Failure, Label};
 use crate::policy::{AdmissionPolicy, FacePolicy};
 use crate::zone::Counts;
@@ -316,27 +316,49 @@ pub(crate) fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult
     }
 }
 
-/// The depth of each keypoint of a pose of `len` keypoints: reading `i` goes
-/// back to keypoint `at[i]`; unmeasured ones and non-finite values stay
-/// without depth. If the sense failed, none.
+/// The depth of each keypoint of a pose of `len` keypoints, and of each bed
+/// site: reading `i` goes back to whose `at[i]` is; unmeasured ones and
+/// non-finite values stay without depth. If the sense failed, none.
 pub(crate) fn depths(
     reading: Sensed<&[Option<f32>]>,
-    at: &[usize],
+    at: &[(Target, Point)],
     len: usize,
-) -> (Option<Vec<Option<f32>>>, LookResult) {
+) -> (Option<SubjectDepths>, LookResult) {
     match reading {
         Err(failure) => (None, LookResult::failed(failure)),
         Ok(values) => {
-            let mut depths = vec![None; len];
-            for (&i, value) in at.iter().zip(values) {
-                if let Some(slot) = depths.get_mut(i) {
-                    *slot = value.filter(|d| d.is_finite());
+            let mut depths = SubjectDepths {
+                keypoints: vec![None; len],
+                bed: Vec::new(),
+            };
+            for (&(target, p), value) in at.iter().zip(values) {
+                let value = value.filter(|d| d.is_finite());
+                match target {
+                    Target::Keypoint(i) => {
+                        if let Some(slot) = depths.keypoints.get_mut(i) {
+                            *slot = value;
+                        }
+                    }
+                    Target::Bed(name) => depths.bed.push(BedPoint {
+                        name,
+                        x: p.x,
+                        y: p.y,
+                        depth: value,
+                    }),
                 }
             }
             let read = LookResult::read(values.iter().flatten().count());
             (Some(depths), read)
         }
     }
+}
+
+/// What one depth look read of the subject: each keypoint's depth, aligned
+/// with the pose, and the bed's points read in the same map.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SubjectDepths {
+    pub keypoints: Vec<Option<f32>>,
+    pub bed: Vec<BedPoint>,
 }
 
 /// One body per person: two boxes are the same if one contains the other or

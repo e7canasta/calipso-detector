@@ -41,7 +41,7 @@ Feature: The subject depth policy
     When the camera sees this sequence:
       | samples | on floor | where | in bed | subject moves | occupants | bed            |
       | 11      | 0        |       | 1      | yes           | 1         | occupied, seen |
-    Then in sample 11 depth was requested at 9 points
+    Then in sample 11 depth was requested at 9 keypoints and 1 bed point
 
   Scenario: Still: depth stays stable with the pose
     Given the resident came in alone and lay down in samples 1 to 10

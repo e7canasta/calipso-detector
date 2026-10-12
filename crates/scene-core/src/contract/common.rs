@@ -6,7 +6,7 @@
 
 // The domain vocabulary every version publishes: its modules own it.
 pub use crate::attention::{Attention, Look, LookOutcome, LookResult, SkipReason};
-pub use crate::body::{BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
+pub use crate::body::{BedPoint, BedSite, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
 use crate::geom::Rect;

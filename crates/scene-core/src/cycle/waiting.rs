@@ -1,7 +1,7 @@
 //! Builds each probe with its continuation.
 
 use super::Observed;
-use crate::attention::DepthLook;
+use crate::attention::{DepthLook, Target};
 use crate::body::Keypoint;
 use crate::evidence::Admission;
 use crate::geom::{Point, Rect};
@@ -41,8 +41,8 @@ pub(super) enum Continuation {
         observed: Observed,
         pose: Vec<Keypoint>,
         bbox: Rect,
-        /// The pose index of each requested point.
-        at: Vec<usize>,
+        /// Whose each requested point is: a pose keypoint or a bed site.
+        at: Vec<(Target, Point)>,
     },
 }
 
@@ -103,10 +103,11 @@ impl Waiting {
         observed: Observed,
         pose: Vec<Keypoint>,
         bbox: Rect,
-        look: DepthLook<(usize, Point)>,
+        look: DepthLook<(Target, Point)>,
     ) -> Self {
         let region = look.region;
-        let (at, points) = look.points.into_iter().unzip();
+        let at = look.points;
+        let points = at.iter().map(|&(_, p)| p).collect();
         Self::new(
             Probe::Depth {
                 purpose: DepthPurpose::Subject,
