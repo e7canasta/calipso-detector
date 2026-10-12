@@ -21,12 +21,10 @@ pub(crate) enum ReferenceUpdate {
 #[derive(Debug, Clone)]
 struct Enriched {
     pose: Vec<Keypoint>,
-    /// The depth of each pose keypoint, aligned.
-    depths: Vec<Option<f32>>,
+    /// What the depth look read: the keypoints, aligned, and the bed's points.
+    depths: SubjectDepths,
     /// The median of the measured keypoints.
     depth: Option<f32>,
-    /// The bed's points, read in the same look as the keypoints.
-    bed_points: Vec<BedPoint>,
     since: SampleRef,
     /// The box it was taken with: the motion reference.
     reference: Rect,
@@ -42,11 +40,8 @@ pub(crate) enum Enrichment {
     /// A new pose (and depth, if measured), with the decision about the reference.
     Fresh {
         pose: Vec<Keypoint>,
-        /// The depth of each keypoint, aligned with the pose; empty if not
-        /// measured.
-        depths: Vec<Option<f32>>,
-        /// The bed's points, read in the same look; empty if not measured.
-        bed_points: Vec<BedPoint>,
+        /// What the depth look read, whole; empty if not measured.
+        depths: SubjectDepths,
         bbox: Rect,
         reference: ReferenceUpdate,
     },
@@ -62,15 +57,10 @@ impl Enrichment {
         bbox: Rect,
         primary_seen: bool,
     ) -> Self {
-        let SubjectDepths { keypoints, bed } = depths.unwrap_or(SubjectDepths {
-            keypoints: Vec::new(),
-            bed: Vec::new(),
-        });
         match pose {
             Some(pose) => Self::Fresh {
                 pose,
-                depths: keypoints,
-                bed_points: bed,
+                depths: depths.unwrap_or_default(),
                 bbox,
                 reference: if primary_seen {
                     ReferenceUpdate::Refresh
@@ -131,7 +121,6 @@ impl SubjectMemory {
             Enrichment::Fresh {
                 pose,
                 depths,
-                bed_points,
                 bbox,
                 reference,
             } => {
@@ -141,9 +130,8 @@ impl SubjectMemory {
                 };
                 let enriched = self.enriched.insert(Enriched {
                     pose,
-                    depth: estimation::median(&depths),
+                    depth: estimation::median(&depths.keypoints),
                     depths,
-                    bed_points,
                     since: at,
                     reference,
                 });
@@ -170,7 +158,7 @@ fn body(enriched: &Enriched, provenance: Provenance) -> SubjectBody {
                     x: k.x,
                     y: k.y,
                     score: k.score,
-                    depth: enriched.depths.get(i).copied().flatten(),
+                    depth: enriched.depths.keypoints.get(i).copied().flatten(),
                 })
                 .collect(),
             provenance,
@@ -179,6 +167,6 @@ fn body(enriched: &Enriched, provenance: Provenance) -> SubjectBody {
             meters: depth,
             provenance,
         }),
-        bed_points: enriched.bed_points.clone(),
+        bed_points: enriched.depths.bed.clone(),
     }
 }

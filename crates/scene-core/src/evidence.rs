@@ -354,8 +354,9 @@ pub(crate) fn depths(
 }
 
 /// What one depth look read of the subject: each keypoint's depth, aligned
-/// with the pose, and the bed's points read in the same map.
-#[derive(Debug, Clone, PartialEq)]
+/// with the pose, and the bed's points read in the same map. It travels whole:
+/// what was read in the same look is not split.
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct SubjectDepths {
     pub keypoints: Vec<Option<f32>>,
     pub bed: Vec<BedPoint>,
