@@ -201,6 +201,11 @@ impl Machine {
         Room::of(self.occupants())
     }
 
+    /// A new count is still stabilizing: the mode may be about to change.
+    pub(in crate::belief) fn changing(&self) -> bool {
+        self.span.pending().is_some()
+    }
+
     fn occupants(&self) -> Occupants {
         let seen = self.seen();
         Occupants {

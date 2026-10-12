@@ -3,7 +3,7 @@
 //! without it there is nothing to decide, and that is decided here too, not
 //! in `cycle` (rule 11).
 
-use crate::belief::{Believed, LatchState};
+use crate::belief::{Alone, Belief, Believed, InBed, LatchState, Room};
 use crate::body::Keypoint;
 use crate::estimation;
 use crate::evidence::BodyEvidence;
@@ -57,11 +57,76 @@ pub(crate) enum EnrichPlan {
     Skip(SkipReason),
 }
 
-/// Where the main detector runs, which always runs: over the whole room
-/// (`None`), to count everyone, in bed or not. When the map has a room
-/// region, it is decided here.
-pub(crate) fn primary_region() -> Option<Rect> {
-    None
+/// What the main detector's lens remembers: the last sample it read the whole
+/// frame. Attention reads it; `cycle` notes each whole-frame look that read.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Lens {
+    last_wide: Option<SampleRef>,
+}
+
+impl Lens {
+    /// The main detector read the whole frame in this sample.
+    pub(crate) fn looked_wide(&mut self, at: SampleRef) {
+        self.last_wide = Some(at);
+    }
+
+    /// Is the whole frame due? Never looked, another session or the period
+    /// passed (rule 9).
+    fn wide_due(&self, now: SampleRef, every_secs: f64) -> bool {
+        self.last_wide
+            .and_then(|last| now.secs_since(last))
+            .is_none_or(|age| age >= every_secs)
+    }
+}
+
+/// Where the main detector runs, which always runs. While the resident is
+/// alone in bed, nothing is stabilizing and the sentinel is not due, at the
+/// focus, with more pixels per body: the site map's, or else the bed grown by
+/// the focus policy's pad. Otherwise over the whole room (`None`), to count
+/// everyone, in bed or not. Without a focus policy or bed geometry there is
+/// nothing to decide. It is decided before the sample is seen, with what
+/// layer 0 believes.
+pub(crate) fn primary_region(
+    belief: &Belief,
+    lens: &Lens,
+    at: SampleRef,
+    map: &Map,
+    geometry: Geometry,
+    policy: &Policy,
+) -> Option<Rect> {
+    let focus = policy.focus.as_ref()?;
+    let bed = map.bed_for(geometry)?;
+    let alone_in_bed = matches!(belief.room(), Room::Alone(Alone::InBed(_)));
+    let sentinel = lens.wide_due(at, focus.wide_every_secs);
+    (alone_in_bed && belief.settled() && !sentinel).then(|| {
+        map.focus_for(geometry)
+            .unwrap_or_else(|| bed.bounds().expand(focus.pad))
+    })
+}
+
+/// The focus saw something other than what is believed: look at the whole
+/// frame before believing? The focus only confirms, never refutes: alone in
+/// bed and seen, it sees one in bed; held, it sees nobody or the one who
+/// reappears; and nobody on the floor. Anything else is asked again over the
+/// whole frame, so layer 0 never believes a reading of the focus that did not
+/// confirm. A focus that failed proves nothing (rule 1): there is nothing to
+/// decide, as with the main detector.
+pub(crate) fn widen(g: &Glimpse<'_>, belief: &Belief) -> Consideration<()> {
+    let Some(seen) = g.bodies.seen() else {
+        return Consideration::Inapplicable;
+    };
+    let counts = seen.counts();
+    let confirms = counts.floor == 0
+        && match belief.room() {
+            Room::Alone(Alone::InBed(InBed::Seen)) => counts.bed == 1,
+            Room::Alone(Alone::InBed(InBed::Held)) => counts.bed <= 1,
+            _ => false,
+        };
+    if confirms {
+        Consideration::Inapplicable
+    } else {
+        Consideration::Decided(Decision::Ask(()))
+    }
 }
 
 /// Look at the bed again with the finer detector? There is only something to

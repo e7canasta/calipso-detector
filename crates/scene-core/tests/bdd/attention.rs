@@ -7,7 +7,8 @@ use cucumber::{given, then};
 use scene_core::contract::{
     FrameInfo, LookKind, LookOutcome, LookResult, Provenance, RejectReason, Scene, SkipReason,
 };
-use scene_core::policy::FacePolicy;
+use scene_core::geom::Rect;
+use scene_core::policy::{FacePolicy, FocusPolicy};
 use scene_core::{Monitor, Output};
 
 use crate::ward::{BED, FRAME, Ward};
@@ -33,6 +34,31 @@ fn faces(ward: &mut Ward, min_confidence: f32) {
 #[given("there is no reinforcement detector")]
 fn no_reinforcement(ward: &mut Ward) {
     ward.policy.reinforce = None;
+}
+
+#[given(
+    expr = "the main detector focuses on the bed grown by {float} and looks at the whole frame every {int} seconds of source time"
+)]
+fn focus(ward: &mut Ward, pad: f32, wide_every_secs: u32) {
+    ward.policy.focus = Some(FocusPolicy {
+        pad,
+        wide_every_secs: f64::from(wide_every_secs),
+    });
+}
+
+#[given(regex = r"^the site map delimits the focus as (\d+),(\d+) to (\d+),(\d+)$")]
+fn site_focus(ward: &mut Ward, x0: f32, y0: f32, x1: f32, y1: f32) {
+    ward.map.as_mut().expect("the bed first").focus = Some(Rect::new(x0, y0, x1, y1));
+}
+
+#[given(expr = "the whole-frame look fails in samples {int} to {int}")]
+fn wide_fails(ward: &mut Ward, from: u32, to: u32) {
+    ward.wide_fails.extend(from..=to);
+}
+
+#[given("the main detector does not focus")]
+fn no_focus(ward: &mut Ward) {
+    ward.policy.focus = None;
 }
 
 #[given("the camera delivers images of another size than the delimited bed's")]
@@ -106,6 +132,60 @@ fn looks(ward: &mut Ward, n: u32, list: String) {
         })
         .collect();
     assert_eq!(asked, expected);
+}
+
+/// Where the main detector looked in sample `n`, in order (`None`: the whole
+/// frame), as the published ledger says.
+fn detect_regions(ward: &Ward, n: u32) -> Vec<Option<Rect>> {
+    scene(ward, n)
+        .attention
+        .looks
+        .iter()
+        .filter_map(|l| match (&l.kind, &l.outcome) {
+            (LookKind::Detect, LookOutcome::Asked { region, .. }) => Some(*region),
+            _ => None,
+        })
+        .collect()
+}
+
+#[then(expr = "in sample {int} the main detector looked at the bed grown by {float}")]
+fn looked_at_the_focus(ward: &mut Ward, n: u32, pad: f32) {
+    assert_eq!(detect_regions(ward, n), [Some(BED.expand(pad))]);
+}
+
+#[then(regex = r"^in sample (\d+) the main detector looked at (\d+),(\d+) to (\d+),(\d+)$")]
+fn looked_at(ward: &mut Ward, n: u32, x0: f32, y0: f32, x1: f32, y1: f32) {
+    assert_eq!(detect_regions(ward, n), [Some(Rect::new(x0, y0, x1, y1))]);
+}
+
+#[then(expr = "in sample {int} the main detector looked at the focus and then at the whole frame")]
+fn widened(ward: &mut Ward, n: u32) {
+    let pad = ward.policy.focus.expect("there is a focus").pad;
+    assert_eq!(detect_regions(ward, n), [Some(BED.expand(pad)), None]);
+}
+
+#[then(
+    regex = r"^between samples (\d+) and (\d+) the main detector looked at the whole frame only in samples? (\d+)(?: and (\d+))?$"
+)]
+fn looked_wide_only_in(ward: &mut Ward, from: u32, to: u32, first: u32, second: String) {
+    let mut expected = vec![first];
+    expected.extend(second.parse::<u32>().ok());
+    let wide: Vec<u32> = (from..=to)
+        .filter(|&n| detect_regions(ward, n).contains(&None))
+        .collect();
+    assert_eq!(wide, expected);
+}
+
+#[then(expr = "the room had {int} occupant(s) from sample {int} to sample {int}")]
+fn occupants_between(ward: &mut Ward, occupants: u32, from: u32, to: u32) {
+    for n in from..=to {
+        assert_eq!(scene(ward, n).room.occupants, occupants, "in sample {n}");
+    }
+}
+
+#[then(expr = "in sample {int} the main detector looked at the whole frame")]
+fn looked_at_the_whole_frame(ward: &mut Ward, n: u32) {
+    assert_eq!(detect_regions(ward, n), [None]);
 }
 
 #[then(expr = "in sample {int} reinforcement was requested over the grown bed")]

@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use crate::attention::Attention;
+use crate::attention::{Attention, Lens};
 use crate::belief::{Belief, Believed};
 use crate::chronicle::Chronicle;
 use crate::conclusion::RepublishReason;
@@ -87,6 +87,8 @@ struct Engine {
     map: Map,
     belief: Belief,
     sensor: SensorMemory,
+    /// The main detector's lens: when it last read the whole frame.
+    lens: Lens,
     frame: Option<FrameInfo>,
 }
 

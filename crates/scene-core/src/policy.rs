@@ -20,6 +20,22 @@ pub struct ReinforcePolicy {
     pub bed_padding: f32,
 }
 
+/// Look at the bed up close with the main detector while the resident is alone
+/// in bed: the same model, more pixels per body.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FocusPolicy {
+    /// How much the bed grows, as a fraction of its width and height, on each
+    /// side. It is not reinforcement's: the focus must reach whoever stands
+    /// next to the bed.
+    pub pad: f32,
+    /// Source seconds after which the whole frame is looked at again, even if
+    /// the focus confirms: whoever comes in far from the bed is seen at most
+    /// this late (rule 9). It must be no longer than staff take to walk from
+    /// the door to the bed: then they are always seen on the floor first and
+    /// layer 0 knows where they came from (rule 6).
+    pub wide_every_secs: f64,
+}
+
 /// How long a new count must hold for the zones to change: the stabilization
 /// against flicker. It is measured in source time, not in samples: the
 /// same policy holds at any camera cadence.
@@ -73,6 +89,8 @@ pub struct Policy {
     pub faces: Option<FacePolicy>,
     /// `None`: there is no reinforcement detector.
     pub reinforce: Option<ReinforcePolicy>,
+    /// `None`: the main detector always looks at the whole frame.
+    pub focus: Option<FocusPolicy>,
     /// `None`: there is no pose model.
     pub enrich: Option<EnrichPolicy>,
     /// `None`: the bed is not calibrated.
@@ -90,6 +108,7 @@ impl Default for Policy {
             persistence: Persistence { dwell_secs: 2.0 },
             faces: None,
             reinforce: None,
+            focus: None,
             enrich: None,
             calibration: None,
         }

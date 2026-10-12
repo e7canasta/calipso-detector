@@ -23,6 +23,9 @@ pub struct SiteMap {
     pub resolution: Option<FrameInfo>,
     /// Where the headboard is: where to look for faces with no subject in sight.
     pub headboard: Option<Rect>,
+    /// Where the main detector looks while the resident is alone in bed;
+    /// `None`: the bed grown by the focus policy's pad.
+    pub focus: Option<Rect>,
     /// The learned depth of the empty bed, in the depth model's relative scale.
     pub bed_reference: Option<f32>,
     /// The last calibration attempt, for the retry delay.
@@ -35,6 +38,7 @@ pub(crate) struct SiteGeometry {
     pub bed: Quad,
     pub resolution: Option<FrameInfo>,
     pub headboard: Option<Rect>,
+    pub focus: Option<Rect>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,6 +67,7 @@ impl From<SiteMap> for Map {
                 bed: initial.bed,
                 resolution: initial.resolution,
                 headboard: initial.headboard,
+                focus: initial.focus,
             },
             calibration: CalibrationMemory {
                 reference: initial.bed_reference.map(|depth| BedReference {
@@ -82,6 +87,7 @@ impl SiteMap {
             bed,
             resolution: None,
             headboard: None,
+            focus: None,
             bed_reference: None,
             calibration_attempt: None,
             calibrated_at: None,
@@ -135,6 +141,11 @@ impl Map {
     /// The headboard, if the geometry applies.
     pub(crate) fn headboard_for(&self, geometry: Geometry) -> Option<Rect> {
         self.site.headboard.filter(|_| geometry == Geometry::Valid)
+    }
+
+    /// The delimited focus, if the geometry applies.
+    pub(crate) fn focus_for(&self, geometry: Geometry) -> Option<Rect> {
+        self.site.focus.filter(|_| geometry == Geometry::Valid)
     }
 
     /// The bed, if the geometry applies.

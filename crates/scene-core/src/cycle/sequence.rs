@@ -22,7 +22,9 @@ use crate::sensor::SensorChanged;
 /// How far the turn got, with what it gathered: the point from which
 /// [`Course::next`] continues.
 enum Reached {
-    /// With the main detector's result.
+    /// With the main detector's result over the focus.
+    Focused(Admission),
+    /// With the main detector's result over the whole frame.
     Primary(Admission),
     /// With the sample's bodies (consolidated with reinforcement, if any).
     Bodies(Admission),
@@ -49,7 +51,14 @@ impl Course<'_> {
     pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
         self.monitor.engine.frame = Some(frame);
         self.geometry = self.monitor.engine.map.gate(frame);
-        let region = attention::primary_region();
+        let Engine {
+            policy,
+            map,
+            belief,
+            lens,
+            ..
+        } = &self.monitor.engine;
+        let region = attention::primary_region(belief, lens, self.at, map, self.geometry, policy);
         Phase::Waiting(Waiting::primary(region))
     }
 
@@ -57,11 +66,19 @@ impl Course<'_> {
     /// requested or the turn goes on.
     ///
     /// ```text
-    /// Primary → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
+    /// Primary → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
     /// ```
     fn next(&mut self, mut reached: Reached) -> Phase {
         loop {
             reached = match reached {
+                // The focus only confirms: otherwise, the whole frame.
+                Reached::Focused(focused) => {
+                    let considered = self.widen(&focused);
+                    if self.wanted(LookKind::Detect, considered).is_some() {
+                        return Phase::Waiting(Waiting::widen());
+                    }
+                    Reached::Primary(focused)
+                }
                 // First attention point, before believing: a loss to reinforce?
                 Reached::Primary(primary) => {
                     let considered = self.reinforce(&primary);
@@ -156,15 +173,8 @@ impl Course<'_> {
     ) -> Phase {
         let spent = outcome.spent;
         let reached = match stage {
-            Continuation::Primary => {
-                let admission = evidence::admit(
-                    outcome.bodies(),
-                    self.monitor.engine.map.bed_for(self.geometry),
-                    &self.monitor.engine.policy.admission,
-                );
-                self.asked(probe, spent, admission.result.clone());
-                Reached::Primary(admission)
-            }
+            Continuation::Primary => Reached::Primary(self.admit(probe, outcome)),
+            Continuation::Focused => Reached::Focused(self.admit(probe, outcome)),
             Continuation::Reinforce { primary } => {
                 // The loss counts as checked only if reinforcement looked: a
                 // failing reinforcement is requested again on the next sample.
@@ -276,6 +286,11 @@ impl Course<'_> {
         }
     }
 
+    fn widen(&self, focused: &Admission) -> Consideration<()> {
+        let g = self.glimpse(focused, &FaceEvidence::NotLooked);
+        attention::widen(&g, &self.monitor.engine.belief)
+    }
+
     fn reinforce(&self, primary: &Admission) -> Consideration<Rect> {
         let g = self.glimpse(primary, &FaceEvidence::NotLooked);
         let Engine { policy, belief, .. } = &self.monitor.engine;
@@ -317,6 +332,20 @@ impl Course<'_> {
     }
 
     // --- Mechanism.
+
+    /// The main detector's reading, admitted by zones and noted in the ledger.
+    fn admit(&mut self, probe: &Probe, outcome: Outcome) -> Admission {
+        let admission = evidence::admit(
+            outcome.bodies(),
+            self.monitor.engine.map.bed_for(self.geometry),
+            &self.monitor.engine.policy.admission,
+        );
+        self.asked(probe, outcome.spent, admission.result.clone());
+        if probe.region().is_none() && matches!(admission.result, LookResult::Read { .. }) {
+            self.monitor.engine.lens.looked_wide(self.at);
+        }
+        admission
+    }
 
     /// With all the evidence: the belief is updated.
     fn believe(&mut self, bodies: &Admission) -> Believed {

@@ -97,6 +97,16 @@ impl Belief {
         self.latch
     }
 
+    /// The room's mode, as layer 0 believes it.
+    pub(crate) fn room(&self) -> Room {
+        self.occupancy.room()
+    }
+
+    /// No new count is stabilizing: what is believed is not about to change.
+    pub(crate) fn settled(&self) -> bool {
+        !self.occupancy.changing()
+    }
+
     /// How many are seen in bed, stabilized: if the main detector sees fewer,
     /// it is a possible loss.
     pub(crate) fn bed_seen(&self) -> u32 {

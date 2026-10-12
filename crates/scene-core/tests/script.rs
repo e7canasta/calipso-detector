@@ -13,6 +13,8 @@ pub struct Script {
     pub detect: Result<Vec<Detection>, Failure>,
     pub faces: Result<Vec<Detection>, Failure>,
     pub reinforce: Result<Vec<Detection>, Failure>,
+    /// The main detector over the whole frame; over the focus it reads.
+    pub wide: Result<(), Failure>,
     /// The pose: if it answers, five keypoints inside the requested box.
     pub pose: Result<(), Failure>,
     /// How many keypoints the pose brings and how many with a high score (0.9;
@@ -37,6 +39,7 @@ impl Default for Script {
             detect: Ok(vec![]),
             faces: Ok(vec![]),
             reinforce: Ok(vec![]),
+            wide: Ok(()),
             pose: Ok(()),
             keypoints: None,
             figure: None,
@@ -68,6 +71,9 @@ impl Script {
     pub fn respond(&self, probe: &Probe) -> Result<Reading, Failure> {
         match probe {
             Probe::Detect { .. } | Probe::Reinforce { .. } | Probe::Faces { .. } => {
+                if let Probe::Detect { region: None } = probe {
+                    self.wide?;
+                }
                 let scripted = match probe {
                     Probe::Detect { .. } => &self.detect,
                     Probe::Reinforce { .. } => &self.reinforce,

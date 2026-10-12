@@ -19,6 +19,8 @@ pub(super) struct Waiting {
 #[derive(Debug)]
 pub(super) enum Continuation {
     Primary,
+    /// The main detector over the focus: it may have to widen.
+    Focused,
     Reinforce {
         primary: Admission,
     },
@@ -44,8 +46,19 @@ pub(super) enum Continuation {
 }
 
 impl Waiting {
+    /// The main detector: over the focus, or over the whole frame (`None`).
     pub(super) fn primary(region: Option<Rect>) -> Self {
-        Self::new(Probe::Detect { region }, Continuation::Primary)
+        let stage = match region {
+            Some(_) => Continuation::Focused,
+            None => Continuation::Primary,
+        };
+        Self::new(Probe::Detect { region }, stage)
+    }
+
+    /// The focus did not confirm: the main detector again, over the whole
+    /// frame. Its reading replaces the focus's.
+    pub(super) fn widen() -> Self {
+        Self::primary(None)
     }
 
     pub(super) fn reinforce(region: Rect, primary: Admission) -> Self {

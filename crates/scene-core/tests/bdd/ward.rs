@@ -41,6 +41,8 @@ pub struct Ward {
     pub reconnections: Vec<u32>,
     /// The reinforcement detector fails on every probe.
     pub reinforcement_fails: bool,
+    /// The samples in which the main detector fails over the whole frame.
+    pub wide_fails: Vec<u32>,
     /// The resident moved in bed and ended up elsewhere: their boxes in
     /// bed look shifted. Each "subject moves" toggles it.
     pub shifted: bool,
@@ -95,6 +97,9 @@ impl Ward {
     pub fn turn_with(&mut self, at: SampleRef, mut script: Script) {
         if self.reinforcement_fails {
             script.reinforce = Err(scene_core::look::Failure::Model);
+        }
+        if self.wide_fails.iter().any(|&n| u64::from(n) == at.sequence) {
+            script.wide = Err(scene_core::look::Failure::Model);
         }
         if self.shifted {
             shift_in_bed(&mut script, SHIFT);
