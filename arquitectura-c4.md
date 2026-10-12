@@ -192,6 +192,8 @@ stateDiagram-v2
     [*] --> Waiting: Sample, empieza por Primary
     [*] --> Republish: NoFrame o Sensor
     state Waiting {
+        Primary --> Widen: ¿el foco no confirma?
+        Widen --> Reinforce
         Primary --> Reinforce: ¿pérdida en la cama?
         Primary --> Faces
         Reinforce --> Faces
@@ -209,7 +211,7 @@ se puede seguir con datos de menos. Cada mirada es opcional salvo la primaria y
 la decide `attention`. El orden vive en un solo lugar:
 
 ```text
-Primary → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
+Primary(foco | entero) → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
 ```
 
 ### La capa 0 por dentro

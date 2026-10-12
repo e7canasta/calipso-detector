@@ -120,13 +120,13 @@ fn broken(w: &mut Shell, role: String) {
 }
 
 #[given(
-    regex = r"^the (reinforcement|face) model sees (?:a person|a face) at (\d+),(\d+) to (\d+),(\d+) of the crop$"
+    regex = r"^the (main|reinforcement|face) model sees (?:a person|a face) at (\d+),(\d+) to (\d+),(\d+) of the crop$"
 )]
 fn sees(w: &mut Shell, role: String, x0: f32, y0: f32, x1: f32, y1: f32) {
     w.model(&role).sees(vec![Detection {
         bbox: Rect::new(x0, y0, x1, y1),
         confidence: 0.9,
-        label: if role == "reinforcement" {
+        label: if role != "face" {
             Label::Person
         } else {
             Label::Other
@@ -185,6 +185,23 @@ fn look_faces(w: &mut Shell, target: String, x0: f32, y0: f32, x1: f32, y1: f32)
         assert!(matches!(reading, Reading::Faces(_)));
     }
     w.reading = Some(reading);
+}
+
+#[when(
+    regex = r"^the core asks the main detector to look at the region (\d+),(\d+) to (\d+),(\d+)$"
+)]
+fn detect_region(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
+    let mut senses = sense::Senses::new(w.model("main").clone());
+    w.reading = Some(
+        senses
+            .look(
+                w.image.as_ref().unwrap(),
+                &Probe::Detect {
+                    region: Some(Rect::new(x0, y0, x1, y1)),
+                },
+            )
+            .0,
+    );
 }
 
 #[when(regex = r"^the core asks to reinforce the region (\d+),(\d+) to (\d+),(\d+)$")]

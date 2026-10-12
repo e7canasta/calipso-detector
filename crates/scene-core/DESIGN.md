@@ -129,10 +129,36 @@ and a test lowers one to the other (C5).
             └── attention ◄──┘   at each point: what else to look at? reads, never writes
 ```
 
-One turn, in order: detect over the whole image; admit bodies per zone;
-reinforce a loss in bed?; believe (stabilize, conserve, derive the subject);
+One turn, in order: detect over the whole image, or over the focus while the
+resident is alone in bed (§3.1); widen to the whole image if the focus did
+not confirm?; admit bodies per zone; reinforce a loss in bed?; believe (stabilize, conserve, derive the subject);
 calibrate, pose, depth?; conclude the enrichment; project the scene and the
 facts. The order lives in a single place: `Course::next` (`cycle/sequence.rs`).
+
+### 3.1 The focus: a strategy of the main detector
+
+While layer 0 believes the resident is alone in bed (`Room::Alone(InBed(_))`)
+and nothing is stabilizing, the main detector looks at the **focus**: the site
+map's, or the bed grown by `FocusPolicy::pad`. The same model gets more pixels
+per body where the resident is lost to a blanket. Layer 0 does not know it
+exists:
+
+- **The focus only confirms.** It confirms what is believed (one in bed if
+  seen; nobody, or the one who reappears, if held) with nobody on the floor.
+  Anything else and the same turn looks at the whole frame before believing
+  (`attention::widen`): layer 0 never receives a reading of the focus that
+  did not confirm.
+- **The sentinel.** The whole frame is looked at again every
+  `wide_every_secs` of source time (`attention::Lens`). Kept no longer than
+  staff take to walk from the door to the bed, whoever comes in is seen on
+  the floor first and layer 0 knows where they came from (rule 6). Someone
+  far from the bed is seen up to that late; nobody is invented or lost.
+- **The wire does not change.** The ledger already publishes the region of
+  each `detect` (`null`: the whole frame); a widened turn has two.
+
+```text
+Primary(focus | whole) → [Widen] → [Reinforce] → [Faces] → believe → …
+```
 
 ## 4. Mechanism and policy
 
@@ -248,6 +274,9 @@ One concept, one name.
 | conclusion | `conclusion::Conclusion` | What the engine concludes from a closed turn, before the chronicle and the contract: an `Observation` or what to republish |
 | observation | `conclusion::Observation` | What a turn observed and believed, together: the input of the chronicle and the projection |
 | look, probe | `look`, `Probe` | What the core asks the shell to look at |
+| focus | `FocusPolicy`, `SiteMap::focus`, `attention::primary_region` | Where the main detector looks while the resident is alone in bed: the bed up close |
+| widen | `attention::widen` | The focus did not confirm what is believed: the same turn looks at the whole frame before believing |
+| sentinel, lens | `FocusPolicy::wide_every_secs`, `attention::Lens` | The whole frame at least this often; the lens remembers when it was last read |
 | reading | `Reading` | What the shell returns for a probe |
 | evidence | `evidence` | Which reading counts and how much it is worth; it never decides what is believed |
 | box | `look::Detection` | What a detector returns: a rectangle, a score and a class. It is evidence of a body, not a body |
@@ -296,7 +325,7 @@ matters as much as the second.
 | `belief/occupancy` | Layer 0: the occupancy machine | knows the second level or the contract |
 | `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |
 | `refine` | The second level: lying, posture | writes the belief or changes a count |
-| `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`) | mutates the belief |
+| `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); the main detector's lens (`Lens`: when it last read the whole frame) | mutates the belief |
 | `body` | Body vocabulary: the COCO-17 pose and its depth | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |

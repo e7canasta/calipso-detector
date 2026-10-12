@@ -15,6 +15,14 @@ stall_timeout_secs = 10
 model = "yolo26s.onnx" # relative to CALIPSO_MODELS, or an absolute path
 backend_confidence = 0.25
 
+# Optional focus: while the resident is alone in bed, the main detector looks
+# at the bed up close (more pixels per body). Without the section, it always
+# looks at the whole frame.
+# [senses.detect.focus]
+# pad = 0.25 # fraction of the bed's width and height on each side; must reach whoever stands next to it
+# walk_secs = 3 # the least staff take to walk from the door to the bed
+# wide_every_secs = 3 # the whole frame at least this often; cannot exceed walk_secs
+
 # Optional reinforcement: without the section, the core policy stays off.
 # [senses.reinforce]
 # model = "yolo26l.onnx" # relative to CALIPSO_MODELS, or an absolute path
@@ -58,6 +66,9 @@ resolution = [1920, 1080]
 bed = [[746,139], [1068,136], [1170,778], [652,743]]
 # Face region when no body is seen; with a body, the core asks for its box.
 # headboard = [746,139,1068,250]
+# Where the main detector looks while focusing; it must contain the bed.
+# Without it, the bed grown by senses.detect.focus.pad.
+# focus = [600,80,1250,830]
 
 [nats]
 url = "nats://127.0.0.1:4222"

@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use scene_core::{
     geom::{Point, Quad, Rect},
     map::{FrameInfo, SiteMap},
-    policy::{CalibrationPolicy, EnrichPolicy, FacePolicy, Policy, ReinforcePolicy},
+    policy::{CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy, Policy, ReinforcePolicy},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -121,6 +121,22 @@ pub struct Detect {
     pub model: PathBuf,
     #[serde(default = "defaults::backend_confidence")]
     pub backend_confidence: f32,
+    /// Without it, the main detector always looks at the whole frame. Left
+    /// out of the hash when absent: a profile without focus keeps its hash.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<Focus>,
+}
+/// The main detector looks at the bed up close while the resident is alone
+/// in it, and at the whole frame at least every `wide_every_secs`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Focus {
+    #[serde(default = "defaults::focus_pad")]
+    pub pad: f32,
+    pub wide_every_secs: f64,
+    /// The least staff take to walk from the door to the bed: the sentinel
+    /// cannot be longer, or whoever walks in reaches the bed unseen.
+    pub walk_secs: f64,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -153,6 +169,10 @@ pub struct MapConfig {
     pub resolution: [u32; 2],
     pub bed: [[f32; 2]; 4],
     pub headboard: Option<[f32; 4]>,
+    /// Where the main detector looks while focusing; without it, the bed
+    /// grown by the focus's pad. Left out of the hash when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<[f32; 4]>,
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -193,6 +213,9 @@ mod defaults {
     pub(super) fn bed_padding() -> f32 {
         0.15
     }
+    pub(super) fn focus_pad() -> f32 {
+        0.25
+    }
     pub(super) fn face_min_confidence() -> f32 {
         0.30
     }
@@ -215,6 +238,15 @@ fn not_negative(name: &str, value: f64) -> Result<()> {
     ensure!(
         value.is_finite() && value >= 0.0,
         "{name} must be finite and not negative"
+    );
+    Ok(())
+}
+
+/// A period: finite and positive.
+fn positive(name: &str, value: f64) -> Result<()> {
+    ensure!(
+        value.is_finite() && value > 0.0,
+        "{name} must be finite and positive"
     );
     Ok(())
 }
@@ -326,6 +358,16 @@ impl Config {
     /// Each sense section, and that depth and calibration ask for each other.
     fn validate_senses(&self) -> Result<()> {
         model("senses.detect.model", &self.senses.detect.model)?;
+        if let Some(focus) = &self.senses.detect.focus {
+            not_negative("senses.detect.focus.pad", f64::from(focus.pad))?;
+            positive("senses.detect.focus.walk_secs", focus.walk_secs)?;
+            positive("senses.detect.focus.wide_every_secs", focus.wide_every_secs)?;
+            ensure!(
+                focus.wide_every_secs <= focus.walk_secs,
+                "senses.detect.focus.wide_every_secs cannot exceed senses.detect.focus.walk_secs: \
+                 whoever walks in would reach the bed unseen"
+            );
+        }
         if let Some(reinforce) = &self.senses.reinforce {
             model("senses.reinforce.model", &reinforce.model)?;
             fraction(
@@ -433,6 +475,27 @@ impl Config {
                 "map.headboard: invalid rectangle"
             );
         }
+        if let Some([x0, y0, x1, y1]) = self.map.focus {
+            ensure!(
+                self.senses.detect.focus.is_some(),
+                "map.focus: the main detector does not focus; [senses.detect.focus] is needed"
+            );
+            let inside = |x: f32, y: f32| x >= x0 && x <= x1 && y >= y0 && y <= y1;
+            ensure!(
+                [x0, y0, x1, y1].iter().all(|v| v.is_finite())
+                    && x0 >= 0.0
+                    && y0 >= 0.0
+                    && x1 > x0
+                    && y1 > y0
+                    && x1 <= w as f32
+                    && y1 <= h as f32,
+                "map.focus: invalid rectangle"
+            );
+            ensure!(
+                self.map.bed.iter().all(|[x, y]| inside(*x, *y)),
+                "map.focus: it must contain the bed"
+            );
+        }
         Ok(())
     }
     pub fn policy(&self) -> Policy {
@@ -448,6 +511,10 @@ impl Config {
             .map(|config| ReinforcePolicy {
                 bed_padding: config.bed_padding,
             });
+        p.focus = self.senses.detect.focus.as_ref().map(|config| FocusPolicy {
+            pad: config.pad,
+            wide_every_secs: config.wide_every_secs,
+        });
         p.faces = self.senses.faces.as_ref().map(|config| FacePolicy {
             min_confidence: config.min_confidence,
         });
@@ -474,6 +541,10 @@ impl Config {
         map.headboard = self
             .map
             .headboard
+            .map(|[x0, y0, x1, y1]| Rect::new(x0, y0, x1, y1));
+        map.focus = self
+            .map
+            .focus
             .map(|[x0, y0, x1, y1]| Rect::new(x0, y0, x1, y1));
         map
     }

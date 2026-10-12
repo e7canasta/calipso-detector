@@ -13,7 +13,7 @@ One directory per capability of the engine, one feature per behaviour:
 | Directory | What it specifies | Where it lives |
 | --- | --- | --- |
 | [`occupancy/`](occupancy) | Layer 0: how many are in the room and in bed, what the bed retains, the staff who come and go, stabilization by source time, what the scene declares when it did not observe | `belief/occupancy` |
-| [`attention/`](attention) | What the core decides to look at, where, in what order and why not: reinforcement, faces, pose, depth, when to look again, calibrating the empty bed | `attention`, `belief/subject` |
+| [`attention/`](attention) | What the core decides to look at, where, in what order and why not: the focus on the bed and its sentinel, reinforcement, faces, pose, depth, when to look again, calibrating the empty bed | `attention`, `belief/subject` |
 | [`posture/`](posture) | The second level: the depth of each keypoint, truly lying, posture by disparity | `refine` |
 | [`contract/`](contract) | What `calipso.scene` and `calipso.events` publish: the scene, the mode and the layer-0 transition | `project`, `contract` |
 | [`shell/`](shell) | The shell's side: each capability answered by a real model adapter, the profile, distilling a night | `sense`, `detector`, `calipso-golden` |
