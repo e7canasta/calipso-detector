@@ -58,6 +58,7 @@ mod cycle;
 mod estimation;
 mod evidence;
 pub mod geom;
+mod head;
 pub mod look;
 pub mod map;
 pub mod policy;

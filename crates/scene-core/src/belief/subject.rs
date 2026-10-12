@@ -7,6 +7,7 @@ use crate::body::{BedPoint, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 use crate::estimation;
 use crate::evidence::SubjectDepths;
 use crate::geom::Rect;
+use crate::head::HeadPlace;
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
 
@@ -25,6 +26,8 @@ struct Enriched {
     depths: SubjectDepths,
     /// The median of the measured keypoints.
     depth: Option<f32>,
+    /// Where the head was when the look was decided.
+    head: HeadPlace,
     since: SampleRef,
     /// The box it was taken with: the motion reference.
     reference: Rect,
@@ -42,6 +45,8 @@ pub(crate) enum Enrichment {
         pose: Vec<Keypoint>,
         /// What the depth look read, whole; empty if not measured.
         depths: SubjectDepths,
+        /// Where the head was when the look was decided.
+        head: HeadPlace,
         bbox: Rect,
         reference: ReferenceUpdate,
     },
@@ -54,6 +59,7 @@ impl Enrichment {
     pub(crate) fn fresh(
         pose: Option<Vec<Keypoint>>,
         depths: Option<SubjectDepths>,
+        head: HeadPlace,
         bbox: Rect,
         primary_seen: bool,
     ) -> Self {
@@ -61,6 +67,7 @@ impl Enrichment {
             Some(pose) => Self::Fresh {
                 pose,
                 depths: depths.unwrap_or_default(),
+                head,
                 bbox,
                 reference: if primary_seen {
                     ReferenceUpdate::Refresh
@@ -80,6 +87,8 @@ pub(crate) struct SubjectBody {
     pub depth: Option<SubjectDepth>,
     /// The bed's points, read with the pose's depth: they hold with it.
     pub bed_points: Vec<BedPoint>,
+    /// Where the head was when they were read.
+    pub head_place: HeadPlace,
 }
 
 /// What is known of the subject beyond its box: its last pose and depth.
@@ -121,6 +130,7 @@ impl SubjectMemory {
             Enrichment::Fresh {
                 pose,
                 depths,
+                head,
                 bbox,
                 reference,
             } => {
@@ -132,6 +142,7 @@ impl SubjectMemory {
                     pose,
                     depth: estimation::median(&depths.keypoints),
                     depths,
+                    head,
                     since: at,
                     reference,
                 });
@@ -168,5 +179,6 @@ fn body(enriched: &Enriched, provenance: Provenance) -> SubjectBody {
             provenance,
         }),
         bed_points: enriched.depths.bed.clone(),
+        head_place: enriched.head,
     }
 }

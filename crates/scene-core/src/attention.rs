@@ -11,6 +11,7 @@ use crate::evidence::FaceEvidence;
 use crate::evidence::RejectReason;
 use crate::geom::Point;
 use crate::geom::Rect;
+use crate::head::{self, HeadPlace};
 use crate::look::FaceRegion;
 use crate::look::{DepthTarget, Failure, LookKind};
 use crate::map::{Geometry, Map};
@@ -248,7 +249,7 @@ pub(crate) fn deepen(
     g: &Glimpse<'_>,
     pose: Option<&[Keypoint]>,
     policy: &Policy,
-) -> Consideration<DepthLook<(DepthTarget, Point)>> {
+) -> Consideration<SubjectDepthLook> {
     let lens = depth_lens(g, policy);
     let Some(policy) = policy.enrich.as_ref().filter(|p| p.depth) else {
         return Consideration::Disabled;
@@ -263,7 +264,16 @@ pub(crate) fn deepen(
     if points.is_empty() {
         return Consideration::Decided(Decision::Skip(SkipReason::NoPose));
     }
-    if let Some(plane) = g.map.bed_for(g.geometry).and_then(BedPlane::of) {
+    // The stand-in is situational: the bed's centre is the hips only with the
+    // head at the headboard (1707). Away from it, the bed is not looked at.
+    let head = head::place(
+        g.faces,
+        pose,
+        g.map.headboard_for(g.geometry),
+        policy.min_keypoint_score,
+    );
+    let plane = g.map.bed_for(g.geometry).and_then(BedPlane::of);
+    if let Some(plane) = plane.filter(|_| head.at_headboard()) {
         points.extend(BedSite::ALL.map(|site| {
             let (u, v) = site.at();
             (DepthTarget::Bed(site), plane.point(u, v))
@@ -271,8 +281,19 @@ pub(crate) fn deepen(
     }
     Consideration::Decided(match lens {
         Err(reason) => Decision::Skip(reason),
-        Ok(region) => Decision::Ask(DepthLook { region, points }),
+        Ok(region) => Decision::Ask(SubjectDepthLook {
+            look: DepthLook { region, points },
+            head,
+        }),
     })
+}
+
+/// The subject's depth look, with where the head was concluded to be when it
+/// was decided: what was measured depends on it, so it travels with it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SubjectDepthLook {
+    pub(crate) look: DepthLook<(DepthTarget, Point)>,
+    pub(crate) head: HeadPlace,
 }
 
 /// Measure the empty bed to learn it? Only with an incomplete map and a truly

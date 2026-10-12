@@ -733,6 +733,65 @@
         }
       ]
     },
+    "HeadEvidence": {
+      "description": "What the head's place was concluded from.",
+      "oneOf": [
+        {
+          "description": "An accepted face.",
+          "type": "string",
+          "const": "face"
+        },
+        {
+          "description": "The pose's head keypoints (nose, eyes, ears) seen.",
+          "type": "string",
+          "const": "pose_head"
+        }
+      ]
+    },
+    "HeadPlace": {
+      "description": "Where the head is, and what said so.",
+      "type": "object",
+      "properties": {
+        "by": {
+          "description": "What it was concluded from; `None` when unknown.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeadEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "At the headboard, elsewhere, or unknown.",
+          "$ref": "#/$defs/HeadPlaceState"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "HeadPlaceState": {
+      "description": "Where the head is.",
+      "oneOf": [
+        {
+          "description": "At the headboard: lying in bed as a bed is used, the hips are at its\ncentre.",
+          "type": "string",
+          "const": "at_headboard"
+        },
+        {
+          "description": "Seen, but not at the headboard.",
+          "type": "string",
+          "const": "elsewhere"
+        },
+        {
+          "description": "Without the headboard delimited, or without a face or a head in sight.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
     "Held": {
       "description": "Someone who stopped being seen in bed without an observed exit.",
       "type": "object",
@@ -1183,6 +1242,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/BodyGroups"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head_place": {
+          "description": "Where the head was when the bed's points were decided: they are read\nonly with it at the headboard (1707). Absent in scenes recorded before.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeadPlace"
             },
             {
               "type": "null"

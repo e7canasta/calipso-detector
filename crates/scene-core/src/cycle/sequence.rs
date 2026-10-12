@@ -8,14 +8,15 @@ use super::{Course, Engine, Observed, Phase};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
     self, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome, LookResult,
-    SkipReason,
+    SkipReason, SubjectDepthLook,
 };
 use crate::belief::{Believed, Enrichment};
 use crate::body::Keypoint;
 use crate::conclusion::{Conclusion, Observation, RepublishReason};
 use crate::evidence::{self, Admission, FaceEvidence, Perceived};
 use crate::geom::{Point, Rect};
-use crate::look::{DepthTarget, FaceRegion, LookKind, Outcome, Probe, Spent};
+use crate::head::HeadPlace;
+use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
 use crate::sensor::SensorChanged;
@@ -147,7 +148,13 @@ impl Course<'_> {
                         }
                         (_, pose) => {
                             let primary_seen = observed.evidence.bodies.primary_seen();
-                            let enrichment = Enrichment::fresh(pose, None, bbox, primary_seen);
+                            let enrichment = Enrichment::fresh(
+                                pose,
+                                None,
+                                HeadPlace::UNKNOWN,
+                                bbox,
+                                primary_seen,
+                            );
                             Reached::Enriched(observed, enrichment)
                         }
                     }
@@ -223,11 +230,12 @@ impl Course<'_> {
                 pose,
                 bbox,
                 at,
+                head,
             } => {
                 let (depths, result) = evidence::depths(outcome.depths(), &at, pose.len());
                 self.asked(probe, spent, result);
                 let primary_seen = observed.evidence.bodies.primary_seen();
-                let enrichment = Enrichment::fresh(Some(pose), depths, bbox, primary_seen);
+                let enrichment = Enrichment::fresh(Some(pose), depths, head, bbox, primary_seen);
                 Reached::Enriched(observed, enrichment)
             }
         };
@@ -324,7 +332,7 @@ impl Course<'_> {
         &self,
         observed: &Observed,
         pose: Option<&[Keypoint]>,
-    ) -> Consideration<DepthLook<(DepthTarget, Point)>> {
+    ) -> Consideration<SubjectDepthLook> {
         let Perceived { bodies, faces } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         attention::deepen(&g, pose, &self.monitor.engine.policy)

@@ -401,3 +401,27 @@ fn head_beyond_the_bed_point(ward: &mut Ward, n: u32, name: String) {
         "head {head:?}, {name} {point:?}"
     );
 }
+
+// --- Where the head is (R17, 1707): the stand-in is situational
+
+#[then(regex = r#"^in sample (\d+) the head is "([a-z_]+)"(?:, by "([a-z_]+)")?$"#)]
+fn head_place(ward: &mut Ward, n: u32, state: String, by: String) {
+    let posture = posture(ward, n);
+    let place = &posture["head_place"];
+    assert_eq!(place["state"], state.as_str(), "{posture}");
+    if by.is_empty() {
+        assert!(place["by"].is_null(), "{place}");
+    } else {
+        assert_eq!(place["by"], by.as_str(), "{place}");
+    }
+}
+
+#[then(expr = "in sample {int} the posture publishes no bed points")]
+fn no_bed_points(ward: &mut Ward, n: u32) {
+    let posture = posture(ward, n);
+    assert!(posture["bed_points"].is_null(), "{posture}");
+    assert!(
+        posture["disparities"]["upper_bed_centre"].is_null(),
+        "{posture}"
+    );
+}

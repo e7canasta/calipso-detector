@@ -10,6 +10,7 @@ pub use crate::body::{BedPoint, BedSite, BodyPoint, Joint, Keypoint, Pose, Subje
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
 use crate::geom::Rect;
+pub use crate::head::{HeadEvidence, HeadPlace, HeadPlaceState};
 pub use crate::look::{Failure, LookKind};
 pub use crate::map::{Calibration, FrameInfo, Geometry, MapState};
 pub use crate::provenance::Provenance;

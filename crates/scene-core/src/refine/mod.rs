@@ -56,6 +56,7 @@ pub(crate) fn refine(
         disparities: Some(r.disparities),
         tolerance: Some(enrich.posture_tolerance),
         bed_points: body.bed_points.clone(),
+        head_place: Some(body.head_place),
     });
     let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.as_ref().map(|p| p.state)));
     Refinement {

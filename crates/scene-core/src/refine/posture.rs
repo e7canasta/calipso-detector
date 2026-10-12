@@ -4,6 +4,7 @@
 use crate::belief::SubjectBody;
 use crate::body::{BedPoint, BedSite, BodyPoint, Joint};
 use crate::estimation;
+use crate::head::HeadPlace;
 use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
 use schemars::JsonSchema;
@@ -200,6 +201,10 @@ pub struct Posture {
     /// recorded before them, and without the bed's geometry.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bed_points: Vec<BedPoint>,
+    /// Where the head was when the bed's points were decided: they are read
+    /// only with it at the headboard (1707). Absent in scenes recorded before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head_place: Option<HeadPlace>,
 }
 
 #[cfg(test)]
@@ -227,6 +232,7 @@ mod tests {
             },
             depth: None,
             bed_points: Vec::new(),
+            head_place: HeadPlace::UNKNOWN,
         }
     }
 
