@@ -12,7 +12,7 @@ use crate::evidence::RejectReason;
 use crate::geom::Point;
 use crate::geom::Rect;
 use crate::look::FaceRegion;
-use crate::look::{Failure, LookKind};
+use crate::look::{DepthTarget, Failure, LookKind};
 use crate::map::{Geometry, Map};
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
@@ -239,14 +239,6 @@ fn depth_lens(g: &Glimpse<'_>, policy: &Policy) -> Result<Option<Rect>, SkipReas
     }
 }
 
-/// Whose depth a point of the subject's look reads: a pose keypoint's, by its
-/// index in the pose, or a bed site's.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Target {
-    Keypoint(usize),
-    Bed(BedSite),
-}
-
 /// Measure the subject's depth? At the pose keypoints with enough score, each
 /// with its index in the pose so the reading returns to its keypoint, and at
 /// the bed's sites, in the same look: covered, the bed stands in for what the
@@ -256,17 +248,17 @@ pub(crate) fn deepen(
     g: &Glimpse<'_>,
     pose: Option<&[Keypoint]>,
     policy: &Policy,
-) -> Consideration<DepthLook<(Target, Point)>> {
+) -> Consideration<DepthLook<(DepthTarget, Point)>> {
     let lens = depth_lens(g, policy);
     let Some(policy) = policy.enrich.as_ref().filter(|p| p.depth) else {
         return Consideration::Disabled;
     };
-    let mut points: Vec<(Target, Point)> = pose
+    let mut points: Vec<(DepthTarget, Point)> = pose
         .unwrap_or_default()
         .iter()
         .enumerate()
         .filter(|(_, k)| k.score >= policy.min_keypoint_score)
-        .map(|(i, k)| (Target::Keypoint(i), Point { x: k.x, y: k.y }))
+        .map(|(i, k)| (DepthTarget::Keypoint(i), Point { x: k.x, y: k.y }))
         .collect();
     if points.is_empty() {
         return Consideration::Decided(Decision::Skip(SkipReason::NoPose));
@@ -274,7 +266,7 @@ pub(crate) fn deepen(
     if let Some(plane) = g.map.bed_for(g.geometry).and_then(BedPlane::of) {
         points.extend(BedSite::ALL.map(|site| {
             let (u, v) = site.at();
-            (Target::Bed(site), plane.point(u, v))
+            (DepthTarget::Bed(site), plane.point(u, v))
         }));
     }
     Consideration::Decided(match lens {

@@ -2,11 +2,11 @@
 //! decides what is believed or what is looked at. It receives readings already
 //! typed: one of another kind than its probe arrives as a failing sense.
 
-use crate::attention::{LookResult, Target};
+use crate::attention::LookResult;
 use crate::body::{BedPoint, Keypoint};
 use crate::estimation;
 use crate::geom::{Point, Quad, Rect};
-use crate::look::{Detection, Failure, Label};
+use crate::look::{DepthTarget, Detection, Failure, Label};
 use crate::policy::{AdmissionPolicy, FacePolicy};
 use crate::zone::Counts;
 use schemars::JsonSchema;
@@ -321,7 +321,7 @@ pub(crate) fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult
 /// non-finite values stay without depth. If the sense failed, none.
 pub(crate) fn depths(
     reading: Sensed<&[Option<f32>]>,
-    at: &[(Target, Point)],
+    at: &[(DepthTarget, Point)],
     len: usize,
 ) -> (Option<SubjectDepths>, LookResult) {
     match reading {
@@ -334,12 +334,12 @@ pub(crate) fn depths(
             for (&(target, p), value) in at.iter().zip(values) {
                 let value = value.filter(|d| d.is_finite());
                 match target {
-                    Target::Keypoint(i) => {
+                    DepthTarget::Keypoint(i) => {
                         if let Some(slot) = depths.keypoints.get_mut(i) {
                             *slot = value;
                         }
                     }
-                    Target::Bed(name) => depths.bed.push(BedPoint {
+                    DepthTarget::Bed(name) => depths.bed.push(BedPoint {
                         name,
                         x: p.x,
                         y: p.y,

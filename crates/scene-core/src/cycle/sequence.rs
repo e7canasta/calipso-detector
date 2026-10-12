@@ -8,14 +8,14 @@ use super::{Course, Engine, Observed, Phase};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
     self, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome, LookResult,
-    SkipReason, Target,
+    SkipReason,
 };
 use crate::belief::{Believed, Enrichment};
 use crate::body::Keypoint;
 use crate::conclusion::{Conclusion, Observation, RepublishReason};
 use crate::evidence::{self, Admission, FaceEvidence, Perceived};
 use crate::geom::{Point, Rect};
-use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
+use crate::look::{DepthTarget, FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
 use crate::sensor::SensorChanged;
@@ -324,7 +324,7 @@ impl Course<'_> {
         &self,
         observed: &Observed,
         pose: Option<&[Keypoint]>,
-    ) -> Consideration<DepthLook<(Target, Point)>> {
+    ) -> Consideration<DepthLook<(DepthTarget, Point)>> {
         let Perceived { bodies, faces } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         attention::deepen(&g, pose, &self.monitor.engine.policy)

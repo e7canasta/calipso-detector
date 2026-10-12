@@ -1,7 +1,7 @@
 //! The loop's vocabulary: what the core asks to look at and what the shell
 //! returns. Never pixels (rule 8).
 
-use crate::body::Keypoint;
+use crate::body::{BedSite, Keypoint};
 use crate::geom::{Point, Rect};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -177,6 +177,14 @@ impl Outcome {
             Ok(_) => Err(Failure::Model),
         }
     }
+}
+
+/// Whose depth a point of the subject's depth look reads: a pose keypoint's,
+/// by its index in the pose, or a bed site's (R17).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DepthTarget {
+    Keypoint(usize),
+    Bed(BedSite),
 }
 
 /// What was asked to be looked at.
