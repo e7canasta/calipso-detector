@@ -184,7 +184,7 @@ async fn main() -> Result<()> {
     );
     let config = Config::load(&args.config)?;
     let site = config.site_map();
-    let points = site.bed_points();
+    let points = site.calibration_points();
     let depth_model = config.model_path(
         config
             .senses

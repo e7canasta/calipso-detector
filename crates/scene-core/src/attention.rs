@@ -314,7 +314,7 @@ pub(crate) fn calibrate(
     Consideration::Decided(match lens {
         Ok(region) => Decision::Ask(DepthLook {
             region,
-            points: map.bed_points(),
+            points: map.calibration_points(),
         }),
         Err(reason) => Decision::Skip(reason),
     })

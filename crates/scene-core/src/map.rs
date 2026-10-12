@@ -1,7 +1,9 @@
 //! The site map: the static world the subject does not occlude.
 
+use crate::body::BedSite;
 use crate::geom::{Point, Quad, Rect};
 use crate::policy::FocusPolicy;
+use crate::refine::BedPlane;
 use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -95,10 +97,10 @@ impl SiteMap {
         }
     }
 
-    /// Where to measure the bed's depth: its corners and its centre. For
+    /// Where to measure the empty bed's depth: its corners and its centre. For
     /// measuring outside the loop; inside the loop, ask the running map.
-    pub fn bed_points(&self) -> Vec<Point> {
-        bed_points(&self.bed)
+    pub fn calibration_points(&self) -> Vec<Point> {
+        calibration_points(&self.bed)
     }
 }
 
@@ -111,8 +113,8 @@ impl Map {
         self.calibration.last_attempt
     }
 
-    pub(crate) fn bed_points(&self) -> Vec<Point> {
-        bed_points(&self.site.bed)
+    pub(crate) fn calibration_points(&self) -> Vec<Point> {
+        calibration_points(&self.site.bed)
     }
 
     /// Calibration was requested: the retry delay runs from here.
@@ -184,9 +186,15 @@ impl Map {
     }
 }
 
-fn bed_points(bed: &Quad) -> Vec<Point> {
+/// The corners and the centre: the same centre the subject's look reads
+/// (`BedSite::Centre`, in perspective through the bed plane), so "the bed's
+/// centre" means one thing. Degenerate corners have no plane: the centre of
+/// their box.
+fn calibration_points(bed: &Quad) -> Vec<Point> {
+    let (u, v) = BedSite::Centre.at();
+    let centre = BedPlane::of(bed).map_or_else(|| bed.bounds().centroid(), |p| p.point(u, v));
     let mut points = bed.0.to_vec();
-    points.push(bed.bounds().centroid());
+    points.push(centre);
     points
 }
 
@@ -257,4 +265,34 @@ pub enum Calibration {
         /// The sample it was learned in; `None` if the profile brought it.
         since: Option<SampleRef>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_calibration_centre_is_the_subjects_bed_centre() {
+        // A bed in perspective (sample1's): the centre of its box is not the
+        // centre of the bed.
+        let bed = Quad([
+            Point { x: 785.0, y: 355.0 },
+            Point {
+                x: 1160.0,
+                y: 370.0,
+            },
+            Point {
+                x: 1240.0,
+                y: 1075.0,
+            },
+            Point {
+                x: 705.0,
+                y: 1075.0,
+            },
+        ]);
+        let points = calibration_points(&bed);
+        assert_eq!(&points[..4], &bed.0);
+        let (u, v) = BedPlane::of(&bed).unwrap().project(points[4]);
+        assert!((u - 0.5).abs() < 1e-4 && (v - 0.5).abs() < 1e-4, "{u}, {v}");
+    }
 }
