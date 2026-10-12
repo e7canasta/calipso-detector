@@ -183,6 +183,26 @@ fn occupants_between(ward: &mut Ward, occupants: u32, from: u32, to: u32) {
     }
 }
 
+/// The focus the last scene's map carries.
+fn published_focus(ward: &Ward) -> Option<Rect> {
+    ward.turns.last().expect("a turn").output.scene.map.focus
+}
+
+#[then(expr = "the scene's map carries the bed grown by {float} as the focus")]
+fn map_focus_grown(ward: &mut Ward, pad: f32) {
+    assert_eq!(published_focus(ward), Some(BED.expand(pad)));
+}
+
+#[then(regex = r"^the scene's map carries (\d+),(\d+) to (\d+),(\d+) as the focus$")]
+fn map_focus_delimited(ward: &mut Ward, x0: f32, y0: f32, x1: f32, y1: f32) {
+    assert_eq!(published_focus(ward), Some(Rect::new(x0, y0, x1, y1)));
+}
+
+#[then("the scene's map carries no focus")]
+fn map_no_focus(ward: &mut Ward) {
+    assert_eq!(published_focus(ward), None);
+}
+
 #[then(expr = "in sample {int} the main detector looked at the whole frame")]
 fn looked_at_the_whole_frame(ward: &mut Ward, n: u32) {
     assert_eq!(detect_regions(ward, n), [None]);

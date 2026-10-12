@@ -251,7 +251,9 @@ impl Course<'_> {
             frame: engine.frame,
             calibrated: observed.calibrated,
             attention: std::mem::take(&mut self.attention),
-            map: engine.map.state(self.geometry),
+            map: engine
+                .map
+                .state(self.geometry, engine.policy.focus.as_ref()),
             sensor: engine.sensor.state(),
             dwell_secs: engine.policy.persistence.dwell_secs,
         }))
@@ -268,7 +270,9 @@ impl Course<'_> {
             reason,
             changed,
             sensor: engine.sensor.state(),
-            map: engine.map.state(Geometry::Valid),
+            map: engine
+                .map
+                .state(Geometry::Valid, engine.policy.focus.as_ref()),
         }
     }
 

@@ -94,3 +94,23 @@ Feature: The main detector focuses on the bed
       | 31-35   | 0        |          | 1      | 1         | occupied, seen |
       | 36-45   | 1        | near bed | 0      | 1         | empty          |
     Then the same night, replayed with the same readings, gives the same scenes and events
+
+  Scenario: The scene publishes the focus with the rest of the map
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | occupants | bed   |
+      | 1-3     | 0        |       | 0      | 0         | empty |
+    Then the scene's map carries the bed grown by 0.25 as the focus
+
+  Scenario: The site map's focus is the one published
+    Given the site map delimits the focus as 50,50 to 590,460
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | occupants | bed   |
+      | 1-3     | 0        |       | 0      | 0         | empty |
+    Then the scene's map carries 50,50 to 590,460 as the focus
+
+  Scenario: Without the focus policy, the map carries no focus
+    Given the main detector does not focus
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | occupants | bed   |
+      | 1-3     | 0        |       | 0      | 0         | empty |
+    Then the scene's map carries no focus

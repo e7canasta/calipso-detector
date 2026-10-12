@@ -1,6 +1,7 @@
 //! The site map: the static world the subject does not occlude.
 
 use crate::geom::{Point, Quad, Rect};
+use crate::policy::FocusPolicy;
 use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -143,9 +144,12 @@ impl Map {
         self.site.headboard.filter(|_| geometry == Geometry::Valid)
     }
 
-    /// The delimited focus, if the geometry applies.
-    pub(crate) fn focus_for(&self, geometry: Geometry) -> Option<Rect> {
-        self.site.focus.filter(|_| geometry == Geometry::Valid)
+    /// Where the main detector looks while focusing, if the geometry applies:
+    /// the delimited focus, or else the bed grown by `pad`. The look and the
+    /// published map read it here: they cannot differ.
+    pub(crate) fn focus_region(&self, geometry: Geometry, pad: f32) -> Option<Rect> {
+        let bed = self.bed_for(geometry)?;
+        Some(self.site.focus.unwrap_or_else(|| bed.bounds().expand(pad)))
     }
 
     /// The bed, if the geometry applies.
@@ -155,8 +159,10 @@ impl Map {
 
     /// The static world as this turn sees it: the configured geometry and
     /// what was learned of the empty bed.
-    pub(crate) fn state(&self, geometry: Geometry) -> MapState {
+    /// With the focus the policy configured, if any.
+    pub(crate) fn state(&self, geometry: Geometry, focus: Option<&FocusPolicy>) -> MapState {
         MapState {
+            focus: focus.and_then(|f| self.focus_region(geometry, f.pad)),
             geometry,
             bed: self.site.bed,
             headboard: self.site.headboard,
@@ -221,6 +227,11 @@ pub struct MapState {
     pub bed: Quad,
     /// Where faces are looked for when nobody is in sight.
     pub headboard: Option<Rect>,
+    /// Where the main detector looks while the resident is alone in bed: the
+    /// delimited focus or the bed grown by the focus policy's pad. Absent, and
+    /// not published, when the main detector does not focus.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<Rect>,
     /// What the map learned about the empty bed.
     pub calibration: Calibration,
 }

@@ -95,13 +95,10 @@ pub(crate) fn primary_region(
     policy: &Policy,
 ) -> Option<Rect> {
     let focus = policy.focus.as_ref()?;
-    let bed = map.bed_for(geometry)?;
+    let region = map.focus_region(geometry, focus.pad)?;
     let alone_in_bed = matches!(belief.room(), Room::Alone(Alone::InBed(_)));
     let sentinel = lens.wide_due(at, focus.wide_every_secs);
-    (alone_in_bed && belief.settled() && !sentinel).then(|| {
-        map.focus_for(geometry)
-            .unwrap_or_else(|| bed.bounds().expand(focus.pad))
-    })
+    (alone_in_bed && belief.settled() && !sentinel).then_some(region)
 }
 
 /// The focus saw something other than what is believed: look at the whole

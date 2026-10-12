@@ -867,6 +867,17 @@
           "description": "What the map learned about the empty bed.",
           "$ref": "#/$defs/Calibration"
         },
+        "focus": {
+          "description": "Where the main detector looks while the resident is alone in bed: the\ndelimited focus or the bed grown by the focus policy's pad. Absent, and\nnot published, when the main detector does not focus.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "geometry": {
           "description": "Whether the delimited bed applies to this image.",
           "$ref": "#/$defs/Geometry"
