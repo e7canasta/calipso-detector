@@ -306,6 +306,7 @@ One concept, one name.
 | second level | `refine` | How the resident is: lying, posture |
 | body group | `refine::BodyGroup`, `BodyGroups` | Head, shoulders or pelvis: the median depth of its seen keypoints and how many it saw (R16) |
 | disparity | `Posture::disparity`, `Disparities` | `(upper − pelvis) / mean`: head and shoulders together against the pelvis decide; the feet do not vote (R16) |
+| bed point | `BedPoint`, `BedSite`, `Posture::bed_points` | A fixed site of the bed (today its centre, u/v 0.5) whose depth is read in the same look as the body, with the resident in bed: covered, the blanket over the hips. `upper_bed_centre` is the baseline next to the pelvis' disparity; context, not a vote (R17, 1707) |
 | head (of the second level) | `refine::Head` | An independent opinion on how the resident is: today `disparity`; the bed plane, the head's place in the bed and a VLM will follow |
 | arbiter, verdict | `refine::verdict`, `Verdict`, `VerdictState` | The table from the heads' opinions to one verdict, with the heads that support it and since when; only in bed for now (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) |
 | projection | `project` | How the belief looks from outside |
