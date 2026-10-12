@@ -184,7 +184,12 @@ fn the_disparity(ward: &mut Ward, n: u32, sign: String) {
     let disparity = posture["disparity"]
         .as_f64()
         .unwrap_or_else(|| panic!("{posture}"));
-    assert_eq!(disparity > 0.0, sign == "positive", "{posture}");
+    let strict = if sign == "positive" {
+        disparity > 0.0
+    } else {
+        disparity < 0.0
+    };
+    assert!(strict, "the disparity is not {sign}: {posture}");
 }
 
 #[then(expr = "in sample {int} the posture is stable since sample {int}")]
@@ -245,4 +250,122 @@ fn poses_requested_in(ward: &mut Ward, from: u32, to: u32, times: usize) {
             })
             .collect();
     assert_eq!(requested.len(), times, "requested in {requested:?}");
+}
+
+// --- The body groups in the scene (R16, 1604 and 1606)
+
+#[then(
+    regex = r#"^in sample (\d+) the group "(head|shoulders|pelvis)" saw (\d+) of (\d+) keypoints$"#
+)]
+fn group_saw(ward: &mut Ward, n: u32, group: String, seen: u64, of: u64) {
+    let posture = posture(ward, n);
+    let g = &posture["groups"][group.as_str()];
+    assert_eq!(
+        (g["seen"].as_u64(), g["of"].as_u64()),
+        (Some(seen), Some(of)),
+        "{posture}"
+    );
+}
+
+#[then(regex = r#"^in sample (\d+) the group "(head|shoulders|pelvis)" has no depth$"#)]
+fn group_without_depth(ward: &mut Ward, n: u32, group: String) {
+    let posture = posture(ward, n);
+    assert!(
+        posture["groups"][group.as_str()]["depth"].is_null(),
+        "{posture}"
+    );
+}
+
+#[then(regex = r#"^in sample (\d+) the disparities "([^"]+)" are (positive|negative)$"#)]
+fn disparities_sign(ward: &mut Ward, n: u32, names: String, sign: String) {
+    let posture = posture(ward, n);
+    for name in names.split(',').map(str::trim) {
+        let d = posture["disparities"][name]
+            .as_f64()
+            .unwrap_or_else(|| panic!("no {name}: {posture}"));
+        assert!(
+            if sign == "positive" { d > 0.0 } else { d < 0.0 },
+            "{name} is not {sign}: {posture}"
+        );
+    }
+}
+
+#[then(expr = "in sample {int} the posture tolerance is {float}")]
+fn posture_tolerance(ward: &mut Ward, n: u32, tolerance: f64) {
+    let posture = posture(ward, n);
+    let published = posture["tolerance"]
+        .as_f64()
+        .unwrap_or_else(|| panic!("{posture}"));
+    assert!((published - tolerance).abs() < 1e-6, "{posture}");
+}
+
+#[then(expr = "in sample {int} the disparity {string} is the posture disparity")]
+fn deciding_disparity(ward: &mut Ward, n: u32, name: String) {
+    let posture = posture(ward, n);
+    assert_eq!(
+        posture["disparities"][name.as_str()],
+        posture["disparity"],
+        "{posture}"
+    );
+}
+
+#[then(expr = "in sample {int} the posture still publishes upper, lower and disparity")]
+fn todays_fields(ward: &mut Ward, n: u32) {
+    let posture = posture(ward, n);
+    for key in ["upper", "lower", "disparity", "state", "provenance"] {
+        assert!(
+            posture.get(key).is_some_and(|v| !v.is_null()),
+            "no {key}: {posture}"
+        );
+    }
+}
+
+#[then(expr = "in sample {int} the subject publishes no {string} key")]
+fn subject_without_key(ward: &mut Ward, n: u32, key: String) {
+    let scene = serde_json::to_value(scene(ward, n)).expect("the scene serializes");
+    assert!(
+        scene["subject"].get(key.as_str()).is_none(),
+        "{}",
+        scene["subject"]
+    );
+}
+
+// --- The verdict (R16, 1605)
+
+fn verdict(ward: &Ward, n: u32) -> Value {
+    let scene = serde_json::to_value(scene(ward, n)).expect("the scene serializes");
+    scene["subject"]["verdict"].clone()
+}
+
+#[then(expr = "in sample {int} the verdict is {string}, by {string}")]
+fn the_verdict(ward: &mut Ward, n: u32, state: String, by: String) {
+    let v = verdict(ward, n);
+    assert_eq!(v["state"], state.as_str(), "{v}");
+    let heads: Vec<&str> = v["by"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{v}"))
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    assert_eq!(heads.join(", "), by, "{v}");
+}
+
+#[then(expr = "in sample {int} the verdict is {string} since sample {int}")]
+fn verdict_since(ward: &mut Ward, n: u32, state: String, since: u32) {
+    let v = verdict(ward, n);
+    assert_eq!(v["state"], state.as_str(), "{v}");
+    let expected = serde_json::to_value(ward.sample(since)).expect("the sample serializes");
+    assert_eq!(v["since"], expected, "{v}");
+}
+
+#[then(expr = "in sample {int} there is no verdict")]
+fn no_verdict(ward: &mut Ward, n: u32) {
+    let v = verdict(ward, n);
+    assert!(v.is_null(), "{v}");
+}
+
+#[then(expr = "in sample {int} the subject is on the floor")]
+fn subject_on_the_floor(ward: &mut Ward, n: u32) {
+    let scene = serde_json::to_value(scene(ward, n)).expect("the scene serializes");
+    assert_eq!(scene["subject"]["zone"], "floor", "{}", scene["subject"]);
 }

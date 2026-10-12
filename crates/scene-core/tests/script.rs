@@ -129,9 +129,17 @@ impl Script {
             Probe::Depth {
                 purpose: DepthPurpose::Subject,
                 points,
+                ..
             } => self.depth.map(|d| {
                 Reading::Depth(match (self.figure, self.keypoints) {
-                    (Some(figure), _) => points.iter().map(|p| Some(figure.depth(p.y))).collect(),
+                    (Some(figure), _) => {
+                        // The feet are the lowest keypoints in the image.
+                        let feet = points.iter().map(|p| p.y).fold(f32::MIN, f32::max);
+                        points
+                            .iter()
+                            .map(|p| Some(figure.depth(p.y) + figure.feet_offset(p.y, feet)))
+                            .collect()
+                    }
                     (None, None) => vec![Some(d); points.len()],
                     (None, Some(_)) => points.iter().map(|p| Some(depth_at(*p))).collect(),
                 })
@@ -139,6 +147,7 @@ impl Script {
             Probe::Depth {
                 purpose: DepthPurpose::Bed,
                 points,
+                ..
             } => Ok(Reading::Depth(vec![self.bed; points.len()])),
         }
     }
@@ -155,6 +164,9 @@ pub enum Figure {
     Lying,
     /// Lying, with the ankles covered (low score).
     FeetCovered,
+    /// Lying, with the feet far from the camera (raised, or off the end of the
+    /// bed): their depth says nothing of the torso.
+    FeetFar,
     /// Lying, with an arm hanging off the bed.
     ArmOut,
     /// Sitting on the edge, with the legs off the bed.
@@ -190,7 +202,7 @@ impl Figure {
             (15.0, 90.0, 0.9),
         ];
         match self {
-            Figure::Lying => {}
+            Figure::Lying | Figure::FeetFar => {}
             Figure::FeetCovered => {
                 p[15].2 = 0.1;
                 p[16].2 = 0.1;
@@ -221,14 +233,27 @@ impl Figure {
 
     /// The depth of a figure keypoint at height `y` in the frame: lying,
     /// the head (higher in the image) is farther from the camera than the hips;
-    /// standing, the other way round; sitting or sitting up, all the same.
-    /// Slope of 0.002 per pixel around 2.0.
+    /// sitting up or standing, the other way round, as measured through the
+    /// bed's depth crop (R16: sitting up −0.06…+0.01); sitting on the edge,
+    /// all the same. Slope of 0.002 per pixel around 2.0.
     pub fn depth(self, y: f32) -> f32 {
         let slope = 0.002 * (300.0 - y);
         match self {
-            Figure::SittingUp | Figure::SittingOnTheEdge => 2.0,
-            Figure::Standing => 2.0 - slope,
+            Figure::SittingOnTheEdge => 2.0,
+            Figure::SittingUp | Figure::Standing => 2.0 - slope,
             _ => 2.0 + slope,
+        }
+    }
+}
+
+impl Figure {
+    /// How much farther a keypoint at height `y` reads when it is one of the
+    /// feet (`feet`, the lowest height of the pose): only for `FeetFar`.
+    pub fn feet_offset(self, y: f32, feet: f32) -> f32 {
+        if self == Figure::FeetFar && y >= feet {
+            1.0
+        } else {
+            0.0
         }
     }
 }

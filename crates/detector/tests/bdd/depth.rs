@@ -4,7 +4,7 @@ use crate::driver::{detector_profile, scene};
 use crate::world::{Shell, models::DepthModel};
 use cucumber::{given, then, when};
 use scene_core::{
-    geom::Point,
+    geom::{Point, Rect},
     look::{DepthPurpose, Probe, Reading},
 };
 use sense::DepthMap;
@@ -81,7 +81,25 @@ fn two_cells(w: &mut Shell, a: String, xa: u32, ya: u32, b: String, xb: u32, yb:
     w.set_cell(xb, yb, value(&b));
 }
 
-#[when(regex = r"^the core asks for the (subject's|bed's) depth at points (.+)$")]
+#[when(
+    regex = r"^the core asks for the subject's depth at points (.+) over (\d+),(\d+) to (\d+),(\d+)$"
+)]
+fn look_over(w: &mut Shell, list: String, x0: f32, y0: f32, x1: f32, y1: f32) {
+    let reading = w
+        .senses()
+        .look(
+            w.image.as_ref().unwrap(),
+            &Probe::Depth {
+                purpose: DepthPurpose::Subject,
+                points: points(&list),
+                region: Some(Rect::new(x0, y0, x1, y1)),
+            },
+        )
+        .0;
+    w.reading = Some(reading);
+}
+
+#[when(regex = r"^the core asks for the (subject's|bed's) depth at points ([^o]+)$")]
 fn look(w: &mut Shell, purpose: String, list: String) {
     let purpose = if purpose == "subject's" {
         DepthPurpose::Subject
@@ -95,6 +113,7 @@ fn look(w: &mut Shell, purpose: String, list: String) {
             &Probe::Depth {
                 purpose,
                 points: points(&list),
+                region: None,
             },
         )
         .0;

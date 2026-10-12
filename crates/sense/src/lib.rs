@@ -92,8 +92,8 @@ impl Senses {
                 Some(port) => pose(port.as_mut(), frame, *bbox).map(Reading::Pose),
                 None => Err(Failure::Model),
             },
-            Probe::Depth { points, .. } => match self.depth.as_mut() {
-                Some(port) => depth(port.as_mut(), frame, points).map(Reading::Depth),
+            Probe::Depth { points, region, .. } => match self.depth.as_mut() {
+                Some(port) => depth(port.as_mut(), frame, points, *region).map(Reading::Depth),
                 None => Err(Failure::Model),
             },
         };
@@ -150,16 +150,26 @@ fn pose(
 }
 
 /// The depth at each point, aligned with the requested points. The model
-/// runs on the whole frame, for both purposes (subject and bed).
+/// runs on the requested region (the whole frame without one), the same for
+/// both purposes (subject and bed); the points come and go in whole-frame
+/// coordinates, and one outside the region has no value.
 fn depth(
     port: &mut dyn DepthPort,
     frame: &DynamicImage,
     points: &[Point],
+    region: Option<Rect>,
 ) -> Result<Vec<Option<f32>>, Failure> {
-    let map = port.estimate(frame).map_err(|error| {
+    let crop = crop::Crop::of(frame, region);
+    if crop.image.width() == 0 || crop.image.height() == 0 {
+        return Err(Failure::Model);
+    }
+    let map = port.estimate(&crop.image).map_err(|error| {
         tracing::warn!(%error, "depth model failed");
         Failure::Model
     })?;
-    let size = (frame.width() as f32, frame.height() as f32);
-    Ok(points.iter().map(|p| map.sample(size, *p)).collect())
+    let size = (crop.image.width() as f32, crop.image.height() as f32);
+    Ok(points
+        .iter()
+        .map(|p| map.sample(size, crop.point_to_crop(*p)))
+        .collect())
 }

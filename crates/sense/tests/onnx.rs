@@ -195,6 +195,7 @@ fn real_onnx_depth_at_points_and_its_scale() {
     let request = Probe::Depth {
         purpose: DepthPurpose::Bed,
         points,
+        region: None,
     };
     let mut senses = Senses::new(NeverCalled).with_depth(DepthEstimator::load(&path).unwrap());
     assert!(senses.look(&image, &request).0.is_ok()); // calentamiento

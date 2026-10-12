@@ -20,7 +20,7 @@ use crate::contract::common::{
 };
 use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
 use crate::look::Detection;
-use crate::refine::Refinement;
+use crate::refine::{Refinement, Verdict};
 
 /// The bed as layer 0 believes it, dated by the chronicle.
 fn bed(occupancy: &Occupancy, chronicled: &Chronicled) -> Bed {
@@ -125,7 +125,11 @@ fn unobserved(bodies: &BodyEvidence, observed: Option<SampleRef>) -> Option<Repu
 
 /// The published subject: what layer 0 believes, with its pose and depth and
 /// what the second level derived.
-fn publish_subject(believed: &Believed, refined: Refinement) -> Option<Subject> {
+fn publish_subject(
+    believed: &Believed,
+    refined: Refinement,
+    chronicled: &Chronicled,
+) -> Option<Subject> {
     let s = believed.subject?;
     let (pose, depth) = believed
         .body
@@ -140,6 +144,11 @@ fn publish_subject(believed: &Believed, refined: Refinement) -> Option<Subject> 
         depth,
         lying: refined.lying,
         posture: refined.posture,
+        verdict: refined.verdict.map(|r| Verdict {
+            state: r.state,
+            by: r.by,
+            since: chronicled.verdict.since,
+        }),
     })
 }
 

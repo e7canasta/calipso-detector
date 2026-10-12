@@ -38,6 +38,17 @@ Feature: The pose policy
     Then between samples 11 and 20 the pose was requested only in 15
     And in sample 20 the pose is stable since sample 15
 
+  Scenario: The pose is looked for with a margin around the subject, and the motion is still measured on their box
+    Given the pose crop grows the subject's box by 0.2
+    And the resident came in alone and lay down in samples 1 to 10
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | subject moves | occupants | bed            |
+      | 11-14   | 0        |       | 1      |               | 1         | occupied, seen |
+      | 15      | 0        |       | 1      | yes           | 1         | occupied, seen |
+      | 16-20   | 0        |       | 1      |               | 1         | occupied, seen |
+    Then in sample 15 the pose was requested over the subject's box grown by 0.2
+    And between samples 11 and 20 the pose was requested only in 15
+
   Scenario: Held: the pose is not requested
     Given the resident came in alone and lay down in samples 1 to 10
     When the camera sees this sequence:

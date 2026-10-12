@@ -20,11 +20,12 @@ Feature: Posture by disparity
     Then in sample 11 the posture is lying
     And in sample 11 the posture disparity is positive
 
-  Scenario: Sitting up: head, torso and hips level out and they are upright
+  Scenario: Sitting up: the shoulders come closer to the camera than the hips
     When the camera sees this sequence:
       | samples | on floor | where | in bed | subject moves | pose       | occupants | bed            |
       | 11      | 0        |       | 1      | yes           | sitting up | 1         | occupied, seen |
     Then in sample 11 the posture is upright
+    And in sample 11 the posture disparity is negative
 
   Scenario: Standing: even with a large disparity, if it is not lying it is upright
     When the camera sees this sequence:
@@ -38,6 +39,20 @@ Feature: Posture by disparity
       | samples | on floor | where | in bed | subject moves | pose                | occupants | bed            |
       | 11      | 0        |       | 1      | yes           | lying, feet covered | 1         | occupied, seen |
     Then in sample 11 the posture is lying
+
+  Scenario: The ankles do not vote: feet far from the camera do not make them upright
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | subject moves | pose            | occupants | bed            |
+      | 11      | 0        |       | 1      | yes           | lying, feet far | 1         | occupied, seen |
+    Then in sample 11 the posture is lying
+    And in sample 11 the posture disparity is positive
+
+  Scenario: Without the shoulders in sight, the head is enough
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | subject moves | pose     | occupants | bed            |
+      | 11      | 0        |       | 1      | yes           | no torso | 1         | occupied, seen |
+    Then in sample 11 the posture is lying
+    And in sample 11 the posture disparity is positive
 
   Scenario: Still: the posture holds with the pose
     When the camera sees this sequence:

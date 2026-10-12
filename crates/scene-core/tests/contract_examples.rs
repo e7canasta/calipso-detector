@@ -385,6 +385,7 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
         min_keypoint_score: 0.3,
         posture_tolerance: 0.05,
         max_pose_age_secs: None,
+        crop_pad: 0.0,
     });
     let mut monitor = Monitor::new(
         policy,

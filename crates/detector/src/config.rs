@@ -70,6 +70,12 @@ pub struct Depth {
         skip_serializing_if = "defaults::is_posture_tolerance"
     )]
     pub posture_tolerance: f32,
+    /// Where depth is measured, for the subject and the empty bed alike: the
+    /// bed grown by this fraction of its width and height on each side;
+    /// without it, the whole frame. Serialized only if present, so the hash
+    /// does not change.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crop_pad: Option<f32>,
 }
 /// `CalibrationPolicy`: the delay between attempts, in source seconds.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -96,6 +102,11 @@ pub struct Pose {
     /// always. Serialized only if present, so the hash does not change.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_age_secs: Option<f64>,
+    /// Margin around the subject's box where the pose is looked for, as a
+    /// fraction of its width and height on each side; without it, the box
+    /// itself. Serialized only if present, so the hash does not change.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crop_pad: Option<f32>,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -278,6 +289,7 @@ fn sense_profile(
         ),
         backend_confidence,
         min_confidence,
+        min_keypoint_score: None,
     }
 }
 
@@ -397,6 +409,9 @@ impl Config {
             fraction("senses.pose.backend_confidence", pose.backend_confidence)?;
             fraction("senses.pose.min_keypoint_score", pose.min_keypoint_score)?;
             not_negative("senses.pose.move_threshold", f64::from(pose.move_threshold))?;
+            if let Some(pad) = pose.crop_pad {
+                not_negative("senses.pose.crop_pad", f64::from(pad))?;
+            }
             ensure!(
                 pose.max_age_secs.is_none_or(|s| s.is_finite() && s > 0.0),
                 "senses.pose.max_age_secs must be finite and positive"
@@ -404,6 +419,9 @@ impl Config {
         }
         if let Some(depth) = &self.senses.depth {
             model("senses.depth.model", &depth.model)?;
+            if let Some(pad) = depth.crop_pad {
+                not_negative("senses.depth.crop_pad", f64::from(pad))?;
+            }
             ensure!(
                 self.senses.pose.is_some() || self.calibration.is_some(),
                 "senses.depth: nobody asks for depth; [senses.pose] or [calibration] is needed"
@@ -528,10 +546,12 @@ impl Config {
                 .as_ref()
                 .map_or_else(defaults::posture_tolerance, |d| d.posture_tolerance),
             max_pose_age_secs: config.max_age_secs,
+            crop_pad: config.crop_pad.unwrap_or(0.0),
         });
         p.calibration = self.calibration.as_ref().map(|config| CalibrationPolicy {
             retry_secs: config.retry_secs,
         });
+        p.depth_pad = self.senses.depth.as_ref().and_then(|d| d.crop_pad);
         p
     }
     pub fn site_map(&self) -> SiteMap {
@@ -600,12 +620,10 @@ impl Config {
         }
         // The pose is not admitted by score: `min_keypoint_score` picks keypoints.
         if let Some(pose) = &self.senses.pose {
-            senses.push(sense_profile(
-                LookKind::Pose,
-                &pose.model,
-                pose.backend_confidence,
-                None,
-            ));
+            senses.push(scene_core::contract::SenseProfile {
+                min_keypoint_score: Some(pose.min_keypoint_score),
+                ..sense_profile(LookKind::Pose, &pose.model, pose.backend_confidence, None)
+            });
         }
         // One model, two looks: the subject's (with pose) and the bed's. The depth
         // backend discards nothing.

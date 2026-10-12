@@ -26,7 +26,7 @@ pub enum Probe {
     },
     /// The pose over the subject's box.
     Pose {
-        /// The subject's box.
+        /// Where to look: the subject's box grown by the pose policy's margin.
         bbox: Rect,
     },
     /// The depth at these points.
@@ -35,6 +35,9 @@ pub enum Probe {
         purpose: DepthPurpose,
         /// Where to measure; the reading keeps this order.
         points: Vec<Point>,
+        /// What the model sees; `None`: the whole frame. The points stay in
+        /// whole-frame coordinates.
+        region: Option<Rect>,
     },
 }
 
@@ -73,7 +76,7 @@ impl Probe {
             Probe::Faces { region } => Some(region.rect()),
             Probe::Reinforce { region } => Some(*region),
             Probe::Pose { bbox } => Some(*bbox),
-            Probe::Depth { .. } => None,
+            Probe::Depth { region, .. } => *region,
         }
     }
 }

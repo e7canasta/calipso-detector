@@ -16,6 +16,15 @@ stall_timeout_secs = 10
 model = "yolo26s.onnx" # relative to CALIPSO_MODELS, or an absolute path
 backend_confidence = 0.25
 
+# Focus: while the resident is alone in bed, the main detector looks at the bed
+# up close. With this bed (x 705-1240, y 355-1075) and pad 0.25 the focus is
+# x 571-1374, y 175-1080: about twice the pixels per body. Removing the section
+# turns it off.
+[senses.detect.focus]
+pad = 0.25 # fraction of the bed's width and height on each side
+walk_secs = 3 # the least staff take to walk from the door to the bed: measure it on a recording
+wide_every_secs = 3 # the whole frame at least this often; cannot exceed walk_secs
+
 # Reinforcement, as measured on this camera; removing the section turns the policy off.
 [senses.reinforce]
 model = "yolo26l.onnx" # relative to CALIPSO_MODELS, or an absolute path
@@ -33,13 +42,21 @@ min_confidence = 0.30
 model = "yolo26s-pose.onnx"
 backend_confidence = 0.25
 move_threshold = 0.1 # fraction of the subject's diagonal: the pose is requested again
-min_keypoint_score = 0.3 # pose keypoints where depth is measured
+# Margin around the subject's box: on 30 frames of sample1 (2026-10-12) it took
+# the keypoints seen (score >= 0.5) from 9.1 to 12.1 per visible person; 0.3 adds nothing.
+crop_pad = 0.2
+min_keypoint_score = 0.5 # below it a keypoint is not seen: no depth, no reasoning, not drawn
 # max_age_secs: without the key. Not needed on this camera (the pose
 # renews by itself: p90 28 s between new poses).
 
 [senses.depth]
 model = "yolo26s-depth.onnx" # subject (with pose) and empty bed (with calibration)
 # posture_tolerance: 0.05 by default; this camera does not need another.
+# Depth over the bed, for the subject and the empty bed alike. On the sample1
+# video (2026-10-12) the shoulders-hips disparity is +0.10..+0.39 lying and
+# -0.06..+0.01 sitting up; over the whole frame sitting up gave +0.00..+0.12,
+# on the lying side of the 0.05 tolerance.
+crop_pad = 0.25
 
 # Learn the empty bed at startup; requires [senses.depth].
 [calibration]
@@ -56,6 +73,9 @@ resolution = [1920, 1080]
 bed = [[785,355], [1160,370], [1240,1075], [705,1075]]
 # Face region when no body is seen; with a body, the core asks for its box.
 headboard = [785,355,1160,520]
+# Optional focus box instead of the grown bed: it must contain the bed and reach
+# whoever stands next to it. Draw it on a frame, like the bed.
+focus = [570, 175, 1375, 1080]
 
 [nats]
 url = "nats://127.0.0.1:4222"

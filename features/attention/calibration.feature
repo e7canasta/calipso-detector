@@ -20,6 +20,13 @@ Feature: Calibrate the empty bed
     And calibration was requested in samples 1
     And the scene publishes the calibrated bed
 
+  Scenario: With a depth crop, the empty bed is learned through the same crop as the subject
+    Given depth is measured over the bed grown by 0.25
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | occupants | bed   |
+      | 1-3     | 0        |       | 0      | 0         | empty |
+    Then in sample 1 calibration was requested over the bed grown by 0.25
+
   Scenario: With someone in the room there is no calibration
     Given the resident came in alone and lay down in samples 1 to 10
     When the camera sees this sequence:

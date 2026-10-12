@@ -6,12 +6,16 @@
 mod lying;
 mod plane;
 mod posture;
+mod verdict;
 
 use crate::belief::SubjectBody;
 use crate::geom::Quad;
 use crate::policy::EnrichPolicy;
+use crate::zone::Zone;
 pub use lying::{Lying, LyingState};
-pub use posture::{Posture, PostureState};
+pub use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
+pub(crate) use verdict::Ruling;
+pub use verdict::{Head, Verdict, VerdictState};
 
 pub(crate) use plane::BedPlane;
 
@@ -20,12 +24,15 @@ pub(crate) use plane::BedPlane;
 pub(crate) struct Refinement {
     pub lying: Option<Lying>,
     pub posture: Option<Posture>,
+    /// The arbiter's ruling, for the chronicle to date and `project` to publish.
+    pub verdict: Option<Ruling>,
 }
 
 /// What the second level derives from the subject's pose: whether they are
 /// truly lying down (with the bed geometry) and their posture by depth
 /// (with measured keypoints). What cannot be derived is not published.
 pub(crate) fn refine(
+    zone: Option<Zone>,
     body: Option<&SubjectBody>,
     bed: Option<&Quad>,
     enrich: Option<&EnrichPolicy>,
@@ -50,6 +57,14 @@ pub(crate) fn refine(
         lower: r.lower,
         disparity: r.disparity,
         provenance,
+        groups: Some(r.groups),
+        disparities: Some(r.disparities),
+        tolerance: Some(enrich.posture_tolerance),
     });
-    Refinement { lying, posture }
+    let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.map(|p| p.state)));
+    Refinement {
+        lying,
+        posture,
+        verdict,
+    }
 }

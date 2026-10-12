@@ -2,6 +2,7 @@
 //! the only switches of `Policy.enrich` and `Policy.calibration`.
 use crate::world::Shell;
 use cucumber::{given, then};
+use scene_core::contract::LookKind;
 
 #[given(
     regex = r#"^a profile with "\[senses.pose\]" of model "([^"]+)", motion threshold (-?[\d.]+) and minimum score (-?[\d.]+)$"#
@@ -12,10 +13,46 @@ fn pose_profile(w: &mut Shell, model: String, threshold: f32, score: f32) {
     ));
 }
 
+#[given(regex = r#"^a profile with "\[senses.pose\]" and a crop margin of (-?[\d.]+)$"#)]
+fn pose_margin_profile(w: &mut Shell, pad: f32) {
+    w.parse_config(&format!(
+        "\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\ncrop_pad = {pad}\n"
+    ));
+}
+
+#[then(expr = "the core policy looks for the pose with a margin of {float}")]
+fn pose_margin(w: &mut Shell, pad: f32) {
+    assert_eq!(
+        w.config().policy().enrich.expect("pose policy").crop_pad,
+        pad
+    );
+}
+
 #[then(expr = "the core policy requests the pose when the subject moves {float} of their diagonal")]
 fn enrich_policy(w: &mut Shell, threshold: f32) {
     let enrich = w.config().policy().enrich.expect("pose policy");
     assert_eq!(enrich.move_threshold, threshold);
+}
+
+#[then(expr = "the published pose sense counts keypoints from score {float}")]
+fn published_keypoint_score(w: &mut Shell, score: f32) {
+    let senses = w.config().profile().unwrap().senses;
+    let pose = senses
+        .iter()
+        .find(|s| s.kind == LookKind::Pose)
+        .expect("pose sense");
+    assert_eq!(pose.min_keypoint_score, Some(score));
+}
+
+#[then("the other published senses do not name a keypoint score")]
+fn others_without_keypoint_score(w: &mut Shell) {
+    let senses = w.config().profile().unwrap().senses;
+    assert!(
+        senses
+            .iter()
+            .filter(|s| s.kind != LookKind::Pose)
+            .all(|s| s.min_keypoint_score.is_none())
+    );
 }
 
 #[then("the core policy does not measure the subject's depth")]
@@ -44,6 +81,23 @@ fn depth_and_calibration(w: &mut Shell, model: String, retry: f64) {
     w.parse_config(&format!(
         "\n[senses.depth]\nmodel = \"{model}\"\n[calibration]\nretry_secs = {retry}\n"
     ));
+}
+
+#[given(regex = r"^a profile with pose, depth and a depth crop of (-?[\d.]+)$")]
+fn depth_crop_profile(w: &mut Shell, pad: f32) {
+    w.parse_config(&format!(
+        "{POSE}[senses.depth]\nmodel = \"yolo26s-depth.onnx\"\ncrop_pad = {pad}\n"
+    ));
+}
+
+#[then(expr = "the core measures depth over the bed grown by {float}")]
+fn depth_over_the_bed(w: &mut Shell, pad: f32) {
+    assert_eq!(w.config().policy().depth_pad, Some(pad));
+}
+
+#[then("the core measures depth over the whole frame")]
+fn depth_over_the_frame(w: &mut Shell) {
+    assert_eq!(w.config().policy().depth_pad, None);
 }
 
 #[given(r#"a profile with "[calibration]" without "[senses.depth]""#)]

@@ -152,6 +152,12 @@ impl Map {
         Some(self.site.focus.unwrap_or_else(|| bed.bounds().expand(pad)))
     }
 
+    /// Where depth is measured with a pad: the bed's box grown by it, centred
+    /// on the bed. Without the geometry, nowhere.
+    pub(crate) fn depth_region(&self, geometry: Geometry, pad: f32) -> Option<Rect> {
+        self.bed_for(geometry).map(|bed| bed.bounds().expand(pad))
+    }
+
     /// The bed, if the geometry applies.
     pub(crate) fn bed_for(&self, geometry: Geometry) -> Option<&Quad> {
         (geometry == Geometry::Valid).then_some(&self.site.bed)

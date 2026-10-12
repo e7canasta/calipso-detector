@@ -1,6 +1,7 @@
 //! Builds each probe with its continuation.
 
 use super::Observed;
+use crate::attention::DepthLook;
 use crate::body::Keypoint;
 use crate::evidence::Admission;
 use crate::geom::{Point, Rect};
@@ -79,31 +80,38 @@ impl Waiting {
         )
     }
 
-    pub(super) fn calibrate(observed: Observed, points: Vec<Point>) -> Self {
+    pub(super) fn calibrate(observed: Observed, look: DepthLook<Point>) -> Self {
         Self::new(
             Probe::Depth {
                 purpose: DepthPurpose::Bed,
-                points,
+                points: look.points,
+                region: look.region,
             },
             Continuation::Calibrate { observed },
         )
     }
 
-    pub(super) fn pose(observed: Observed, bbox: Rect) -> Self {
-        Self::new(Probe::Pose { bbox }, Continuation::Pose { observed, bbox })
+    /// The pose over `region`; the subject's `bbox` goes on as the motion reference.
+    pub(super) fn pose(observed: Observed, bbox: Rect, region: Rect) -> Self {
+        Self::new(
+            Probe::Pose { bbox: region },
+            Continuation::Pose { observed, bbox },
+        )
     }
 
     pub(super) fn depth(
         observed: Observed,
         pose: Vec<Keypoint>,
         bbox: Rect,
-        asked: Vec<(usize, Point)>,
+        look: DepthLook<(usize, Point)>,
     ) -> Self {
-        let (at, points) = asked.into_iter().unzip();
+        let region = look.region;
+        let (at, points) = look.points.into_iter().unzip();
         Self::new(
             Probe::Depth {
                 purpose: DepthPurpose::Subject,
                 points,
+                region,
             },
             Continuation::Depth {
                 observed,

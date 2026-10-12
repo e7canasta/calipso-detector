@@ -141,6 +141,7 @@ fn figure(name: &str) -> crate::script::Figure {
     match name {
         "lying" => Figure::Lying,
         "lying, feet covered" => Figure::FeetCovered,
+        "lying, feet far" => Figure::FeetFar,
         "an arm out" => Figure::ArmOut,
         "sitting on the edge" => Figure::SittingOnTheEdge,
         "sitting up" => Figure::SittingUp,

@@ -20,6 +20,21 @@ Feature: The subject depth policy
     Then in sample 11 the looks were "detect, pose, depth"
     And in sample 11 the subject's depth is new
 
+  Scenario: Without a depth crop, depth is measured over the whole frame
+    Given the resident came in alone and lay down in samples 1 to 10
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | subject moves | occupants | bed            |
+      | 11      | 0        |       | 1      | yes           | 1         | occupied, seen |
+    Then in sample 11 depth was requested over the whole frame
+
+  Scenario: With a depth crop, the subject's depth is measured over the bed, centred on it
+    Given depth is measured over the bed grown by 0.25
+    And the resident came in alone and lay down in samples 1 to 10
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | subject moves | occupants | bed            |
+      | 11      | 0        |       | 1      | yes           | 1         | occupied, seen |
+    Then in sample 11 depth was requested over the bed grown by 0.25
+
   Scenario: Only at the keypoints with enough score
     Given the resident came in alone and lay down in samples 1 to 10
     And the pose has 9 keypoints with enough score out of 17

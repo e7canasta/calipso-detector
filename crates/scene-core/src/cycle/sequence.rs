@@ -7,7 +7,8 @@ use super::waiting::{Continuation, Waiting};
 use super::{Course, Engine, Observed, Phase};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
-    self, Consideration, Decision, EnrichPlan, Glimpse, Look, LookOutcome, LookResult, SkipReason,
+    self, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome, LookResult,
+    SkipReason,
 };
 use crate::belief::{Believed, Enrichment};
 use crate::body::Keypoint;
@@ -110,16 +111,16 @@ impl Course<'_> {
                 // Second attention point, after believing: learn the bed?
                 Reached::Belief(observed) => {
                     let considered = self.calibrate(&observed);
-                    if let Some(points) = self.wanted(LookKind::Calibrate, considered) {
+                    if let Some(look) = self.wanted(LookKind::Calibrate, considered) {
                         self.monitor.engine.map.attempted(self.at);
-                        return Phase::Waiting(Waiting::calibrate(observed, points));
+                        return Phase::Waiting(Waiting::calibrate(observed, look));
                     }
                     Reached::Map(observed)
                 }
                 // Enrich the subject?
                 Reached::Map(observed) => match self.enrich(&observed.believed) {
-                    EnrichPlan::Ask(bbox) => {
-                        return Phase::Waiting(Waiting::pose(observed, bbox));
+                    EnrichPlan::Ask { bbox, region } => {
+                        return Phase::Waiting(Waiting::pose(observed, bbox, region));
                     }
                     EnrichPlan::Keep(reason) => {
                         self.skipped(LookKind::Pose, reason);
@@ -139,7 +140,7 @@ impl Course<'_> {
                     pose,
                     bbox,
                 } => {
-                    let considered = self.deepen(pose.as_deref());
+                    let considered = self.deepen(&observed, pose.as_deref());
                     match (self.wanted(LookKind::Depth, considered), pose) {
                         (Some(points), Some(pose)) => {
                             return Phase::Waiting(Waiting::depth(observed, pose, bbox, points));
@@ -239,6 +240,7 @@ impl Course<'_> {
         let engine = &self.monitor.engine;
         // The second level reads what was concluded and delivers its result.
         let refined = crate::refine::refine(
+            observed.believed.subject.as_ref().map(|s| s.zone),
             observed.believed.body.as_ref(),
             engine.map.bed_for(self.geometry),
             engine.policy.enrich.as_ref(),
@@ -306,7 +308,7 @@ impl Course<'_> {
         attention::faces(&g, &self.monitor.engine.policy)
     }
 
-    fn calibrate(&self, observed: &Observed) -> Consideration<Vec<Point>> {
+    fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
         let Perceived { bodies, faces } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         attention::calibrate(&g, &observed.believed, &self.monitor.engine.policy)
@@ -318,8 +320,14 @@ impl Course<'_> {
         attention::enrich(believed, reference, since, self.at, policy)
     }
 
-    fn deepen(&self, pose: Option<&[Keypoint]>) -> Consideration<Vec<(usize, Point)>> {
-        attention::deepen(pose, &self.monitor.engine.policy)
+    fn deepen(
+        &self,
+        observed: &Observed,
+        pose: Option<&[Keypoint]>,
+    ) -> Consideration<DepthLook<(usize, Point)>> {
+        let Perceived { bodies, faces } = &observed.evidence;
+        let g = self.glimpse(bodies, faces);
+        attention::deepen(&g, pose, &self.monitor.engine.policy)
     }
 
     /// What attention wants looked at, if anything. A no with its reason goes

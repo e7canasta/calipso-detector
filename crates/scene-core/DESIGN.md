@@ -89,6 +89,7 @@ What no change may break. Each one has someone watching it.
 | One contract, one source: the JSON Schema comes from the types | 13 | the contract snapshots |
 | No panics: no `unwrap`, `expect` or indexing | 21 | `#![deny(...)]` in `lib.rs` |
 | Layer 0 decides as the golden table does | P2 | `belief/occupancy/machine/table.rs` |
+| The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
 | The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
 | Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
 
@@ -246,8 +247,8 @@ The core is Markov: it keeps only what it needs to decide what comes next
 - **`project`**: translates the belief and the chronicle into the contract.
   It is the only module that speaks `contract`, besides `cycle`'s `Output`;
   it does not decide and is not read back.
-- **`chronicle::Chronicle`**: since when the room's name and the bed's kind
-  hold, and the last turn that observed bodies per zone (the `observed_at` of
+- **`chronicle::Chronicle`**: since when the room's name, the bed's kind and
+  the second level's verdict (R16) hold, and the last turn that observed bodies per zone (the `observed_at` of
   a turn without the detector). It folds the domain (`RoomName`, `BedKind`,
   the transition's counts), not the wire: the bed goes to unknown without
   layer 0 changing, and `project` translates the fold. It lives **outside the
@@ -303,6 +304,10 @@ One concept, one name.
 | provenance | `provenance::Provenance` | Where a claim comes from: current, retained or stable (rule 2) |
 | published language | `contract::v4` (and `contract`) | What a version publishes; it re-exports the domain vocabulary |
 | second level | `refine` | How the resident is: lying, posture |
+| body group | `refine::BodyGroup`, `BodyGroups` | Head, shoulders or pelvis: the median depth of its seen keypoints and how many it saw (R16) |
+| disparity | `Posture::disparity`, `Disparities` | `(upper − pelvis) / mean`: head and shoulders together against the pelvis decide; the feet do not vote (R16) |
+| head (of the second level) | `refine::Head` | An independent opinion on how the resident is: today `disparity`; the bed plane, the head's place in the bed and a VLM will follow |
+| arbiter, verdict | `refine::verdict`, `Verdict`, `VerdictState` | The table from the heads' opinions to one verdict, with the heads that support it and since when; only in bed for now (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) |
 | projection | `project` | How the belief looks from outside |
 | fold | `chronicle::Chronicle` | A value computed over a sequence: of the domain (the room's name, the bed's kind, a transition's counts) |
 | chronicle | `chronicle::Chronicle`, `Entry`, `Chronicled` | The memory outside the engine, in the domain: since when the room's name and the bed's kind hold, what changed, and the last transition's counts. `project` translates it |
@@ -324,7 +329,7 @@ matters as much as the second.
 | `belief` | The belief: joins layer 0 and the subject | sees a raw reading |
 | `belief/occupancy` | Layer 0: the occupancy machine | knows the second level or the contract |
 | `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |
-| `refine` | The second level: lying, posture | writes the belief or changes a count |
+| `refine` | The second level: lying, posture by body groups, and the arbiter's verdict (a golden table) | writes the belief or changes a count |
 | `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); the main detector's lens (`Lens`: when it last read the whole frame) | mutates the belief |
 | `body` | Body vocabulary: the COCO-17 pose and its depth | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |

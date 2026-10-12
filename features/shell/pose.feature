@@ -58,6 +58,23 @@ Feature: The pose capability
     And the core policy does not measure the subject's depth
     And the published profile names the senses "detect, pose"
 
+  Scenario: The published profile says from what score a keypoint is seen
+    Given a profile with "[senses.pose]" of model "yolo26s-pose.onnx", motion threshold 0.1 and minimum score 0.5
+    Then the published pose sense counts keypoints from score 0.5
+    And the other published senses do not name a keypoint score
+
+  Scenario: The profile sets the margin around the subject where the pose is looked for
+    Given a profile with "[senses.pose]" and a crop margin of 0.2
+    Then the core policy looks for the pose with a margin of 0.2
+
+  Scenario: Without a crop margin, the pose is looked for in the subject's box
+    Given a profile with "[senses.pose]" of model "yolo26s-pose.onnx", motion threshold 0.1 and minimum score 0.5
+    Then the core policy looks for the pose with a margin of 0
+
+  Scenario: The profile rejects a negative crop margin
+    Given a profile with "[senses.pose]" and a crop margin of -0.1
+    Then the profile is rejected with a reason that names "senses.pose.crop_pad"
+
   Scenario: A profile without pose or depth does not change its hash
     Given a profile without "[senses.pose]"
     Then the profile hash is the baseline one

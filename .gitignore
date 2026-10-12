@@ -5,3 +5,6 @@ target/
 
 # Claude Code agent worktrees (local, not versioned)
 .claude/worktrees/
+
+# Obsidian vault state (local, not versioned)
+.obsidian/

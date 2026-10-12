@@ -13,7 +13,10 @@ use crate::geom::Rect;
 pub use crate::look::{Failure, LookKind};
 pub use crate::map::{Calibration, FrameInfo, Geometry, MapState};
 pub use crate::provenance::Provenance;
-pub use crate::refine::{Lying, LyingState, Posture, PostureState};
+pub use crate::refine::{
+    BodyGroup, BodyGroups, Disparities, Head, Lying, LyingState, Posture, PostureState, Verdict,
+    VerdictState,
+};
 pub use crate::sensor::SensorState;
 pub use crate::time::{SampleRef, SessionId, SourceSecs};
 pub use crate::zone::{Counts, Zone};
@@ -69,6 +72,10 @@ pub struct SenseProfile {
     pub backend_confidence: f32,
     /// Below this score the policy does not admit the candidate.
     pub min_confidence: Option<f32>,
+    /// The pose only: below this score a keypoint is not seen, and the core
+    /// neither measures nor reasons with it. Absent in every other sense.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_keypoint_score: Option<f32>,
 }
 
 /// A layer of the profile, by name and revision.
@@ -180,6 +187,9 @@ pub struct Subject {
     /// Second level: absent without a pose or without per-point depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub posture: Option<Posture>,
+    /// Second level: the arbiter's verdict, only in bed for now (R16, 1605).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<Verdict>,
 }
 
 /// What was admitted in this sample, apart from the stabilized belief.

@@ -202,6 +202,59 @@
         }
       ]
     },
+    "BodyGroup": {
+      "description": "A group of the body's keypoints: the median depth of those seen and\nmeasured, and how many of its keypoints were seen.",
+      "type": "object",
+      "properties": {
+        "depth": {
+          "description": "Median depth of its seen, measured keypoints; `None` if none.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "of": {
+          "description": "How many keypoints the group has.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "seen": {
+          "description": "How many of its keypoints were seen (score at least the minimum).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "seen",
+        "of"
+      ]
+    },
+    "BodyGroups": {
+      "description": "The groups the posture is measured with.",
+      "type": "object",
+      "properties": {
+        "head": {
+          "description": "Nose, eyes and ears.",
+          "$ref": "#/$defs/BodyGroup"
+        },
+        "pelvis": {
+          "description": "Both hips: the reference.",
+          "$ref": "#/$defs/BodyGroup"
+        },
+        "shoulders": {
+          "description": "Both shoulders.",
+          "$ref": "#/$defs/BodyGroup"
+        }
+      },
+      "required": [
+        "head",
+        "shoulders",
+        "pelvis"
+      ]
+    },
     "BodyPoint": {
       "description": "A published pose point: where it is, how confident the model is and, if\nmeasured, its depth on the depth model's scale, which is relative and not\nmetres. An unmeasured point carries `depth: null`.",
       "type": "object",
@@ -397,6 +450,36 @@
         "bed"
       ]
     },
+    "Disparities": {
+      "description": "Each disparity against the pelvis, `(a − pelvis) / mean`: relative,\nwithout scale. `upper_pelvis` (head and shoulders together) decides.",
+      "type": "object",
+      "properties": {
+        "head_pelvis": {
+          "description": "The head alone against the pelvis.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "shoulders_pelvis": {
+          "description": "The shoulders alone against the pelvis.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "upper_pelvis": {
+          "description": "Head and shoulders against the pelvis: the one that decides.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      }
+    },
     "Evidence": {
       "description": "What was admitted in this sample, apart from the stabilized belief.",
       "type": "object",
@@ -586,6 +669,16 @@
             "declared",
             "actual"
           ]
+        }
+      ]
+    },
+    "Head": {
+      "description": "A head of the second level: who supports a verdict.",
+      "oneOf": [
+        {
+          "description": "The depth disparity of head and shoulders against the pelvis (904, 1604).",
+          "type": "string",
+          "const": "disparity"
         }
       ]
     },
@@ -1008,6 +1101,17 @@
       "description": "The published posture, with its evidence on the depth model's (relative)\nscale and the pose's provenance.",
       "type": "object",
       "properties": {
+        "disparities": {
+          "description": "Each disparity against the pelvis; `upper_pelvis` is `disparity`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Disparities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "disparity": {
           "description": "`(upper − lower) / mean`: relative, without scale.",
           "type": [
@@ -1016,8 +1120,19 @@
           ],
           "format": "float"
         },
+        "groups": {
+          "description": "Head, shoulders and pelvis apart. Absent in scenes recorded before R16.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BodyGroups"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "lower": {
-          "description": "Median of the measured hips and ankles.",
+          "description": "Median of the measured hips: the feet do not vote.",
           "type": [
             "number",
             "null"
@@ -1031,6 +1146,14 @@
         "state": {
           "description": "Lying, upright or unknown.",
           "$ref": "#/$defs/PostureState"
+        },
+        "tolerance": {
+          "description": "Above it, lying: the profile's `posture_tolerance`.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
         },
         "upper": {
           "description": "Median of the measured head and shoulders.",
@@ -1510,6 +1633,14 @@
           ],
           "format": "float"
         },
+        "min_keypoint_score": {
+          "description": "The pose only: below this score a keypoint is not seen, and the core\nneither measures nor reasons with it. Absent in every other sense.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "model": {
           "description": "The model file, without its path.",
           "type": "string"
@@ -1706,6 +1837,17 @@
           "description": "Whether the box was seen in this turn or is held from before.",
           "$ref": "#/$defs/Provenance"
         },
+        "verdict": {
+          "description": "Second level: the arbiter's verdict, only in bed for now (R16, 1605).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "zone": {
           "description": "Where the subject is: in bed or on the floor.",
           "$ref": "#/$defs/Zone"
@@ -1755,6 +1897,52 @@
       "required": [
         "wait_ms",
         "processing_ms"
+      ]
+    },
+    "Verdict": {
+      "description": "The published verdict: how the resident is, which heads support it and\nsince when it holds (a fold of the chronicle, P4).",
+      "type": "object",
+      "properties": {
+        "by": {
+          "description": "The heads that support it; empty when none knows.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Head"
+          }
+        },
+        "since": {
+          "description": "The first sample of this verdict, without interruption.",
+          "$ref": "#/$defs/SampleRef"
+        },
+        "state": {
+          "description": "How the resident is.",
+          "$ref": "#/$defs/VerdictState"
+        }
+      },
+      "required": [
+        "state",
+        "by",
+        "since"
+      ]
+    },
+    "VerdictState": {
+      "description": "How the resident is, as the arbiter rules it.",
+      "oneOf": [
+        {
+          "description": "In bed, the head and shoulders farther from the camera than the pelvis.",
+          "type": "string",
+          "const": "lying_in_bed"
+        },
+        {
+          "description": "In bed, the head and shoulders closer to the camera than the pelvis.",
+          "type": "string",
+          "const": "sitting_up_in_bed"
+        },
+        {
+          "description": "In bed, but no head knows how.",
+          "type": "string",
+          "const": "in_bed"
+        }
       ]
     },
     "Zone": {

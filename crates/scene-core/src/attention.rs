@@ -52,7 +52,12 @@ pub(crate) enum EnrichPlan {
     Disabled,
     /// No subject: there is no decision to record.
     Inapplicable,
-    Ask(Rect),
+    /// Look for the pose over `region`; the subject's `bbox` stays the
+    /// motion reference.
+    Ask {
+        bbox: Rect,
+        region: Rect,
+    },
     Keep(SkipReason),
     Skip(SkipReason),
 }
@@ -175,7 +180,8 @@ pub(crate) fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegi
 /// Ask for the pose? Second attention point, after believing: only with a
 /// subject (a single occupant) seen in this sample, and only if it moved since
 /// the last pose or, with a maximum age, if the last one expired. Without
-/// a subject there is nothing to decide.
+/// a subject there is nothing to decide. It is looked for over the subject's
+/// box grown by the policy's margin.
 pub(crate) fn enrich(
     believed: &Believed,
     reference: Option<Rect>,
@@ -203,16 +209,44 @@ pub(crate) fn enrich(
     {
         return EnrichPlan::Keep(SkipReason::SubjectStill);
     }
-    EnrichPlan::Ask(subject.bbox)
+    EnrichPlan::Ask {
+        bbox: subject.bbox,
+        region: subject.bbox.expand(policy.crop_pad),
+    }
+}
+
+/// A depth look: through the lens (`region`; `None`, the whole frame), at
+/// these points. The subject's carry each keypoint's index; the bed's, just
+/// the point.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DepthLook<P> {
+    pub(crate) region: Option<Rect>,
+    pub(crate) points: Vec<P>,
+}
+
+/// Where depth is measured: the whole frame (`None`) or, with the policy's
+/// pad, the bed's box grown by it. The subject and the empty bed measure
+/// through the same lens; without the bed's geometry there is no crop to use.
+fn depth_lens(g: &Glimpse<'_>, policy: &Policy) -> Result<Option<Rect>, SkipReason> {
+    match policy.depth_pad {
+        None => Ok(None),
+        Some(pad) => g
+            .map
+            .depth_region(g.geometry, pad)
+            .map(Some)
+            .ok_or(SkipReason::NoBedGeometry),
+    }
 }
 
 /// Measure the subject's depth? At the pose keypoints with enough score, each
-/// with its index in the pose so the reading returns to its keypoint;
-/// without a depth model there is nothing to decide.
+/// with its index in the pose so the reading returns to its keypoint, through
+/// the depth lens; without a depth model there is nothing to decide.
 pub(crate) fn deepen(
+    g: &Glimpse<'_>,
     pose: Option<&[Keypoint]>,
     policy: &Policy,
-) -> Consideration<Vec<(usize, Point)>> {
+) -> Consideration<DepthLook<(usize, Point)>> {
+    let lens = depth_lens(g, policy);
     let Some(policy) = policy.enrich.as_ref().filter(|p| p.depth) else {
         return Consideration::Disabled;
     };
@@ -223,10 +257,10 @@ pub(crate) fn deepen(
         .filter(|(_, k)| k.score >= policy.min_keypoint_score)
         .map(|(i, k)| (i, Point { x: k.x, y: k.y }))
         .collect();
-    Consideration::Decided(if points.is_empty() {
-        Decision::Skip(SkipReason::NoPose)
-    } else {
-        Decision::Ask(points)
+    Consideration::Decided(match lens {
+        _ if points.is_empty() => Decision::Skip(SkipReason::NoPose),
+        Err(reason) => Decision::Skip(reason),
+        Ok(region) => Decision::Ask(DepthLook { region, points }),
     })
 }
 
@@ -237,7 +271,8 @@ pub(crate) fn calibrate(
     g: &Glimpse<'_>,
     believed: &Believed,
     policy: &Policy,
-) -> Consideration<Vec<Point>> {
+) -> Consideration<DepthLook<Point>> {
+    let lens = depth_lens(g, policy);
     let Some(policy) = &policy.calibration else {
         return Consideration::Disabled;
     };
@@ -265,7 +300,13 @@ pub(crate) fn calibrate(
     {
         return skip(SkipReason::RetryWait);
     }
-    Consideration::Decided(Decision::Ask(map.bed_points()))
+    Consideration::Decided(match lens {
+        Ok(region) => Decision::Ask(DepthLook {
+            region,
+            points: map.bed_points(),
+        }),
+        Err(reason) => Decision::Skip(reason),
+    })
 }
 
 /// Why nothing was looked at (rule 12).

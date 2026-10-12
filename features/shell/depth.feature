@@ -47,6 +47,13 @@ Feature: The depth capability
     Then the reading carries the depths 2.5; 4.0
     And the depth model received an image of 640×480
 
+  Scenario: Over a region, the model sees only that crop and the points stay in whole-image coordinates
+    Given the depth model sees a 400×200 map worth 3.0 everywhere
+    And the map is 2.5 at 10,10
+    When the core asks for the subject's depth at points 110,60; 10,10 over 100,50 to 500,250
+    Then the depth model received an image of 400×200
+    And the reading carries the depths 2.5; none
+
   Scenario: Without a depth model, the probe fails like an unavailable sense
     Given there is no depth model
     When the core asks for the bed's depth at points 10,10; 600,400
@@ -69,6 +76,18 @@ Feature: The depth capability
     Then the core policy calibrates the bed and retries after 30 seconds of source time
     And the core does not request the pose
     And the published profile names the senses "detect, calibrate"
+
+  Scenario: The profile measures depth over the bed
+    Given a profile with pose, depth and a depth crop of 0.25
+    Then the core measures depth over the bed grown by 0.25
+
+  Scenario: Without a depth crop, depth is measured over the whole frame
+    Given a profile with pose and "[senses.depth]" of model "yolo26s-depth.onnx"
+    Then the core measures depth over the whole frame
+
+  Scenario: The profile rejects a negative depth crop
+    Given a profile with pose, depth and a depth crop of -0.1
+    Then the profile is rejected with a reason that names "senses.depth.crop_pad"
 
   Scenario: The profile rejects calibrating without depth
     Given a profile with "[calibration]" without "[senses.depth]"

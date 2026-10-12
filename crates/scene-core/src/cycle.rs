@@ -233,6 +233,7 @@ mod tests {
                     min_keypoint_score: 0.3,
                     posture_tolerance: 0.05,
                     max_pose_age_secs: None,
+                    crop_pad: 0.0,
                 }),
                 ..Policy::default()
             },

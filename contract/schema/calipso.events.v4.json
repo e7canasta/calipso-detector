@@ -798,6 +798,14 @@
           ],
           "format": "float"
         },
+        "min_keypoint_score": {
+          "description": "The pose only: below this score a keypoint is not seen, and the core\nneither measures nor reasons with it. Absent in every other sense.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "model": {
           "description": "The model file, without its path.",
           "type": "string"

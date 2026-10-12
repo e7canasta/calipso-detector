@@ -69,6 +69,10 @@ pub struct EnrichPolicy {
     /// Age from which a still pose is requested again, in source seconds.
     /// `None`: while still, it holds forever.
     pub max_pose_age_secs: Option<f64>,
+    /// Margin around the subject's box where the pose is looked for, as a
+    /// fraction of its width and height on each side: the pose model needs
+    /// the head, hands and feet the detector's box cuts. `0`: the box itself.
+    pub crop_pad: f32,
 }
 
 /// Learn the depth of the empty bed.
@@ -95,6 +99,11 @@ pub struct Policy {
     pub enrich: Option<EnrichPolicy>,
     /// `None`: the bed is not calibrated.
     pub calibration: Option<CalibrationPolicy>,
+    /// Where depth is measured, for the subject and for the empty bed alike:
+    /// `None`, the whole frame; a pad, the bed's box grown by that fraction of
+    /// its width and height on each side, centred on the bed. The depth is
+    /// relative to what the model sees, so both measure through the same crop.
+    pub depth_pad: Option<f32>,
 }
 
 impl Default for Policy {
@@ -111,6 +120,7 @@ impl Default for Policy {
             focus: None,
             enrich: None,
             calibration: None,
+            depth_pad: None,
         }
     }
 }

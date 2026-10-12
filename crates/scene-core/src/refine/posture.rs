@@ -14,51 +14,65 @@ pub(super) struct Reading {
     pub upper: Option<f32>,
     pub lower: Option<f32>,
     pub disparity: Option<f32>,
+    pub groups: BodyGroups,
+    pub disparities: Disparities,
 }
 
-/// Upper (head and shoulders) against lower (hips and ankles), with the median
-/// of each group's visible measured keypoints. The disparity is relative to the
-/// body's mean depth: above `tolerance`, lying; otherwise upright
-/// (with this depth the sign does not separate sitting from standing).
-/// With no measured keypoint, nothing.
+const HEAD: [Joint; 5] = [
+    Joint::Nose,
+    Joint::LeftEye,
+    Joint::RightEye,
+    Joint::LeftEar,
+    Joint::RightEar,
+];
+const SHOULDERS: [Joint; 2] = [Joint::LeftShoulder, Joint::RightShoulder];
+const PELVIS: [Joint; 2] = [Joint::LeftHip, Joint::RightHip];
+
+/// Upper (head and shoulders) against lower (the hips), with the median of
+/// each group's visible measured keypoints. The disparity is relative to the
+/// body's mean depth: above `tolerance`, lying; otherwise upright. Head,
+/// shoulders and pelvis are also measured apart, to show what was decided
+/// with. With no measured keypoint, nothing.
 pub(super) fn classify(points: &[BodyPoint], min_score: f32, tolerance: f32) -> Option<Reading> {
-    let measured: Vec<&BodyPoint> = points
-        .iter()
-        .filter(|p| p.score >= min_score && p.depth.is_some())
-        .collect();
-    if measured.is_empty() {
+    let seen: Vec<&BodyPoint> = points.iter().filter(|p| p.score >= min_score).collect();
+    if !seen.iter().any(|p| p.depth.is_some()) {
         return None;
     }
-    let group = |is: fn(Joint) -> bool| -> Option<f32> {
-        let values: Vec<Option<f32>> = measured
-            .iter()
-            .filter(|p| p.name.is_some_and(is))
-            .map(|p| p.depth)
-            .collect();
-        estimation::median(&values)
+    let of = |joints: &[Joint]| -> Vec<&BodyPoint> {
+        seen.iter()
+            .copied()
+            .filter(|p| p.name.is_some_and(|n| joints.contains(&n)))
+            .collect()
     };
-    let upper = group(|j| {
-        matches!(
-            j,
-            Joint::Nose
-                | Joint::LeftEye
-                | Joint::RightEye
-                | Joint::LeftEar
-                | Joint::RightEar
-                | Joint::LeftShoulder
-                | Joint::RightShoulder
-        )
-    });
-    let lower = group(|j| {
-        matches!(
-            j,
-            Joint::LeftHip | Joint::RightHip | Joint::LeftAnkle | Joint::RightAnkle
-        )
-    });
-    let disparity = upper
-        .zip(lower)
-        .map(|(a, b)| (a - b) / ((a + b) / 2.0))
-        .filter(|d| d.is_finite());
+    let depth = |group: &[&BodyPoint]| -> Option<f32> {
+        estimation::median(&group.iter().map(|p| p.depth).collect::<Vec<_>>())
+    };
+    let group = |joints: &[Joint]| -> BodyGroup {
+        let found = of(joints);
+        BodyGroup {
+            depth: depth(&found),
+            seen: found.len() as u32,
+            of: joints.len() as u32,
+        }
+    };
+    // Head and shoulders together: lying, the head is the farthest, and it adds
+    // lever to the torso. Measured on the sample1 video, the shoulders alone
+    // separate worse (gap 0.011 against 0.087; R16, 1604).
+    let upper = depth(&[of(&HEAD), of(&SHOULDERS)].concat());
+    let groups = BodyGroups {
+        head: group(&HEAD),
+        shoulders: group(&SHOULDERS),
+        // The pelvis alone: the feet hang off the bed or rise, and their depth
+        // says nothing of the torso (R16, 1604).
+        pelvis: group(&PELVIS),
+    };
+    let lower = groups.pelvis.depth;
+    let against = |a: Option<f32>| {
+        a.zip(lower)
+            .map(|(a, b)| (a - b) / ((a + b) / 2.0))
+            .filter(|d| d.is_finite())
+    };
+    let disparity = against(upper);
     let state = match disparity {
         None => PostureState::Unknown,
         Some(d) if d > tolerance => PostureState::Lying,
@@ -69,7 +83,48 @@ pub(super) fn classify(points: &[BodyPoint], min_score: f32, tolerance: f32) -> 
         upper,
         lower,
         disparity,
+        groups,
+        disparities: Disparities {
+            upper_pelvis: disparity,
+            shoulders_pelvis: against(groups.shoulders.depth),
+            head_pelvis: against(groups.head.depth),
+        },
     })
+}
+
+/// A group of the body's keypoints: the median depth of those seen and
+/// measured, and how many of its keypoints were seen.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BodyGroup {
+    /// Median depth of its seen, measured keypoints; `None` if none.
+    pub depth: Option<f32>,
+    /// How many of its keypoints were seen (score at least the minimum).
+    pub seen: u32,
+    /// How many keypoints the group has.
+    pub of: u32,
+}
+
+/// The groups the posture is measured with.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BodyGroups {
+    /// Nose, eyes and ears.
+    pub head: BodyGroup,
+    /// Both shoulders.
+    pub shoulders: BodyGroup,
+    /// Both hips: the reference.
+    pub pelvis: BodyGroup,
+}
+
+/// Each disparity against the pelvis, `(a − pelvis) / mean`: relative,
+/// without scale. `upper_pelvis` (head and shoulders together) decides.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Disparities {
+    /// Head and shoulders against the pelvis: the one that decides.
+    pub upper_pelvis: Option<f32>,
+    /// The shoulders alone against the pelvis.
+    pub shoulders_pelvis: Option<f32>,
+    /// The head alone against the pelvis.
+    pub head_pelvis: Option<f32>,
 }
 
 /// The posture by how head, torso and hips are ordered in depth.
@@ -98,12 +153,21 @@ pub struct Posture {
     pub state: PostureState,
     /// Median of the measured head and shoulders.
     pub upper: Option<f32>,
-    /// Median of the measured hips and ankles.
+    /// Median of the measured hips: the feet do not vote.
     pub lower: Option<f32>,
     /// `(upper − lower) / mean`: relative, without scale.
     pub disparity: Option<f32>,
     /// That of the pose it was concluded from.
     pub provenance: Provenance,
+    /// Head, shoulders and pelvis apart. Absent in scenes recorded before R16.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub groups: Option<BodyGroups>,
+    /// Each disparity against the pelvis; `upper_pelvis` is `disparity`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disparities: Option<Disparities>,
+    /// Above it, lying: the profile's `posture_tolerance`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tolerance: Option<f32>,
 }
 
 #[cfg(test)]

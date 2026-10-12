@@ -13,7 +13,7 @@ use scene_core::geom::Rect;
 use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
 
 use crate::attention::{scene, skipped};
-use crate::ward::{Ward, later};
+use crate::ward::{BED, Ward, later};
 
 // --- Background
 
@@ -25,6 +25,7 @@ fn pose_model(ward: &mut Ward) {
         min_keypoint_score: 0.3,
         posture_tolerance: 0.05,
         max_pose_age_secs: None,
+        crop_pad: 0.0,
     });
 }
 
@@ -40,6 +41,15 @@ fn threshold(ward: &mut Ward, move_threshold: f32) {
         .as_mut()
         .expect("\"there is a pose model\" first")
         .move_threshold = move_threshold;
+}
+
+#[given(expr = "the pose crop grows the subject's box by {float}")]
+fn pose_crop_pad(ward: &mut Ward, crop_pad: f32) {
+    ward.policy
+        .enrich
+        .as_mut()
+        .expect("\"there is a pose model\" first")
+        .crop_pad = crop_pad;
 }
 
 #[given("there is a depth model")]
@@ -118,6 +128,22 @@ fn first_pose(ward: &mut Ward) {
         .as_ref()
         .expect("the pose was requested without a subject");
     assert_eq!(region, Some(subject.bbox));
+}
+
+#[then(expr = "in sample {int} the pose was requested over the subject's box grown by {float}")]
+fn pose_with_margin(ward: &mut Ward, n: u32, pad: f32) {
+    let scene = scene(ward, n);
+    let region = scene
+        .attention
+        .looks
+        .iter()
+        .find_map(|l| match l.outcome {
+            LookOutcome::Asked { region, .. } if l.kind == LookKind::Pose => region,
+            _ => None,
+        })
+        .expect("the pose was not requested");
+    let subject = scene.subject.as_ref().expect("no subject");
+    assert_eq!(region, subject.bbox.expand(pad));
 }
 
 #[then("the pose was requested again on moving from the door to the bed")]
@@ -277,6 +303,41 @@ fn depth_is(ward: &mut Ward, n: u32, which: String, before: String) {
 #[then(expr = "in sample {int} the subject has no depth")]
 fn no_depth_in(ward: &mut Ward, n: u32) {
     assert_eq!(depth(ward, n), None);
+}
+
+#[given(expr = "depth is measured over the bed grown by {float}")]
+fn depth_crop(ward: &mut Ward, pad: f32) {
+    ward.policy.depth_pad = Some(pad);
+}
+
+/// The region of the depth look (`depth`, the subject's; `calibration`, the
+/// bed's) asked in sample `n`; `None`, the whole frame.
+fn depth_region(ward: &Ward, n: u32, which: &str) -> Option<Rect> {
+    let kind = match which {
+        "depth" => LookKind::Depth,
+        _ => LookKind::Calibrate,
+    };
+    scene(ward, n)
+        .attention
+        .looks
+        .iter()
+        .find_map(|l| match l.outcome {
+            LookOutcome::Asked { region, .. } if l.kind == kind => Some(region),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("in sample {n} {which} was not requested"))
+}
+
+#[then(
+    regex = r"^in sample (\d+) (depth|calibration) was requested over the bed grown by ([\d.]+)$"
+)]
+fn depth_over_the_bed(ward: &mut Ward, n: u32, which: String, pad: f32) {
+    assert_eq!(depth_region(ward, n, &which), Some(BED.expand(pad)));
+}
+
+#[then(regex = r"^in sample (\d+) (depth|calibration) was requested over the whole frame$")]
+fn depth_over_the_frame(ward: &mut Ward, n: u32, which: String) {
+    assert_eq!(depth_region(ward, n, &which), None);
 }
 
 #[then(expr = "in sample {int} depth was requested at {int} points")]

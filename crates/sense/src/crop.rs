@@ -42,6 +42,14 @@ impl<'a> Crop<'a> {
         }
     }
 
+    /// A point of the frame in the crop's coordinates.
+    pub(crate) fn point_to_crop(&self, point: Point) -> Point {
+        Point {
+            x: point.x - self.origin.x,
+            y: point.y - self.origin.y,
+        }
+    }
+
     /// The keypoints of a pose, from the crop to the frame; the score does not change.
     pub(crate) fn keypoints_to_frame(&self, keypoints: Vec<Keypoint>) -> Vec<Keypoint> {
         keypoints

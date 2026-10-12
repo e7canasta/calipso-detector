@@ -250,10 +250,12 @@ fn unsupported_requests_fail_and_warn_with_the_requested_kind() {
         Probe::Depth {
             purpose: DepthPurpose::Subject,
             points: vec![],
+            region: None,
         },
         Probe::Depth {
             purpose: DepthPurpose::Bed,
             points: vec![],
+            region: None,
         },
     ] {
         let expected_kind = format!("probe={:?}", probe.kind());

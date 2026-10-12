@@ -7,6 +7,7 @@
 use crate::belief::{Alone, Occupants, Room, Transition};
 use crate::conclusion::Observation;
 use crate::evidence::BodyEvidence;
+use crate::refine::VerdictState;
 use crate::time::SampleRef;
 use crate::zone::Counts;
 
@@ -22,6 +23,8 @@ use crate::zone::Counts;
 pub(crate) struct Chronicle {
     room: Since<RoomName>,
     bed: Since<BedKind>,
+    /// Since when the second level's verdict holds; `None` is "no verdict".
+    verdict: Since<Option<VerdictState>>,
     observed: Option<SampleRef>,
     /// The last layer-0 transition: its sample and the counts that name its cell.
     transition: Option<(SampleRef, TransitionKey)>,
@@ -33,6 +36,7 @@ impl Default for Chronicle {
         Self {
             room: Since::new(RoomName::Empty),
             bed: Since::new(BedKind::Empty),
+            verdict: Since::new(None),
             observed: None,
             transition: None,
         }
@@ -45,6 +49,7 @@ pub(crate) struct Chronicled {
     /// The room, by name.
     pub room: Stamp<RoomName>,
     pub bed: Stamp<BedKind>,
+    pub verdict: Stamp<Option<VerdictState>>,
     pub observed: Option<SampleRef>,
     /// The sample of the transition before this turn's: since when what we
     /// believed held. `None` if this turn had no transition or it is the first.
@@ -119,6 +124,8 @@ pub(crate) struct Entry {
     pub at: SampleRef,
     pub room: RoomName,
     pub bed: BedKind,
+    /// The second level's verdict, if any.
+    pub verdict: Option<VerdictState>,
     /// Whether the turn saw bodies per zone.
     pub seen: bool,
     /// The transition, if layer 0 changed in this turn.
@@ -135,6 +142,7 @@ impl Entry {
             at: observation.at,
             room: RoomName::of(occupants),
             bed: BedKind::of(occupants, occupancy.bed_known),
+            verdict: observation.refined.verdict.as_ref().map(|r| r.state),
             seen: matches!(observation.evidence.bodies.bodies, BodyEvidence::Seen(_)),
             transition: observation
                 .believed
@@ -152,6 +160,7 @@ impl Chronicle {
             at,
             room,
             bed,
+            verdict,
             seen,
             transition,
         } = entry;
@@ -167,6 +176,7 @@ impl Chronicle {
         Chronicled {
             room: self.room.update(room, at),
             bed: self.bed.update(bed, at),
+            verdict: self.verdict.update(verdict, at),
             observed: self.observed,
             transition_since,
             last_transition: self.transition.as_ref().map(|(_, key)| *key),
@@ -240,6 +250,7 @@ mod tests {
             at: at(secs),
             room,
             bed,
+            verdict: None,
             seen,
             transition: None,
         }
