@@ -46,13 +46,7 @@ pub(crate) fn refine(
         state: lying::classify(&pose.keypoints, &plane, enrich.min_keypoint_score),
         provenance,
     });
-    let posture = posture::classify(
-        &pose.keypoints,
-        &body.bed_points,
-        enrich.min_keypoint_score,
-        enrich.posture_tolerance,
-    )
-    .map(|r| Posture {
+    let posture = posture::classify(body, enrich).map(|r| Posture {
         state: r.state,
         upper: r.upper,
         lower: r.lower,

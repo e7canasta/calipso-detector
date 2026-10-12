@@ -1,8 +1,10 @@
 //! Head 2 of the second level: posture by depth disparity.
 //! Stateless: each pose gives its posture.
 
+use crate::belief::SubjectBody;
 use crate::body::{BedPoint, BedSite, BodyPoint, Joint};
 use crate::estimation;
+use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -35,13 +37,14 @@ const PELVIS: [Joint; 2] = [Joint::LeftHip, Joint::RightHip];
 /// with, and upper against the bed's centre, the stand-in for the hips read in
 /// the same look: the baseline, there even when the hips are not. With no
 /// measured keypoint, nothing.
-pub(super) fn classify(
-    points: &[BodyPoint],
-    bed: &[BedPoint],
-    min_score: f32,
-    tolerance: f32,
-) -> Option<Reading> {
-    let seen: Vec<&BodyPoint> = points.iter().filter(|p| p.score >= min_score).collect();
+pub(super) fn classify(body: &SubjectBody, policy: &EnrichPolicy) -> Option<Reading> {
+    let tolerance = policy.posture_tolerance;
+    let seen: Vec<&BodyPoint> = body
+        .pose
+        .keypoints
+        .iter()
+        .filter(|p| p.score >= policy.min_keypoint_score)
+        .collect();
     if !seen.iter().any(|p| p.depth.is_some()) {
         return None;
     }
@@ -74,13 +77,9 @@ pub(super) fn classify(
         pelvis: group(&PELVIS),
     };
     let lower = groups.pelvis.depth;
-    let relative = |a: Option<f32>, b: Option<f32>| {
-        a.zip(b)
-            .map(|(a, b)| (a - b) / ((a + b) / 2.0))
-            .filter(|d| d.is_finite())
-    };
-    let against = |a: Option<f32>| relative(a, lower);
-    let centre = bed
+    let against = |a: Option<f32>| relative_disparity(a, lower);
+    let centre = body
+        .bed_points
         .iter()
         .find(|p| p.name == BedSite::Centre)
         .and_then(|p| p.depth);
@@ -100,9 +99,19 @@ pub(super) fn classify(
             upper_pelvis: disparity,
             shoulders_pelvis: against(groups.shoulders.depth),
             head_pelvis: against(groups.head.depth),
-            upper_bed_centre: relative(upper, centre),
+            upper_bed_centre: relative_disparity(upper, centre),
         },
     })
+}
+
+/// How much farther `a` is than `b`, relative to their mean: `(a − b) / mean`.
+/// Without scale, because the depth model's is relative and changes from frame
+/// to frame. Positive, `a` is farther from the camera. With either missing, or
+/// not finite, none.
+pub(super) fn relative_disparity(a: Option<f32>, b: Option<f32>) -> Option<f32> {
+    a.zip(b)
+        .map(|(a, b)| (a - b) / ((a + b) / 2.0))
+        .filter(|d| d.is_finite())
 }
 
 /// A group of the body's keypoints: the median depth of those seen and
@@ -197,8 +206,8 @@ pub struct Posture {
 mod tests {
     use super::*;
 
-    fn body(upper: Option<f32>, lower: Option<f32>) -> Vec<BodyPoint> {
-        (0..17)
+    fn body(upper: Option<f32>, lower: Option<f32>) -> SubjectBody {
+        let keypoints = (0..17)
             .map(|i| BodyPoint {
                 name: Joint::coco(i),
                 x: 0.0,
@@ -210,12 +219,38 @@ mod tests {
                     _ => None,
                 },
             })
-            .collect()
+            .collect();
+        SubjectBody {
+            pose: crate::body::Pose {
+                keypoints,
+                provenance: crate::provenance::Provenance::Current,
+            },
+            depth: None,
+            bed_points: Vec::new(),
+        }
+    }
+
+    const POLICY: EnrichPolicy = EnrichPolicy {
+        move_threshold: 0.1,
+        depth: true,
+        min_keypoint_score: 0.3,
+        posture_tolerance: 0.05,
+        max_pose_age_secs: None,
+        crop_pad: 0.0,
+    };
+
+    #[test]
+    fn the_relative_disparity_is_signed_and_without_scale() {
+        let d = |a, b| relative_disparity(Some(a), Some(b)).unwrap();
+        assert!(d(2.2, 2.0) > 0.0 && d(1.8, 2.0) < 0.0);
+        assert!((d(2.2, 2.0) - d(22.0, 20.0)).abs() < 1e-6);
+        assert_eq!(relative_disparity(None, Some(2.0)), None);
+        assert_eq!(relative_disparity(Some(0.0), Some(0.0)), None);
     }
 
     #[test]
     fn lying_only_above_the_tolerance() {
-        let state = |a, b| classify(&body(Some(a), Some(b)), &[], 0.3, 0.05).map(|r| r.state);
+        let state = |a, b| classify(&body(Some(a), Some(b)), &POLICY).map(|r| r.state);
         assert_eq!(state(2.2, 2.0), Some(PostureState::Lying));
         assert_eq!(state(1.8, 2.0), Some(PostureState::Upright));
         assert_eq!(state(2.02, 2.0), Some(PostureState::Upright));
@@ -223,21 +258,20 @@ mod tests {
 
     #[test]
     fn the_disparity_does_not_depend_on_scale() {
-        let d = |a: f32, b: f32| {
-            classify(&body(Some(a), Some(b)), &[], 0.3, 0.05).and_then(|r| r.disparity)
-        };
+        let d =
+            |a: f32, b: f32| classify(&body(Some(a), Some(b)), &POLICY).and_then(|r| r.disparity);
         let (x, y) = (d(2.2, 2.0).unwrap(), d(22.0, 20.0).unwrap());
         assert!((x - y).abs() < 1e-6);
     }
 
     #[test]
     fn an_unmeasured_group_is_unknown_and_no_measure_gives_no_reading() {
-        let r = classify(&body(Some(2.0), None), &[], 0.3, 0.05).unwrap();
+        let r = classify(&body(Some(2.0), None), &POLICY).unwrap();
         assert_eq!(
             (r.state, r.lower, r.disparity),
             (PostureState::Unknown, None, None)
         );
-        assert_eq!(classify(&body(None, None), &[], 0.3, 0.05), None);
+        assert_eq!(classify(&body(None, None), &POLICY), None);
     }
 
     #[test]
