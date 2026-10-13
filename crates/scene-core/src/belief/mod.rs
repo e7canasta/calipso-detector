@@ -144,17 +144,22 @@ impl Belief {
         believed
     }
 
-    /// Layer 1 with what the second level saw of the subject in bed: the bed
-    /// posture, if its policy follows it. It reads layer 0 and never changes
-    /// it.
+    /// Layer 1, if its policy follows it: the wire from layer 0 to layer 1.
+    /// Its input is layer 0's state now (the resident alone in bed, seen or
+    /// held, or nothing) and what the second level perceived. It reads layer
+    /// 0 and never changes it.
     pub(crate) fn observe_bed_posture(
         &mut self,
         at: SampleRef,
-        seen: Option<BedPostureSeen>,
+        sighting: bed_posture::Sighting,
         policy: &Policy,
     ) -> Option<bed_posture::Concluded> {
         let policy = policy.bed_posture.as_ref()?;
-        self.bed_posture.step(at, seen, policy)
+        let l0 = match self.occupancy.room() {
+            Room::Alone(Alone::InBed(in_bed)) => Some(in_bed),
+            Room::Empty | Room::Alone(Alone::Out) | Room::Accompanied(_) => None,
+        };
+        self.bed_posture.step(at, l0, sighting, policy)
     }
 
     /// Reinforcement looked: the latch is spent until the main detector sees

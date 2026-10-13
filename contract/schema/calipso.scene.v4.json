@@ -193,7 +193,7 @@
       ]
     },
     "BedPostureSeen": {
-      "description": "What layer 1 saw in a sample: the column of its table.",
+      "description": "What a sample brought to layer 1, as published: held in bed when layer 0\nholds the resident (there is nothing of theirs to see), otherwise what\nlayer 1 perceived.",
       "oneOf": [
         {
           "description": "Held in bed, alone: unseen without leaving.",

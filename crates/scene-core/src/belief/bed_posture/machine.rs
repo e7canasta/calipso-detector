@@ -3,7 +3,8 @@
 //! state and the candidate that is holding, in source time (rule 9).
 
 use super::rules::decide;
-use super::{BedPostureSeen, BedPostureState, Concluded};
+use super::{BedPostureSeen, BedPostureState, Concluded, Sighting};
+use crate::belief::InBed;
 use crate::belief::stabilizer::Stabilizer;
 use crate::policy::{BedPosturePolicy, Persistence};
 use crate::time::SampleRef;
@@ -15,27 +16,28 @@ pub(crate) struct Machine {
 }
 
 impl Machine {
-    /// One sample. `None`: nobody alone in bed, and the machine forgets.
-    /// Otherwise it starts in bed, if it was not following. What is seen
-    /// proposes a state by the rules, and it counts once it held its own
-    /// time. Unknown says nothing changed: the candidate keeps holding.
+    /// One sample, with layer 0's state and what layer 1 perceived. The rules
+    /// propose a state and it counts once it held its own time; without layer
+    /// 1 the machine forgets. Seen with nothing new says nothing changed: the
+    /// candidate keeps holding.
     pub(crate) fn step(
         &mut self,
         at: SampleRef,
-        seen: Option<BedPostureSeen>,
+        l0: Option<InBed>,
+        sighting: Sighting,
         policy: &BedPosturePolicy,
     ) -> Option<Concluded> {
-        let Some(seen) = seen else {
+        let stable = self.posture.as_ref().map(Stabilizer::stable);
+        let (Some(l0), Some(decided)) = (l0, decide(stable, l0, sighting)) else {
             self.posture = None;
             return None;
         };
         let posture = self
             .posture
             .get_or_insert_with(|| Stabilizer::new(BedPostureState::InBed));
-        let stable = posture.stable();
-        let proposed = match seen {
-            BedPostureSeen::Unknown => posture.pending().map_or(stable, |c| c.value),
-            seen => decide(stable, seen),
+        let proposed = match (l0, sighting) {
+            (InBed::Seen, Sighting::Unknown) => posture.pending().map_or(decided, |c| c.value),
+            _ => decided,
         };
         let dwell = Persistence {
             dwell_secs: dwell_secs(policy, proposed),
@@ -43,7 +45,7 @@ impl Machine {
         posture.observe(at, proposed, &dwell);
         Some(Concluded {
             state: posture.stable(),
-            seen,
+            seen: BedPostureSeen::of(l0, sighting),
         })
     }
 }

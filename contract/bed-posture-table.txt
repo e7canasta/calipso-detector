@@ -1,29 +1,41 @@
-# before | seen | after
+# l1 before | l0 now + seen | l1 after
+— | — | —
+— | held | lying
+— | seen + headboard_lying | lying
+— | seen + headboard_upright | in_bed
+— | seen + legs_out | in_bed
+— | seen + head_side | in_bed
+— | seen + head_away | in_bed
+— | seen + unknown | in_bed
+in_bed | — | —
 in_bed | held | lying
-in_bed | headboard_lying | lying
-in_bed | headboard_upright | in_bed
-in_bed | legs_out | in_bed
-in_bed | head_side | in_bed
-in_bed | head_away | in_bed
-in_bed | unknown | in_bed
+in_bed | seen + headboard_lying | lying
+in_bed | seen + headboard_upright | in_bed
+in_bed | seen + legs_out | in_bed
+in_bed | seen + head_side | in_bed
+in_bed | seen + head_away | in_bed
+in_bed | seen + unknown | in_bed
+lying | — | —
 lying | held | lying
-lying | headboard_lying | lying
-lying | headboard_upright | sitting_up
-lying | legs_out | getting_out
-lying | head_side | getting_out
-lying | head_away | sitting_up
-lying | unknown | lying
+lying | seen + headboard_lying | lying
+lying | seen + headboard_upright | sitting_up
+lying | seen + legs_out | getting_out
+lying | seen + head_side | getting_out
+lying | seen + head_away | sitting_up
+lying | seen + unknown | lying
+sitting_up | — | —
 sitting_up | held | lying
-sitting_up | headboard_lying | lying
-sitting_up | headboard_upright | sitting_up
-sitting_up | legs_out | getting_out
-sitting_up | head_side | getting_out
-sitting_up | head_away | sitting_up
-sitting_up | unknown | sitting_up
+sitting_up | seen + headboard_lying | lying
+sitting_up | seen + headboard_upright | sitting_up
+sitting_up | seen + legs_out | getting_out
+sitting_up | seen + head_side | getting_out
+sitting_up | seen + head_away | sitting_up
+sitting_up | seen + unknown | sitting_up
+getting_out | — | —
 getting_out | held | lying
-getting_out | headboard_lying | lying
-getting_out | headboard_upright | sitting_up
-getting_out | legs_out | getting_out
-getting_out | head_side | getting_out
-getting_out | head_away | sitting_up
-getting_out | unknown | getting_out
+getting_out | seen + headboard_lying | lying
+getting_out | seen + headboard_upright | sitting_up
+getting_out | seen + legs_out | getting_out
+getting_out | seen + head_side | getting_out
+getting_out | seen + head_away | sitting_up
+getting_out | seen + unknown | getting_out
