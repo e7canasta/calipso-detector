@@ -5,10 +5,11 @@
 
 mod lying;
 mod posture;
-mod seen;
+mod sighting;
 mod verdict;
 
 use crate::belief::SubjectBody;
+use crate::belief::bed_posture::Sighting;
 use crate::geom::Quad;
 use crate::map::BedPlane;
 use crate::policy::EnrichPolicy;
@@ -18,8 +19,6 @@ pub use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
 pub(crate) use verdict::Ruling;
 pub use verdict::{Head, Verdict, VerdictState};
 
-pub(crate) use seen::seen;
-
 /// What the second level derives from the subject's pose.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Refinement {
@@ -27,11 +26,14 @@ pub(crate) struct Refinement {
     pub posture: Option<Posture>,
     /// The arbiter's ruling, for the chronicle to date and `project` to publish.
     pub verdict: Option<Ruling>,
+    /// What layer 1 perceives by itself in this turn.
+    pub sighting: Sighting,
 }
 
 /// What the second level derives from the subject's pose: whether they are
-/// truly lying down (with the bed geometry) and their posture by depth
-/// (with measured keypoints). What cannot be derived is not published.
+/// truly lying down (with the bed geometry), their posture by depth (with
+/// measured keypoints) and what layer 1 perceives. What cannot be derived is
+/// not published; without a body, layer 1 perceives nothing new.
 pub(crate) fn refine(
     zone: Option<Zone>,
     body: Option<&SubjectBody>,
@@ -43,7 +45,8 @@ pub(crate) fn refine(
     };
     let pose = &body.pose;
     let provenance = pose.provenance;
-    let lying = bed.and_then(BedPlane::of).map(|plane| Lying {
+    let plane = bed.and_then(BedPlane::of);
+    let lying = plane.map(|plane| Lying {
         state: lying::classify(&pose.keypoints, &plane, enrich.min_keypoint_score),
         provenance,
     });
@@ -60,9 +63,11 @@ pub(crate) fn refine(
         head_place: Some(body.head_place),
     });
     let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.as_ref().map(|p| p.state)));
+    let sighting = sighting::of(body, posture.as_ref(), plane, enrich);
     Refinement {
         lying,
         posture,
         verdict,
+        sighting,
     }
 }

@@ -6,7 +6,7 @@
 //! It sits on layer 0 and never breaks it: layer 0's state is one of its
 //! inputs, as the user wrote the row, `l1(t−1) : l0(t) + seen(t) : l1(t)`
 //! (`Belief` wires it). What layer 1 perceives by itself is a [`Sighting`]
-//! (the second level reduces the turn to one, `refine::seen`). It never
+//! (the second level reduces the turn to one: `Refinement::sighting`). It never
 //! changes a count (second-level rule 1) and it only reports leaving lying:
 //! entering the bed, nothing.
 //!
@@ -42,7 +42,7 @@ pub enum BedPostureState {
 
 /// What layer 1 perceives by itself in a sample, from a fresh pose: the
 /// second level's half of the row's input; layer 0's state is the other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum Sighting {
     /// The head at the headboard and the disparity of lying.
     HeadboardLying,
@@ -55,6 +55,7 @@ pub(crate) enum Sighting {
     /// The head away from the headboard, not past the sides.
     HeadAway,
     /// Nothing new: no fresh pose, or nothing that says how they are.
+    #[default]
     Unknown,
 }
 

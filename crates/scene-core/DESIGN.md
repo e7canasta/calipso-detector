@@ -256,7 +256,7 @@ leaving lying: entering the bed, nothing.
 ```text
              layer 0 ── InBed::{Seen, Held} or nothing ──┐   (Belief wires it)
                                                           ▼
-refine::seen ──[Sighting]──► rules::decide(l1(t−1), l0(t), sighting) ──► Stabilizer ──► Concluded
+refine::sighting ──[Sighting]──► rules::decide(l1(t−1), l0(t), sighting) ──► Stabilizer ──► Concluded
 second level,  what layer 1    a pure decider: the golden table (5 × 8)     each state      state, seen
 pure           perceives                                                    its own time
 ```
@@ -264,7 +264,7 @@ pure           perceives                                                    its 
 The row is `l1(t−1) : l0(t) + seen(t) : l1(t)`: layer 0 is an input of
 layer 1, never the other way round.
 
-- **What layer 1 perceives** (`refine::seen`, pure, a `Sighting`): from a
+- **What layer 1 perceives** (`refine::sighting`, pure, a `Sighting`): from a
   fresh pose only, in this order, a foot past the bed's sides, the head past
   them, the head away from the headboard, and, only with the head at the
   headboard, the disparity (lying or upright). A kept pose says nothing new:
@@ -365,7 +365,7 @@ One concept, one name.
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
 | layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
-| sighting, seen (layer 1) | `bed_posture::Sighting`, `refine::seen`; `BedPostureSeen` | What layer 1 perceives by itself in a sample (`headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown`); published as `seen`, which says `held` when layer 0 holds the resident |
+| sighting, seen (layer 1) | `bed_posture::Sighting`, `refine::sighting`; `BedPostureSeen` | What layer 1 perceives by itself in a sample (`headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown`); published as `seen`, which says `held` when layer 0 holds the resident |
 | decide | `bed_posture::rules::decide` | Layer 1's pure decider, the row `l1(t−1) : l0(t) + seen(t) : l1(t)`; the golden table `contract/bed-posture-table.txt` |
 
 ## 8. Module map
