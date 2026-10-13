@@ -440,6 +440,7 @@ round is integrated.
 
 | Debt | Why | Round |
 |---|---|---|
+| The verification plane is imperative (`issue`, `settle`, `expire` in `verification.rs`), not a decider with a golden table like layers 0 and 1 | The burst (white book III, ch. 12) adds a phase to V; its rows belong in a table, each with its scenario and mutation, not in loose logic | V as a pure machine: first a refactor that keeps every cell, then the burst |
 | The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | verifying the held occupant (book 4) |
 | The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
 | `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Their descriptions say so; renaming them changes the wire, so it waits for the next contract version (C2), together with the positional `rbh` and `fv` | next contract version |
