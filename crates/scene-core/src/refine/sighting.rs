@@ -59,6 +59,9 @@ pub(crate) enum FeetPlace {
     Seen,
     /// At least one seen past the bed's sides.
     PastTheSides,
+    /// One seen in the grey band of a side, none clearly past it: the verifier
+    /// may fill it.
+    Doubtful,
 }
 
 impl BodyPlaces {
@@ -87,7 +90,7 @@ impl BodyPlaces {
 impl BodyPlaces {
     /// Is a digit in the grey band? Only the disparity can be, for now.
     pub(crate) fn doubtful(self) -> bool {
-        self.disparity == DisparitySide::Doubtful
+        self.disparity == DisparitySide::Doubtful || self.feet == FeetPlace::Doubtful
     }
 }
 
@@ -107,6 +110,7 @@ pub(super) fn places_of(
             plane,
             enrich,
             verify.and_then(|v| v.doubtful_disparity),
+            verify.and_then(|v| v.doubtful_feet_margin),
         )
     })
 }
@@ -131,8 +135,23 @@ fn places(
     plane: Option<BedPlane>,
     enrich: &EnrichPolicy,
     doubtful: Option<Band>,
+    feet_margin: Option<f32>,
 ) -> BodyPlaces {
     let past_the_sides = |p: Point| plane.is_some_and(|bed| bed.locate(p) == BedArea::PastTheSides);
+    // How far past the nearest side, in bed widths: negative inside.
+    let beyond_side = |p: Point| {
+        plane.map(|bed| {
+            let (u, _) = bed.project(p);
+            (-u).max(u - 1.0)
+        })
+    };
+    let near_a_side = |p: Point| {
+        feet_margin.is_some_and(|m| beyond_side(p).is_some_and(|b| b.abs() <= f64::from(m)))
+    };
+    let clearly_past = |p: Point| match feet_margin {
+        Some(m) => beyond_side(p).is_some_and(|b| b > f64::from(m)),
+        None => past_the_sides(p),
+    };
     let ankles: Vec<Point> = body
         .pose
         .keypoints
@@ -143,8 +162,10 @@ fn places(
         })
         .map(|k| Point { x: k.x, y: k.y })
         .collect();
-    let feet = if ankles.iter().any(|p| past_the_sides(*p)) {
+    let feet = if ankles.iter().any(|p| clearly_past(*p)) {
         FeetPlace::PastTheSides
+    } else if ankles.iter().any(|p| near_a_side(*p)) {
+        FeetPlace::Doubtful
     } else if ankles.is_empty() {
         FeetPlace::Unseen
     } else {

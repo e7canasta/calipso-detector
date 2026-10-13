@@ -31,6 +31,19 @@ fn doubtful_disparity(ward: &mut Ward, lo: f32, hi: f32) {
         .doubtful_disparity = Some(Band { lo, hi });
 }
 
+#[given(expr = "feet within {float} of the bed's sides are doubtful")]
+fn doubtful_feet(ward: &mut Ward, margin: f32) {
+    ward.policy
+        .verify
+        .get_or_insert_with(VerifyPolicy::default)
+        .doubtful_feet_margin = Some(margin);
+}
+
+#[then(expr = "in sample {int} a verification of the feet is asked")]
+fn feet_asked(ward: &mut Ward, n: u32) {
+    verification_asked(ward, n);
+}
+
 #[then(expr = "in sample {int} a verification of the disparity is asked")]
 fn disparity_asked(ward: &mut Ward, n: u32) {
     verification_asked(ward, n);

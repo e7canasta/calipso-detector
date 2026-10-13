@@ -64,7 +64,7 @@ impl Course<'_> {
             ..
         } = &mut self.monitor.engine;
         verification.settle(self.at, belief);
-        verification.expire(self.at, policy);
+        verification.expire(self.at, policy, belief);
         self.monitor.engine.frame = Some(frame);
         self.geometry = self.monitor.engine.map.gate(frame);
         let Engine {

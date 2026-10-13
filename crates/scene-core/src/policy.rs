@@ -141,6 +141,11 @@ pub struct VerifyPolicy {
     /// is doubtful, layer 1 reads nothing new and the verifier is asked
     /// (P1). `None`: the disparity is never doubtful.
     pub doubtful_disparity: Option<Band>,
+    /// The camera's grey band of the feet, as a fraction of the bed's width:
+    /// an ankle that close to a side, inside or outside, is doubtful (P2, P3).
+    /// Without an answer in time it is taken as out, on the safe side.
+    /// `None`: the feet are never doubtful.
+    pub doubtful_feet_margin: Option<f32>,
 }
 
 /// Two thresholds: a value between them, both included, is doubtful. The

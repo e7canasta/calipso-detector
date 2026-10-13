@@ -11,7 +11,7 @@
 use crate::belief::Belief;
 use crate::look::{Answer, Target, Ticket, Verified};
 use crate::policy::Policy;
-use crate::refine::{BodyPlaces, DisparitySide};
+use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -180,16 +180,26 @@ impl Verification {
     /// At the start of a sample's turn, after settling: a request without an
     /// answer expires after the policy's timeout, or with a new session. The
     /// thing it asked about may be asked about again.
-    pub(crate) fn expire(&mut self, at: SampleRef, policy: &Policy) {
+    /// Doubtful feet without an answer are taken as out, on the safe side: a
+    /// call for getting out is not lost to a verifier that did not answer.
+    pub(crate) fn expire(&mut self, at: SampleRef, policy: &Policy, belief: &Belief) {
         let timeout = policy.verify.and_then(|v| v.timeout_secs);
-        let expired = self
-            .in_flight
-            .is_some_and(|t| match at.secs_since(t.looked) {
-                None => true,
-                Some(age) => timeout.is_some_and(|max| age >= max),
+        let expired = self.in_flight.filter(|t| match at.secs_since(t.looked) {
+            None => true,
+            Some(age) => timeout.is_some_and(|max| age >= max),
+        });
+        let Some(ticket) = expired else {
+            return;
+        };
+        self.in_flight = None;
+        if let Target::Feet { stable } = ticket.target
+            && ticket.looked.session == at.session
+            && belief.bed_posture_state() == Some(stable)
+        {
+            self.filled = self.asked_places.map(|places| BodyPlaces {
+                feet: FeetPlace::PastTheSides,
+                ..places
             });
-        if expired {
-            self.in_flight = None;
         }
     }
 
@@ -207,6 +217,17 @@ impl Verification {
                 continue;
             }
             match ticket.target {
+                Target::Feet { stable } => {
+                    let same = belief.bed_posture_state() == Some(stable);
+                    let feet = match answer {
+                        Answer::Yes => Some(FeetPlace::PastTheSides),
+                        Answer::No => Some(FeetPlace::Seen),
+                        Answer::Unsure => None,
+                    };
+                    if let (true, Some(feet), Some(places)) = (same, feet, self.asked_places) {
+                        self.filled = Some(BodyPlaces { feet, ..places });
+                    }
+                }
                 Target::Disparity { stable } => {
                     let same = belief.bed_posture_state() == Some(stable);
                     let side = match answer {

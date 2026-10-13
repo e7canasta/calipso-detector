@@ -30,8 +30,13 @@ const HEAD: [HeadPlaceState; 5] = [
     HeadPlaceState::Elsewhere,
     HeadPlaceState::AtSide,
 ];
-/// `f`: the feet as a set.
-const FEET: [FeetPlace; 3] = [FeetPlace::Unseen, FeetPlace::Seen, FeetPlace::PastTheSides];
+/// `f`: the feet as a set, and `?` for the camera's grey band.
+const FEET: [(FeetPlace, char); 4] = [
+    (FeetPlace::Unseen, '0'),
+    (FeetPlace::Seen, '1'),
+    (FeetPlace::PastTheSides, '2'),
+    (FeetPlace::Doubtful, '?'),
+];
 /// `d`: the disparity, and `?` for the camera's grey band.
 const DISPARITY: [(DisparitySide, char); 4] = [
     (DisparitySide::Unknown, '0'),
@@ -51,7 +56,7 @@ fn cyz(state: Option<BedPostureState>) -> &'static str {
 fn places() -> Vec<(String, BodyPlaces)> {
     let mut out = Vec::new();
     for (h, head) in HEAD.into_iter().enumerate() {
-        for (f, feet) in FEET.into_iter().enumerate() {
+        for (feet, f) in FEET {
             for (disparity, d) in DISPARITY {
                 let places = BodyPlaces {
                     head,
@@ -80,7 +85,7 @@ fn trama() -> String {
          # rbh[t] hfd | cyz[t] proposed from each cyz[t-1]: 000 100 110 111 112\n\
          # cyz: active · armed · risk (0 lying, 1 sitting up, 2 getting out)\n\
          # h: 0 unknown · 1 at headboard · 2 below headboard · 3 elsewhere · 4 at side\n\
-         # f: 0 unseen · 1 seen · 2 past the sides (one out is out)\n\
+         # f: 0 unseen · 1 seen · 2 past the sides (one out is out) · ? doubtful (not taken as out)\n\
          # d: 0 unknown · 1 lying · 2 upright · ? doubtful (the grey band: nothing new)\n\
          # *** : the row does not depend on the body (layer 0 decides)\n",
     );

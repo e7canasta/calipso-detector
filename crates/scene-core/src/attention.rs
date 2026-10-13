@@ -21,7 +21,7 @@ use crate::map::{Geometry, Map};
 use crate::policy::VerifyPolicy;
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
-use crate::refine::{BodyPlaces, DisparitySide};
+use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
 use crate::verification::{HOUR_SECS, HeldCheckState, Verification};
 use schemars::JsonSchema;
@@ -197,6 +197,18 @@ pub(crate) fn verify(
     let Some(verify) = policy.verify else {
         return Consideration::Disabled;
     };
+    // The feet first (v = 4): getting out is the call that matters most.
+    let feet = places.filter(|p| p.feet == FeetPlace::Doubtful);
+    if let (Some(places), Some(stable)) = (feet, layer_1) {
+        return ask(
+            g,
+            verification,
+            &verify,
+            Target::Feet { stable },
+            Question::LeavingBed,
+            Some(places),
+        );
+    }
     let doubtful = places.filter(|p| {
         p.head == HeadPlaceState::AtHeadboard && p.disparity == DisparitySide::Doubtful
     });

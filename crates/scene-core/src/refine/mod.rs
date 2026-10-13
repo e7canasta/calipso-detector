@@ -16,9 +16,7 @@ use crate::policy::{EnrichPolicy, VerifyPolicy};
 use crate::zone::Zone;
 pub use lying::{Lying, LyingState};
 pub use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
-#[cfg(test)]
-pub(crate) use sighting::FeetPlace;
-pub(crate) use sighting::{BodyPlaces, DisparitySide};
+pub(crate) use sighting::{BodyPlaces, DisparitySide, FeetPlace};
 pub(crate) use verdict::Ruling;
 pub use verdict::{Head, Verdict, VerdictState};
 

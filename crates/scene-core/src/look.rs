@@ -74,6 +74,12 @@ pub enum Target {
         /// The held body's `last_seen`.
         since: SampleRef,
     },
+    /// The doubtful feet of the looked sample, while layer 1 holds the same
+    /// stable state.
+    Feet {
+        /// Layer 1's stable state when it was asked.
+        stable: crate::belief::bed_posture::BedPostureState,
+    },
     /// The doubtful disparity of the looked sample, while layer 1 holds the
     /// same stable state.
     Disparity {
@@ -90,6 +96,8 @@ pub enum Question {
     HeldInBed,
     /// Is the person in this bed sitting up rather than lying down?
     SittingInBed,
+    /// Is the person getting out of the bed, with a leg over the side?
+    LeavingBed,
 }
 
 impl Question {
@@ -98,6 +106,7 @@ impl Question {
         match self {
             Self::HeldInBed => "held_in_bed@1",
             Self::SittingInBed => "sitting_in_bed@1",
+            Self::LeavingBed => "leaving_bed@1",
         }
     }
 }
