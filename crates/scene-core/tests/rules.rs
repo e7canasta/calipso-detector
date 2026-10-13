@@ -51,11 +51,12 @@ fn sequences() -> impl Strategy<Value = Vec<Step>> {
     prop::collection::vec(steps(), 0..200)
 }
 
+use scene_core::contract::{BedPostureState, Mode};
 use scene_core::contract::{BedState, FrameInfo, SampleRef, Scene, SessionId, SourceSecs};
 use scene_core::geom::Quad;
 use scene_core::look::{Reading, Spent};
 use scene_core::map::SiteMap;
-use scene_core::policy::Policy;
+use scene_core::policy::{BedPosturePolicy, Policy};
 use scene_core::{Input, Monitor, NoFrame, Output};
 
 fn monitor() -> Monitor {
@@ -102,11 +103,43 @@ fn occupation_events(output: &Output) -> Vec<Fact> {
         .collect()
 }
 
+/// A monitor that also follows layer 1, the bed posture, each state counting
+/// at once: its invariants against layer 0 hold on every turn.
+fn monitor_with_bed_posture() -> Monitor {
+    let policy = Policy {
+        bed_posture: Some(BedPosturePolicy::default()),
+        ..Policy::default()
+    };
+    Monitor::new(
+        policy,
+        SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))),
+    )
+}
+
+fn alone_in_bed(scene: &Scene) -> bool {
+    matches!(scene.room.mode, Mode::AloneInBedSeen | Mode::AloneInBedHeld)
+}
+
+fn bed_posture(scene: &Scene) -> Option<BedPostureState> {
+    scene
+        .subject
+        .as_ref()
+        .and_then(|s| s.bed_posture.as_ref())
+        .map(|b| b.state)
+}
+
 fn run(
+    sequence: &[Step],
+    check: impl FnMut(&Scene, &Output, &Step) -> Result<(), TestCaseError>,
+) -> Result<(), TestCaseError> {
+    run_on(monitor(), sequence, check)
+}
+
+fn run_on(
+    mut monitor: Monitor,
     sequence: &[Step],
     mut check: impl FnMut(&Scene, &Output, &Step) -> Result<(), TestCaseError>,
 ) -> Result<(), TestCaseError> {
-    let mut monitor = monitor();
     let mut previous = monitor
         .handle(Input::NoFrame {
             at: SampleRef {
@@ -223,6 +256,47 @@ proptest! {
             if let Some(last) = published::facts(output).into_iter().rev().find(|fact|fact.kind == Kind::Domain) {
                 let scene = &output.scene;
                 prop_assert_eq!((last.after.bed_seen,last.after.floor_seen,last.after.bed_held as usize,last.after.occupants),counts(scene),"last fact={:?}",last);
+            }
+            Ok(())
+        })?;
+    }
+
+    /// Layer 1 lives exactly while layer 0 has the resident alone in bed:
+    /// `c = 1 ⇔ rbh ∈ {110, 111}` (white book, volume II, ch. 05).
+    #[test]
+    fn re7_layer_1_lives_exactly_while_the_resident_is_alone_in_bed(sequence in sequences()) {
+        run_on(monitor_with_bed_posture(), &sequence, |_, output, _| {
+            let scene = &output.scene;
+            if bed_posture(scene).is_some() {
+                prop_assert!(alone_in_bed(scene), "bed posture without the resident alone in bed: {:?}", scene.room.mode);
+            }
+            if alone_in_bed(scene) && scene.subject.is_some() {
+                prop_assert!(bed_posture(scene).is_some(), "the resident alone in bed without a bed posture");
+            }
+            Ok(())
+        })?;
+    }
+
+    /// Held in bed is lying: `rbh = 111 → cyz = 110`.
+    #[test]
+    fn re8_held_in_bed_is_lying(sequence in sequences()) {
+        run_on(monitor_with_bed_posture(), &sequence, |_, output, _| {
+            let scene = &output.scene;
+            if scene.room.mode == Mode::AloneInBedHeld {
+                prop_assert_eq!(bed_posture(scene), Some(BedPostureState::Lying));
+            }
+            Ok(())
+        })?;
+    }
+
+    /// Entering the bed is not reported: from nothing or `in_bed`, layer 1
+    /// only goes to lying (`y = 0` never jumps to risk 1 or 2).
+    #[test]
+    fn re9_entering_the_bed_is_not_reported(sequence in sequences()) {
+        run_on(monitor_with_bed_posture(), &sequence, |before, output, _| {
+            if matches!(bed_posture(before), None | Some(BedPostureState::InBed)) {
+                prop_assert!(!matches!(bed_posture(&output.scene), Some(BedPostureState::SittingUp | BedPostureState::GettingOut)),
+                    "from {:?} to {:?}", bed_posture(before), bed_posture(&output.scene));
             }
             Ok(())
         })?;
