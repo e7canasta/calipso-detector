@@ -148,3 +148,52 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
     let decoded = image::load_from_memory(jpeg).unwrap();
     assert_eq!((decoded.width(), decoded.height()), (104, 78));
 }
+
+/// The whole way, live: the detector's NatsVerifier asks the calipso-verifier
+/// service over NATS and the answer comes back. Needs `nats-server` and the
+/// service running (`CALIPSO_NATS_URL`, default `nats://127.0.0.1:4222`).
+#[test]
+#[ignore = "needs nats-server and calipso-verifier running"]
+fn the_live_verifier_answers_over_nats() {
+    use detector::verifier::NatsVerifier;
+    let url = std::env::var("CALIPSO_NATS_URL").unwrap_or_else(|_| "nats://127.0.0.1:4222".into());
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let mut verifier = NatsVerifier::spawn(
+        runtime.handle(),
+        url,
+        "calipso.verify.v1".into(),
+        "room-1".into(),
+        Duration::from_secs(30),
+    );
+    let frame = DynamicImage::new_rgb8(128, 96);
+    let looked = scene_core::contract::SampleRef {
+        session: scene_core::contract::SessionId(1),
+        sequence: 43,
+        source_secs: scene_core::contract::SourceSecs(43.0),
+    };
+    let ticket = Ticket {
+        id: 7,
+        looked,
+        target: scene_core::look::Target::Held { since: looked },
+    };
+    std::thread::sleep(Duration::from_millis(500));
+    verifier
+        .ask(
+            &frame,
+            ticket,
+            Rect::new(8.0, 11.0, 112.0, 89.0),
+            Question::HeldInBed,
+        )
+        .unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    let answers = loop {
+        let answers = verifier.answers();
+        if !answers.is_empty() || std::time::Instant::now() > deadline {
+            break answers;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    assert_eq!(answers.len(), 1, "no answer in time");
+    assert_eq!(answers[0].ticket.id, 7);
+    println!("answer: {:?}", answers[0].answer);
+}
