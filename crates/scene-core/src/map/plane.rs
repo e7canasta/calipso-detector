@@ -72,13 +72,35 @@ impl BedPlane {
         }
     }
 
-    /// Does the point fall inside the bed, `[0, 1]²`, edges included? A rounding
-    /// error is allowed at the edges.
+    /// Does the point fall inside the bed, `[0, 1]²`, edges included?
     pub(crate) fn inside(&self, p: Point) -> bool {
-        const TOL: f64 = 1e-9;
-        let (u, v) = self.project(p);
-        (-TOL..=1.0 + TOL).contains(&u) && (-TOL..=1.0 + TOL).contains(&v)
+        self.locate(p) == BedArea::Inside
     }
+
+    /// Where the point falls against the bed: inside it, past its sides
+    /// (across, at any height) or past its head or foot. Edges are inside; a
+    /// rounding error is allowed at them.
+    pub(crate) fn locate(&self, p: Point) -> BedArea {
+        const TOL: f64 = 1e-9;
+        let within = |c: f64| (-TOL..=1.0 + TOL).contains(&c);
+        let (u, v) = self.project(p);
+        match (within(u), within(v)) {
+            (false, _) => BedArea::PastTheSides,
+            (true, true) => BedArea::Inside,
+            (true, false) => BedArea::PastTheEnds,
+        }
+    }
+}
+
+/// Where a point falls against the bed, in its coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BedArea {
+    /// Inside the bed, `[0, 1]²`.
+    Inside,
+    /// Past the bed's sides, `u < 0` or `u > 1`, at any `v`: getting out.
+    PastTheSides,
+    /// Across the bed but past its head or its foot, `v < 0` or `v > 1`.
+    PastTheEnds,
 }
 
 fn apply([a, b, c, d, e, f, g, h, i]: [f64; 9], x: f64, y: f64) -> (f64, f64) {
@@ -135,6 +157,18 @@ mod tests {
         assert!((corner.x - 110.0).abs() < 1e-3 && (corner.y - 100.0).abs() < 1e-3);
         let (u, v) = p.project(p.point(0.3, 0.7));
         assert!((u - 0.3).abs() < 1e-6 && (v - 0.7).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_point_is_inside_past_the_sides_or_past_the_ends() {
+        let p = bed();
+        let at = |x, y| p.locate(Point { x, y });
+        assert_eq!(at(300.0, 250.0), BedArea::Inside);
+        assert_eq!(at(100.0, 100.0), BedArea::Inside);
+        assert_eq!(at(50.0, 250.0), BedArea::PastTheSides);
+        assert_eq!(at(550.0, 50.0), BedArea::PastTheSides);
+        assert_eq!(at(300.0, 50.0), BedArea::PastTheEnds);
+        assert_eq!(at(300.0, 450.0), BedArea::PastTheEnds);
     }
 
     #[test]

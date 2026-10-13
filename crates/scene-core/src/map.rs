@@ -3,7 +3,7 @@
 
 mod plane;
 
-pub(crate) use plane::BedPlane;
+pub(crate) use plane::{BedArea, BedPlane};
 
 use crate::body::BedSite;
 use crate::geom::{Point, Quad, Rect};

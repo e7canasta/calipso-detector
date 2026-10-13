@@ -7,7 +7,7 @@
 use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
 use crate::geom::{Point, Rect};
-use crate::map::BedPlane;
+use crate::map::{BedArea, BedPlane};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -95,13 +95,10 @@ impl Bounds {
         let Some(bed) = self.bed else {
             return HeadPlaceState::Elsewhere;
         };
-        let (u, v) = bed.project(p);
-        if !(0.0..=1.0).contains(&u) {
-            HeadPlaceState::AtSide
-        } else if (0.0..=1.0).contains(&v) {
-            HeadPlaceState::BelowHeadboard
-        } else {
-            HeadPlaceState::Elsewhere
+        match bed.locate(p) {
+            BedArea::Inside => HeadPlaceState::BelowHeadboard,
+            BedArea::PastTheSides => HeadPlaceState::AtSide,
+            BedArea::PastTheEnds => HeadPlaceState::Elsewhere,
         }
     }
 }

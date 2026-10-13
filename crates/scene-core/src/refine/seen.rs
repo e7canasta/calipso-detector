@@ -8,7 +8,7 @@ use crate::belief::{Believed, SubjectBody};
 use crate::body::Joint;
 use crate::geom::{Point, Quad};
 use crate::head::HeadPlaceState;
-use crate::map::BedPlane;
+use crate::map::{BedArea, BedPlane};
 use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
 
@@ -40,8 +40,7 @@ fn by_body(
     enrich: Option<&EnrichPolicy>,
 ) -> Sighting {
     let min_score = enrich.map_or(f32::INFINITY, |p| p.min_keypoint_score);
-    let past_the_sides =
-        |p: Point| plane.is_some_and(|bed| !(0.0..=1.0).contains(&bed.project(p).0));
+    let past_the_sides = |p: Point| plane.is_some_and(|bed| bed.locate(p) == BedArea::PastTheSides);
     let legs_out = body.pose.keypoints.iter().any(|k| {
         matches!(k.name, Some(Joint::LeftAnkle | Joint::RightAnkle))
             && k.score >= min_score
