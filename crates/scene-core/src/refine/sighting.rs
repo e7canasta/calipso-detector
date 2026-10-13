@@ -30,7 +30,7 @@ pub(super) fn of(
     let past_the_sides = |p: Point| plane.is_some_and(|bed| bed.locate(p) == BedArea::PastTheSides);
     let legs_out = body.pose.keypoints.iter().any(|k| {
         matches!(k.name, Some(Joint::LeftAnkle | Joint::RightAnkle))
-            && k.score >= enrich.min_keypoint_score
+            && k.is_seen(enrich.min_keypoint_score)
             && past_the_sides(Point { x: k.x, y: k.y })
     });
     if legs_out {

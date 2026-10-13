@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// any is outside; with no feet in sight, it is assumed. Without a visible
 /// torso or hips, it is unknown. The head is not required.
 pub(super) fn classify(points: &[BodyPoint], plane: &BedPlane, min_score: f32) -> LyingState {
-    let visible: Vec<&BodyPoint> = points.iter().filter(|p| p.score >= min_score).collect();
+    let visible: Vec<&BodyPoint> = points.iter().filter(|p| p.is_seen(min_score)).collect();
     let part = |joints: [Joint; 2]| -> Option<Point> {
         let found: Vec<&&BodyPoint> = visible
             .iter()

@@ -155,7 +155,7 @@ pub(crate) fn place(
         .unwrap_or_default()
         .iter()
         .enumerate()
-        .filter(|&(i, k)| k.score >= min_score && Joint::coco(i).is_some_and(|j| HEAD.contains(&j)))
+        .filter(|&(i, k)| k.is_seen(min_score) && Joint::coco(i).is_some_and(|j| HEAD.contains(&j)))
         .map(|(_, k)| k)
         .collect();
     if !head.is_empty() {

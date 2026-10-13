@@ -44,6 +44,21 @@ pub enum Joint {
     RightAnkle,
 }
 
+impl Keypoint {
+    /// Seen: its score reaches the profile's minimum. Below it a keypoint is
+    /// not seen: no depth, no reasoning, not drawn.
+    pub(crate) fn is_seen(&self, min_score: f32) -> bool {
+        self.score >= min_score
+    }
+}
+
+impl BodyPoint {
+    /// Seen: its score reaches the profile's minimum, as a [`Keypoint`]'s.
+    pub(crate) fn is_seen(&self, min_score: f32) -> bool {
+        self.score >= min_score
+    }
+}
+
 impl Joint {
     /// The 17 joints, in the order the model gives them.
     pub const COCO: [Joint; 17] = [

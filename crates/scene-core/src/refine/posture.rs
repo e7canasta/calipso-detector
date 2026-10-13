@@ -44,7 +44,7 @@ pub(super) fn classify(body: &SubjectBody, policy: &EnrichPolicy) -> Option<Read
         .pose
         .keypoints
         .iter()
-        .filter(|p| p.score >= policy.min_keypoint_score)
+        .filter(|p| p.is_seen(policy.min_keypoint_score))
         .collect();
     if !seen.iter().any(|p| p.depth.is_some()) {
         return None;

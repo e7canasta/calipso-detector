@@ -259,7 +259,7 @@ pub(crate) fn deepen(
         .unwrap_or_default()
         .iter()
         .enumerate()
-        .filter(|(_, k)| k.score >= policy.min_keypoint_score)
+        .filter(|(_, k)| k.is_seen(policy.min_keypoint_score))
         .map(|(i, k)| (DepthTarget::Keypoint(i), Point { x: k.x, y: k.y }))
         .collect();
     if points.is_empty() {
