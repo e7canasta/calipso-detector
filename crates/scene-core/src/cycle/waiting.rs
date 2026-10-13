@@ -1,12 +1,12 @@
 //! Builds each probe with its continuation.
 
 use super::Observed;
-use crate::attention::{DepthLook, SubjectDepthLook};
+use crate::attention::{DepthLook, SubjectDepthLook, VerifyLook};
 use crate::body::Keypoint;
 use crate::evidence::Admission;
 use crate::geom::{Point, Rect};
 use crate::head::HeadPlace;
-use crate::look::{DepthPurpose, DepthTarget, FaceRegion, Probe};
+use crate::look::{DepthPurpose, DepthTarget, FaceRegion, Probe, Ticket};
 use crate::policy::FacePolicy;
 
 /// Probe and continuation are created together; their fields cannot be
@@ -46,6 +46,10 @@ pub(super) enum Continuation {
         at: Vec<(DepthTarget, Point)>,
         /// Where the head was when the look was decided.
         head: HeadPlace,
+    },
+    /// The verifier takes the request; the turn concludes either way.
+    Verify {
+        observed: Observed,
     },
 }
 
@@ -125,6 +129,18 @@ impl Waiting {
                 at,
                 head,
             },
+        )
+    }
+
+    /// The verifier, over its crop, with the ticket its answer will carry.
+    pub(super) fn verify(observed: Observed, ticket: Ticket, look: VerifyLook) -> Self {
+        Self::new(
+            Probe::Verify {
+                ticket,
+                region: look.region,
+                question: look.question,
+            },
+            Continuation::Verify { observed },
         )
     }
 

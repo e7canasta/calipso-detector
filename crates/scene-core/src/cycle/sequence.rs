@@ -8,7 +8,7 @@ use super::{Course, Engine, Observed, Phase};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
     self, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome, LookResult,
-    SkipReason, SubjectDepthLook,
+    SkipReason, SubjectDepthLook, VerifyLook,
 };
 use crate::belief::{Believed, Enrichment};
 use crate::body::Keypoint;
@@ -44,6 +44,10 @@ enum Reached {
     },
     /// With the enrichment resolved.
     Enriched(Observed, Enrichment),
+    /// With the subject's body concluded.
+    Body(Observed),
+    /// With every look done: only concluding remains.
+    Final(Observed),
 }
 
 impl Course<'_> {
@@ -51,6 +55,7 @@ impl Course<'_> {
     /// always runs. Neither a reconnection nor another image size releases
     /// anyone: the belief starts from scratch only with the process.
     pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
+        self.monitor.engine.verification.settle(self.at);
         self.monitor.engine.frame = Some(frame);
         self.geometry = self.monitor.engine.map.gate(frame);
         let Engine {
@@ -68,7 +73,7 @@ impl Course<'_> {
     /// requested or the turn goes on.
     ///
     /// ```text
-    /// Primary → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
+    /// Primary → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → [Verify] → conclude
     /// ```
     fn next(&mut self, mut reached: Reached) -> Phase {
         loop {
@@ -162,8 +167,18 @@ impl Course<'_> {
                         observed.believed,
                         enrichment,
                     );
-                    return Phase::Concluded { observed };
+                    Reached::Body(observed)
                 }
+                // Last attention point: a doubt worth the slow verifier?
+                Reached::Body(observed) => {
+                    let considered = self.verify(&observed);
+                    if let Some(look) = self.wanted(LookKind::Verify, considered) {
+                        let ticket = self.monitor.engine.verification.issue(look.target, self.at);
+                        return Phase::Waiting(Waiting::verify(observed, ticket, look));
+                    }
+                    Reached::Final(observed)
+                }
+                Reached::Final(observed) => return Phase::Concluded { observed },
             };
         }
     }
@@ -234,6 +249,17 @@ impl Course<'_> {
                 let enrichment = Enrichment::fresh(Some(pose), depths, head, bbox, primary_seen);
                 Reached::Enriched(observed, enrichment)
             }
+            Continuation::Verify { observed } => {
+                let result = match outcome.dispatched() {
+                    Ok(()) => LookResult::Dispatched,
+                    Err(failure) => {
+                        self.monitor.engine.verification.failed();
+                        LookResult::failed(failure)
+                    }
+                };
+                self.asked(probe, spent, result);
+                Reached::Final(observed)
+            }
         };
         self.next(reached)
     }
@@ -259,6 +285,7 @@ impl Course<'_> {
             believed: observed.believed,
             refined,
             bed_posture,
+            held_check: engine.verification.held(),
             evidence: observed.evidence,
             frame: engine.frame,
             calibrated: observed.calibrated,
@@ -330,6 +357,17 @@ impl Course<'_> {
         attention::enrich(believed, reference, since, self.at, policy)
     }
 
+    fn verify(&self, observed: &Observed) -> Consideration<VerifyLook> {
+        let Perceived { bodies, faces } = &observed.evidence;
+        let g = self.glimpse(bodies, faces);
+        let Engine {
+            policy,
+            verification,
+            ..
+        } = &self.monitor.engine;
+        attention::verify(&g, verification, policy)
+    }
+
     fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
         let Engine { policy, map, .. } = &self.monitor.engine;
         crate::head::of_turn(&observed.evidence.faces, pose, map, self.geometry, policy)
@@ -377,8 +415,15 @@ impl Course<'_> {
 
     /// With all the evidence: the belief is updated.
     fn believe(&mut self, bodies: &Admission) -> Believed {
-        let Engine { policy, belief, .. } = &mut self.monitor.engine;
-        belief.observe(self.at, bodies, policy)
+        let Engine {
+            policy,
+            belief,
+            verification,
+            ..
+        } = &mut self.monitor.engine;
+        let believed = belief.observe(self.at, bodies, policy);
+        verification.observe_held(belief.held_since(), self.at, policy);
+        believed
     }
 
     fn asked(&mut self, probe: &Probe, spent: Spent, result: LookResult) {

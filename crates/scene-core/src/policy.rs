@@ -119,6 +119,25 @@ pub struct Policy {
     pub depth_pad: Option<f32>,
     /// `None`: layer 1 does not exist; nothing follows the bed posture.
     pub bed_posture: Option<BedPosturePolicy>,
+    /// `None`: there is no verifier; nothing is verified.
+    pub verify: Option<VerifyPolicy>,
+}
+
+/// What a camera verifies with the slow verifier (book 4; white book, volume
+/// III). Each stream verifies only what matters to it: what is `None` is
+/// neither asked nor paid for.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VerifyPolicy {
+    /// `None`: a body held in bed is not verified.
+    pub held: Option<HeldVerifyPolicy>,
+}
+
+/// Verify a body held in bed: is the belief still backed by an observation?
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeldVerifyPolicy {
+    /// Source seconds from `held_in_bed` until it is asked about: the cheap
+    /// senses (reinforcement, faces) go first.
+    pub after_secs: f64,
 }
 
 impl Default for Policy {
@@ -137,6 +156,7 @@ impl Default for Policy {
             calibration: None,
             depth_pad: None,
             bed_posture: None,
+            verify: None,
         }
     }
 }

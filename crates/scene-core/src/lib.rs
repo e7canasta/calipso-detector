@@ -67,6 +67,7 @@ mod provenance;
 mod refine;
 mod sensor;
 mod time;
+mod verification;
 mod zone;
 
 pub use cycle::{Input, Monitor, NoFrame, Output, Turn};

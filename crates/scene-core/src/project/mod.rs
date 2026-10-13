@@ -25,7 +25,11 @@ use crate::look::Detection;
 use crate::refine::{Refinement, Verdict};
 
 /// The bed as layer 0 believes it, dated by the chronicle.
-fn bed(occupancy: &Occupancy, chronicled: &Chronicled) -> Bed {
+fn bed(
+    occupancy: &Occupancy,
+    chronicled: &Chronicled,
+    held_check: Option<crate::verification::HeldEntry>,
+) -> Bed {
     Bed {
         state: bed_state(occupancy.occupants(), occupancy.bed_known),
         seen: occupancy.counts.bed,
@@ -36,6 +40,9 @@ fn bed(occupancy: &Occupancy, chronicled: &Chronicled) -> Bed {
             .map(|held| Held {
                 bbox: held.detection.bbox,
                 last_seen: held.since,
+                check: held_check
+                    .filter(|entry| entry.since == held.since)
+                    .map(|entry| entry.check),
             })
             .collect(),
         unexplained: occupancy.unexplained,

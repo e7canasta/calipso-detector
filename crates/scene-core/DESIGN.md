@@ -368,6 +368,9 @@ One concept, one name.
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
 | layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
+| verification, verifier | `verification`, `Probe::Verify`, `Monitor::verified` | Asking a slow verifier (a VLM over a crop) a closed question, outside the turn: the answer is evidence of the sample it looked at and never moves a count (book 4; white book, volume III) |
+| ticket | `look::Ticket`, `Target` | A request to the verifier: its id, the sample it looks at and what it asks about, by identity (a held body by its `last_seen`). A late answer applies only if that same thing still holds |
+| held check | `HeldCheck`, `HeldCheckState` | The provenance of a held body: unverified, confirmed or not confirmed, by whom and looking at which sample. Not confirmed does not release (frontier 3) |
 | body places | `refine::BodyPlaces`, `FeetPlace` | Where each part layer 1 reads is in a sample: the head (`HeadPlaceState`), the feet as a set (unseen, seen, past the bed's sides: one out is out) and the disparity (`PostureState`). The trama's `hfd`; a kept pose places nothing |
 | sighting, seen (layer 1) | `bed_posture::Sighting`, `refine::sighting`; `BedPostureSeen` | What layer 1 perceives by itself in a sample (`headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown`); published as `seen`, which says `held` when layer 0 holds the resident |
 | decide | `bed_posture::rules::decide` | Layer 1's pure decider, the row `l1(t−1) : l0(t) + seen(t) : l1(t)`; the golden table `contract/bed-posture-table.txt` |
@@ -385,6 +388,7 @@ matters as much as the second.
 | `evidence` | Admits readings: one body per person, its zone | decides what is believed or looked at |
 | `belief` | The belief: joins layer 0, the subject and layer 1 | sees a raw reading |
 | `belief/occupancy` | Layer 0: the occupancy machine | knows the second level or the contract |
+| `verification` | The verification plane: what the slow verifier was asked (one ticket in flight), the answers owed, and the held body's provenance (`HeldCheck`). Answers arrive between turns (`Monitor::verified`) and are settled at the next sample's turn | moves a count, or is read by layer 0 or layer 1 |
 | `belief/bed_posture` | Layer 1: the bed posture machine, its rules (a golden table) and its vocabulary | changes a count, or reads a raw reading |
 | `belief/stabilizer` | Source-time stabilizing, for both layers | knows what it counts |
 | `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |

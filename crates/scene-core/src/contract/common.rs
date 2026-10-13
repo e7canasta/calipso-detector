@@ -21,6 +21,7 @@ pub use crate::refine::{
 };
 pub use crate::sensor::SensorState;
 pub use crate::time::{SampleRef, SessionId, SourceSecs};
+pub use crate::verification::{HeldCheck, HeldCheckState, Verifier};
 pub use crate::zone::{Counts, Zone};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -142,6 +143,10 @@ pub struct Held {
     pub bbox: Rect,
     /// The last sample they were seen in.
     pub last_seen: SampleRef,
+    /// Whether a verifier looked since: only with a verifier configured
+    /// (white book, volume III). It never moves the count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check: Option<HeldCheck>,
 }
 
 /// The bed: who is believed in it, seen or held.

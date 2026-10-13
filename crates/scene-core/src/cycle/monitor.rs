@@ -9,11 +9,13 @@ use crate::attention::{Attention, Lens};
 use crate::belief::Belief;
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
+use crate::look::Verified;
 use crate::map::{Geometry, SiteMap};
 use crate::policy::Policy;
 use crate::project::v4;
 use crate::sensor::SensorMemory;
 use crate::time::SampleRef;
+use crate::verification::Verification;
 
 impl Engine {
     fn new(policy: Policy, map: SiteMap) -> Self {
@@ -23,6 +25,7 @@ impl Engine {
             belief: Belief::default(),
             sensor: SensorMemory::default(),
             lens: Lens::default(),
+            verification: Verification::default(),
             frame: None,
         }
     }
@@ -44,6 +47,13 @@ impl Monitor {
             chronicle: Chronicle::default(),
             last: None,
         }
+    }
+
+    /// The verifier answered a ticket. An answer is not a sample and opens no
+    /// turn (rule 3): it is noted, and settled at the start of the next
+    /// sample's turn as evidence of the sample it looked at.
+    pub fn verified(&mut self, verified: Verified) {
+        self.engine.verification.answered(verified);
     }
 
     /// Opens a turn. It is the only way in.

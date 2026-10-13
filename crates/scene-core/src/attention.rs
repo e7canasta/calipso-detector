@@ -13,12 +13,13 @@ use crate::geom::Point;
 use crate::geom::Rect;
 use crate::head::HeadPlace;
 use crate::look::FaceRegion;
-use crate::look::{DepthTarget, Failure, LookKind};
+use crate::look::{DepthTarget, Failure, LookKind, Question, Target};
 use crate::map::BedPlane;
 use crate::map::{Geometry, Map};
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
+use crate::verification::{HeldCheckState, Verification};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -158,6 +159,55 @@ pub(crate) fn reinforce(
         LatchState::Spent => Decision::Skip(SkipReason::LatchSpent),
         LatchState::Armed => Decision::Ask(bed.bounds().expand(policy.bed_padding)),
     })
+}
+
+/// The crop the verifier looks at: the bed grown by this fraction of its width
+/// and height on each side (white book, volume III, ch. 05).
+const VERIFY_PAD: f32 = 0.15;
+
+/// What to ask the verifier: about what, over which crop, with which question.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct VerifyLook {
+    pub(crate) target: Target,
+    pub(crate) region: Rect,
+    pub(crate) question: Question,
+}
+
+/// Ask the verifier? Only what the policy verifies, one request at a time, and
+/// after the cheap senses had their chance: a body held in bed, unverified,
+/// `after_secs` after it started being held. A held body is asked about once;
+/// asking again is a later policy (book 4: renewing, D5).
+pub(crate) fn verify(
+    g: &Glimpse<'_>,
+    verification: &Verification,
+    policy: &Policy,
+) -> Consideration<VerifyLook> {
+    let Some(held_policy) = policy.verify.and_then(|v| v.held) else {
+        return Consideration::Disabled;
+    };
+    let Some(held) = verification
+        .held()
+        .filter(|h| h.check.state == HeldCheckState::Unverified)
+    else {
+        return Consideration::Inapplicable;
+    };
+    let due =
+        g.at.secs_since(held.held_at)
+            .is_some_and(|age| age >= held_policy.after_secs);
+    if !due {
+        return Consideration::Inapplicable;
+    }
+    if verification.in_flight() {
+        return Consideration::Decided(Decision::Skip(SkipReason::VerifyBusy));
+    }
+    let Some(bed) = g.map.bed_for(g.geometry) else {
+        return Consideration::Decided(Decision::Skip(SkipReason::NoBedGeometry));
+    };
+    Consideration::Decided(Decision::Ask(VerifyLook {
+        target: Target::Held { since: held.since },
+        region: bed.bounds().expand(VERIFY_PAD),
+        question: Question::HeldInBed,
+    }))
 }
 
 /// Where to look for faces: in the subject's box if seen; otherwise at the
@@ -362,6 +412,8 @@ pub enum SkipReason {
     FacesPresent,
     /// The last attempt failed and the retry delay has not passed yet.
     RetryWait,
+    /// A verification is already in flight: one at a time per camera.
+    VerifyBusy,
 }
 
 /// What a look returned.
@@ -383,6 +435,8 @@ pub enum LookResult {
         /// How it failed.
         failure: Failure,
     },
+    /// The verifier took the request: the answer comes in a later turn.
+    Dispatched,
 }
 
 /// An entry of attention's ledger (rule 12): what was decided to look at or

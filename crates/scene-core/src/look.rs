@@ -3,6 +3,7 @@
 
 use crate::body::{BedSite, Keypoint};
 use crate::geom::{Point, Rect};
+use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +40,77 @@ pub enum Probe {
         /// whole-frame coordinates.
         region: Option<Rect>,
     },
+    /// The slow verifier: a closed question about a crop. The shell only takes
+    /// the request (`Reading::Dispatched`); the answer comes later, through
+    /// [`Monitor::verified`](crate::Monitor::verified), as evidence of the
+    /// sample it looked at (book 4).
+    Verify {
+        /// What the answer will be about.
+        ticket: Ticket,
+        /// The crop, in whole-frame pixels.
+        region: Rect,
+        /// The closed question.
+        question: Question,
+    },
+}
+
+/// A request to the verifier: which, the sample it looks at and what it asks
+/// about. A late answer is applied only if that same thing still holds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ticket {
+    /// Unique per monitor, in the order they were issued.
+    pub id: u64,
+    /// The sample whose crop is asked about: the answer is evidence of it.
+    pub looked: SampleRef,
+    /// What is asked about.
+    pub target: Target,
+}
+
+/// What a verification asks about, by its identity.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Target {
+    /// A body held in bed, by the last sample it was seen in.
+    Held {
+        /// The held body's `last_seen`.
+        since: SampleRef,
+    },
+}
+
+/// A closed question to the verifier: yes, no or unsure. Questions are
+/// versioned, like a rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Question {
+    /// Is there a person lying in this bed, even if covered?
+    HeldInBed,
+}
+
+impl Question {
+    /// Its versioned id, which the verifier and the ledger use.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::HeldInBed => "held_in_bed@1",
+        }
+    }
+}
+
+/// The verifier's answer to a closed question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Answer {
+    /// Yes.
+    Yes,
+    /// No.
+    No,
+    /// It could not tell.
+    Unsure,
+}
+
+/// An answer to a ticket, as the shell delivers it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Verified {
+    /// The ticket it answers.
+    pub ticket: Ticket,
+    /// What the verifier said.
+    pub answer: Answer,
 }
 
 /// What the depth is measured for.
@@ -66,6 +138,7 @@ impl Probe {
                 purpose: DepthPurpose::Bed,
                 ..
             } => LookKind::Calibrate,
+            Probe::Verify { .. } => LookKind::Verify,
         }
     }
 
@@ -77,6 +150,7 @@ impl Probe {
             Probe::Reinforce { region } => Some(*region),
             Probe::Pose { bbox } => Some(*bbox),
             Probe::Depth { region, .. } => *region,
+            Probe::Verify { region, .. } => Some(*region),
         }
     }
 }
@@ -130,6 +204,8 @@ pub enum Reading {
     Pose(Option<Vec<Keypoint>>),
     /// One depth per requested point; `None` where there was no reading.
     Depth(Vec<Option<f32>>),
+    /// The verifier took the request (`Verify`): the answer comes later.
+    Dispatched,
 }
 
 /// Milliseconds the shell measured. The core only records them (rule 9).
@@ -177,6 +253,15 @@ impl Outcome {
             Ok(_) => Err(Failure::Model),
         }
     }
+
+    /// Did the verifier take the request?
+    pub(crate) fn dispatched(&self) -> Result<(), Failure> {
+        match &self.result {
+            Ok(Reading::Dispatched) => Ok(()),
+            Err(f) => Err(*f),
+            Ok(_) => Err(Failure::Model),
+        }
+    }
 }
 
 /// Whose depth a point of the subject's depth look reads: a pose keypoint's,
@@ -203,6 +288,8 @@ pub enum LookKind {
     Depth,
     /// The depth of the empty bed, to learn it.
     Calibrate,
+    /// The slow verifier, asked about a crop.
+    Verify,
 }
 
 impl LookKind {
@@ -215,6 +302,7 @@ impl LookKind {
             Self::Pose => "pose",
             Self::Depth => "depth",
             Self::Calibrate => "calibrate",
+            Self::Verify => "verify",
         }
     }
 }

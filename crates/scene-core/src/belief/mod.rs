@@ -119,6 +119,11 @@ impl Belief {
         self.occupancy.seen().bed
     }
 
+    /// The oldest body held in bed, by the last sample it was seen in.
+    pub(crate) fn held_since(&self) -> Option<SampleRef> {
+        self.occupancy.held().first().map(|h| h.since)
+    }
+
     /// The box of the subject's last pose: the motion reference.
     pub(crate) fn pose_reference(&self) -> Option<Rect> {
         self.subject.reference()

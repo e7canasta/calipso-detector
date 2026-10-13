@@ -898,6 +898,17 @@
           "description": "Where they were last seen, in image pixels.",
           "$ref": "#/$defs/Rect"
         },
+        "check": {
+          "description": "Whether a verifier looked since: only with a verifier configured\n(white book, volume III). It never moves the count.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeldCheck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "last_seen": {
           "description": "The last sample they were seen in.",
           "$ref": "#/$defs/SampleRef"
@@ -906,6 +917,61 @@
       "required": [
         "bbox",
         "last_seen"
+      ]
+    },
+    "HeldCheck": {
+      "description": "The provenance of a held body: whether a verifier looked, and when.",
+      "type": "object",
+      "properties": {
+        "by": {
+          "description": "Who looked; `None` while unverified.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "looked": {
+          "description": "The sample it looked at; `None` while unverified.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "Unverified, confirmed or not confirmed.",
+          "$ref": "#/$defs/HeldCheckState"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "HeldCheckState": {
+      "description": "How much observation backs a body held in bed.",
+      "oneOf": [
+        {
+          "description": "Nobody looked since it stopped being seen.",
+          "type": "string",
+          "const": "unverified"
+        },
+        {
+          "description": "A verifier saw it: the belief has an observation behind it.",
+          "type": "string",
+          "const": "confirmed"
+        },
+        {
+          "description": "A verifier looked and did not see it. It is not released: the blanket\nhides it from every verifier (book 4, frontier 3).",
+          "type": "string",
+          "const": "not_confirmed"
+        }
       ]
     },
     "Joint": {
@@ -1001,6 +1067,11 @@
           "description": "The depth of the empty bed, to learn it.",
           "type": "string",
           "const": "calibrate"
+        },
+        {
+          "description": "The slow verifier, asked about a crop.",
+          "type": "string",
+          "const": "verify"
         }
       ]
     },
@@ -1109,6 +1180,19 @@
           "required": [
             "type",
             "failure"
+          ]
+        },
+        {
+          "description": "The verifier took the request: the answer comes in a later turn.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "dispatched"
+            }
+          },
+          "required": [
+            "type"
           ]
         }
       ]
@@ -1966,6 +2050,11 @@
           "description": "The last attempt failed and the retry delay has not passed yet.",
           "type": "string",
           "const": "retry_wait"
+        },
+        {
+          "description": "A verification is already in flight: one at a time per camera.",
+          "type": "string",
+          "const": "verify_busy"
         }
       ]
     },
@@ -2179,6 +2268,16 @@
           "description": "In bed, but no head knows how.",
           "type": "string",
           "const": "in_bed"
+        }
+      ]
+    },
+    "Verifier": {
+      "description": "Who looked.",
+      "oneOf": [
+        {
+          "description": "The slow verifier: a vision-language model over a crop of the bed.",
+          "type": "string",
+          "const": "vlm"
         }
       ]
     },

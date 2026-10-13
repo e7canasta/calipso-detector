@@ -22,6 +22,7 @@ use crate::map::{BedCalibrated, FrameInfo, Geometry, Map};
 use crate::policy::Policy;
 use crate::sensor::{SensorChanged, SensorMemory, SensorState};
 use crate::time::SampleRef;
+use crate::verification::Verification;
 
 mod monitor;
 mod sequence;
@@ -89,6 +90,8 @@ struct Engine {
     sensor: SensorMemory,
     /// The main detector's lens: when it last read the whole frame.
     lens: Lens,
+    /// What the slow verifier was asked and what it owes.
+    verification: Verification,
     frame: Option<FrameInfo>,
 }
 

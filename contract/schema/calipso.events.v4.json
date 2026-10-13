@@ -528,6 +528,11 @@
           "description": "The depth of the empty bed, to learn it.",
           "type": "string",
           "const": "calibrate"
+        },
+        {
+          "description": "The slow verifier, asked about a crop.",
+          "type": "string",
+          "const": "verify"
         }
       ]
     },

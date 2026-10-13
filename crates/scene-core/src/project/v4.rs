@@ -91,6 +91,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         believed,
         refined,
         bed_posture,
+        held_check,
         evidence,
         frame,
         calibrated,
@@ -119,7 +120,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
             phase: phase(occupancy_now.phase),
             last_cell: chronicled.last_transition.as_ref().map(publish_cell),
         },
-        bed: bed(&occupancy_now, chronicled),
+        bed: bed(&occupancy_now, chronicled, held_check),
         floor: Floor {
             seen: occupancy_now.counts.floor,
         },

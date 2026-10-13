@@ -31,6 +31,8 @@ pub struct Script {
     pub depth: Result<f32, Failure>,
     /// The bed's depth at each point; `None`: no valid readings.
     pub bed: Option<f32>,
+    /// Whether the verifier takes a request; its answer is the ward's.
+    pub verify: Result<(), Failure>,
 }
 
 impl Default for Script {
@@ -45,6 +47,7 @@ impl Default for Script {
             figure: None,
             depth: Ok(2.0),
             bed: Some(2.0),
+            verify: Ok(()),
         }
     }
 }
@@ -149,6 +152,7 @@ impl Script {
                 points,
                 ..
             } => Ok(Reading::Depth(vec![self.bed; points.len()])),
+            Probe::Verify { .. } => self.verify.map(|()| Reading::Dispatched),
         }
     }
 }

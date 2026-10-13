@@ -60,6 +60,18 @@ pub struct Ward {
     pub turns: Vec<Turn>,
     /// The cell a contract-format scenario builds.
     pub cell: Option<String>,
+    /// The scripted verifier: what it answers and after how many source
+    /// seconds; the requests still owed, with when their answer is due.
+    pub verifier: Verifier,
+}
+
+/// The scripted slow verifier: it answers each request after a latency, in
+/// source time, before the first sample at or past it.
+#[derive(Debug, Default)]
+pub struct Verifier {
+    pub answer: Option<scene_core::look::Answer>,
+    pub latency_secs: f64,
+    pub owed: Vec<scene_core::look::Ticket>,
 }
 
 impl fmt::Debug for Ward {
@@ -125,9 +137,27 @@ impl Ward {
                     .expect("missing \"a room with the bed delimited\""),
             )
         });
-        let output = monitor
-            .handle(input.clone())
-            .drive(|request| (script.respond(request), Spent(1.0)));
+        if let (Input::Sample { at, .. }, Some(answer)) = (&input, self.verifier.answer) {
+            let latency = self.verifier.latency_secs;
+            let (due, owed): (Vec<_>, Vec<_>) = std::mem::take(&mut self.verifier.owed)
+                .into_iter()
+                .partition(|t| {
+                    t.looked.session == at.session
+                        && at.source_secs.0 - t.looked.source_secs.0 >= latency
+                });
+            self.verifier.owed = owed;
+            for ticket in due {
+                monitor.verified(scene_core::look::Verified { ticket, answer });
+            }
+        }
+        let mut asked = Vec::new();
+        let output = monitor.handle(input.clone()).drive(|request| {
+            if let scene_core::look::Probe::Verify { ticket, .. } = request {
+                asked.push(*ticket);
+            }
+            (script.respond(request), Spent(1.0))
+        });
+        self.verifier.owed.extend(asked);
         let facts = crate::published::facts(&output);
         invariants(&output.scene, &facts);
         crate::published::check(&output);

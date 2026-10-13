@@ -22,6 +22,7 @@ mod published;
 #[path = "../script.rs"]
 mod script;
 mod subject;
+mod verification;
 mod ward;
 mod zones;
 
