@@ -89,6 +89,7 @@ What no change may break. Each one has someone watching it.
 | One contract, one source: the JSON Schema comes from the types | 13 | the contract snapshots |
 | No panics: no `unwrap`, `expect` or indexing | 21 | `#![deny(...)]` in `lib.rs` |
 | Layer 0 decides as the golden table does | P2 | `belief/occupancy/machine/table.rs` |
+| Layer 1 decides as its golden table does (`contract/bed-posture-table.txt`) | P2 | `belief/bed_posture/rules/table.rs` |
 | The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
 | The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
 | Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
@@ -133,8 +134,9 @@ and a test lowers one to the other (C5).
 One turn, in order: detect over the whole image, or over the focus while the
 resident is alone in bed (§3.1); widen to the whole image if the focus did
 not confirm?; admit bodies per zone; reinforce a loss in bed?; believe (stabilize, conserve, derive the subject);
-calibrate, pose, depth?; conclude the enrichment; project the scene and the
-facts. The order lives in a single place: `Course::next` (`cycle/sequence.rs`).
+calibrate, pose (and where the head is), depth?; conclude the enrichment; the
+second level reads it and layer 1 steps (§5, layer 1); project the scene and
+the facts. The order lives in a single place: `Course::next` (`cycle/sequence.rs`).
 
 ### 3.1 The focus: a strategy of the main detector
 
@@ -175,7 +177,12 @@ The core is mechanism; policy comes from outside, and so does observation.
 It is the rule of the kernel's tracepoints: the core marks the point, whoever
 observes decides what to do with it.
 
-## 5. Layer 0: occupancy as a machine
+## 5. The machines: layer 0 and layer 1
+
+Two machines with the same shape, one under the other. Layer 0 is where the
+bodies are; layer 1, for the resident left lying, whether they still are.
+Layer 1 reads layer 0 and never changes it.
+
 
 How many are on the floor, how many in bed and who is still in bed unseen. It
 lives in `belief/occupancy/` and does not know the second level exists.
@@ -238,6 +245,39 @@ is `chronicle::Chronicle` (§6).
 
 `apply` is deliberately not called `evolve`: `evolve` is the fold of the counts
 in `conservation`, and a concept has a single name.
+
+### Layer 1: the bed posture (`belief/bed_posture/`)
+
+Whether the resident they left lying is still lying, sat up or is getting
+out (R18). It exists only while layer 0 believes the resident alone in bed,
+only when the policy follows it (`Policy.bed_posture`), and it only reports
+leaving lying: entering the bed, nothing.
+
+```text
+refine::seen ──[BedPostureSeen]──► rules::decide(before, seen) ──► Stabilizer ──► Concluded
+second level,    one symbol per      a pure decider: the golden    each state its    state, seen
+pure             sample              table (4 × 7)                 own source time
+```
+
+- **What was seen** (`refine::seen`, pure): held in bed (layer 0); from a
+  fresh pose only, in this order, a foot past the bed's sides, the head past
+  them, the head away from the headboard, and, only with the head at the
+  headboard, the disparity (lying or upright). A kept pose says nothing new:
+  `unknown`.
+- **The rules** (`rules::decide`): held or lying at the headboard is lying;
+  in bed, only lying moves it; once lying, what is seen now rules,
+  symmetrically (sitting up, getting out, back to lying); unknown holds.
+- **The machine** (`Machine`, P1): the stable state and the candidate, with
+  the layer-0 `Stabilizer`; unknown lets the candidate keep holding. It forgets
+  when layer 0 no longer has the resident alone in bed.
+- **Where the head is** (`head::HeadPlace`) is the fact that filters: the
+  headboard region and, away from it, the bed's u/v (`below_headboard`,
+  `at_side`). It is computed when the pose arrives
+  (`attention::head_place`); the depth look and layer 1 read it.
+
+`chronicle` dates the state (`bed_posture` since) and `project` publishes
+`subject.bed_posture { state, seen, since }`, additively in v4. The events
+of its transitions wait for v5.
 
 ## 6. Projections and observers
 
@@ -307,7 +347,7 @@ One concept, one name.
 | body group | `refine::BodyGroup`, `BodyGroups` | Head, shoulders or pelvis: the median depth of its seen keypoints and how many it saw (R16) |
 | disparity | `Posture::disparity`, `Disparities` | `(upper − pelvis) / mean`: head and shoulders together against the pelvis decide; the feet do not vote (R16) |
 | bed point | `BedPoint`, `BedSite`, `Posture::bed_points` | A fixed site of the bed (today its centre, u/v 0.5) whose depth is read in the same look as the body, with the resident in bed: covered, the blanket over the hips. `upper_bed_centre` is the baseline next to the pelvis' disparity; context, not a vote (R17, 1707) |
-| head place | `head::HeadPlace`, `Posture::head_place` | Where the head is (at the headboard, elsewhere, unknown) and what said so: a fact of its own, as the occupancy is where the body is. The bed's centre is the hips only with the head at the headboard; readers read the fact, not how it was concluded (R17, 1707) |
+| head place | `head::HeadPlace`, `Posture::head_place` | Where the head is (at the headboard, below it in bed, past the bed's sides, elsewhere, unknown) and what said so: a fact of its own, as the occupancy is where the body is. The bed's centre is the hips only with the head at the headboard; readers read the fact, not how it was concluded (R17, 1707) |
 | head (of the second level) | `refine::Head` | An independent opinion on how the resident is: today `disparity`; the bed plane, the head's place in the bed and a VLM will follow |
 | arbiter, verdict | `refine::verdict`, `Verdict`, `VerdictState` | The table from the heads' opinions to one verdict, with the heads that support it and since when; only in bed for now (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) |
 | projection | `project` | How the belief looks from outside |
@@ -316,6 +356,9 @@ One concept, one name.
 | since when | `chronicle::Since`, `Stamp` | A state and the sample it holds since; dated on a turn, with the previous one if it changed |
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
+| layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
+| seen (layer 1) | `BedPostureSeen`, `refine::seen` | The symbol a sample reduces to, the column of layer 1's table: `held`, `headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown` |
+| decide | `bed_posture::rules::decide` | Layer 1's pure decider: what we believed and what we saw to what we believe; the golden table `contract/bed-posture-table.txt` |
 
 ## 8. Module map
 
@@ -328,10 +371,12 @@ matters as much as the second.
 | `cycle` (+ `monitor`, `sequence`, `waiting`) | The loop protocol (`cycle`), what one camera is made of and what comes out of a turn (`monitor`), the order of a turn and its ledger (`sequence`), each probe with its continuation (`waiting`) | decides anything |
 | `look` | The protocol's vocabulary: probes, readings, what was asked (`LookKind`) and how it failed | contains pixels |
 | `evidence` | Admits readings: one body per person, its zone | decides what is believed or looked at |
-| `belief` | The belief: joins layer 0 and the subject | sees a raw reading |
+| `belief` | The belief: joins layer 0, the subject and layer 1 | sees a raw reading |
 | `belief/occupancy` | Layer 0: the occupancy machine | knows the second level or the contract |
+| `belief/bed_posture` | Layer 1: the bed posture machine, its rules (a golden table) and its vocabulary | changes a count, or reads a raw reading |
+| `belief/stabilizer` | Source-time stabilizing, for both layers | knows what it counts |
 | `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |
-| `refine` | The second level: lying, posture by body groups, and the arbiter's verdict (a golden table) | writes the belief or changes a count |
+| `refine` | The second level: lying, posture by body groups, the arbiter's verdict (a golden table) and what layer 1 saw (`seen`) | writes the belief or changes a count |
 | `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); the main detector's lens (`Lens`: when it last read the whole frame) | mutates the belief |
 | `body` | Body vocabulary: the COCO-17 pose and its depth | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
