@@ -8,3 +8,6 @@ target/
 
 # Obsidian vault state (local, not versioned)
 .obsidian/
+
+# API keys: never versioned (read them into the environment at run time)
+*.key
