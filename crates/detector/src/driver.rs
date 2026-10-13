@@ -4,10 +4,12 @@
 use crate::senses::{Frame, SensesPort};
 use crate::sensor::{self, Sensor};
 use crate::source::{Arrival, SampleSource};
+use crate::verifier::{NoVerifier, VerifierPort};
 use ingest::{IngestError, Stamp, StreamEvent};
 use scene_core::{
     Input, Monitor, NoFrame, Output,
     contract::{SampleRef, SensorState, SessionId, SourceSecs, Timing},
+    look::{Probe, Reading, Spent},
     map::SiteMap,
     policy::Policy,
 };
@@ -28,11 +30,16 @@ pub(crate) fn stamp_to_ref(stamp: Stamp) -> SampleRef {
         source_secs: SourceSecs(stamp.source_secs),
     }
 }
-/// The driver of one camera. By default, with the live senses.
+/// The driver of one camera. By default, with the live senses and no
+/// verifier.
 #[derive(Debug)]
-pub struct Driver<S: SensesPort = sense::Senses> {
+pub struct Driver<
+    S: SensesPort = sense::Senses,
+    V: VerifierPort<Frame = <S as SensesPort>::Frame> = NoVerifier<<S as SensesPort>::Frame>,
+> {
     monitor: Monitor,
     senses: S,
+    verifier: V,
     sensor: Sensor,
     last_at: Option<SampleRef>,
     session: u64,
@@ -43,10 +50,26 @@ impl<S: SensesPort> Driver<S> {
         Self {
             monitor: Monitor::new(policy, map),
             senses,
+            verifier: NoVerifier::default(),
             sensor: Sensor::new(Instant::now()),
             last_at: None,
             session: 0,
             stall_timeout,
+        }
+    }
+}
+
+impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
+    /// The same driver, with a slow verifier behind its own port.
+    pub fn with_verifier<W: VerifierPort<Frame = S::Frame>>(self, verifier: W) -> Driver<S, W> {
+        Driver {
+            monitor: self.monitor,
+            senses: self.senses,
+            verifier,
+            sensor: self.sensor,
+            last_at: self.last_at,
+            session: self.session,
+            stall_timeout: self.stall_timeout,
         }
     }
     fn sensor_at(&self) -> SampleRef {
@@ -109,6 +132,12 @@ impl<S: SensesPort> Driver<S> {
         if self.sensor.on_sample(started) {
             outputs.push(self.report(at, SensorState::Streaming));
         }
+        // The verifier's answers that arrived: evidence of the samples they
+        // looked at, settled by the core at this sample's turn.
+        for verified in self.verifier.answers() {
+            self.monitor.verified(verified);
+        }
+        let (senses, verifier) = (&mut self.senses, &mut self.verifier);
         let output = match frame {
             Ok(Some(frame)) => self
                 .monitor
@@ -118,7 +147,19 @@ impl<S: SensesPort> Driver<S> {
                 })
                 .drive(|probe| {
                     let _look = tracing::debug_span!("look", kind=?probe.kind()).entered();
-                    self.senses.look(&frame, probe)
+                    match probe {
+                        Probe::Verify {
+                            ticket,
+                            region,
+                            question,
+                        } => {
+                            let started = Instant::now();
+                            let taken = verifier.ask(&frame, *ticket, *region, *question);
+                            let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
+                            (taken.map(|()| Reading::Dispatched), spent)
+                        }
+                        _ => senses.look(&frame, probe),
+                    }
                 }),
             Ok(None) => self
                 .monitor

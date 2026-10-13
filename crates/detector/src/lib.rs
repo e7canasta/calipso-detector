@@ -9,3 +9,4 @@ pub mod publish;
 pub mod senses;
 mod sensor;
 pub mod source;
+pub mod verifier;

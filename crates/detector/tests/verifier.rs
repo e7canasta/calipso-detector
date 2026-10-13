@@ -1,0 +1,150 @@
+//! The verifier's port through the real driver (white book, volume III, I2):
+//! a `Probe::Verify` reaches the port with the looked frame, the crop is a
+//! JPEG of the bed, and the answer, delivered before a later sample, confirms
+//! the held occupant in that sample's scene.
+mod support;
+
+use detector::driver::Driver;
+use detector::verifier::{VerifierPort, jpeg_crop};
+use image::DynamicImage;
+use scene_core::geom::{Quad, Rect};
+use scene_core::look::{Answer, Detection, Failure, Label, Question, Ticket, Verified};
+use scene_core::map::SiteMap;
+use scene_core::policy::{HeldVerifyPolicy, Policy, VerifyPolicy};
+use std::time::Duration;
+use support::Script;
+
+/// Answers yes, `after` samples after each request, and keeps what it was asked.
+struct Scripted {
+    after: usize,
+    calls: usize,
+    owed: Vec<(usize, Ticket)>,
+    asked: Vec<(Ticket, Question, Vec<u8>)>,
+}
+
+impl VerifierPort for Scripted {
+    type Frame = DynamicImage;
+    fn ask(
+        &mut self,
+        frame: &DynamicImage,
+        ticket: Ticket,
+        region: Rect,
+        question: Question,
+    ) -> Result<(), Failure> {
+        let jpeg = jpeg_crop(frame, region)?;
+        self.asked.push((ticket, question, jpeg));
+        self.owed.push((self.calls, ticket));
+        Ok(())
+    }
+    fn answers(&mut self) -> Vec<Verified> {
+        self.calls += 1;
+        let (due, owed): (Vec<_>, Vec<_>) = self
+            .owed
+            .drain(..)
+            .partition(|(asked, _)| self.calls - asked >= self.after);
+        self.owed = owed;
+        due.into_iter()
+            .map(|(_, ticket)| Verified {
+                ticket,
+                answer: Answer::Yes,
+            })
+            .collect()
+    }
+}
+
+#[test]
+fn a_held_occupant_is_verified_through_the_port_and_confirmed() {
+    let in_bed = Detection {
+        bbox: Rect::new(40.0, 30.0, 60.0, 70.0),
+        confidence: 0.9,
+        label: Label::Person,
+    };
+    let at_door = Detection {
+        bbox: Rect::new(110.0, 10.0, 125.0, 40.0),
+        ..in_bed
+    };
+    // At the door, in bed, then covered: nobody seen.
+    let script = (1..=60)
+        .map(|n| match n {
+            1..=5 => vec![at_door],
+            6..=10 => vec![in_bed],
+            _ => vec![],
+        })
+        .collect();
+    let policy = Policy {
+        verify: Some(VerifyPolicy {
+            held: Some(HeldVerifyPolicy {
+                after_secs: 30.0,
+                valid_secs: None,
+            }),
+            ..VerifyPolicy::default()
+        }),
+        ..Policy::default()
+    };
+    let mut driver = Driver::new(
+        policy,
+        SiteMap::new(Quad::from_rect(Rect::new(20.0, 20.0, 100.0, 80.0))),
+        sense::Senses::new(Script(script)),
+        Duration::from_secs(10),
+    )
+    .with_verifier(Scripted {
+        after: 3,
+        calls: 0,
+        owed: Vec::new(),
+        asked: Vec::new(),
+    });
+    let mut scenes = std::collections::BTreeMap::new();
+    for n in 1..=60 {
+        for processed in driver.arrive(support::sample(n, 1)) {
+            scenes.insert(processed.output.at.sequence, processed.output.scene);
+        }
+    }
+    let held = |n: u64| scenes[&n].bed.held.first().and_then(|h| h.check);
+    assert_eq!(
+        held(42).map(|c| c.state),
+        Some(scene_core::contract::HeldCheckState::Unverified)
+    );
+    let check = held(46).expect("a check on the held occupant");
+    assert_eq!(check.state, scene_core::contract::HeldCheckState::Confirmed);
+    assert_eq!(check.looked.map(|l| l.sequence), Some(43));
+    assert_eq!(scenes[&46].room.occupants, 1);
+}
+
+#[test]
+fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
+    let frame = DynamicImage::new_rgb8(128, 96);
+    let mut scripted = Scripted {
+        after: 0,
+        calls: 0,
+        owed: Vec::new(),
+        asked: Vec::new(),
+    };
+    let ticket = Ticket {
+        id: 1,
+        looked: scene_core::contract::SampleRef {
+            session: scene_core::contract::SessionId(1),
+            sequence: 43,
+            source_secs: scene_core::contract::SourceSecs(43.0),
+        },
+        target: scene_core::look::Target::Held {
+            since: scene_core::contract::SampleRef {
+                session: scene_core::contract::SessionId(1),
+                sequence: 10,
+                source_secs: scene_core::contract::SourceSecs(10.0),
+            },
+        },
+    };
+    scripted
+        .ask(
+            &frame,
+            ticket,
+            Rect::new(8.0, 11.0, 112.0, 89.0),
+            Question::HeldInBed,
+        )
+        .unwrap();
+    let (asked, question, jpeg) = &scripted.asked[0];
+    assert_eq!(asked.id, 1);
+    assert_eq!(question.id(), "held_in_bed@1");
+    let decoded = image::load_from_memory(jpeg).unwrap();
+    assert_eq!((decoded.width(), decoded.height()), (104, 78));
+}

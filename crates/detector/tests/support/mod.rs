@@ -14,7 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub struct Script(VecDeque<Vec<Detection>>);
+pub struct Script(pub VecDeque<Vec<Detection>>);
 impl sense::DetectorPort for Script {
     fn detect(&mut self, _: &DynamicImage) -> Result<Vec<Detection>, sense::ModelError> {
         Ok(self.0.pop_front().expect("one reading per sample"))

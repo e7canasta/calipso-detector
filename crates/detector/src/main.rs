@@ -7,6 +7,7 @@ use detector::{
     driver::Driver,
     publish::{PublisherHandle, nats},
     source::rtsp::RtspSource,
+    verifier::NatsVerifier,
 };
 use ingest::{Mailbox, Sample};
 use scene_core::contract::Source;
@@ -76,12 +77,23 @@ async fn main() -> Result<()> {
         events_tx,
         token.clone(),
     );
+    // The slow verifier, if the profile has one: a local service behind NATS,
+    // on its own connection, outside the turn.
+    let verifier = config.senses.verify.as_ref().map(|sense| {
+        NatsVerifier::spawn(
+            &tokio::runtime::Handle::current(),
+            config.nats.url.clone(),
+            sense.subject.clone(),
+            config.camera.id.clone(),
+            Duration::from_secs_f64(sense.wall_timeout_secs),
+        )
+    });
     let mut engine = tokio::task::spawn_blocking({
         let mailbox = Arc::clone(&mailbox);
         let token = token.clone();
         move || -> Result<()> {
             let senses = detector::senses::load(&config)?;
-            let mut driver = Driver::new(
+            let driver = Driver::new(
                 config.policy(),
                 config.site_map(),
                 senses,
@@ -92,9 +104,18 @@ async fn main() -> Result<()> {
                 events_rx,
                 Duration::from_millis(config.stream.sample_interval_ms),
             );
-            driver.run(&mut source, &token, |processed| {
+            let emit = |processed: detector::driver::Processed| {
                 publisher.send(processed.output, processed.timing);
-            });
+            };
+            match verifier {
+                Some(verifier) => driver
+                    .with_verifier(verifier)
+                    .run(&mut source, &token, emit),
+                None => {
+                    let mut driver = driver;
+                    driver.run(&mut source, &token, emit);
+                }
+            }
             Ok(())
         }
     });

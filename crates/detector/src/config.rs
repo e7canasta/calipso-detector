@@ -4,8 +4,8 @@ use scene_core::{
     geom::{Point, Quad, Rect},
     map::{FrameInfo, SiteMap},
     policy::{
-        BedPosturePolicy, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy, Policy,
-        ReinforcePolicy,
+        Band, BedPosturePolicy, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
+        HeldVerifyPolicy, Policy, ReinforcePolicy, VerifyPolicy,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,49 @@ pub struct Config {
     pub calibration: Option<CalibrationConfig>,
     /// Layer 1, the bed posture: without the section, nothing follows it.
     pub bed_posture: Option<BedPostureConfig>,
+    /// The slow verifier: what this stream verifies. Without the section,
+    /// nothing is verified (white book, volume III). It needs
+    /// `[senses.verify]`.
+    pub verify: Option<VerifyConfig>,
+}
+
+/// `VerifyPolicy`: what this stream verifies, and nothing else. Each stream
+/// pays only for what matters to it.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifyConfig {
+    /// Requests per hour of source time; without it, no limit.
+    pub max_per_hour: Option<u32>,
+    /// Source seconds a request waits for its answer; without it, forever.
+    pub timeout_secs: Option<f64>,
+    /// Verify a body held in bed (O1, O2).
+    pub held: Option<HeldVerifyConfig>,
+    /// The disparity's grey band, `[lo, hi]` (P1): needs depth.
+    pub doubtful_disparity: Option<[f32; 2]>,
+    /// The feet's grey band, a fraction of the bed's width (P2, P3).
+    pub doubtful_feet_margin: Option<f32>,
+}
+
+/// Verify a body held in bed.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeldVerifyConfig {
+    /// Source seconds from `held_in_bed` until it is asked about.
+    pub after_secs: f64,
+    /// Source seconds a check holds; without it, it is asked once.
+    pub valid_secs: Option<f64>,
+}
+
+/// Where the slow verifier is: a local service behind NATS, on the profile's
+/// server. Nothing leaves the site (V1).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifySense {
+    #[serde(default = "defaults::verify_subject")]
+    pub subject: String,
+    /// Wall seconds the shell waits for a reply before answering unsure.
+    #[serde(default = "defaults::verify_wall_timeout_secs")]
+    pub wall_timeout_secs: f64,
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -62,6 +105,8 @@ pub struct SensesConfig {
     pub pose: Option<Pose>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub depth: Option<Depth>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify: Option<VerifySense>,
 }
 /// Depth: one model for the subject and for the bed.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -212,6 +257,12 @@ pub struct NatsConfig {
 /// What a profile gets when it leaves a field out. Each value is named by what
 /// it means: two fields that share a number do not share a default.
 mod defaults {
+    pub(super) fn verify_subject() -> String {
+        "calipso.verify.v1".to_owned()
+    }
+    pub(super) fn verify_wall_timeout_secs() -> f64 {
+        20.0
+    }
     pub(super) fn keyframe_only() -> bool {
         true
     }
@@ -340,7 +391,60 @@ impl Config {
         self.validate_senses()?;
         self.validate_policy()?;
         self.validate_map()?;
-        self.validate_bed_posture()
+        self.validate_bed_posture()?;
+        self.validate_verify()
+    }
+
+    /// The policy and the sense come together; bands are ordered and finite;
+    /// the doubtful digits need layer 1, and the disparity needs depth.
+    fn validate_verify(&self) -> Result<()> {
+        let Some(v) = &self.verify else {
+            ensure!(
+                self.senses.verify.is_none(),
+                "senses.verify without [verify]: nothing would be asked"
+            );
+            return Ok(());
+        };
+        let Some(sense) = &self.senses.verify else {
+            anyhow::bail!("verify needs senses.verify: where the verifier is");
+        };
+        ensure!(!sense.subject.is_empty(), "senses.verify.subject is empty");
+        positive("senses.verify.wall_timeout_secs", sense.wall_timeout_secs)?;
+        if let Some(max) = v.max_per_hour {
+            ensure!(max > 0, "verify.max_per_hour must be positive");
+        }
+        if let Some(t) = v.timeout_secs {
+            positive("verify.timeout_secs", t)?;
+        }
+        if let Some(held) = &v.held {
+            not_negative("verify.held.after_secs", held.after_secs)?;
+            if let Some(valid) = held.valid_secs {
+                positive("verify.held.valid_secs", valid)?;
+            }
+        }
+        if let Some([lo, hi]) = v.doubtful_disparity {
+            ensure!(
+                lo.is_finite() && hi.is_finite() && lo <= hi,
+                "verify.doubtful_disparity must be [lo, hi], finite, lo <= hi"
+            );
+            ensure!(
+                self.senses.depth.is_some(),
+                "verify.doubtful_disparity needs senses.depth: the disparity"
+            );
+        }
+        if let Some(m) = v.doubtful_feet_margin {
+            ensure!(
+                m.is_finite() && m > 0.0 && m < 0.5,
+                "verify.doubtful_feet_margin must be in (0, 0.5)"
+            );
+        }
+        if v.doubtful_disparity.is_some() || v.doubtful_feet_margin.is_some() {
+            ensure!(
+                self.bed_posture.is_some(),
+                "verify.doubtful_* needs [bed_posture]: layer 1 reads the digit"
+            );
+        }
+        Ok(())
     }
 
     /// Times finite and not negative; it needs where the head is (the
@@ -608,6 +712,16 @@ impl Config {
             dwell_sitting_up_secs: b.dwell_sitting_up_secs,
             dwell_getting_out_secs: b.dwell_getting_out_secs,
         });
+        p.verify = self.verify.as_ref().map(|v| VerifyPolicy {
+            held: v.held.as_ref().map(|h| HeldVerifyPolicy {
+                after_secs: h.after_secs,
+                valid_secs: h.valid_secs,
+            }),
+            timeout_secs: v.timeout_secs,
+            max_per_hour: v.max_per_hour,
+            doubtful_disparity: v.doubtful_disparity.map(|[lo, hi]| Band { lo, hi }),
+            doubtful_feet_margin: v.doubtful_feet_margin,
+        });
         p
     }
     pub fn site_map(&self) -> SiteMap {
@@ -649,6 +763,9 @@ impl Config {
         };
         if let Some(b) = &self.bed_posture {
             canonical.extend(serde_json::to_vec(b)?);
+        }
+        if let Some(v) = &self.verify {
+            canonical.extend(serde_json::to_vec(v)?);
         }
         let digest = Sha256::digest(canonical);
         let hex: String = digest
@@ -717,6 +834,75 @@ impl Config {
 mod tests {
     use super::*;
     pub(super) const VALID: &str = include_str!("../tests/support/profile.toml");
+    /// The verifier: the policy maps one to one; the sense and the policy come
+    /// together; the bands are checked; a profile without it keeps its hash.
+    #[test]
+    fn verify_section_becomes_the_policy_and_is_checked() {
+        let base = format!(
+            "{VALID}\n[senses.depth]\nmodel = \"yolo26s-depth.onnx\"\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\n"
+        );
+        let map = "headboard = [100, 100, 500, 170]\n";
+        let with_headboard = base.replacen("[map]\n", &format!("[map]\n{map}"), 1);
+        let posture = "\n[bed_posture]\n";
+        let sense = "\n[senses.verify]\n";
+        let verify = "\n[verify]\nmax_per_hour = 20\ntimeout_secs = 8\ndoubtful_disparity = [0.03, 0.12]\ndoubtful_feet_margin = 0.06\n[verify.held]\nafter_secs = 30\nvalid_secs = 3600\n";
+        let text = format!("{with_headboard}{sense}{posture}{verify}");
+        let config = Config::parse(&text).unwrap_or_else(|e| panic!("{e}\n{text}"));
+        let policy = config.policy().verify.unwrap();
+        assert_eq!(policy.max_per_hour, Some(20));
+        assert_eq!(policy.timeout_secs, Some(8.0));
+        assert_eq!(policy.doubtful_disparity, Some(Band { lo: 0.03, hi: 0.12 }));
+        assert_eq!(policy.doubtful_feet_margin, Some(0.06));
+        let held = policy.held.unwrap();
+        assert_eq!((held.after_secs, held.valid_secs), (30.0, Some(3600.0)));
+        assert_eq!(
+            config.senses.verify.as_ref().unwrap().subject,
+            "calipso.verify.v1"
+        );
+        assert!(Config::parse(VALID).unwrap().policy().verify.is_none());
+        for (bad, field) in [
+            (
+                format!("{with_headboard}{posture}{verify}"),
+                "senses.verify",
+            ),
+            (
+                format!("{with_headboard}{sense}"),
+                "senses.verify without [verify]",
+            ),
+            (
+                format!(
+                    "{with_headboard}{sense}{posture}{}",
+                    verify.replace("[0.03, 0.12]", "[0.12, 0.03]")
+                ),
+                "doubtful_disparity",
+            ),
+            (format!("{with_headboard}{sense}{verify}"), "bed_posture"),
+            (
+                format!(
+                    "{with_headboard}{sense}{posture}{}",
+                    verify.replace("0.06", "0.7")
+                ),
+                "doubtful_feet_margin",
+            ),
+            (
+                format!(
+                    "{with_headboard}{sense}{posture}{}",
+                    verify.replace("max_per_hour = 20", "max_per_hour = 0")
+                ),
+                "max_per_hour",
+            ),
+        ] {
+            let error = Config::parse(&bad).unwrap_err();
+            assert!(error.to_string().contains(field), "{field}: {error}");
+        }
+        let hashed = Config::parse(&text).unwrap().profile().unwrap().hash;
+        let without = format!("{with_headboard}{posture}");
+        assert_ne!(
+            hashed,
+            Config::parse(&without).unwrap().profile().unwrap().hash
+        );
+    }
+
     #[test]
     fn reinforce_section_enables_policy_and_rejects_invalid_parameters() {
         let section = "\n[senses.reinforce]\nmodel = \"yolo26l.onnx\"\nbackend_confidence = 0.25\nbed_padding = 0.15\n";
