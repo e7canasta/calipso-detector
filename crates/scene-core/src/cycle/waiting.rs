@@ -1,6 +1,6 @@
 //! Builds each probe with its continuation.
 
-use super::Observed;
+use super::{Observed, Refined};
 use crate::attention::{DepthLook, SubjectDepthLook, VerifyLook};
 use crate::body::Keypoint;
 use crate::evidence::Admission;
@@ -49,7 +49,7 @@ pub(super) enum Continuation {
     },
     /// The verifier takes the request; the turn concludes either way.
     Verify {
-        observed: Observed,
+        refined: Refined,
     },
 }
 
@@ -133,14 +133,14 @@ impl Waiting {
     }
 
     /// The verifier, over its crop, with the ticket its answer will carry.
-    pub(super) fn verify(observed: Observed, ticket: Ticket, look: VerifyLook) -> Self {
+    pub(super) fn verify(refined: Refined, ticket: Ticket, look: VerifyLook) -> Self {
         Self::new(
             Probe::Verify {
                 ticket,
                 region: look.region,
                 question: look.question,
             },
-            Continuation::Verify { observed },
+            Continuation::Verify { refined },
         )
     }
 

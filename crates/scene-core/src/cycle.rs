@@ -102,7 +102,7 @@ enum Phase {
     /// Probe and continuation exist together: there is no wait without a probe.
     Waiting(Waiting),
     /// The turn concluded with all its evidence; projecting remains.
-    Concluded { observed: Observed },
+    Concluded { refined: Refined },
     /// No new observation: the last one is republished, declared as such.
     Republish {
         reason: RepublishReason,
@@ -116,6 +116,15 @@ struct Observed {
     believed: Believed,
     evidence: Perceived,
     calibrated: Option<BedCalibrated>,
+}
+
+/// After the second level and layer 1: what the turn observed, refined. The
+/// verifier is asked with it, and the turn concludes with it.
+#[derive(Debug)]
+struct Refined {
+    observed: Observed,
+    refinement: crate::refine::Refinement,
+    bed_posture: Option<crate::belief::bed_posture::Concluded>,
 }
 
 /// What comes out of a turn: the scene of the sample and the events it
@@ -185,7 +194,7 @@ impl Turn<'_> {
                     let (result, spent) = look(&probe);
                     course.advance(stage, &probe, Outcome { result, spent })
                 }
-                Phase::Concluded { observed } => break course.observed(observed),
+                Phase::Concluded { refined } => break course.observed(refined),
                 Phase::Republish { reason, changed } => break course.republished(reason, changed),
             };
         };

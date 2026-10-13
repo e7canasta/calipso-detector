@@ -119,6 +119,11 @@ impl Belief {
         self.occupancy.seen().bed
     }
 
+    /// Layer 1's stable state, if it is following one.
+    pub(crate) fn bed_posture_state(&self) -> Option<bed_posture::BedPostureState> {
+        self.bed_posture.stable()
+    }
+
     /// The oldest body held in bed, by the last sample it was seen in.
     pub(crate) fn held_since(&self) -> Option<SampleRef> {
         self.occupancy.held().first().map(|h| h.since)

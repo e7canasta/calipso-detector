@@ -12,12 +12,13 @@ use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
 use crate::geom::Quad;
 use crate::map::BedPlane;
-use crate::policy::EnrichPolicy;
+use crate::policy::{EnrichPolicy, VerifyPolicy};
 use crate::zone::Zone;
 pub use lying::{Lying, LyingState};
 pub use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
 #[cfg(test)]
-pub(crate) use sighting::{BodyPlaces, FeetPlace};
+pub(crate) use sighting::FeetPlace;
+pub(crate) use sighting::{BodyPlaces, DisparitySide};
 pub(crate) use verdict::Ruling;
 pub use verdict::{Head, Verdict, VerdictState};
 
@@ -30,6 +31,9 @@ pub(crate) struct Refinement {
     pub verdict: Option<Ruling>,
     /// What layer 1 perceives by itself in this turn.
     pub sighting: Sighting,
+    /// Where the body's parts are, from a fresh pose: the verifier reads its
+    /// doubtful digits.
+    pub places: Option<BodyPlaces>,
 }
 
 /// What the second level derives from the subject's pose: whether they are
@@ -41,9 +45,14 @@ pub(crate) fn refine(
     body: Option<&SubjectBody>,
     bed: Option<&Quad>,
     enrich: Option<&EnrichPolicy>,
+    verify: Option<&VerifyPolicy>,
+    filled: Option<BodyPlaces>,
 ) -> Refinement {
     let (Some(body), Some(enrich)) = (body, enrich) else {
-        return Refinement::default();
+        return Refinement {
+            sighting: sighting::of(None, filled),
+            ..Refinement::default()
+        };
     };
     let pose = &body.pose;
     let provenance = pose.provenance;
@@ -65,11 +74,12 @@ pub(crate) fn refine(
         head_place: Some(body.head_place),
     });
     let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.as_ref().map(|p| p.state)));
-    let sighting = sighting::of(body, posture.as_ref(), plane, enrich);
+    let places = sighting::places_of(body, posture.as_ref(), plane, enrich, verify);
     Refinement {
         lying,
         posture,
         verdict,
-        sighting,
+        sighting: sighting::of(places, filled),
+        places,
     }
 }

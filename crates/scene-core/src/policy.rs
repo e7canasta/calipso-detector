@@ -126,7 +126,7 @@ pub struct Policy {
 /// What a camera verifies with the slow verifier (book 4; white book, volume
 /// III). Each stream verifies only what matters to it: what is `None` is
 /// neither asked nor paid for.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct VerifyPolicy {
     /// `None`: a body held in bed is not verified.
     pub held: Option<HeldVerifyPolicy>,
@@ -137,6 +137,27 @@ pub struct VerifyPolicy {
     /// How many requests per hour of source time, per camera; `None`: no
     /// limit. The budget restarts with a new session.
     pub max_per_hour: Option<u32>,
+    /// The camera's grey band of the disparity: inside it, lying or upright
+    /// is doubtful, layer 1 reads nothing new and the verifier is asked
+    /// (P1). `None`: the disparity is never doubtful.
+    pub doubtful_disparity: Option<Band>,
+}
+
+/// Two thresholds: a value between them, both included, is doubtful. The
+/// quantizer of a grey band (white book, volume III, ch. 10).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Band {
+    /// The lower threshold.
+    pub lo: f32,
+    /// The upper threshold.
+    pub hi: f32,
+}
+
+impl Band {
+    /// Is the value in the band?
+    pub fn contains(self, value: f32) -> bool {
+        (self.lo..=self.hi).contains(&value)
+    }
 }
 
 /// Verify a body held in bed: is the belief still backed by an observation?

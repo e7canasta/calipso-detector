@@ -3,6 +3,7 @@
 //! without it there is nothing to decide, and that is decided here too, not
 //! in `cycle` (rule 11).
 
+use crate::belief::bed_posture::BedPostureState;
 use crate::belief::{Alone, Belief, Believed, InBed, LatchState, Room};
 use crate::body::{BedSite, Keypoint};
 use crate::estimation;
@@ -12,12 +13,15 @@ use crate::evidence::RejectReason;
 use crate::geom::Point;
 use crate::geom::Rect;
 use crate::head::HeadPlace;
+use crate::head::HeadPlaceState;
 use crate::look::FaceRegion;
 use crate::look::{DepthTarget, Failure, LookKind, Question, Target};
 use crate::map::BedPlane;
 use crate::map::{Geometry, Map};
+use crate::policy::VerifyPolicy;
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
+use crate::refine::{BodyPlaces, DisparitySide};
 use crate::time::SampleRef;
 use crate::verification::{HOUR_SECS, HeldCheckState, Verification};
 use schemars::JsonSchema;
@@ -165,30 +169,49 @@ pub(crate) fn reinforce(
 /// and height on each side (white book, volume III, ch. 05).
 const VERIFY_PAD: f32 = 0.15;
 
-/// What to ask the verifier: about what, over which crop, with which question.
+/// What to ask the verifier: about what, over which crop, with which question,
+/// and, for a doubtful digit, the places the answer fills.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct VerifyLook {
     pub(crate) target: Target,
     pub(crate) region: Rect,
     pub(crate) question: Question,
+    pub(crate) places: Option<BodyPlaces>,
 }
 
 /// Ask the verifier? Only what the policy verifies, one request at a time,
-/// within the hour's budget, and after the cheap senses had their chance: a
-/// body held in bed, unverified, `after_secs` after it started being held; or
-/// checked, once its check is older than `valid_secs` (D5). Without
+/// within the hour's budget. First a doubtful digit (v = 3): the disparity in
+/// the camera's grey band, with the head at the headboard and layer 1
+/// following the resident. Then the body held in bed (v = 2), after the cheap
+/// senses had their chance: unverified, `after_secs` after it started being
+/// held; or checked, once its check is older than `valid_secs` (D5). Without
 /// `valid_secs` a held body is asked about once, so a «no» is never asked
 /// about in a loop.
 pub(crate) fn verify(
     g: &Glimpse<'_>,
     verification: &Verification,
+    layer_1: Option<BedPostureState>,
+    places: Option<BodyPlaces>,
     policy: &Policy,
 ) -> Consideration<VerifyLook> {
     let Some(verify) = policy.verify else {
         return Consideration::Disabled;
     };
+    let doubtful = places.filter(|p| {
+        p.head == HeadPlaceState::AtHeadboard && p.disparity == DisparitySide::Doubtful
+    });
+    if let (Some(places), Some(stable)) = (doubtful, layer_1) {
+        return ask(
+            g,
+            verification,
+            &verify,
+            Target::Disparity { stable },
+            Question::SittingInBed,
+            Some(places),
+        );
+    }
     let Some(held_policy) = verify.held else {
-        return Consideration::Disabled;
+        return Consideration::Inapplicable;
     };
     let Some(held) = verification.held() else {
         return Consideration::Inapplicable;
@@ -210,6 +233,26 @@ pub(crate) fn verify(
     if !due {
         return Consideration::Inapplicable;
     }
+    ask(
+        g,
+        verification,
+        &verify,
+        Target::Held { since: held.since },
+        Question::HeldInBed,
+        None,
+    )
+}
+
+/// A doubt worth asking: unless a request is in flight, the hour's budget is
+/// spent or there is no bed to crop.
+fn ask(
+    g: &Glimpse<'_>,
+    verification: &Verification,
+    verify: &VerifyPolicy,
+    target: Target,
+    question: Question,
+    places: Option<BodyPlaces>,
+) -> Consideration<VerifyLook> {
     if verification.in_flight() {
         return Consideration::Decided(Decision::Skip(SkipReason::VerifyBusy));
     }
@@ -223,9 +266,10 @@ pub(crate) fn verify(
         return Consideration::Decided(Decision::Skip(SkipReason::NoBedGeometry));
     };
     Consideration::Decided(Decision::Ask(VerifyLook {
-        target: Target::Held { since: held.since },
+        target,
         region: bed.bounds().expand(VERIFY_PAD),
-        question: Question::HeldInBed,
+        question,
+        places,
     }))
 }
 

@@ -10,7 +10,7 @@ use super::super::BedPostureState;
 use super::decide;
 use crate::belief::InBed;
 use crate::head::HeadPlaceState;
-use crate::refine::{BodyPlaces, FeetPlace, PostureState};
+use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 
 const GOLDEN: &str = include_str!("../../../../../../contract/bed-posture-frame.txt");
 
@@ -32,11 +32,12 @@ const HEAD: [HeadPlaceState; 5] = [
 ];
 /// `f`: the feet as a set.
 const FEET: [FeetPlace; 3] = [FeetPlace::Unseen, FeetPlace::Seen, FeetPlace::PastTheSides];
-/// `d`: the disparity.
-const DISPARITY: [PostureState; 3] = [
-    PostureState::Unknown,
-    PostureState::Lying,
-    PostureState::Upright,
+/// `d`: the disparity, and `?` for the camera's grey band.
+const DISPARITY: [(DisparitySide, char); 4] = [
+    (DisparitySide::Unknown, '0'),
+    (DisparitySide::Lying, '1'),
+    (DisparitySide::Upright, '2'),
+    (DisparitySide::Doubtful, '?'),
 ];
 
 fn cyz(state: Option<BedPostureState>) -> &'static str {
@@ -51,7 +52,7 @@ fn places() -> Vec<(String, BodyPlaces)> {
     let mut out = Vec::new();
     for (h, head) in HEAD.into_iter().enumerate() {
         for (f, feet) in FEET.into_iter().enumerate() {
-            for (d, disparity) in DISPARITY.into_iter().enumerate() {
+            for (disparity, d) in DISPARITY {
                 let places = BodyPlaces {
                     head,
                     feet,
@@ -80,7 +81,7 @@ fn trama() -> String {
          # cyz: active · armed · risk (0 lying, 1 sitting up, 2 getting out)\n\
          # h: 0 unknown · 1 at headboard · 2 below headboard · 3 elsewhere · 4 at side\n\
          # f: 0 unseen · 1 seen · 2 past the sides (one out is out)\n\
-         # d: 0 unknown · 1 lying · 2 upright\n\
+         # d: 0 unknown · 1 lying · 2 upright · ? doubtful (the grey band: nothing new)\n\
          # *** : the row does not depend on the body (layer 0 decides)\n",
     );
     for (rbh, l0) in [("000", None), ("111", Some(InBed::Held))] {

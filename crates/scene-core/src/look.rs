@@ -74,6 +74,12 @@ pub enum Target {
         /// The held body's `last_seen`.
         since: SampleRef,
     },
+    /// The doubtful disparity of the looked sample, while layer 1 holds the
+    /// same stable state.
+    Disparity {
+        /// Layer 1's stable state when it was asked.
+        stable: crate::belief::bed_posture::BedPostureState,
+    },
 }
 
 /// A closed question to the verifier: yes, no or unsure. Questions are
@@ -82,6 +88,8 @@ pub enum Target {
 pub enum Question {
     /// Is there a person lying in this bed, even if covered?
     HeldInBed,
+    /// Is the person in this bed sitting up rather than lying down?
+    SittingInBed,
 }
 
 impl Question {
@@ -89,6 +97,7 @@ impl Question {
     pub fn id(self) -> &'static str {
         match self {
             Self::HeldInBed => "held_in_bed@1",
+            Self::SittingInBed => "sitting_in_bed@1",
         }
     }
 }

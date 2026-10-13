@@ -135,7 +135,9 @@ One turn, in order: detect over the whole image, or over the focus while the
 resident is alone in bed (§3.1); widen to the whole image if the focus did
 not confirm?; admit bodies per zone; reinforce a loss in bed?; believe (stabilize, conserve, derive the subject);
 calibrate, pose (and where the head is), depth?; conclude the enrichment; the
-second level reads it and layer 1 steps (§5, layer 1); project the scene and
+second level reads it and layer 1 steps (§5, layer 1); a doubt worth the slow
+verifier? (a doubtful digit first, then the held body; the answer arrives
+between turns and is settled at the next sample's turn); project the scene and
 the facts. The order lives in a single place: `Course::next` (`cycle/sequence.rs`).
 
 ### 3.1 The focus: a strategy of the main detector
@@ -369,6 +371,7 @@ One concept, one name.
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
 | layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
 | verification, verifier | `verification`, `Probe::Verify`, `Monitor::verified` | Asking a slow verifier (a VLM over a crop) a closed question, outside the turn: the answer is evidence of the sample it looked at and never moves a count (book 4; white book, volume III) |
+| doubtful digit, grey band | `DisparitySide::Doubtful`, `policy::Band`, `VerifyPolicy::doubtful_disparity` | A body place whose reading falls in the camera's grey band (`?` in the trama): layer 1 reads it as nothing new, and the verifier may fill it. The answer fills the digit of the looked sample; layer 1 runs its own, unchanged table on it (white book, volume III, ch. 10) |
 | ticket | `look::Ticket`, `Target` | A request to the verifier: its id, the sample it looks at and what it asks about, by identity (a held body by its `last_seen`). A late answer applies only if that same thing still holds |
 | held check | `HeldCheck`, `HeldCheckState` | The provenance of a held body: unverified, confirmed or not confirmed, by whom and looking at which sample. Not confirmed does not release (frontier 3) |
 | body places | `refine::BodyPlaces`, `FeetPlace` | Where each part layer 1 reads is in a sample: the head (`HeadPlaceState`), the feet as a set (unseen, seen, past the bed's sides: one out is out) and the disparity (`PostureState`). The trama's `hfd`; a kept pose places nothing |

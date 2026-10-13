@@ -8,8 +8,10 @@
 //! sample's turn, only if what it asked about still holds: the same held body,
 //! in the same session (rule 9).
 
+use crate::belief::Belief;
 use crate::look::{Answer, Target, Ticket, Verified};
 use crate::policy::Policy;
+use crate::refine::{BodyPlaces, DisparitySide};
 use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -76,6 +78,11 @@ pub(crate) struct Verification {
     issued: u64,
     /// One request at a time per camera.
     in_flight: Option<Ticket>,
+    /// For a doubtful digit, the places of the looked sample the answer fills.
+    asked_places: Option<BodyPlaces>,
+    /// The looked sample's places, filled by an answer that still applied: what
+    /// layer 1 reads in the next turn if its own are not clear.
+    filled: Option<BodyPlaces>,
     /// The samples requests were issued at, for the budget: at most an hour of
     /// them, in the current session.
     asked: Vec<SampleRef>,
@@ -133,8 +140,20 @@ impl Verification {
             .count()
     }
 
-    /// A request goes out: its ticket, which the answer will carry.
-    pub(crate) fn issue(&mut self, target: Target, at: SampleRef) -> Ticket {
+    /// The places an answer filled, once: the turn that reads them takes them.
+    pub(crate) fn take_filled(&mut self) -> Option<BodyPlaces> {
+        self.filled.take()
+    }
+
+    /// A request goes out: its ticket, which the answer will carry. A doubtful
+    /// digit keeps the places it asks about.
+    pub(crate) fn issue(
+        &mut self,
+        target: Target,
+        at: SampleRef,
+        places: Option<BodyPlaces>,
+    ) -> Ticket {
+        self.asked_places = places;
         self.asked
             .retain(|a| at.secs_since(*a).is_some_and(|age| age < HOUR_SECS));
         self.asked.push(at);
@@ -175,9 +194,10 @@ impl Verification {
     }
 
     /// At the start of a sample's turn: each answer that still applies changes
-    /// the provenance of what it asked about. One that answers another ticket,
-    /// another session or a body no longer held changes nothing.
-    pub(crate) fn settle(&mut self, at: SampleRef) {
+    /// the provenance of what it asked about, or fills the doubtful digit it
+    /// asked about. One that answers another ticket, another session, a body
+    /// no longer held or a layer 1 that moved on changes nothing.
+    pub(crate) fn settle(&mut self, at: SampleRef, belief: &Belief) {
         for Verified { ticket, answer } in std::mem::take(&mut self.answers) {
             if self.in_flight.map(|t| t.id) != Some(ticket.id) {
                 continue;
@@ -187,6 +207,20 @@ impl Verification {
                 continue;
             }
             match ticket.target {
+                Target::Disparity { stable } => {
+                    let same = belief.bed_posture_state() == Some(stable);
+                    let side = match answer {
+                        Answer::Yes => Some(DisparitySide::Upright),
+                        Answer::No => Some(DisparitySide::Lying),
+                        Answer::Unsure => None,
+                    };
+                    if let (true, Some(side), Some(places)) = (same, side, self.asked_places) {
+                        self.filled = Some(BodyPlaces {
+                            disparity: side,
+                            ..places
+                        });
+                    }
+                }
                 Target::Held { since } => {
                     if let Some(held) = self.held.as_mut().filter(|h| h.since == since) {
                         held.check = HeldCheck {

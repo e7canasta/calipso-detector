@@ -15,6 +15,7 @@ use crate::geom::Point;
 use crate::head::HeadPlaceState;
 use crate::map::{BedArea, BedPlane};
 use crate::policy::EnrichPolicy;
+use crate::policy::{Band, VerifyPolicy};
 use crate::provenance::Provenance;
 
 /// Where each part of the body layer 1 reads is, in one sample.
@@ -22,7 +23,31 @@ use crate::provenance::Provenance;
 pub(crate) struct BodyPlaces {
     pub head: HeadPlaceState,
     pub feet: FeetPlace,
-    pub disparity: PostureState,
+    pub disparity: DisparitySide,
+}
+
+/// Which side of the posture threshold the disparity falls on: the trama's
+/// `d`. Doubtful is the camera's grey band (`?`): neither side is believed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DisparitySide {
+    /// Not measured.
+    Unknown,
+    /// Lying: above the tolerance.
+    Lying,
+    /// Upright: at or below the tolerance.
+    Upright,
+    /// In the grey band: the verifier may fill it.
+    Doubtful,
+}
+
+impl DisparitySide {
+    fn of(state: PostureState) -> Self {
+        match state {
+            PostureState::Lying => Self::Lying,
+            PostureState::Upright => Self::Upright,
+            PostureState::Unknown => Self::Unknown,
+        }
+    }
 }
 
 /// Where the feet are, as a set: one past the bed's sides is past the sides.
@@ -50,35 +75,62 @@ impl BodyPlaces {
             HeadPlaceState::AtSide => Sighting::HeadSide,
             HeadPlaceState::BelowHeadboard | HeadPlaceState::Elsewhere => Sighting::HeadAway,
             HeadPlaceState::AtHeadboard => match self.disparity {
-                PostureState::Lying => Sighting::HeadboardLying,
-                PostureState::Upright => Sighting::HeadboardUpright,
-                PostureState::Unknown => Sighting::Unknown,
+                DisparitySide::Lying => Sighting::HeadboardLying,
+                DisparitySide::Upright => Sighting::HeadboardUpright,
+                DisparitySide::Unknown | DisparitySide::Doubtful => Sighting::Unknown,
             },
             HeadPlaceState::Unknown => Sighting::Unknown,
         }
     }
 }
 
-/// From a fresh pose only: a pose kept from before says nothing new, retained
+impl BodyPlaces {
+    /// Is a digit in the grey band? Only the disparity can be, for now.
+    pub(crate) fn doubtful(self) -> bool {
+        self.disparity == DisparitySide::Doubtful
+    }
+}
+
+/// The places of a fresh pose: a pose kept from before places nothing, retained
 /// evidence holds, it does not change (SPEC-MULTIHEAD, rule 4).
-pub(super) fn of(
+pub(super) fn places_of(
     body: &SubjectBody,
     posture: Option<&Posture>,
     plane: Option<BedPlane>,
     enrich: &EnrichPolicy,
-) -> Sighting {
-    if body.pose.provenance != Provenance::Current {
-        return Sighting::Unknown;
-    }
-    places(body, posture, plane, enrich).sighting()
+    verify: Option<&VerifyPolicy>,
+) -> Option<BodyPlaces> {
+    (body.pose.provenance == Provenance::Current).then(|| {
+        places(
+            body,
+            posture,
+            plane,
+            enrich,
+            verify.and_then(|v| v.doubtful_disparity),
+        )
+    })
 }
 
-/// Where the head, the feet and the disparity are in this pose.
+/// What layer 1 perceives in this turn: its own places if they are clear (the
+/// freshest wins, rule 5); otherwise the places the verifier filled, if an
+/// answer arrived; otherwise its own, where a doubtful digit says nothing new.
+pub(super) fn of(own: Option<BodyPlaces>, filled: Option<BodyPlaces>) -> Sighting {
+    match (own, filled) {
+        (Some(places), _) if !places.doubtful() => places.sighting(),
+        (_, Some(places)) => places.sighting(),
+        (Some(places), None) => places.sighting(),
+        (None, None) => Sighting::Unknown,
+    }
+}
+
+/// Where the head, the feet and the disparity are in this pose. A disparity in
+/// the grey band is doubtful.
 fn places(
     body: &SubjectBody,
     posture: Option<&Posture>,
     plane: Option<BedPlane>,
     enrich: &EnrichPolicy,
+    doubtful: Option<Band>,
 ) -> BodyPlaces {
     let past_the_sides = |p: Point| plane.is_some_and(|bed| bed.locate(p) == BedArea::PastTheSides);
     let ankles: Vec<Point> = body
@@ -101,6 +153,9 @@ fn places(
     BodyPlaces {
         head: body.head_place.state,
         feet,
-        disparity: posture.map_or(PostureState::Unknown, |p| p.state),
+        disparity: posture.map_or(DisparitySide::Unknown, |p| match (p.disparity, doubtful) {
+            (Some(d), Some(band)) if band.contains(d) => DisparitySide::Doubtful,
+            _ => DisparitySide::of(p.state),
+        }),
     }
 }

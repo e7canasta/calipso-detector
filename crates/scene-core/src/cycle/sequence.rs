@@ -4,7 +4,7 @@
 //! `evidence`, `belief` or `map`.
 
 use super::waiting::{Continuation, Waiting};
-use super::{Course, Engine, Observed, Phase};
+use super::{Course, Engine, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
     self, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome, LookResult,
@@ -46,8 +46,10 @@ enum Reached {
     Enriched(Observed, Enrichment),
     /// With the subject's body concluded.
     Body(Observed),
+    /// With the second level and layer 1.
+    Refined(Refined),
     /// With every look done: only concluding remains.
-    Final(Observed),
+    Final(Refined),
 }
 
 impl Course<'_> {
@@ -57,10 +59,11 @@ impl Course<'_> {
     pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
         let Engine {
             policy,
+            belief,
             verification,
             ..
         } = &mut self.monitor.engine;
-        verification.settle(self.at);
+        verification.settle(self.at, belief);
         verification.expire(self.at, policy);
         self.monitor.engine.frame = Some(frame);
         self.geometry = self.monitor.engine.map.gate(frame);
@@ -79,7 +82,7 @@ impl Course<'_> {
     /// requested or the turn goes on.
     ///
     /// ```text
-    /// Primary → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → [Verify] → conclude
+    /// Primary → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → refine → [Verify] → conclude
     /// ```
     fn next(&mut self, mut reached: Reached) -> Phase {
         loop {
@@ -175,16 +178,22 @@ impl Course<'_> {
                     );
                     Reached::Body(observed)
                 }
+                // The second level and layer 1, on what was believed.
+                Reached::Body(observed) => Reached::Refined(self.refine(observed)),
                 // Last attention point: a doubt worth the slow verifier?
-                Reached::Body(observed) => {
-                    let considered = self.verify(&observed);
+                Reached::Refined(refined) => {
+                    let considered = self.verify(&refined);
                     if let Some(look) = self.wanted(LookKind::Verify, considered) {
-                        let ticket = self.monitor.engine.verification.issue(look.target, self.at);
-                        return Phase::Waiting(Waiting::verify(observed, ticket, look));
+                        let ticket = self.monitor.engine.verification.issue(
+                            look.target,
+                            self.at,
+                            look.places,
+                        );
+                        return Phase::Waiting(Waiting::verify(refined, ticket, look));
                     }
-                    Reached::Final(observed)
+                    Reached::Final(refined)
                 }
-                Reached::Final(observed) => return Phase::Concluded { observed },
+                Reached::Final(refined) => return Phase::Concluded { refined },
             };
         }
     }
@@ -255,7 +264,7 @@ impl Course<'_> {
                 let enrichment = Enrichment::fresh(Some(pose), depths, head, bbox, primary_seen);
                 Reached::Enriched(observed, enrichment)
             }
-            Continuation::Verify { observed } => {
+            Continuation::Verify { refined } => {
                 let result = match outcome.dispatched() {
                     Ok(()) => LookResult::Dispatched,
                     Err(failure) => {
@@ -264,27 +273,44 @@ impl Course<'_> {
                     }
                 };
                 self.asked(probe, spent, result);
-                Reached::Final(observed)
+                Reached::Final(refined)
             }
         };
         self.next(reached)
     }
 
-    /// What the engine observed in the turn. It reads neither the chronicle
-    /// nor the last scene.
-    pub(super) fn observed(&mut self, observed: Observed) -> Conclusion {
+    /// The second level reads what was concluded and delivers its result, with
+    /// the digit the verifier filled if an answer arrived; layer 1 reads it.
+    fn refine(&mut self, observed: Observed) -> Refined {
+        let filled = self.monitor.engine.verification.take_filled();
         let engine = &self.monitor.engine;
-        // The second level reads what was concluded and delivers its result.
-        let refined = crate::refine::refine(
+        let refinement = crate::refine::refine(
             observed.believed.subject.as_ref().map(|s| s.zone),
             observed.believed.body.as_ref(),
             engine.map.bed_for(self.geometry),
             engine.policy.enrich.as_ref(),
+            engine.policy.verify.as_ref(),
+            filled,
         );
         // Layer 1, on layer 0 and what the second level perceived.
         let at = self.at;
         let Engine { policy, belief, .. } = &mut self.monitor.engine;
-        let bed_posture = belief.observe_bed_posture(at, refined.sighting, policy);
+        let bed_posture = belief.observe_bed_posture(at, refinement.sighting, policy);
+        Refined {
+            observed,
+            refinement,
+            bed_posture,
+        }
+    }
+
+    /// What the engine observed in the turn. It reads neither the chronicle
+    /// nor the last scene.
+    pub(super) fn observed(&mut self, refined: Refined) -> Conclusion {
+        let Refined {
+            observed,
+            refinement: refined,
+            bed_posture,
+        } = refined;
         let engine = &self.monitor.engine;
         Conclusion::Observed(Box::new(Observation {
             at: self.at,
@@ -363,15 +389,16 @@ impl Course<'_> {
         attention::enrich(believed, reference, since, self.at, policy)
     }
 
-    fn verify(&self, observed: &Observed) -> Consideration<VerifyLook> {
-        let Perceived { bodies, faces } = &observed.evidence;
+    fn verify(&self, refined: &Refined) -> Consideration<VerifyLook> {
+        let Perceived { bodies, faces } = &refined.observed.evidence;
         let g = self.glimpse(bodies, faces);
         let Engine {
             policy,
             verification,
             ..
         } = &self.monitor.engine;
-        attention::verify(&g, verification, policy)
+        let layer_1 = refined.bed_posture.map(|b| b.state);
+        attention::verify(&g, verification, layer_1, refined.refinement.places, policy)
     }
 
     fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {

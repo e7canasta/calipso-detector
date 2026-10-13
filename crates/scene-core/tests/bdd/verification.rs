@@ -7,7 +7,7 @@ use scene_core::contract::{
     HeldCheckState, LookKind, LookOutcome, LookResult, SkipReason, Verifier,
 };
 use scene_core::look::Answer;
-use scene_core::policy::{HeldVerifyPolicy, VerifyPolicy};
+use scene_core::policy::{Band, HeldVerifyPolicy, VerifyPolicy};
 
 use crate::attention::scene;
 use crate::ward::Ward;
@@ -19,9 +19,35 @@ fn held_verified_after(ward: &mut Ward, secs: u32) {
             after_secs: f64::from(secs),
             valid_secs: None,
         }),
-        timeout_secs: None,
-        max_per_hour: None,
+        ..VerifyPolicy::default()
     });
+}
+
+#[given(expr = "disparities between {float} and {float} are doubtful")]
+fn doubtful_disparity(ward: &mut Ward, lo: f32, hi: f32) {
+    ward.policy
+        .verify
+        .get_or_insert_with(VerifyPolicy::default)
+        .doubtful_disparity = Some(Band { lo, hi });
+}
+
+#[then(expr = "in sample {int} a verification of the disparity is asked")]
+fn disparity_asked(ward: &mut Ward, n: u32) {
+    verification_asked(ward, n);
+}
+
+#[then(expr = "in sample {int} nothing is asked to the verifier")]
+fn nothing_asked(ward: &mut Ward, n: u32) {
+    let scene = scene(ward, n);
+    assert!(
+        !scene
+            .attention
+            .looks
+            .iter()
+            .any(|l| l.kind == LookKind::Verify && l.result().is_some()),
+        "sample {n} asked the verifier: {:?}",
+        scene.attention.looks
+    );
 }
 
 fn verify(ward: &mut Ward) -> &mut VerifyPolicy {

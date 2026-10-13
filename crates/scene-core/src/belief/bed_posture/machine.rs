@@ -16,6 +16,11 @@ pub(crate) struct Machine {
 }
 
 impl Machine {
+    /// The stable bed posture, if layer 1 is following one.
+    pub(crate) fn stable(&self) -> Option<BedPostureState> {
+        self.posture.as_ref().map(Stabilizer::stable)
+    }
+
     /// One sample, with layer 0's state and what layer 1 perceived. The rules
     /// propose a state and it counts once it held its own time; without layer
     /// 1 the machine forgets. Seen with nothing new says nothing changed: the
