@@ -71,7 +71,9 @@ pub struct Ward {
 pub struct Verifier {
     pub answer: Option<scene_core::look::Answer>,
     pub latency_secs: f64,
-    pub owed: Vec<scene_core::look::Ticket>,
+    /// Each request still owed, with the sample it went out at: the latency
+    /// counts from there, as a burst goes out after its first sample.
+    pub owed: Vec<(scene_core::look::Ticket, SampleRef)>,
 }
 
 impl fmt::Debug for Ward {
@@ -141,20 +143,23 @@ impl Ward {
             let latency = self.verifier.latency_secs;
             let (due, owed): (Vec<_>, Vec<_>) = std::mem::take(&mut self.verifier.owed)
                 .into_iter()
-                .partition(|t| {
+                .partition(|(_, sent)| {
                     // From an earlier session, it arrives late, at once.
-                    t.looked.session != at.session
-                        || at.source_secs.0 - t.looked.source_secs.0 >= latency
+                    sent.session != at.session || at.source_secs.0 - sent.source_secs.0 >= latency
                 });
             self.verifier.owed = owed;
-            for ticket in due {
+            for (ticket, _) in due {
                 monitor.verified(scene_core::look::Verified { ticket, answer });
             }
         }
         let mut asked = Vec::new();
+        let sent = match &input {
+            Input::Sample { at, .. } => Some(*at),
+            _ => None,
+        };
         let output = monitor.handle(input.clone()).drive(|request| {
-            if let scene_core::look::Probe::Verify { ticket, .. } = request {
-                asked.push(*ticket);
+            if let (scene_core::look::Probe::Verify { ticket, .. }, Some(sent)) = (request, sent) {
+                asked.push((*ticket, sent));
             }
             (script.respond(request), Spent(1.0))
         });

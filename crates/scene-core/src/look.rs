@@ -40,7 +40,17 @@ pub enum Probe {
         /// whole-frame coordinates.
         region: Option<Rect>,
     },
-    /// The slow verifier: a closed question about a crop. The shell only takes
+    /// Keep this sample's crop for a burst (white book, volume III, ch. 12): the
+    /// shell crops it and holds it under the ticket, to send it with the
+    /// `Verify` that completes the burst. Nothing is asked yet.
+    Keep {
+        /// The burst it belongs to.
+        ticket: Ticket,
+        /// The crop's bounding box, in whole-frame pixels.
+        region: Rect,
+    },
+    /// The slow verifier: a closed question about a crop, sent with the crops
+    /// kept for its ticket, in order, this sample's last. The shell only takes
     /// the request (`Reading::Dispatched`); the answer comes later, through
     /// [`Monitor::verified`](crate::Monitor::verified), as evidence of the
     /// sample it looked at (book 4).
@@ -161,6 +171,7 @@ impl Probe {
                 ..
             } => LookKind::Calibrate,
             Probe::Verify { .. } => LookKind::Verify,
+            Probe::Keep { .. } => LookKind::Keep,
         }
     }
 
@@ -172,7 +183,7 @@ impl Probe {
             Probe::Reinforce { region } => Some(*region),
             Probe::Pose { bbox } => Some(*bbox),
             Probe::Depth { region, .. } => *region,
-            Probe::Verify { region, .. } => Some(*region),
+            Probe::Verify { region, .. } | Probe::Keep { region, .. } => Some(*region),
         }
     }
 }
@@ -228,6 +239,8 @@ pub enum Reading {
     Depth(Vec<Option<f32>>),
     /// The verifier took the request (`Verify`): the answer comes later.
     Dispatched,
+    /// The shell kept the crop for its burst (`Keep`).
+    Kept,
 }
 
 /// Milliseconds the shell measured. The core only records them (rule 9).
@@ -276,6 +289,15 @@ impl Outcome {
         }
     }
 
+    /// Did the shell keep the crop?
+    pub(crate) fn kept(&self) -> Result<(), Failure> {
+        match &self.result {
+            Ok(Reading::Kept) => Ok(()),
+            Err(f) => Err(*f),
+            Ok(_) => Err(Failure::Model),
+        }
+    }
+
     /// Did the verifier take the request?
     pub(crate) fn dispatched(&self) -> Result<(), Failure> {
         match &self.result {
@@ -312,6 +334,8 @@ pub enum LookKind {
     Calibrate,
     /// The slow verifier, asked about a crop.
     Verify,
+    /// A crop kept for a burst to the verifier.
+    Keep,
 }
 
 impl LookKind {
@@ -325,6 +349,7 @@ impl LookKind {
             Self::Depth => "depth",
             Self::Calibrate => "calibrate",
             Self::Verify => "verify",
+            Self::Keep => "keep",
         }
     }
 }

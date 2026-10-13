@@ -153,6 +153,7 @@ impl Script {
                 ..
             } => Ok(Reading::Depth(vec![self.bed; points.len()])),
             Probe::Verify { .. } => self.verify.map(|()| Reading::Dispatched),
+            Probe::Keep { .. } => self.verify.map(|()| Reading::Kept),
         }
     }
 }

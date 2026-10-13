@@ -8,9 +8,10 @@
 //! sample's turn, only if what it asked about still holds: the same held body,
 //! in the same session (rule 9).
 
+use crate::attention::VerifyLook;
 use crate::belief::Belief;
 use crate::look::{Answer, Target, Ticket, Verified};
-use crate::policy::Policy;
+use crate::policy::{Burst, Policy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
 use schemars::JsonSchema;
@@ -71,13 +72,32 @@ pub(crate) struct HeldEntry {
     pub check: HeldCheck,
 }
 
+/// A burst being collected (white book, volume III, ch. 12): V's phase 1.
+/// The question is decided and its ticket issued; the shell keeps one crop per
+/// `every_secs` until the last one goes out with the question.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Collecting {
+    pub(crate) ticket: Ticket,
+    pub(crate) look: VerifyLook,
+    pub(crate) burst: Burst,
+    /// Crops the shell kept so far.
+    pub(crate) kept: u8,
+    /// The sample the last crop was kept at.
+    pub(crate) last: SampleRef,
+}
+
 /// What one camera has asked the verifier and what it owes.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Verification {
     /// How many tickets were issued: the next one's id.
     issued: u64,
-    /// One request at a time per camera.
+    /// One request at a time per camera: V's phase 2.
     in_flight: Option<Ticket>,
+    /// The sample the request in flight went out at: its timeout counts from
+    /// there, not from the burst's first sample (V18).
+    sent: Option<SampleRef>,
+    /// A burst being collected: V's phase 1.
+    collecting: Option<Collecting>,
     /// For a doubtful digit, the places of the looked sample the answer fills.
     asked_places: Option<BodyPlaces>,
     /// The looked sample's places, filled by an answer that still applied: what
@@ -126,9 +146,15 @@ impl Verification {
         self.held
     }
 
-    /// Is a request waiting for its answer?
-    pub(crate) fn in_flight(&self) -> bool {
-        self.in_flight.is_some()
+    /// Is a question open, being collected or waiting for its answer? One at
+    /// a time per camera.
+    pub(crate) fn busy(&self) -> bool {
+        self.in_flight.is_some() || self.collecting.is_some()
+    }
+
+    /// The burst being collected, if any.
+    pub(crate) fn collecting(&self) -> Option<&Collecting> {
+        self.collecting.as_ref()
     }
 
     /// How many requests went out in the last `secs` of source time, in this
@@ -145,8 +171,9 @@ impl Verification {
         self.filled.take()
     }
 
-    /// A request goes out: its ticket, which the answer will carry. A doubtful
-    /// digit keeps the places it asks about.
+    /// A question is decided: its ticket, which the answer will carry, about
+    /// this sample. It counts for the budget now, once per burst. A doubtful
+    /// digit keeps the places it asks about: the answer fills them (V16).
     pub(crate) fn issue(
         &mut self,
         target: Target,
@@ -158,18 +185,55 @@ impl Verification {
             .retain(|a| at.secs_since(*a).is_some_and(|age| age < HOUR_SECS));
         self.asked.push(at);
         self.issued += 1;
-        let ticket = Ticket {
+        Ticket {
             id: self.issued,
             looked: at,
             target,
-        };
-        self.in_flight = Some(ticket);
-        ticket
+        }
     }
 
-    /// The shell could not take the request: nothing is owed.
+    /// The question goes out at `at`: it waits for its answer.
+    pub(crate) fn dispatch(&mut self, ticket: Ticket, at: SampleRef) {
+        self.collecting = None;
+        self.in_flight = Some(ticket);
+        self.sent = Some(at);
+    }
+
+    /// A burst starts collecting: the shell keeps this sample's crop first.
+    pub(crate) fn collect(
+        &mut self,
+        ticket: Ticket,
+        look: VerifyLook,
+        burst: Burst,
+        at: SampleRef,
+    ) {
+        self.collecting = Some(Collecting {
+            ticket,
+            look,
+            burst,
+            kept: 0,
+            last: at,
+        });
+    }
+
+    /// The shell kept a crop of the burst at `at`.
+    pub(crate) fn kept(&mut self, at: SampleRef) {
+        if let Some(collecting) = self.collecting.as_mut() {
+            collecting.kept = collecting.kept.saturating_add(1);
+            collecting.last = at;
+        }
+    }
+
+    /// The burst is dropped unasked: stale or resolved. Nothing is owed.
+    pub(crate) fn drop_burst(&mut self) {
+        self.collecting = None;
+        self.asked_places = None;
+    }
+
+    /// The shell could not take the request or keep the crop: nothing is owed.
     pub(crate) fn failed(&mut self) {
         self.in_flight = None;
+        self.collecting = None;
     }
 
     /// An answer arrived between turns.
@@ -184,10 +248,13 @@ impl Verification {
     /// call for getting out is not lost to a verifier that did not answer.
     pub(crate) fn expire(&mut self, at: SampleRef, policy: &Policy, belief: &Belief) {
         let timeout = policy.verify.and_then(|v| v.timeout_secs);
-        let expired = self.in_flight.filter(|t| match at.secs_since(t.looked) {
-            None => true,
-            Some(age) => timeout.is_some_and(|max| age >= max),
-        });
+        let sent = self.sent;
+        let expired = self
+            .in_flight
+            .filter(|t| match at.secs_since(sent.unwrap_or(t.looked)) {
+                None => true,
+                Some(age) => timeout.is_some_and(|max| age >= max),
+            });
         let Some(ticket) = expired else {
             return;
         };

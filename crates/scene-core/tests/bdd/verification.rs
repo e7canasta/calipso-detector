@@ -7,7 +7,7 @@ use scene_core::contract::{
     HeldCheckState, LookKind, LookOutcome, LookResult, SkipReason, Verifier,
 };
 use scene_core::look::Answer;
-use scene_core::policy::{Band, HeldVerifyPolicy, VerifyPolicy};
+use scene_core::policy::{Band, Burst, HeldVerifyPolicy, VerifyPolicy};
 
 use crate::attention::scene;
 use crate::ward::Ward;
@@ -37,6 +37,66 @@ fn doubtful_feet(ward: &mut Ward, margin: f32) {
         .verify
         .get_or_insert_with(VerifyPolicy::default)
         .doubtful_feet_margin = Some(margin);
+}
+
+fn burst(frames: u8, every_secs: f64) -> Burst {
+    Burst { frames, every_secs }
+}
+
+#[given(expr = "the disparity is asked with {int} frames {int} seconds apart")]
+fn disparity_burst(ward: &mut Ward, frames: u8, secs: u32) {
+    ward.policy
+        .verify
+        .get_or_insert_with(VerifyPolicy::default)
+        .frames
+        .sitting = burst(frames, f64::from(secs));
+}
+
+#[given(expr = "the feet are asked with {int} frames {int} seconds apart")]
+fn feet_burst(ward: &mut Ward, frames: u8, secs: u32) {
+    ward.policy
+        .verify
+        .get_or_insert_with(VerifyPolicy::default)
+        .frames
+        .leaving = burst(frames, f64::from(secs));
+}
+
+#[then(expr = "in sample {int} a crop is kept for the verifier")]
+fn crop_kept(ward: &mut Ward, n: u32) {
+    let scene = scene(ward, n);
+    assert!(
+        scene
+            .attention
+            .looks
+            .iter()
+            .any(|l| l.kind == LookKind::Keep && matches!(l.result(), Some(LookResult::Kept))),
+        "no crop kept in sample {n}: {:?}",
+        scene.attention.looks
+    );
+}
+
+#[then(expr = "in sample {int} nothing is kept for the verifier")]
+fn nothing_kept(ward: &mut Ward, n: u32) {
+    let scene = scene(ward, n);
+    assert!(
+        !scene
+            .attention
+            .looks
+            .iter()
+            .any(|l| l.kind == LookKind::Keep),
+        "sample {n} kept a crop: {:?}",
+        scene.attention.looks
+    );
+}
+
+#[then(expr = "in sample {int} the burst is dropped, resolved")]
+fn burst_resolved(ward: &mut Ward, n: u32) {
+    skipped(ward, n, SkipReason::BurstResolved);
+}
+
+#[then(expr = "in sample {int} the burst is dropped, stale")]
+fn burst_stale(ward: &mut Ward, n: u32) {
+    skipped(ward, n, SkipReason::BurstStale);
 }
 
 #[then(expr = "in sample {int} a verification of the feet is asked")]

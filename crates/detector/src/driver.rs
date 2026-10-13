@@ -159,6 +159,12 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
                             let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
                             (taken.map(|()| Reading::Dispatched), spent)
                         }
+                        Probe::Keep { ticket, region } => {
+                            let started = Instant::now();
+                            let kept = verifier.keep(&frame, *ticket, *region);
+                            let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
+                            (kept.map(|()| Reading::Kept), spent)
+                        }
                         _ => senses.look(&frame, probe),
                     }
                 }),

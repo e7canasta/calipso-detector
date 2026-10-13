@@ -7,8 +7,8 @@ use super::waiting::{Continuation, Waiting};
 use super::{Course, Engine, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
-    self, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome, LookResult,
-    SkipReason, SubjectDepthLook, VerifyLook,
+    self, BurstStep, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome,
+    LookResult, SkipReason, SubjectDepthLook, VerifyLook,
 };
 use crate::belief::{Believed, Enrichment};
 use crate::body::Keypoint;
@@ -20,6 +20,7 @@ use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
 use crate::sensor::SensorChanged;
+use crate::verification::Collecting;
 
 /// How far the turn got, with what it gathered: the point from which
 /// [`Course::next`] continues.
@@ -180,18 +181,40 @@ impl Course<'_> {
                 }
                 // The second level and layer 1, on what was believed.
                 Reached::Body(observed) => Reached::Refined(self.refine(observed)),
-                // Last attention point: a doubt worth the slow verifier?
+                // Last attention point: a burst being collected goes on; or
+                // a doubt worth the slow verifier?
                 Reached::Refined(refined) => {
-                    let considered = self.verify(&refined);
-                    if let Some(look) = self.wanted(LookKind::Verify, considered) {
-                        let ticket = self.monitor.engine.verification.issue(
-                            look.target,
-                            self.at,
-                            look.places,
-                        );
-                        return Phase::Waiting(Waiting::verify(refined, ticket, look));
+                    let Some((step, burst)) = self.burst(&refined) else {
+                        return self.ask_verifier(refined);
+                    };
+                    match step {
+                        BurstStep::Wait => Reached::Final(refined),
+                        BurstStep::Keep => {
+                            let (ticket, region) = (burst.ticket, burst.look.region);
+                            return Phase::Waiting(Waiting::keep(refined, ticket, region));
+                        }
+                        BurstStep::Send => {
+                            self.monitor
+                                .engine
+                                .verification
+                                .dispatch(burst.ticket, self.at);
+                            return Phase::Waiting(Waiting::verify(
+                                refined,
+                                burst.ticket,
+                                burst.look,
+                            ));
+                        }
+                        BurstStep::Stale | BurstStep::Resolved => {
+                            self.monitor.engine.verification.drop_burst();
+                            let reason = if step == BurstStep::Stale {
+                                SkipReason::BurstStale
+                            } else {
+                                SkipReason::BurstResolved
+                            };
+                            self.skipped(LookKind::Verify, reason);
+                            return self.ask_verifier(refined);
+                        }
                     }
-                    Reached::Final(refined)
                 }
                 Reached::Final(refined) => return Phase::Concluded { refined },
             };
@@ -263,6 +286,20 @@ impl Course<'_> {
                 let primary_seen = observed.evidence.bodies.primary_seen();
                 let enrichment = Enrichment::fresh(Some(pose), depths, head, bbox, primary_seen);
                 Reached::Enriched(observed, enrichment)
+            }
+            Continuation::Keep { refined } => {
+                let result = match outcome.kept() {
+                    Ok(()) => {
+                        self.monitor.engine.verification.kept(self.at);
+                        LookResult::Kept
+                    }
+                    Err(failure) => {
+                        self.monitor.engine.verification.failed();
+                        LookResult::failed(failure)
+                    }
+                };
+                self.asked(probe, spent, result);
+                Reached::Final(refined)
             }
             Continuation::Verify { refined } => {
                 let result = match outcome.dispatched() {
@@ -387,6 +424,48 @@ impl Course<'_> {
         let Engine { policy, belief, .. } = &self.monitor.engine;
         let (reference, since) = (belief.pose_reference(), belief.pose_since());
         attention::enrich(believed, reference, since, self.at, policy)
+    }
+
+    /// A question to the slow verifier, if a doubt is worth one. With a burst
+    /// (white book, volume III, ch. 12) it starts by keeping this sample's
+    /// crop; with one frame it goes out now.
+    fn ask_verifier(&mut self, refined: Refined) -> Phase {
+        let considered = self.verify(&refined);
+        let Some(look) = self.wanted(LookKind::Verify, considered) else {
+            return Phase::Concluded { refined };
+        };
+        let Engine {
+            policy,
+            verification,
+            ..
+        } = &mut self.monitor.engine;
+        let burst = policy
+            .verify
+            .map(|v| v.frames.of(look.question))
+            .unwrap_or_default();
+        let ticket = verification.issue(look.target, self.at, look.places);
+        if burst.frames <= 1 {
+            verification.dispatch(ticket, self.at);
+            return Phase::Waiting(Waiting::verify(refined, ticket, look));
+        }
+        verification.collect(ticket, look, burst, self.at);
+        Phase::Waiting(Waiting::keep(refined, ticket, look.region))
+    }
+
+    /// The step of the burst being collected, if any, with the burst.
+    fn burst(&self, refined: &Refined) -> Option<(BurstStep, Collecting)> {
+        let verification = &self.monitor.engine.verification;
+        let collecting = *verification.collecting()?;
+        let layer_1 = refined.bed_posture.map(|b| b.state);
+        let held = verification.held().map(|h| h.since);
+        let step = attention::burst(
+            self.at,
+            &collecting,
+            layer_1,
+            refined.refinement.places,
+            held,
+        );
+        Some((step, collecting))
     }
 
     fn verify(&self, refined: &Refined) -> Consideration<VerifyLook> {

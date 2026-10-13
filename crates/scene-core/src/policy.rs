@@ -146,6 +146,56 @@ pub struct VerifyPolicy {
     /// Without an answer in time it is taken as out, on the safe side.
     /// `None`: the feet are never doubtful.
     pub doubtful_feet_margin: Option<f32>,
+    /// How many crops each question sends, and how far apart (white book,
+    /// volume III, ch. 12). By default one: the looked sample's.
+    pub frames: Frames,
+}
+
+/// A burst: how many crops a question sends and the source seconds between
+/// them. The loop decides it, per question; the verifier answers what it is
+/// sent (V15).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Burst {
+    /// At least one: the sample that opened the doubt.
+    pub frames: u8,
+    /// Source seconds from one kept crop to the next.
+    pub every_secs: f64,
+}
+
+impl Burst {
+    /// One crop, the looked sample's: what a question sent before bursts.
+    pub const ONE: Self = Self {
+        frames: 1,
+        every_secs: 0.0,
+    };
+}
+
+impl Default for Burst {
+    fn default() -> Self {
+        Self::ONE
+    }
+}
+
+/// The burst of each question.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Frames {
+    /// `held_in_bed`.
+    pub held: Burst,
+    /// `sitting_in_bed`.
+    pub sitting: Burst,
+    /// `leaving_bed`.
+    pub leaving: Burst,
+}
+
+impl Frames {
+    /// The burst of a question.
+    pub fn of(&self, question: crate::look::Question) -> Burst {
+        match question {
+            crate::look::Question::HeldInBed => self.held,
+            crate::look::Question::SittingInBed => self.sitting,
+            crate::look::Question::LeavingBed => self.leaving,
+        }
+    }
 }
 
 /// Two thresholds: a value between them, both included, is doubtful. The

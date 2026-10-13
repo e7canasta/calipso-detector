@@ -98,7 +98,7 @@ impl Senses {
             },
             // The verifier is not a sense of this process: it lives behind its
             // own port in the shell (white book, volume III, I2).
-            Probe::Verify { .. } => Err(Failure::Model),
+            Probe::Verify { .. } | Probe::Keep { .. } => Err(Failure::Model),
         };
         if result.is_err() {
             tracing::warn!(probe = ?probe.kind(), "sense failed or unavailable");

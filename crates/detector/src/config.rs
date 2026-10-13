@@ -4,8 +4,8 @@ use scene_core::{
     geom::{Point, Quad, Rect},
     map::{FrameInfo, SiteMap},
     policy::{
-        Band, BedPosturePolicy, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
-        HeldVerifyPolicy, Policy, ReinforcePolicy, VerifyPolicy,
+        Band, BedPosturePolicy, Burst, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
+        Frames, HeldVerifyPolicy, Policy, ReinforcePolicy, VerifyPolicy,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -49,6 +49,36 @@ pub struct VerifyConfig {
     pub doubtful_disparity: Option<[f32; 2]>,
     /// The feet's grey band, a fraction of the bed's width (P2, P3).
     pub doubtful_feet_margin: Option<f32>,
+    /// How many crops each question sends (white book, volume III, ch. 12);
+    /// without it, one.
+    pub frames: Option<FramesConfig>,
+}
+
+/// The burst of each question, by its name; a missing one sends one crop.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FramesConfig {
+    pub held_in_bed: Option<BurstConfig>,
+    pub sitting_in_bed: Option<BurstConfig>,
+    pub leaving_bed: Option<BurstConfig>,
+}
+
+/// A burst: how many crops, and the source seconds between them.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BurstConfig {
+    pub frames: u8,
+    #[serde(default)]
+    pub every_secs: f64,
+}
+
+impl BurstConfig {
+    fn burst(self) -> Burst {
+        Burst {
+            frames: self.frames,
+            every_secs: self.every_secs,
+        }
+    }
 }
 
 /// Verify a body held in bed.
@@ -441,6 +471,23 @@ impl Config {
                 "verify.doubtful_feet_margin must be in (0, 0.5)"
             );
         }
+        let frames = v.frames.clone().unwrap_or_default();
+        for (name, burst) in [
+            ("held_in_bed", frames.held_in_bed),
+            ("sitting_in_bed", frames.sitting_in_bed),
+            ("leaving_bed", frames.leaving_bed),
+        ] {
+            if let Some(b) = burst {
+                ensure!(
+                    (1..=8).contains(&b.frames),
+                    "verify.frames.{name}.frames must be 1 to 8"
+                );
+                ensure!(
+                    b.every_secs.is_finite() && b.every_secs >= 0.0,
+                    "verify.frames.{name}.every_secs must be a source time, 0 or more"
+                );
+            }
+        }
         if v.doubtful_disparity.is_some() || v.doubtful_feet_margin.is_some() {
             ensure!(
                 self.bed_posture.is_some(),
@@ -724,6 +771,15 @@ impl Config {
             max_per_hour: v.max_per_hour,
             doubtful_disparity: v.doubtful_disparity.map(|[lo, hi]| Band { lo, hi }),
             doubtful_feet_margin: v.doubtful_feet_margin,
+            frames: {
+                let f = v.frames.clone().unwrap_or_default();
+                let of = |b: Option<BurstConfig>| b.map(BurstConfig::burst).unwrap_or_default();
+                Frames {
+                    held: of(f.held_in_bed),
+                    sitting: of(f.sitting_in_bed),
+                    leaving: of(f.leaving_bed),
+                }
+            },
         });
         p
     }
@@ -848,7 +904,7 @@ mod tests {
         let with_headboard = base.replacen("[map]\n", &format!("[map]\n{map}"), 1);
         let posture = "\n[bed_posture]\n";
         let sense = "\n[senses.verify]\n";
-        let verify = "\n[verify]\nmax_per_hour = 20\ntimeout_secs = 8\ndoubtful_disparity = [0.03, 0.12]\ndoubtful_feet_margin = 0.06\n[verify.held]\nafter_secs = 30\nvalid_secs = 3600\n";
+        let verify = "\n[verify]\nmax_per_hour = 20\ntimeout_secs = 8\ndoubtful_disparity = [0.03, 0.12]\ndoubtful_feet_margin = 0.06\n[verify.held]\nafter_secs = 30\nvalid_secs = 3600\n[verify.frames]\nsitting_in_bed = { frames = 3, every_secs = 1.5 }\n";
         let text = format!("{with_headboard}{sense}{posture}{verify}");
         let config = Config::parse(&text).unwrap_or_else(|e| panic!("{e}\n{text}"));
         let policy = config.policy().verify.unwrap();
@@ -856,6 +912,14 @@ mod tests {
         assert_eq!(policy.timeout_secs, Some(8.0));
         assert_eq!(policy.doubtful_disparity, Some(Band { lo: 0.03, hi: 0.12 }));
         assert_eq!(policy.doubtful_feet_margin, Some(0.06));
+        assert_eq!(
+            (
+                policy.frames.sitting.frames,
+                policy.frames.sitting.every_secs
+            ),
+            (3, 1.5)
+        );
+        assert_eq!(policy.frames.held, Burst::ONE);
         let held = policy.held.unwrap();
         assert_eq!((held.after_secs, held.valid_secs), (30.0, Some(3600.0)));
         assert_eq!(

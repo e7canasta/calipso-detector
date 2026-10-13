@@ -28,6 +28,10 @@ pub trait VerifierPort {
         question: Question,
     ) -> Result<(), Failure>;
     fn answers(&mut self) -> Vec<Verified>;
+    /// Keeps the crop of `region` for the burst of `ticket` (white book,
+    /// volume III, ch. 12): it goes out with the `ask` of the same ticket. A
+    /// crop kept for another ticket is dropped: one burst at a time.
+    fn keep(&mut self, frame: &Self::Frame, ticket: Ticket, region: Rect) -> Result<(), Failure>;
 }
 
 /// No verifier: a profile without `[verify]` never asks; if it were asked, it
@@ -48,6 +52,9 @@ impl<F> VerifierPort for NoVerifier<F> {
     }
     fn answers(&mut self) -> Vec<Verified> {
         Vec::new()
+    }
+    fn keep(&mut self, _: &F, _: Ticket, _: Rect) -> Result<(), Failure> {
+        Err(Failure::Model)
     }
 }
 
@@ -108,13 +115,28 @@ pub fn read_answer(reply: &[u8]) -> Answer {
     }
 }
 
-/// A request on its way to the service.
+/// A request on its way to the service: one crop, or a burst in order.
 #[derive(Debug)]
 struct Request {
     ticket: Ticket,
     question: Question,
     bed: String,
-    jpeg: Vec<u8>,
+    jpegs: Vec<Vec<u8>>,
+}
+
+/// The payload and the `Calipso-Frame-Lengths` header of a request: the crops
+/// one after the other, and each one's length in bytes. One crop goes alone
+/// and without the header, as before bursts.
+pub fn frames_payload(jpegs: &[Vec<u8>]) -> (Vec<u8>, Option<String>) {
+    let payload = jpegs.concat();
+    let lengths = (jpegs.len() > 1).then(|| {
+        jpegs
+            .iter()
+            .map(|j| j.len().to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    });
+    (payload, lengths)
 }
 
 /// Live: the local verifier service behind NATS (`calipso.verify.v1`). A
@@ -123,6 +145,8 @@ struct Request {
 pub struct NatsVerifier {
     requests: tokio::sync::mpsc::Sender<Request>,
     answers: mpsc::Receiver<Verified>,
+    /// The crops kept for the burst being collected, by its ticket's id.
+    kept: Option<(u64, Vec<Vec<u8>>)>,
 }
 
 impl NatsVerifier {
@@ -153,9 +177,10 @@ impl NatsVerifier {
                 ticket,
                 question,
                 bed,
-                jpeg,
+                jpegs,
             }) = queue.recv().await
             {
+                let (payload, lengths) = frames_payload(&jpegs);
                 let mut headers = async_nats::HeaderMap::new();
                 headers.insert("Calipso-Camera", camera.as_str());
                 headers.insert("Calipso-Question", question.id());
@@ -168,9 +193,13 @@ impl NatsVerifier {
                     looked.session.0, looked.sequence, looked.source_secs.0
                 );
                 headers.insert("Calipso-Looked", looked.as_str());
+                if let Some(lengths) = lengths {
+                    headers.insert("Calipso-Frames", jpegs.len().to_string().as_str());
+                    headers.insert("Calipso-Frame-Lengths", lengths.as_str());
+                }
                 let reply = tokio::time::timeout(
                     wall_timeout,
-                    client.request_with_headers(subject.clone(), headers, jpeg.into()),
+                    client.request_with_headers(subject.clone(), headers, payload.into()),
                 )
                 .await;
                 let answer = match reply {
@@ -186,7 +215,11 @@ impl NatsVerifier {
                 }
             }
         });
-        Self { requests, answers }
+        Self {
+            requests,
+            answers,
+            kept: None,
+        }
     }
 }
 
@@ -201,17 +234,30 @@ impl VerifierPort for NatsVerifier {
         question: Question,
     ) -> Result<(), Failure> {
         let jpeg = jpeg_crop(frame, region)?;
+        let mut jpegs = match self.kept.take() {
+            Some((id, kept)) if id == ticket.id => kept,
+            _ => Vec::new(),
+        };
+        jpegs.push(jpeg);
         self.requests
             .try_send(Request {
                 ticket,
                 question,
                 bed: bed_in_crop(frame, region, bed),
-                jpeg,
+                jpegs,
             })
             .map_err(|_| Failure::Model)
     }
     fn answers(&mut self) -> Vec<Verified> {
         self.answers.try_iter().collect()
+    }
+    fn keep(&mut self, frame: &DynamicImage, ticket: Ticket, region: Rect) -> Result<(), Failure> {
+        let jpeg = jpeg_crop(frame, region)?;
+        match self.kept.as_mut() {
+            Some((id, kept)) if *id == ticket.id => kept.push(jpeg),
+            _ => self.kept = Some((ticket.id, vec![jpeg])),
+        }
+        Ok(())
     }
 }
 
@@ -226,6 +272,14 @@ mod tests {
         assert_eq!(read_answer(b"Yes, the person is sitting up."), Answer::Yes);
         assert_eq!(read_answer(b"I cannot tell"), Answer::Unsure);
         assert_eq!(read_answer(b""), Answer::Unsure);
+    }
+
+    #[test]
+    fn a_burst_goes_as_its_crops_in_order_with_their_lengths() {
+        let one = frames_payload(&[vec![1, 2]]);
+        assert_eq!(one, (vec![1, 2], None));
+        let three = frames_payload(&[vec![1, 2], vec![3], vec![4, 5, 6]]);
+        assert_eq!(three, (vec![1, 2, 3, 4, 5, 6], Some("2,1,3".to_owned())));
     }
 
     #[test]

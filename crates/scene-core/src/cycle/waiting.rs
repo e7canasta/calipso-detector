@@ -51,6 +51,10 @@ pub(super) enum Continuation {
     Verify {
         refined: Refined,
     },
+    /// The shell keeps a crop for a burst; the turn concludes either way.
+    Keep {
+        refined: Refined,
+    },
 }
 
 impl Waiting {
@@ -142,6 +146,14 @@ impl Waiting {
                 question: look.question,
             },
             Continuation::Verify { refined },
+        )
+    }
+
+    /// A crop kept for the burst of `ticket` (white book, volume III, ch. 12).
+    pub(super) fn keep(refined: Refined, ticket: Ticket, region: Rect) -> Self {
+        Self::new(
+            Probe::Keep { ticket, region },
+            Continuation::Keep { refined },
         )
     }
 

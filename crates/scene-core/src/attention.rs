@@ -23,7 +23,7 @@ use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
-use crate::verification::{HOUR_SECS, HeldCheckState, Verification};
+use crate::verification::{Collecting, HOUR_SECS, HeldCheckState, Verification};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -257,6 +257,64 @@ pub(crate) fn verify(
     )
 }
 
+/// What a burst being collected does at this sample (white book, volume III,
+/// ch. 12, V4), in this order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BurstStep {
+    /// What it asks about no longer holds: dropped unasked.
+    Stale,
+    /// The doubtful digit cleared by itself: dropped unasked (V17).
+    Resolved,
+    /// `every_secs` has not passed since the last kept crop.
+    Wait,
+    /// Keep this sample's crop; more are wanted.
+    Keep,
+    /// Keep this one too and ask, with every kept crop.
+    Send,
+}
+
+/// The next step of a burst being collected. It reads, never writes: the turn
+/// applies it to the verification plane. Stale: another session, layer 1 left
+/// the stable state it was asked under, or the held body is no longer held.
+/// Resolved: this sample saw the doubtful digit clearly (a fresh pose).
+pub(crate) fn burst(
+    at: SampleRef,
+    collecting: &Collecting,
+    layer_1: Option<BedPostureState>,
+    places: Option<BodyPlaces>,
+    held: Option<SampleRef>,
+) -> BurstStep {
+    let Some(age) = at.secs_since(collecting.last) else {
+        return BurstStep::Stale;
+    };
+    let stale = match collecting.ticket.target {
+        Target::Feet { stable } | Target::Disparity { stable } => layer_1 != Some(stable),
+        Target::Held { since } => held != Some(since),
+    };
+    if stale {
+        return BurstStep::Stale;
+    }
+    let resolved = match collecting.ticket.target {
+        Target::Feet { .. } => {
+            places.is_some_and(|p| matches!(p.feet, FeetPlace::Seen | FeetPlace::PastTheSides))
+        }
+        Target::Disparity { .. } => places
+            .is_some_and(|p| matches!(p.disparity, DisparitySide::Lying | DisparitySide::Upright)),
+        Target::Held { .. } => false,
+    };
+    if resolved {
+        return BurstStep::Resolved;
+    }
+    if age < collecting.burst.every_secs {
+        return BurstStep::Wait;
+    }
+    if collecting.kept.saturating_add(1) >= collecting.burst.frames {
+        BurstStep::Send
+    } else {
+        BurstStep::Keep
+    }
+}
+
 /// A doubt worth asking: unless a request is in flight, the hour's budget is
 /// spent or there is no bed to crop.
 fn ask(
@@ -267,7 +325,7 @@ fn ask(
     question: Question,
     places: Option<BodyPlaces>,
 ) -> Consideration<VerifyLook> {
-    if verification.in_flight() {
+    if verification.busy() {
         return Consideration::Decided(Decision::Skip(SkipReason::VerifyBusy));
     }
     let spent = verify.max_per_hour.is_some_and(|max| {
@@ -498,6 +556,11 @@ pub enum SkipReason {
     VerifyBusy,
     /// The camera's verification budget for the hour is spent.
     BudgetSpent,
+    /// The doubt cleared while the burst was being collected: nothing is asked
+    /// (white book, volume III, ch. 12, V17).
+    BurstResolved,
+    /// What the burst asked about no longer holds: it is dropped unasked.
+    BurstStale,
 }
 
 /// What a look returned.
@@ -521,6 +584,8 @@ pub enum LookResult {
     },
     /// The verifier took the request: the answer comes in a later turn.
     Dispatched,
+    /// The shell kept the crop for a burst.
+    Kept,
 }
 
 /// An entry of attention's ledger (rule 12): what was decided to look at or

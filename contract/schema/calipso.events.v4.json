@@ -533,6 +533,11 @@
           "description": "The slow verifier, asked about a crop.",
           "type": "string",
           "const": "verify"
+        },
+        {
+          "description": "A crop kept for a burst to the verifier.",
+          "type": "string",
+          "const": "keep"
         }
       ]
     },

@@ -51,6 +51,9 @@ impl VerifierPort for Scripted {
             })
             .collect()
     }
+    fn keep(&mut self, _: &DynamicImage, _: Ticket, _: Rect) -> Result<(), Failure> {
+        Ok(())
+    }
 }
 
 #[test]
