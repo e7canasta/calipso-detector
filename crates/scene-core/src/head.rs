@@ -7,7 +7,7 @@
 use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
 use crate::geom::{Point, Rect};
-use crate::refine::BedPlane;
+use crate::map::BedPlane;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

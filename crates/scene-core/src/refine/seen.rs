@@ -2,12 +2,13 @@
 //! the turn to one sighting, half of the row's input; layer 0's state is the
 //! other half, and `Belief` wires it. It reads, never writes the belief.
 
-use super::{BedPlane, Posture, PostureState};
+use super::{Posture, PostureState};
 use crate::belief::bed_posture::Sighting;
 use crate::belief::{Believed, SubjectBody};
 use crate::body::Joint;
 use crate::geom::{Point, Quad};
 use crate::head::HeadPlaceState;
+use crate::map::BedPlane;
 use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
 

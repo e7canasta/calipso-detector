@@ -1,8 +1,8 @@
 //! Head 1 of the second level: is the subject truly lying down?
 
-use super::BedPlane;
 use crate::body::{BodyPoint, Joint};
 use crate::geom::Point;
+use crate::map::BedPlane;
 use crate::provenance::Provenance;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

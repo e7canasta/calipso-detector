@@ -4,13 +4,13 @@
 //! changes a count (second-level rule 1). `project` builds the published scene.
 
 mod lying;
-mod plane;
 mod posture;
 mod seen;
 mod verdict;
 
 use crate::belief::SubjectBody;
 use crate::geom::Quad;
+use crate::map::BedPlane;
 use crate::policy::EnrichPolicy;
 use crate::zone::Zone;
 pub use lying::{Lying, LyingState};
@@ -18,7 +18,6 @@ pub use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
 pub(crate) use verdict::Ruling;
 pub use verdict::{Head, Verdict, VerdictState};
 
-pub(crate) use plane::BedPlane;
 pub(crate) use seen::seen;
 
 /// What the second level derives from the subject's pose.

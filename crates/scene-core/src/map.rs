@@ -1,9 +1,13 @@
-//! The site map: the static world the subject does not occlude.
+//! The site map: the static world the subject does not occlude, and the bed's
+//! own coordinates (`plane`): `u` across, `v` from the foot to the headboard.
+
+mod plane;
+
+pub(crate) use plane::BedPlane;
 
 use crate::body::BedSite;
 use crate::geom::{Point, Quad, Rect};
 use crate::policy::FocusPolicy;
-use crate::refine::BedPlane;
 use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
