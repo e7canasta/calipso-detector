@@ -9,7 +9,8 @@
 //! - [`conservation`]: which moves explain the change (`settle`) and how each
 //!   one moves the counts (`evolve`).
 //! - [`machine`]: the machine: folds the moves and returns the transition.
-//! - [`stabilizer`]: the source-time mechanism of the span.
+//! - [`stabilizer`](super::stabilizer): the source-time mechanism of the
+//!   span, shared with layer 1.
 //!
 //! The values layer 0 concludes on each turn live here too.
 
@@ -17,7 +18,6 @@ mod conservation;
 mod machine;
 mod room;
 mod span;
-mod stabilizer;
 
 pub(super) use machine::Machine;
 pub(crate) use room::{Alone, InBed, Room};

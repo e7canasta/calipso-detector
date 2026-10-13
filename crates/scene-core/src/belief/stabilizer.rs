@@ -1,6 +1,7 @@
 //! Stabilizing: a new value counts only once it has held (against flicker).
 //! It is pure mechanism: it does not know what it counts, only when a value
-//! held long enough in source time (rule 9). Counting samples would make the
+//! held long enough in source time (rule 9). Layer 0 stabilizes the counts
+//! with it and layer 1 the bed posture. Counting samples would make the
 //! same policy depend on the camera cadence.
 
 use crate::policy::Persistence;

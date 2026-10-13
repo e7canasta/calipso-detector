@@ -1,12 +1,12 @@
 //! The span: since the last stable count, the samples whose
 //! raw count has not held yet, with what was seen along the way. It joins what
 //! used to be synchronized by hand: when the count changed
-//! ([`stabilizer`](super::stabilizer)) and where whoever changed it came from
+//! ([`stabilizer`](crate::belief::stabilizer)) and where whoever changed it came from
 //! (the window). It delivers two columns of the table: what we believed we saw
 //! and what we saw.
 
 use super::conservation::Seen;
-use super::stabilizer::{Candidate, Change, Stabilizer};
+use crate::belief::stabilizer::{Candidate, Change, Stabilizer};
 use crate::evidence::Bodies;
 use crate::policy::Persistence;
 use crate::time::SampleRef;

@@ -4,6 +4,7 @@
 
 pub(crate) mod bed_posture;
 mod occupancy;
+mod stabilizer;
 mod subject;
 
 use crate::evidence::{Admission, Bodies, BodyEvidence};
