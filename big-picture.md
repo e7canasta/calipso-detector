@@ -1,6 +1,6 @@
 # Calipso — Big picture
 
-Actualizado al **2026-10-11**. Una página para ubicarse: qué es el sistema, cómo
+Actualizado al **2026-10-13**. Una página para ubicarse: qué es el sistema, cómo
 está partido, qué está verificado y dónde mirar. La arquitectura completa, en
 4+1 vistas con C4 y UML, está en [arquitectura-c4.md](arquitectura-c4.md); el
 detalle, en los documentos enlazados.
@@ -15,7 +15,7 @@ percepción activa** ([libro 1](libro/00-prologo.md)) y es **determinista**: con
 las mismas lecturas da las mismas escenas, así que una noche se repite sin
 cámara.
 
-## El lazo, en dos niveles
+## El lazo, en capas
 
 ```mermaid
 flowchart TB
@@ -30,9 +30,15 @@ flowchart TB
         Q --> L["acostado de verdad\n(plano de la cama)"]
         Q --> S["postura: acostado o erguido\n(disparidad relativa)"]
     end
+    C -->|"solo lectura"| B
+    Q -->|"la cabeza en la cama"| B
+    subgraph L1["Capa 1 · ¿sigue acostado? (R18)"]
+        B["postura de cama\nen la cama · acostado · incorporado · intentando salir"]
+    end
     C --> E["scene.v4 · events.v4"]
     L --> E
     S --> E
+    B --> E
 ```
 
 - **Nivel 1** es lo que no se negocia: la ocupación por zonas con seis reglas de
@@ -41,7 +47,12 @@ flowchart TB
   R4–R6).
 - **Nivel 2** lee al primero y nunca lo escribe: si está acostado de verdad, en
   qué postura está y la profundidad de cada punto del cuerpo
-  ([libro 2](docs/libro-2/00-prologo.md), R8–R9).
+  ([libro 2](libro-2/00-prologo.md), R8–R9).
+- **Capa 1, la postura de cama** (R18, proyecto 29): al que dejaron acostado,
+  ¿sigue acostado, se incorporó o intenta salir? Otra máquina con su tabla, que
+  lee la ocupación como entrada y nunca la rompe; decide con dónde está la
+  cabeza en la cama y, solo en la cabecera, con la profundidad. Se informa al
+  salir de acostado, no al entrar ([libro 3, cap. 10](libro-3/10-la-capa-1-sobre-la-capa-0.md)).
 - **El motor hace una cosa y bien** (R9-5): publica hechos por muestra. Suavizar
   en el tiempo, confirmar y avisar es de los consumidores.
 
@@ -51,7 +62,7 @@ flowchart TB
 | --- | --- | --- |
 | Qué | Creer y decidir qué mirar | Recibir video, mirar con modelos, publicar |
 | IO | Ninguno (regla 8) | RTSP, ONNX, NATS |
-| Prueba | Gherkin con sentidos guionados y mutaciones; escenas golden | Gherkin `@cascara` con modelos guionados; corridas medidas |
+| Prueba | Gherkin con sentidos guionados y mutaciones; escenas golden | Gherkin `@shell` con modelos guionados; corridas medidas |
 | Costura | `handle(Input)` y `drive`: el núcleo pide con `&Probe`, la cáscara responde con una `Reading` | |
 
 Fuera de los dos quedan las herramientas, que leen solo el contrato publicado:
@@ -89,9 +100,11 @@ scene-analytics; rerun-bridge ya lee v4.
 
 | Qué | Cómo |
 | --- | --- |
-| Nivel 1 | 122 escenarios Gherkin del núcleo en `scripts/check.sh`, cada regla con un guardián que se prueba rompiéndolo (`scripts/check-guardians.sh`), mutaciones, propiedades `proptest`, escenas golden S1–S8 y la noche real de sample1 repetida por el detector |
+| Todo el motor | 186 escenarios Gherkin del núcleo en `scripts/check.sh` (catálogo generado en el [workshop v2](workshop-director-v2/99-catalogo-de-escenarios.md)) |
+| Nivel 1 | Los escenarios de `occupancy/` y `attention/`, cada regla con un guardián que se prueba rompiéndolo (`scripts/check-guardians.sh`), mutaciones, propiedades `proptest`, escenas golden S1–S8 y la noche real de sample1 repetida por el detector |
 | Nivel 2 | 901–904: escenarios con figuras del cuerpo y mutaciones; medido en vivo sobre sample1 (912) |
-| Cáscara | 54 escenarios `@cascara`; latencia medida con los cinco sentidos (p90 de la vuelta de 235 a 477 ms contra 1000) |
+| Capa 1 | 17 escenarios (`bed-posture/`), tabla dorada `contract/bed-posture-table.txt`, cada regla con su mutación; **sin medir en noches reales** (vador1 etiquetada en propuesta, proyecto 29) |
+| Cáscara | 76 escenarios `@shell`; latencia medida con los cinco sentidos (p90 de la vuelta de 235 a 477 ms contra 1000) |
 | Cadena de la POC | Replay de la noche de sample1: 327 escenas → 327 observaciones; perception-bridge da un `STANDING` y un `IN_BED`. En vivo: **pendiente** |
 
 ## El mapa de proyectos (calipso-roadmap)
@@ -106,16 +119,21 @@ scene-analytics; rerun-bridge ya lee v4.
 | 20 | R8: pose, profundidad y calibración (política y capacidad) |
 | 21 | R9: el segundo nivel (acostado de verdad, postura, Rerun, medición) |
 | 22 | La escena v3 hacia afuera: los consumidores de la POC leen `scene.v3` |
-| — | El contrato v4 y el retiro de v3; la vuelta en una sola llamada (ADR del 2026-10-11) |
+| 23–24 | La capa 0 como máquina pura con observadores; el contrato v4 y el retiro de v3 |
+| 25 | Los consumidores de la POC a v4 (**sin empezar**: la cadena hasta el panel está cortada) |
+| 26 | El foco en la cama y su centinela |
+| 27 | R16: la postura por cabezas (grupos del cuerpo, veredicto en la cama) |
+| 28 | R17: la cadera tapada (el centro de la cama, solo con la cabeza en la cabecera) |
+| 29 | R18: la capa 1, la postura de cama, y la postura según la cámara |
 
 ## Dónde mirar
 
-- **Para trabajar con la dirección médica:** el [workshop](workshop-director/00-guia.md).
+- **Para trabajar con la dirección médica:** el [workshop v2](workshop-director-v2/00-guia.md), en dos sesiones (ocupación y postura); el [primero](workshop-director/00-guia.md).
 - **Qué hace el sistema, para el cuidado:** [documento funcional de la POC v3](funcional-poc-v3.md)
   y [escenarios para el directorio](directorio-escenarios.md).
 - **Cómo está construido:** [arquitectura en 4+1 vistas](arquitectura-c4.md) y el
   [DESIGN del motor](../calipso-detector/crates/scene-core/DESIGN.md).
-- **Por qué es así:** [libro 1](libro/00-prologo.md) y [libro 2](docs/libro-2/00-prologo.md).
-- **Qué está hecho y las decisiones:** [specs](../specs/README.md) (R4–R9) y los ADR en [`docs/adr/`](adr).
+- **Por qué es así:** [libro 1](libro/00-prologo.md), [libro 2](libro-2/00-prologo.md) y [libro 3](libro-3/00-prologo.md) (las tablas de la capa 0 y la capa 1).
+- **Qué está hecho y las decisiones:** [specs](specs/README.md) (R4–R18) y los [ADR](adr).
 - **Cómo levantar la POC:** `docs/RUNBOOK-SCENE-V3.md` en nats-event-recorder (rama `feat/scene-v3`).
-- **Dónde quedamos:** `calipso-roadmap/HANDOFF-2026-10-10.md`.
+- **Dónde quedamos:** `calipso-roadmap/HANDOFF-2026-10-13.md`.
