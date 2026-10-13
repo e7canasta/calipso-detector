@@ -11,7 +11,7 @@ use crate::evidence::FaceEvidence;
 use crate::evidence::RejectReason;
 use crate::geom::Point;
 use crate::geom::Rect;
-use crate::head::{self, HeadPlace};
+use crate::head::HeadPlace;
 use crate::look::FaceRegion;
 use crate::look::{DepthTarget, Failure, LookKind};
 use crate::map::BedPlane;
@@ -281,24 +281,6 @@ pub(crate) fn deepen(
             head,
         }),
     })
-}
-
-/// Where the head is, with what this turn saw: the faces and the pose,
-/// against the headboard and the bed's plane (R17, R18). A fact of the turn
-/// with a pose, with or without depth: the depth look and layer 1 read it.
-pub(crate) fn head_place(g: &Glimpse<'_>, pose: Option<&[Keypoint]>, policy: &Policy) -> HeadPlace {
-    let min_score = policy
-        .enrich
-        .as_ref()
-        .map_or(f32::INFINITY, |p| p.min_keypoint_score);
-    let bounds = g
-        .map
-        .headboard_for(g.geometry)
-        .map(|headboard| head::Bounds {
-            headboard,
-            bed: g.map.bed_for(g.geometry).and_then(BedPlane::of),
-        });
-    head::place(g.faces, pose, bounds, min_score)
 }
 
 /// The subject's depth look, with where the head was concluded to be when it

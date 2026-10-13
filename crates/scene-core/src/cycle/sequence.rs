@@ -335,9 +335,8 @@ impl Course<'_> {
     }
 
     fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
-        let Perceived { bodies, faces } = &observed.evidence;
-        let g = self.glimpse(bodies, faces);
-        attention::head_place(&g, pose, &self.monitor.engine.policy)
+        let Engine { policy, map, .. } = &self.monitor.engine;
+        crate::head::of_turn(&observed.evidence.faces, pose, map, self.geometry, policy)
     }
 
     fn deepen(

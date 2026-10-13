@@ -7,7 +7,8 @@
 use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
 use crate::geom::{Point, Rect};
-use crate::map::{BedArea, BedPlane};
+use crate::map::{BedArea, BedPlane, Geometry, Map};
+use crate::policy::Policy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -81,11 +82,37 @@ const HEAD: [Joint; 5] = [
 /// Where a head can be: the headboard region and, if known, the bed's plane.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Bounds {
-    pub(crate) headboard: Rect,
-    pub(crate) bed: Option<BedPlane>,
+    headboard: Rect,
+    bed: Option<BedPlane>,
+}
+
+/// Where the head is in a turn with a pose, with what it saw (the faces and
+/// the pose) against the site's headboard and bed (R17, R18). A fact of the
+/// turn, with or without depth: the depth look and layer 1 read it.
+pub(crate) fn of_turn(
+    faces: &FaceEvidence,
+    pose: Option<&[Keypoint]>,
+    map: &Map,
+    geometry: Geometry,
+    policy: &Policy,
+) -> HeadPlace {
+    let min_score = policy
+        .enrich
+        .as_ref()
+        .map_or(f32::INFINITY, |p| p.min_keypoint_score);
+    place(faces, pose, Bounds::of_site(map, geometry), min_score)
 }
 
 impl Bounds {
+    /// The site's: its headboard and its bed's plane, when the geometry
+    /// applies. Without the headboard delimited, none.
+    fn of_site(map: &Map, geometry: Geometry) -> Option<Self> {
+        map.headboard_for(geometry).map(|headboard| Self {
+            headboard,
+            bed: map.bed_for(geometry).and_then(BedPlane::of),
+        })
+    }
+
     /// Where a point of the head falls: the headboard region first; away from
     /// it, in the bed's u/v, past its sides or inside it.
     fn of(&self, p: Point) -> HeadPlaceState {
