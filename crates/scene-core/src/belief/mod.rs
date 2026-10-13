@@ -1,7 +1,8 @@
 //! The belief: how many are in the room, who is still in bed even when unseen,
-//! and who the subject is. One aggregate per camera; it never sees a raw
-//! reading.
+//! who the subject is and, for the one left lying, their bed posture. One
+//! aggregate per camera; it never sees a raw reading.
 
+pub(crate) mod bed_posture;
 mod occupancy;
 mod subject;
 
@@ -14,6 +15,8 @@ use crate::time::SampleRef;
 use crate::zone::Zone;
 use occupancy::Machine;
 use subject::SubjectMemory;
+
+pub use bed_posture::{BedPosture, BedPostureSeen, BedPostureState};
 
 pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, Room, Tally, Transition};
 pub(crate) use subject::{Enrichment, SubjectBody};
@@ -56,6 +59,8 @@ pub(crate) struct Belief {
     occupancy: Machine,
     subject: SubjectMemory,
     latch: LatchState,
+    /// Layer 1: followed only with its policy.
+    bed_posture: bed_posture::Machine,
 }
 
 /// The reinforcement memory: "someone was seen in bed". It is belief; firing
@@ -136,6 +141,18 @@ impl Belief {
             .subject
             .observe(at, believed.subject.as_ref(), enrichment);
         believed
+    }
+
+    /// Layer 1 with what the second level saw of the subject in bed: the bed
+    /// posture, if its policy follows it. It reads layer 0 and never changes
+    /// it.
+    pub(crate) fn observe_bed_posture(
+        &mut self,
+        seen: Option<BedPostureSeen>,
+        policy: &Policy,
+    ) -> Option<bed_posture::Concluded> {
+        policy.bed_posture?;
+        self.bed_posture.step(seen)
     }
 
     /// Reinforcement looked: the latch is spent until the main detector sees

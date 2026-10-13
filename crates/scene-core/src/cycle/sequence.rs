@@ -245,6 +245,10 @@ impl Course<'_> {
     /// What the engine observed in the turn. It reads neither the chronicle
     /// nor the last scene.
     pub(super) fn observed(&mut self, observed: Observed) -> Conclusion {
+        // Layer 1, with what the second level saw of the subject in bed.
+        let seen = crate::refine::seen(&observed.believed);
+        let Engine { policy, belief, .. } = &mut self.monitor.engine;
+        let bed_posture = belief.observe_bed_posture(seen, policy);
         let engine = &self.monitor.engine;
         // The second level reads what was concluded and delivers its result.
         let refined = crate::refine::refine(
@@ -257,6 +261,7 @@ impl Course<'_> {
             at: self.at,
             believed: observed.believed,
             refined,
+            bed_posture,
             evidence: observed.evidence,
             frame: engine.frame,
             calibrated: observed.calibrated,

@@ -13,6 +13,7 @@
 #![allow(clippy::disallowed_methods)]
 
 mod attention;
+mod bed_posture;
 mod contract;
 mod occupancy;
 mod posture;

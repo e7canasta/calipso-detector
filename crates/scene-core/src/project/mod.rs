@@ -10,6 +10,8 @@
 pub(crate) mod v4;
 
 use crate::attention::Attention;
+use crate::belief::BedPosture;
+use crate::belief::bed_posture::Concluded;
 use crate::belief::{Believed, Occupancy, Occupants, Subject as BelievedSubject};
 use crate::chronicle::{BedKind, Chronicled};
 use crate::conclusion::RepublishReason;
@@ -128,6 +130,7 @@ fn unobserved(bodies: &BodyEvidence, observed: Option<SampleRef>) -> Option<Repu
 fn publish_subject(
     believed: &Believed,
     refined: Refinement,
+    bed_posture: Option<Concluded>,
     chronicled: &Chronicled,
 ) -> Option<Subject> {
     let s = believed.subject?;
@@ -148,6 +151,11 @@ fn publish_subject(
             state: r.state,
             by: r.by,
             since: chronicled.verdict.since,
+        }),
+        bed_posture: bed_posture.map(|b| BedPosture {
+            state: b.state,
+            seen: b.seen,
+            since: chronicled.bed_posture.since,
         }),
     })
 }

@@ -169,6 +169,59 @@
         "y"
       ]
     },
+    "BedPosture": {
+      "description": "The published bed posture: the state, what was seen in this sample and\nsince when the state holds (a fold of the chronicle, P4).",
+      "type": "object",
+      "properties": {
+        "seen": {
+          "description": "What was seen in this sample.",
+          "$ref": "#/$defs/BedPostureSeen"
+        },
+        "since": {
+          "description": "The first sample of this state, without interruption.",
+          "$ref": "#/$defs/SampleRef"
+        },
+        "state": {
+          "description": "How the resident in bed is.",
+          "$ref": "#/$defs/BedPostureState"
+        }
+      },
+      "required": [
+        "state",
+        "seen",
+        "since"
+      ]
+    },
+    "BedPostureSeen": {
+      "description": "What layer 1 saw in a sample: the column of its table.",
+      "oneOf": [
+        {
+          "description": "Held in bed, alone: unseen without leaving.",
+          "type": "string",
+          "const": "held"
+        },
+        {
+          "description": "Nothing that says how they are: the state holds.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "BedPostureState": {
+      "description": "How the resident in bed is, as layer 1 believes it.",
+      "oneOf": [
+        {
+          "description": "In bed, not yet believed lying: they just came in, or were there at\nstartup. From here only lying is reported.",
+          "type": "string",
+          "const": "in_bed"
+        },
+        {
+          "description": "Lying: held in bed, where upright would be seen.",
+          "type": "string",
+          "const": "lying"
+        }
+      ]
+    },
     "BedSite": {
       "description": "A fixed place on the bed where depth is read in the same look as the body:\ncovered, the bed stands in for what the pose does not see (R17).",
       "oneOf": [
@@ -1911,6 +1964,17 @@
         "bbox": {
           "description": "Their box, in image pixels.",
           "$ref": "#/$defs/Rect"
+        },
+        "bed_posture": {
+          "description": "Layer 1: the bed posture of the resident left lying, when the profile\nfollows it (R18, 1806).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BedPosture"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "confidence": {
           "description": "The detector's score for that box.",

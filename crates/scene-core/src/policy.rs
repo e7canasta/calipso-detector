@@ -82,6 +82,11 @@ pub struct CalibrationPolicy {
     pub retry_secs: f64,
 }
 
+/// Follow the resident they left lying: layer 1, the bed posture (R18, 1806).
+/// Its thresholds come with the scenarios that need them (1804).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct BedPosturePolicy {}
+
 /// The policies of one camera. Optional senses start switched off.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Policy {
@@ -104,6 +109,8 @@ pub struct Policy {
     /// its width and height on each side, centred on the bed. The depth is
     /// relative to what the model sees, so both measure through the same crop.
     pub depth_pad: Option<f32>,
+    /// `None`: layer 1 does not exist; nothing follows the bed posture.
+    pub bed_posture: Option<BedPosturePolicy>,
 }
 
 impl Default for Policy {
@@ -121,6 +128,7 @@ impl Default for Policy {
             enrich: None,
             calibration: None,
             depth_pad: None,
+            bed_posture: None,
         }
     }
 }

@@ -6,6 +6,7 @@
 mod lying;
 mod plane;
 mod posture;
+mod seen;
 mod verdict;
 
 use crate::belief::SubjectBody;
@@ -18,6 +19,7 @@ pub(crate) use verdict::Ruling;
 pub use verdict::{Head, Verdict, VerdictState};
 
 pub(crate) use plane::BedPlane;
+pub(crate) use seen::seen;
 
 /// What the second level derives from the subject's pose.
 #[derive(Debug, Clone, Default, PartialEq)]

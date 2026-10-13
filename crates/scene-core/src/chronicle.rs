@@ -4,7 +4,7 @@
 //! one that translates the fold into the contract. Nobody reads it to decide
 //! (P1, P4).
 
-use crate::belief::{Alone, Occupants, Room, Transition};
+use crate::belief::{Alone, BedPostureState, Occupants, Room, Transition};
 use crate::conclusion::Observation;
 use crate::evidence::BodyEvidence;
 use crate::refine::VerdictState;
@@ -25,6 +25,8 @@ pub(crate) struct Chronicle {
     bed: Since<BedKind>,
     /// Since when the second level's verdict holds; `None` is "no verdict".
     verdict: Since<Option<VerdictState>>,
+    /// Since when layer 1's state holds; `None` is "not followed".
+    bed_posture: Since<Option<BedPostureState>>,
     observed: Option<SampleRef>,
     /// The last layer-0 transition: its sample and the counts that name its cell.
     transition: Option<(SampleRef, TransitionKey)>,
@@ -37,6 +39,7 @@ impl Default for Chronicle {
             room: Since::new(RoomName::Empty),
             bed: Since::new(BedKind::Empty),
             verdict: Since::new(None),
+            bed_posture: Since::new(None),
             observed: None,
             transition: None,
         }
@@ -50,6 +53,7 @@ pub(crate) struct Chronicled {
     pub room: Stamp<RoomName>,
     pub bed: Stamp<BedKind>,
     pub verdict: Stamp<Option<VerdictState>>,
+    pub bed_posture: Stamp<Option<BedPostureState>>,
     pub observed: Option<SampleRef>,
     /// The sample of the transition before this turn's: since when what we
     /// believed held. `None` if this turn had no transition or it is the first.
@@ -126,6 +130,8 @@ pub(crate) struct Entry {
     pub bed: BedKind,
     /// The second level's verdict, if any.
     pub verdict: Option<VerdictState>,
+    /// Layer 1's state, if followed.
+    pub bed_posture: Option<BedPostureState>,
     /// Whether the turn saw bodies per zone.
     pub seen: bool,
     /// The transition, if layer 0 changed in this turn.
@@ -143,6 +149,7 @@ impl Entry {
             room: RoomName::of(occupants),
             bed: BedKind::of(occupants, occupancy.bed_known),
             verdict: observation.refined.verdict.as_ref().map(|r| r.state),
+            bed_posture: observation.bed_posture.map(|b| b.state),
             seen: matches!(observation.evidence.bodies.bodies, BodyEvidence::Seen(_)),
             transition: observation
                 .believed
@@ -161,6 +168,7 @@ impl Chronicle {
             room,
             bed,
             verdict,
+            bed_posture,
             seen,
             transition,
         } = entry;
@@ -177,6 +185,7 @@ impl Chronicle {
             room: self.room.update(room, at),
             bed: self.bed.update(bed, at),
             verdict: self.verdict.update(verdict, at),
+            bed_posture: self.bed_posture.update(bed_posture, at),
             observed: self.observed,
             transition_since,
             last_transition: self.transition.as_ref().map(|(_, key)| *key),
@@ -251,6 +260,7 @@ mod tests {
             room,
             bed,
             verdict: None,
+            bed_posture: None,
             seen,
             transition: None,
         }

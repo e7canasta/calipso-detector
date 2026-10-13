@@ -1,0 +1,5 @@
+# before | seen | after
+in_bed | held | lying
+in_bed | unknown | in_bed
+lying | held | lying
+lying | unknown | lying
