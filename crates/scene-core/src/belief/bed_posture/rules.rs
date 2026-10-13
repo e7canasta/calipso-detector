@@ -35,4 +35,6 @@ pub(super) fn decide(
 }
 
 #[cfg(test)]
+mod frame;
+#[cfg(test)]
 mod table;

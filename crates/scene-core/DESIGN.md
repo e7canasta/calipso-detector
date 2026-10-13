@@ -264,11 +264,14 @@ pure           perceives                                                    its 
 The row is `l1(t−1) : l0(t) + seen(t) : l1(t)`: layer 0 is an input of
 layer 1, never the other way round.
 
-- **What layer 1 perceives** (`refine::sighting`, pure, a `Sighting`): from a
-  fresh pose only, in this order, a foot past the bed's sides, the head past
-  them, the head away from the headboard, and, only with the head at the
-  headboard, the disparity (lying or upright). A kept pose says nothing new:
-  `unknown`. It does not read layer 0.
+- **What layer 1 perceives** (`refine::sighting`, pure, a `Sighting`), in two
+  steps. First the **body's places** (`BodyPlaces`: where the head is, where
+  the feet are as a set, the disparity), the trama's `hfd`. Then
+  `BodyPlaces::sighting`, a decision list in this order: a foot past the bed's
+  sides, the head past them, the head away from the headboard, and, only with
+  the head at the headboard, the disparity (lying or upright). A kept pose
+  places nothing: `unknown`. It does not read layer 0. The golden trama
+  `contract/bed-posture-frame.txt` crosses every place with every state.
 - **The rules** (`rules::decide`): without the resident alone in bed (layer
   0) there is no layer 1; it is born in bed; held in bed (layer 0) or lying
   at the headboard is lying; in bed, only lying moves it; once lying, what is
@@ -365,6 +368,7 @@ One concept, one name.
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
 | layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
+| body places | `refine::BodyPlaces`, `FeetPlace` | Where each part layer 1 reads is in a sample: the head (`HeadPlaceState`), the feet as a set (unseen, seen, past the bed's sides: one out is out) and the disparity (`PostureState`). The trama's `hfd`; a kept pose places nothing |
 | sighting, seen (layer 1) | `bed_posture::Sighting`, `refine::sighting`; `BedPostureSeen` | What layer 1 perceives by itself in a sample (`headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown`); published as `seen`, which says `held` when layer 0 holds the resident |
 | decide | `bed_posture::rules::decide` | Layer 1's pure decider, the row `l1(t−1) : l0(t) + seen(t) : l1(t)`; the golden table `contract/bed-posture-table.txt` |
 
