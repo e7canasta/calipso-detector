@@ -1,10 +1,21 @@
 # before | seen | after
 in_bed | held | lying
+in_bed | legs_out | in_bed
+in_bed | head_side | in_bed
 in_bed | head_away | in_bed
 in_bed | unknown | in_bed
 lying | held | lying
+lying | legs_out | getting_out
+lying | head_side | getting_out
 lying | head_away | sitting_up
 lying | unknown | lying
 sitting_up | held | lying
+sitting_up | legs_out | getting_out
+sitting_up | head_side | getting_out
 sitting_up | head_away | sitting_up
 sitting_up | unknown | sitting_up
+getting_out | held | lying
+getting_out | legs_out | getting_out
+getting_out | head_side | getting_out
+getting_out | head_away | sitting_up
+getting_out | unknown | getting_out

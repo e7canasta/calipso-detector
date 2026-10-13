@@ -72,3 +72,23 @@ Feature: The bed posture: the resident they left lying
       Then in sample 23 the bed posture is "lying", seen "unknown"
       And in sample 24 the bed posture is "sitting_up", seen "head_away"
       And in sample 26 the bed posture is "sitting_up"
+
+  Rule: Once lying, the head or the feet past the bed's sides are getting out
+
+    Scenario: Lying, the head goes past the side of the bed
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose        | occupants | bed            |
+        | 11-20   | 0        |       | 0      |               |             | 1         | occupied, held |
+        | 21-23   | 0        |       | 1      |               | lying       | 1         | occupied, seen |
+        | 24      | 0        |       | 1      | yes           | leaning out | 1         | occupied, seen |
+      Then in sample 24 the bed posture is "getting_out", seen "head_side"
+
+    Scenario: Lying, the feet go past the side of the bed, with the head at the headboard
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose                | occupants | bed            |
+        | 11-20   | 0        |       | 0      |               |                     | 1         | occupied, held |
+        | 21-23   | 0        |       | 1      |               | lying               | 1         | occupied, seen |
+        | 24      | 0        |       | 1      | yes           | sitting on the edge | 1         | occupied, seen |
+      Then in sample 24 the bed posture is "getting_out", seen "legs_out"

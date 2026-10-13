@@ -206,6 +206,16 @@
           "const": "head_away"
         },
         {
+          "description": "The head seen past the bed's sides.",
+          "type": "string",
+          "const": "head_side"
+        },
+        {
+          "description": "A foot seen past the bed's sides: getting up from below.",
+          "type": "string",
+          "const": "legs_out"
+        },
+        {
           "description": "Nothing that says how they are: the state holds.",
           "type": "string",
           "const": "unknown"
@@ -229,6 +239,11 @@
           "description": "Sat up, after lying: the head seen away from the headboard. Sliding\ndown the bed is sitting up too, on purpose: it deserves a look (G-13).",
           "type": "string",
           "const": "sitting_up"
+        },
+        {
+          "description": "Getting out, after lying: the head or the feet seen past the bed's\nsides.",
+          "type": "string",
+          "const": "getting_out"
         }
       ]
     },

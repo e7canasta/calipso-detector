@@ -2,34 +2,59 @@
 //! symbol, the column of the bed-posture table. It reads, never writes the
 //! belief.
 
-use crate::belief::{Alone, BedPostureSeen, Believed, InBed, Room};
+use super::BedPlane;
+use crate::belief::{Alone, BedPostureSeen, Believed, InBed, Room, SubjectBody};
+use crate::body::Joint;
+use crate::geom::{Point, Quad};
 use crate::head::HeadPlaceState;
+use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
 
 /// Nothing while layer 0 does not believe the resident alone in bed. Held in
-/// bed is held. Seen, where the head is in a fresh pose: away from the
-/// headboard (below it in bed, or anywhere but past the sides) is not lying,
-/// by definition. A pose kept from before says nothing new: retained evidence
+/// bed is held. Seen, from a fresh pose and in this order: a foot past the
+/// bed's sides; the head past them; the head away from the headboard (below
+/// it in bed, or anywhere but past the sides), which is not lying by
+/// definition. A pose kept from before says nothing new: retained evidence
 /// holds, it does not change (SPEC-MULTIHEAD, rule 4).
-pub(crate) fn seen(believed: &Believed) -> Option<BedPostureSeen> {
+pub(crate) fn seen(
+    believed: &Believed,
+    bed: Option<&Quad>,
+    enrich: Option<&EnrichPolicy>,
+) -> Option<BedPostureSeen> {
     match Room::of(believed.occupancy.occupants()) {
         Room::Alone(Alone::InBed(InBed::Held)) => Some(BedPostureSeen::Held),
-        Room::Alone(Alone::InBed(InBed::Seen)) => Some(by_head(believed)),
+        Room::Alone(Alone::InBed(InBed::Seen)) => {
+            let fresh = believed
+                .body
+                .as_ref()
+                .filter(|b| b.pose.provenance == Provenance::Current);
+            Some(fresh.map_or(BedPostureSeen::Unknown, |body| {
+                by_body(body, bed.and_then(BedPlane::of), enrich)
+            }))
+        }
         Room::Empty | Room::Alone(Alone::Out) | Room::Accompanied(_) => None,
     }
 }
 
-fn by_head(believed: &Believed) -> BedPostureSeen {
-    let head = believed
-        .body
-        .as_ref()
-        .filter(|b| b.pose.provenance == Provenance::Current)
-        .map(|b| b.head_place.state);
-    match head {
-        Some(HeadPlaceState::BelowHeadboard | HeadPlaceState::Elsewhere) => {
-            BedPostureSeen::HeadAway
-        }
-        Some(HeadPlaceState::AtHeadboard | HeadPlaceState::AtSide | HeadPlaceState::Unknown)
-        | None => BedPostureSeen::Unknown,
+fn by_body(
+    body: &SubjectBody,
+    plane: Option<BedPlane>,
+    enrich: Option<&EnrichPolicy>,
+) -> BedPostureSeen {
+    let min_score = enrich.map_or(f32::INFINITY, |p| p.min_keypoint_score);
+    let past_the_sides =
+        |p: Point| plane.is_some_and(|bed| !(0.0..=1.0).contains(&bed.project(p).0));
+    let legs_out = body.pose.keypoints.iter().any(|k| {
+        matches!(k.name, Some(Joint::LeftAnkle | Joint::RightAnkle))
+            && k.score >= min_score
+            && past_the_sides(Point { x: k.x, y: k.y })
+    });
+    if legs_out {
+        return BedPostureSeen::LegsOut;
+    }
+    match body.head_place.state {
+        HeadPlaceState::AtSide => BedPostureSeen::HeadSide,
+        HeadPlaceState::BelowHeadboard | HeadPlaceState::Elsewhere => BedPostureSeen::HeadAway,
+        HeadPlaceState::AtHeadboard | HeadPlaceState::Unknown => BedPostureSeen::Unknown,
     }
 }

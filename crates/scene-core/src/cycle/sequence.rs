@@ -246,7 +246,11 @@ impl Course<'_> {
     /// nor the last scene.
     pub(super) fn observed(&mut self, observed: Observed) -> Conclusion {
         // Layer 1, with what the second level saw of the subject in bed.
-        let seen = crate::refine::seen(&observed.believed);
+        let seen = crate::refine::seen(
+            &observed.believed,
+            self.monitor.engine.map.bed_for(self.geometry),
+            self.monitor.engine.policy.enrich.as_ref(),
+        );
         let Engine { policy, belief, .. } = &mut self.monitor.engine;
         let bed_posture = belief.observe_bed_posture(seen, policy);
         let engine = &self.monitor.engine;

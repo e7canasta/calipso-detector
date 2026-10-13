@@ -31,6 +31,9 @@ pub enum BedPostureState {
     /// Sat up, after lying: the head seen away from the headboard. Sliding
     /// down the bed is sitting up too, on purpose: it deserves a look (G-13).
     SittingUp,
+    /// Getting out, after lying: the head or the feet seen past the bed's
+    /// sides.
+    GettingOut,
 }
 
 /// What layer 1 saw in a sample: the column of its table.
@@ -42,6 +45,10 @@ pub enum BedPostureSeen {
     /// The head seen away from the headboard, but not past the bed's sides:
     /// by definition, not lying.
     HeadAway,
+    /// The head seen past the bed's sides.
+    HeadSide,
+    /// A foot seen past the bed's sides: getting up from below.
+    LegsOut,
     /// Nothing that says how they are: the state holds.
     Unknown,
 }

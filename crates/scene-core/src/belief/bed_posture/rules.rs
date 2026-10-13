@@ -10,14 +10,16 @@ use super::{BedPostureSeen, BedPostureState};
 /// - Held in bed is lying: upright is big and would be seen.
 /// - Entering the bed nothing is reported: in bed, only lying moves it.
 /// - Once lying, what is seen now rules: the head away from the headboard is
-///   sitting up.
+///   sitting up; the head or a foot past the bed's sides, getting out.
 /// - What says nothing holds the state.
 pub(super) fn decide(before: BedPostureState, seen: BedPostureSeen) -> BedPostureState {
-    use BedPostureState::{InBed, Lying, SittingUp};
+    use BedPostureSeen::{HeadAway, HeadSide, Held, LegsOut, Unknown};
+    use BedPostureState::{GettingOut, InBed, Lying, SittingUp};
     match (before, seen) {
-        (_, BedPostureSeen::Held) => Lying,
-        (_, BedPostureSeen::Unknown) | (InBed, BedPostureSeen::HeadAway) => before,
-        (Lying | SittingUp, BedPostureSeen::HeadAway) => SittingUp,
+        (_, Held) => Lying,
+        (_, Unknown) | (InBed, _) => before,
+        (Lying | SittingUp | GettingOut, HeadAway) => SittingUp,
+        (Lying | SittingUp | GettingOut, HeadSide | LegsOut) => GettingOut,
     }
 }
 

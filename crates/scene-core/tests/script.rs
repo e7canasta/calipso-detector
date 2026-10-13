@@ -169,6 +169,9 @@ pub enum Figure {
     FeetFar,
     /// Lying, with an arm hanging off the bed.
     ArmOut,
+    /// Leaning out over the side: the head and shoulders past the bed's left
+    /// edge (x 100 in the test world).
+    LeaningOut,
     /// Sitting on the edge, with the legs off the bed.
     SittingOnTheEdge,
     /// Sitting up: the head and shoulders project beyond the headboard.
@@ -210,6 +213,11 @@ impl Figure {
             Figure::ArmOut => {
                 p[7] = (-170.0, -20.0, 0.9);
                 p[9] = (-200.0, 10.0, 0.9);
+            }
+            Figure::LeaningOut => {
+                for point in p.iter_mut().take(7) {
+                    point.0 -= 200.0;
+                }
             }
             Figure::SittingOnTheEdge => {
                 p[13] = (280.0, 30.0, 0.9);

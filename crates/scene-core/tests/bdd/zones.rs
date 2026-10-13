@@ -143,6 +143,7 @@ fn figure(name: &str) -> crate::script::Figure {
         "lying, feet covered" => Figure::FeetCovered,
         "lying, feet far" => Figure::FeetFar,
         "an arm out" => Figure::ArmOut,
+        "leaning out" => Figure::LeaningOut,
         "sitting on the edge" => Figure::SittingOnTheEdge,
         "sitting up" => Figure::SittingUp,
         "no torso" => Figure::NoTorso,

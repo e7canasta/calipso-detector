@@ -8,13 +8,16 @@ use serde::Serialize;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/bed-posture-table.txt");
 
-const STATES: [BedPostureState; 3] = [
+const STATES: [BedPostureState; 4] = [
     BedPostureState::InBed,
     BedPostureState::Lying,
     BedPostureState::SittingUp,
+    BedPostureState::GettingOut,
 ];
-const SEEN: [BedPostureSeen; 3] = [
+const SEEN: [BedPostureSeen; 5] = [
     BedPostureSeen::Held,
+    BedPostureSeen::LegsOut,
+    BedPostureSeen::HeadSide,
     BedPostureSeen::HeadAway,
     BedPostureSeen::Unknown,
 ];
