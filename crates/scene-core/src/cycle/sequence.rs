@@ -141,20 +141,16 @@ impl Course<'_> {
                     pose,
                     bbox,
                 } => {
-                    let considered = self.deepen(&observed, pose.as_deref());
+                    let head = self.head_place(&observed, pose.as_deref());
+                    let considered = self.deepen(&observed, pose.as_deref(), head);
                     match (self.wanted(LookKind::Depth, considered), pose) {
                         (Some(points), Some(pose)) => {
                             return Phase::Waiting(Waiting::depth(observed, pose, bbox, points));
                         }
                         (_, pose) => {
                             let primary_seen = observed.evidence.bodies.primary_seen();
-                            let enrichment = Enrichment::fresh(
-                                pose,
-                                None,
-                                HeadPlace::UNKNOWN,
-                                bbox,
-                                primary_seen,
-                            );
+                            let enrichment =
+                                Enrichment::fresh(pose, None, head, bbox, primary_seen);
                             Reached::Enriched(observed, enrichment)
                         }
                     }
@@ -337,14 +333,21 @@ impl Course<'_> {
         attention::enrich(believed, reference, since, self.at, policy)
     }
 
+    fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
+        let Perceived { bodies, faces } = &observed.evidence;
+        let g = self.glimpse(bodies, faces);
+        attention::head_place(&g, pose, &self.monitor.engine.policy)
+    }
+
     fn deepen(
         &self,
         observed: &Observed,
         pose: Option<&[Keypoint]>,
+        head: HeadPlace,
     ) -> Consideration<SubjectDepthLook> {
         let Perceived { bodies, faces } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
-        attention::deepen(&g, pose, &self.monitor.engine.policy)
+        attention::deepen(&g, pose, head, &self.monitor.engine.policy)
     }
 
     /// What attention wants looked at, if anything. A no with its reason goes

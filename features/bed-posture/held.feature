@@ -82,6 +82,16 @@ Feature: The bed posture: the resident they left lying
       And in sample 24 the bed posture is "sitting_up", seen "head_away"
       And in sample 26 the bed posture is "sitting_up"
 
+    Scenario: Without a depth model, the geometry still says sitting up
+      Given there is no depth model
+      And the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose       | occupants | bed            |
+        | 11-20   | 0        |       | 0      |               |            | 1         | occupied, held |
+        | 21-23   | 0        |       | 1      |               | lying      | 1         | occupied, seen |
+        | 24      | 0        |       | 1      | yes           | sitting up | 1         | occupied, seen |
+      Then in sample 24 the bed posture is "sitting_up", seen "head_away"
+
   Rule: Once lying, the head or the feet past the bed's sides are getting out
 
     Scenario: Lying, the head goes past the side of the bed
@@ -165,3 +175,21 @@ Feature: The bed posture: the resident they left lying
         | 13      | 0        |       | 1      |               |             | 1         | occupied, seen |
       Then in sample 12 the bed posture is "lying"
       And in sample 13 the bed posture is "getting_out"
+
+  Rule: The same night gives the same bed posture
+
+    Scenario: A night replays without a camera and gives the same
+      Given the bed posture "sitting_up" must hold 2 seconds of source time
+      And the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose        | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | lying       | 1         | occupied, seen |
+        | 12-14   | 0        |       | 1      |               |             | 1         | occupied, seen |
+        | 15      | 0        |       | 1      | yes           | sitting up  | 1         | occupied, seen |
+        | 16-18   | 0        |       | 1      |               |             | 1         | occupied, seen |
+        | 19      | 0        |       | 1      | yes           | leaning out | 1         | occupied, seen |
+        | 20      | 0        |       | 1      | yes           | lying       | 1         | occupied, seen |
+        | 21-30   | 0        |       | 0      |               |             | 1         | occupied, held |
+      Then the same night, replayed with the same readings, gives the same scenes and events
+      And in sample 18 the bed posture is "sitting_up"
+      And in sample 30 the bed posture is "lying", seen "held"

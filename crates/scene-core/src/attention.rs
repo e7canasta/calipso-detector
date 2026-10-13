@@ -248,6 +248,7 @@ fn depth_lens(g: &Glimpse<'_>, policy: &Policy) -> Result<Option<Rect>, SkipReas
 pub(crate) fn deepen(
     g: &Glimpse<'_>,
     pose: Option<&[Keypoint]>,
+    head: HeadPlace,
     policy: &Policy,
 ) -> Consideration<SubjectDepthLook> {
     let lens = depth_lens(g, policy);
@@ -267,14 +268,6 @@ pub(crate) fn deepen(
     // The stand-in is situational: the bed's centre is the hips only with the
     // head at the headboard (1707). Away from it, the bed is not looked at.
     let plane = g.map.bed_for(g.geometry).and_then(BedPlane::of);
-    let bounds = g
-        .map
-        .headboard_for(g.geometry)
-        .map(|headboard| head::Bounds {
-            headboard,
-            bed: plane,
-        });
-    let head = head::place(g.faces, pose, bounds, policy.min_keypoint_score);
     if let Some(plane) = plane.filter(|_| head.at_headboard()) {
         points.extend(BedSite::ALL.map(|site| {
             let (u, v) = site.at();
@@ -288,6 +281,24 @@ pub(crate) fn deepen(
             head,
         }),
     })
+}
+
+/// Where the head is, with what this turn saw: the faces and the pose,
+/// against the headboard and the bed's plane (R17, R18). A fact of the turn
+/// with a pose, with or without depth: the depth look and layer 1 read it.
+pub(crate) fn head_place(g: &Glimpse<'_>, pose: Option<&[Keypoint]>, policy: &Policy) -> HeadPlace {
+    let min_score = policy
+        .enrich
+        .as_ref()
+        .map_or(f32::INFINITY, |p| p.min_keypoint_score);
+    let bounds = g
+        .map
+        .headboard_for(g.geometry)
+        .map(|headboard| head::Bounds {
+            headboard,
+            bed: g.map.bed_for(g.geometry).and_then(BedPlane::of),
+        });
+    head::place(g.faces, pose, bounds, min_score)
 }
 
 /// The subject's depth look, with where the head was concluded to be when it
