@@ -37,3 +37,12 @@ Feature: The bed posture: getting out over the sides
         | 21-23   | 0        |       | 1      |               | lying               | 1         | occupied, seen |
         | 24      | 0        |       | 1      | yes           | sitting on the edge | 1         | occupied, seen |
       Then in sample 24 the bed posture is "getting_out", seen "legs_out"
+
+    Scenario: The feet win over the head away from the headboard
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose                           | occupants | bed            |
+        | 11-20   | 0        |       | 0      |               |                                | 1         | occupied, held |
+        | 21-23   | 0        |       | 1      |               | lying                          | 1         | occupied, seen |
+        | 24      | 0        |       | 1      | yes           | sitting on the edge, head down | 1         | occupied, seen |
+      Then in sample 24 the bed posture is "getting_out", seen "legs_out"

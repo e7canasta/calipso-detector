@@ -51,11 +51,13 @@ min_keypoint_score = 0.5 # below it a keypoint is not seen: no depth, no reasoni
 
 [senses.depth]
 model = "yolo26s-depth.onnx" # subject (with pose) and empty bed (with calibration)
-# posture_tolerance: 0.05 by default; this camera does not need another.
-# Depth over the bed, for the subject and the empty bed alike. On the sample1
-# video (2026-10-12) the shoulders-hips disparity is +0.10..+0.39 lying and
-# -0.06..+0.01 sitting up; over the whole frame sitting up gave +0.00..+0.12,
-# on the lying side of the 0.05 tolerance.
+# posture_tolerance: 0.05 by default, measured on sample1, NOT on this camera.
+# Live here (2026-10-12) the head-and-shoulders against hips disparity read
+# about +0.15 lying and +0.02 sitting up (p90 +0.04), pressed against 0.05:
+# the engine's own classes, not hand labels. Layer 1 asks the disparity only
+# with the head at the headboard; the camera's own scale waits for vador1's
+# labels (R18, spec 1801).
+# Depth over the bed, for the subject and the empty bed alike.
 crop_pad = 0.25
 
 # Learn the empty bed at startup; requires [senses.depth].

@@ -177,6 +177,9 @@ pub enum Figure {
     LeaningOut,
     /// Sitting on the edge, with the legs off the bed.
     SittingOnTheEdge,
+    /// Sitting on the edge, legs off the bed, leaning forward: the head
+    /// below the headboard as well.
+    SittingOnTheEdgeHeadDown,
     /// Sitting up: the head and shoulders project beyond the headboard.
     SittingUp,
     /// Sitting up against the headboard: the head where lying puts it, the
@@ -230,6 +233,12 @@ impl Figure {
                     point.0 -= 200.0;
                 }
             }
+            Figure::SittingOnTheEdgeHeadDown => {
+                p = Figure::SittingOnTheEdge.keypoints();
+                for point in p.iter_mut().take(5) {
+                    point.1 += 60.0;
+                }
+            }
             Figure::SittingOnTheEdge => {
                 p[13] = (280.0, 30.0, 0.9);
                 p[14] = (290.0, 30.0, 0.9);
@@ -258,7 +267,7 @@ impl Figure {
     pub fn depth(self, y: f32) -> f32 {
         let slope = 0.002 * (300.0 - y);
         match self {
-            Figure::SittingOnTheEdge => 2.0,
+            Figure::SittingOnTheEdge | Figure::SittingOnTheEdgeHeadDown => 2.0,
             Figure::SittingUp | Figure::SittingUpAgainstTheHeadboard | Figure::Standing => {
                 2.0 - slope
             }
