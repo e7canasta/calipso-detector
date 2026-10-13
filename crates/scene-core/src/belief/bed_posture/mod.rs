@@ -28,6 +28,9 @@ pub enum BedPostureState {
     InBed,
     /// Lying: held in bed, where upright would be seen.
     Lying,
+    /// Sat up, after lying: the head seen away from the headboard. Sliding
+    /// down the bed is sitting up too, on purpose: it deserves a look (G-13).
+    SittingUp,
 }
 
 /// What layer 1 saw in a sample: the column of its table.
@@ -36,6 +39,9 @@ pub enum BedPostureState {
 pub enum BedPostureSeen {
     /// Held in bed, alone: unseen without leaving.
     Held,
+    /// The head seen away from the headboard, but not past the bed's sides:
+    /// by definition, not lying.
+    HeadAway,
     /// Nothing that says how they are: the state holds.
     Unknown,
 }

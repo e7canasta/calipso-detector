@@ -1,12 +1,13 @@
 //! Where the resident's head is (R17, 1707): a fact of its own, as the
 //! occupancy is where the body is. What depends on it reads only the fact,
-//! never how it was concluded: today the face or the pose's head inside the
-//! headboard region; tomorrow, its last known place or its place in the bed's
-//! u/v (1703), without the readers noticing.
+//! never how it was concluded: the face or the pose's head inside the
+//! headboard region and, away from it, its place in the bed's u/v (R18,
+//! 1807): below the headboard inside the bed, or past its sides.
 
 use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
 use crate::geom::{Point, Rect};
+use crate::refine::BedPlane;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +28,13 @@ pub enum HeadPlaceState {
     /// At the headboard: lying in bed as a bed is used, the hips are at its
     /// centre.
     AtHeadboard,
-    /// Seen, but not at the headboard.
+    /// Seen in bed, below the headboard: lying here is not lying as a bed is
+    /// used (R18, 1807).
+    BelowHeadboard,
+    /// Seen past the bed's sides (`u < 0` or `u > 1`): on the way out.
+    AtSide,
+    /// Seen, but neither at the headboard, in bed nor past its sides; or seen
+    /// without the bed's plane.
     Elsewhere,
     /// Without the headboard delimited, or without a face or a head in sight.
     Unknown,
@@ -71,20 +78,48 @@ const HEAD: [Joint; 5] = [
     Joint::RightEar,
 ];
 
+/// Where a head can be: the headboard region and, if known, the bed's plane.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Bounds {
+    pub(crate) headboard: Rect,
+    pub(crate) bed: Option<BedPlane>,
+}
+
+impl Bounds {
+    /// Where a point of the head falls: the headboard region first; away from
+    /// it, in the bed's u/v, past its sides or inside it.
+    fn of(&self, p: Point) -> HeadPlaceState {
+        if self.headboard.contains(p) {
+            return HeadPlaceState::AtHeadboard;
+        }
+        let Some(bed) = self.bed else {
+            return HeadPlaceState::Elsewhere;
+        };
+        let (u, v) = bed.project(p);
+        if !(0.0..=1.0).contains(&u) {
+            HeadPlaceState::AtSide
+        } else if (0.0..=1.0).contains(&v) {
+            HeadPlaceState::BelowHeadboard
+        } else {
+            HeadPlaceState::Elsewhere
+        }
+    }
+}
+
 /// Where the head is, from what this turn saw: a face accepted inside the
 /// headboard says so first; otherwise the centroid of the pose's seen head
-/// keypoints, inside or outside it; otherwise a face seen elsewhere. Without
-/// the headboard delimited, unknown: without knowing where the head is, the
-/// hips are not guessed.
+/// keypoints; otherwise the first face seen. Without the headboard delimited,
+/// unknown: without knowing where the head is, the hips are not guessed.
 pub(crate) fn place(
     faces: &FaceEvidence,
     pose: Option<&[Keypoint]>,
-    headboard: Option<Rect>,
+    bounds: Option<Bounds>,
     min_score: f32,
 ) -> HeadPlace {
-    let Some(headboard) = headboard else {
+    let Some(bounds) = bounds else {
         return HeadPlace::UNKNOWN;
     };
+    let headboard = bounds.headboard;
     let faces: &[_] = match faces {
         FaceEvidence::Seen(faces) => faces,
         _ => &[],
@@ -105,17 +140,11 @@ pub(crate) fn place(
             x: head.iter().map(|k| k.x).sum::<f32>() / n,
             y: head.iter().map(|k| k.y).sum::<f32>() / n,
         };
-        let state = if headboard.contains(centroid) {
-            HeadPlaceState::AtHeadboard
-        } else {
-            HeadPlaceState::Elsewhere
-        };
-        return HeadPlace::of(state, HeadEvidence::PoseHead);
+        return HeadPlace::of(bounds.of(centroid), HeadEvidence::PoseHead);
     }
-    if faces.is_empty() {
-        HeadPlace::UNKNOWN
-    } else {
-        HeadPlace::of(HeadPlaceState::Elsewhere, HeadEvidence::Face)
+    match faces.first() {
+        None => HeadPlace::UNKNOWN,
+        Some(face) => HeadPlace::of(bounds.of(face.bbox.centroid()), HeadEvidence::Face),
     }
 }
 
@@ -151,7 +180,36 @@ mod tests {
     }
 
     fn by(faces: &FaceEvidence, pose: Option<&[Keypoint]>) -> HeadPlace {
-        place(faces, pose, Some(HEADBOARD), 0.5)
+        let bounds = Bounds {
+            headboard: HEADBOARD,
+            bed: None,
+        };
+        place(faces, pose, Some(bounds), 0.5)
+    }
+
+    /// With the test world's bed, (100,100)–(500,400), under the headboard.
+    fn in_bed(faces: &FaceEvidence, pose: Option<&[Keypoint]>) -> HeadPlace {
+        let bed = crate::geom::Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
+        let bounds = Bounds {
+            headboard: HEADBOARD,
+            bed: BedPlane::of(&bed),
+        };
+        place(faces, pose, Some(bounds), 0.5)
+    }
+
+    #[test]
+    fn away_from_the_headboard_the_beds_plane_says_where() {
+        let state = |x, y| in_bed(&FaceEvidence::NotLooked, Some(&head_at(x, y))).state;
+        assert_eq!(state(300.0, 130.0), HeadPlaceState::AtHeadboard);
+        assert_eq!(state(300.0, 300.0), HeadPlaceState::BelowHeadboard);
+        assert_eq!(state(50.0, 300.0), HeadPlaceState::AtSide);
+        assert_eq!(state(550.0, 130.0), HeadPlaceState::AtSide);
+        assert_eq!(state(300.0, 10.0), HeadPlaceState::Elsewhere);
+        assert_eq!(state(300.0, 450.0), HeadPlaceState::Elsewhere);
+        assert_eq!(
+            in_bed(&face(50.0, 300.0), None),
+            HeadPlace::of(HeadPlaceState::AtSide, HeadEvidence::Face)
+        );
     }
 
     #[test]

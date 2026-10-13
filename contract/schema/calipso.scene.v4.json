@@ -201,6 +201,11 @@
           "const": "held"
         },
         {
+          "description": "The head seen away from the headboard, but not past the bed's sides:\nby definition, not lying.",
+          "type": "string",
+          "const": "head_away"
+        },
+        {
           "description": "Nothing that says how they are: the state holds.",
           "type": "string",
           "const": "unknown"
@@ -219,6 +224,11 @@
           "description": "Lying: held in bed, where upright would be seen.",
           "type": "string",
           "const": "lying"
+        },
+        {
+          "description": "Sat up, after lying: the head seen away from the headboard. Sliding\ndown the bed is sitting up too, on purpose: it deserves a look (G-13).",
+          "type": "string",
+          "const": "sitting_up"
         }
       ]
     },
@@ -834,7 +844,17 @@
           "const": "at_headboard"
         },
         {
-          "description": "Seen, but not at the headboard.",
+          "description": "Seen in bed, below the headboard: lying here is not lying as a bed is\nused (R18, 1807).",
+          "type": "string",
+          "const": "below_headboard"
+        },
+        {
+          "description": "Seen past the bed's sides (`u < 0` or `u > 1`): on the way out.",
+          "type": "string",
+          "const": "at_side"
+        },
+        {
+          "description": "Seen, but neither at the headboard, in bed nor past its sides; or seen\nwithout the bed's plane.",
           "type": "string",
           "const": "elsewhere"
         },

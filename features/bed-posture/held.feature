@@ -10,6 +10,7 @@ Feature: The bed posture: the resident they left lying
 
   Background:
     Given a room with the bed delimited
+    And the bed's headboard delimited
     And stabilization requires 2 seconds of source time
     And samples arrive every 1 second of source time
     And there is a pose model
@@ -41,12 +42,33 @@ Feature: The bed posture: the resident they left lying
     Scenario: Out of bed it forgets: coming back starts in bed again
       Given the resident came in alone and lay down in samples 1 to 10
       When the camera sees this sequence:
-        | samples | on floor | where    | in bed | occupants | bed            |
-        | 11-20   | 0        |          | 0      | 1         | occupied, held |
-        | 21-23   | 0        |          | 1      | 1         | occupied, seen |
-        | 24-28   | 1        | near bed | 0      | 1         | empty          |
-        | 29-38   | 0        |          | 1      | 1         | occupied, seen |
+        | samples | on floor | where    | in bed | pose  | occupants | bed            |
+        | 11-20   | 0        |          | 0      |       | 1         | occupied, held |
+        | 21-23   | 0        |          | 1      | lying | 1         | occupied, seen |
+        | 24-28   | 1        | near bed | 0      |       | 1         | empty          |
+        | 29-38   | 0        |          | 1      | lying | 1         | occupied, seen |
       Then in sample 20 the bed posture is "lying", seen "held"
       And in sample 23 the bed posture is "lying", seen "unknown"
       And in sample 28 there is no bed posture
       And in sample 38 the bed posture is "in_bed"
+
+  Rule: Once lying, the head seen away from the headboard is not lying
+
+    Scenario: Entering the bed nothing is reported, wherever the head is
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose       | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | sitting up | 1         | occupied, seen |
+      Then in sample 11 the bed posture is "in_bed", seen "head_away"
+
+    Scenario: Lying, they sit up: the head leaves the headboard
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose       | occupants | bed            |
+        | 11-20   | 0        |       | 0      |               |            | 1         | occupied, held |
+        | 21-23   | 0        |       | 1      |               | lying      | 1         | occupied, seen |
+        | 24      | 0        |       | 1      | yes           | sitting up | 1         | occupied, seen |
+        | 25-26   | 0        |       | 1      |               |            | 1         | occupied, seen |
+      Then in sample 23 the bed posture is "lying", seen "unknown"
+      And in sample 24 the bed posture is "sitting_up", seen "head_away"
+      And in sample 26 the bed posture is "sitting_up"

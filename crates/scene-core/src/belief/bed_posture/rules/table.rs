@@ -8,8 +8,16 @@ use serde::Serialize;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/bed-posture-table.txt");
 
-const STATES: [BedPostureState; 2] = [BedPostureState::InBed, BedPostureState::Lying];
-const SEEN: [BedPostureSeen; 2] = [BedPostureSeen::Held, BedPostureSeen::Unknown];
+const STATES: [BedPostureState; 3] = [
+    BedPostureState::InBed,
+    BedPostureState::Lying,
+    BedPostureState::SittingUp,
+];
+const SEEN: [BedPostureSeen; 3] = [
+    BedPostureSeen::Held,
+    BedPostureSeen::HeadAway,
+    BedPostureSeen::Unknown,
+];
 
 /// A value as the contract names it.
 fn wire<T: Serialize>(value: &T) -> String {

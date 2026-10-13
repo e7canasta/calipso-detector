@@ -266,13 +266,15 @@ pub(crate) fn deepen(
     }
     // The stand-in is situational: the bed's centre is the hips only with the
     // head at the headboard (1707). Away from it, the bed is not looked at.
-    let head = head::place(
-        g.faces,
-        pose,
-        g.map.headboard_for(g.geometry),
-        policy.min_keypoint_score,
-    );
     let plane = g.map.bed_for(g.geometry).and_then(BedPlane::of);
+    let bounds = g
+        .map
+        .headboard_for(g.geometry)
+        .map(|headboard| head::Bounds {
+            headboard,
+            bed: plane,
+        });
+    let head = head::place(g.faces, pose, bounds, policy.min_keypoint_score);
     if let Some(plane) = plane.filter(|_| head.at_headboard()) {
         points.extend(BedSite::ALL.map(|site| {
             let (u, v) = site.at();
