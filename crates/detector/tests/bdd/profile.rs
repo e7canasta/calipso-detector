@@ -186,3 +186,66 @@ fn site_focus(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
         Some(scene_core::geom::Rect::new(x0, y0, x1, y1))
     );
 }
+
+// --- The bed posture (R18, 1804): layer 1 and its times.
+
+fn bed_posture_profile(w: &mut Shell, headboard: bool, pose: bool, section: &str) {
+    let mut base = include_str!("../support/profile.toml").to_owned();
+    if headboard {
+        base = base.replace("[map]\n", "[map]\nheadboard = [100, 100, 500, 170]\n");
+    }
+    let pose = if pose { POSE } else { "" };
+    w.config = Some(
+        detector::config::Config::parse(&format!("{base}{pose}\n[bed_posture]\n{section}"))
+            .map_err(|e| e.to_string()),
+    );
+}
+
+#[given(
+    regex = r#"^a profile with "\[bed_posture\]" holding lying (-?[\d.]+), sitting up (-?[\d.]+) and getting out (-?[\d.]+) seconds$"#
+)]
+fn bed_posture_times(w: &mut Shell, lying: f64, sitting_up: f64, getting_out: f64) {
+    bed_posture_profile(
+        w,
+        true,
+        true,
+        &format!(
+            "dwell_lying_secs = {lying}\ndwell_sitting_up_secs = {sitting_up}\ndwell_getting_out_secs = {getting_out}\n"
+        ),
+    );
+}
+
+#[given(r#"a profile with "[bed_posture]" and no times"#)]
+fn bed_posture_defaults(w: &mut Shell) {
+    bed_posture_profile(w, true, true, "");
+}
+
+#[given(r#"a profile with "[bed_posture]" but no headboard"#)]
+fn bed_posture_without_headboard(w: &mut Shell) {
+    bed_posture_profile(w, false, true, "");
+}
+
+#[given(r#"a profile with "[bed_posture]" but no pose model"#)]
+fn bed_posture_without_pose(w: &mut Shell) {
+    bed_posture_profile(w, true, false, "");
+}
+
+#[then(
+    expr = "the core policy follows the bed posture holding lying {float}, sitting up {float} and getting out {float} seconds"
+)]
+fn follows_bed_posture(w: &mut Shell, lying: f64, sitting_up: f64, getting_out: f64) {
+    let policy = w.config().policy().bed_posture.expect("bed posture policy");
+    assert_eq!(
+        (
+            policy.dwell_lying_secs,
+            policy.dwell_sitting_up_secs,
+            policy.dwell_getting_out_secs
+        ),
+        (lying, sitting_up, getting_out)
+    );
+}
+
+#[then("the core policy does not follow the bed posture")]
+fn does_not_follow_bed_posture(w: &mut Shell) {
+    assert!(w.config().policy().bed_posture.is_none());
+}

@@ -62,6 +62,15 @@ crop_pad = 0.25
 [calibration]
 retry_secs = 2.0 # source seconds between failed attempts
 
+# Layer 1, the bed posture (R18): whether the resident left lying is still
+# lying, sat up or is getting out. It needs [map] headboard and [senses.pose].
+# Initial times, not yet measured on this camera (spec 1801): each state
+# counts once it held its own source seconds; getting out is the shortest.
+[bed_posture]
+dwell_lying_secs = 2.0
+dwell_sitting_up_secs = 3.0
+dwell_getting_out_secs = 1.0
+
 [policy]
 min_confidence = 0.5
 same_body_iou = 0.5

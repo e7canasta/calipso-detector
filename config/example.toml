@@ -55,6 +55,15 @@ backend_confidence = 0.25
 # [calibration]
 # retry_secs = 2.0 # source seconds between failed attempts
 
+# Layer 1, the bed posture (R18): whether the resident left lying is still
+# lying, sat up or is getting out. Without the section nothing follows it; it
+# needs [map] headboard and [senses.pose]. Each state counts once it held its
+# own source seconds (defaults 2, 3 and 1): measure them on each camera.
+# [bed_posture]
+# dwell_lying_secs = 2.0
+# dwell_sitting_up_secs = 3.0
+# dwell_getting_out_secs = 1.0
+
 [policy]
 min_confidence = 0.5
 same_body_iou = 0.5

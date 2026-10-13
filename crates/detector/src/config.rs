@@ -3,7 +3,10 @@ use anyhow::{Context, Result, ensure};
 use scene_core::{
     geom::{Point, Quad, Rect},
     map::{FrameInfo, SiteMap},
-    policy::{CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy, Policy, ReinforcePolicy},
+    policy::{
+        BedPosturePolicy, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy, Policy,
+        ReinforcePolicy,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -23,6 +26,8 @@ pub struct Config {
     pub nats: NatsConfig,
     /// Learn the empty bed with depth: without the section, no calibration.
     pub calibration: Option<CalibrationConfig>,
+    /// Layer 1, the bed posture: without the section, nothing follows it.
+    pub bed_posture: Option<BedPostureConfig>,
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -76,6 +81,19 @@ pub struct Depth {
     /// does not change.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub crop_pad: Option<f32>,
+}
+/// `BedPosturePolicy` (R18, 1804): how long each state must hold, in source
+/// seconds, to count. The defaults are initial, to be measured per camera
+/// (1801): getting out is the shortest, the one to report in time.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BedPostureConfig {
+    #[serde(default = "defaults::dwell_lying_secs")]
+    pub dwell_lying_secs: f64,
+    #[serde(default = "defaults::dwell_sitting_up_secs")]
+    pub dwell_sitting_up_secs: f64,
+    #[serde(default = "defaults::dwell_getting_out_secs")]
+    pub dwell_getting_out_secs: f64,
 }
 /// `CalibrationPolicy`: the delay between attempts, in source seconds.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -224,6 +242,15 @@ mod defaults {
     pub(super) fn bed_padding() -> f32 {
         0.15
     }
+    pub(super) fn dwell_lying_secs() -> f64 {
+        2.0
+    }
+    pub(super) fn dwell_sitting_up_secs() -> f64 {
+        3.0
+    }
+    pub(super) fn dwell_getting_out_secs() -> f64 {
+        1.0
+    }
     pub(super) fn focus_pad() -> f32 {
         0.25
     }
@@ -312,7 +339,31 @@ impl Config {
         self.validate_transport()?;
         self.validate_senses()?;
         self.validate_policy()?;
-        self.validate_map()
+        self.validate_map()?;
+        self.validate_bed_posture()
+    }
+
+    /// Times finite and not negative; it needs where the head is (the
+    /// headboard) and the body (a pose model).
+    fn validate_bed_posture(&self) -> Result<()> {
+        let Some(b) = &self.bed_posture else {
+            return Ok(());
+        };
+        not_negative("bed_posture.dwell_lying_secs", b.dwell_lying_secs)?;
+        not_negative("bed_posture.dwell_sitting_up_secs", b.dwell_sitting_up_secs)?;
+        not_negative(
+            "bed_posture.dwell_getting_out_secs",
+            b.dwell_getting_out_secs,
+        )?;
+        ensure!(
+            self.map.headboard.is_some(),
+            "bed_posture needs map.headboard: where the head is"
+        );
+        ensure!(
+            self.senses.pose.is_some(),
+            "bed_posture needs senses.pose: the body"
+        );
+        Ok(())
     }
 
     /// `camera.site` and `camera.id` become subject tokens.
@@ -552,6 +603,11 @@ impl Config {
             retry_secs: config.retry_secs,
         });
         p.depth_pad = self.senses.depth.as_ref().and_then(|d| d.crop_pad);
+        p.bed_posture = self.bed_posture.as_ref().map(|b| BedPosturePolicy {
+            dwell_lying_secs: b.dwell_lying_secs,
+            dwell_sitting_up_secs: b.dwell_sitting_up_secs,
+            dwell_getting_out_secs: b.dwell_getting_out_secs,
+        });
         p
     }
     pub fn site_map(&self) -> SiteMap {
@@ -585,11 +641,15 @@ impl Config {
     pub fn profile(&self) -> Result<scene_core::contract::Profile> {
         use scene_core::contract::{LayerRef, LookKind, Profile, ProfileHash};
         use sha2::{Digest, Sha256};
-        // Calibration enters the hash only if present: without it, the previous one.
-        let canonical = match &self.calibration {
+        // Calibration and the bed posture enter the hash only if present:
+        // without them, the previous one.
+        let mut canonical = match &self.calibration {
             None => serde_json::to_vec(&(&self.policy, &self.map, &self.senses))?,
             Some(c) => serde_json::to_vec(&(&self.policy, &self.map, &self.senses, c))?,
         };
+        if let Some(b) = &self.bed_posture {
+            canonical.extend(serde_json::to_vec(b)?);
+        }
         let digest = Sha256::digest(canonical);
         let hex: String = digest
             .iter()
