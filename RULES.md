@@ -57,12 +57,19 @@ An adapter does not filter by policy. Evidence decides what counts.
 
 *Guardian:* the `sense` adapters receive no policies.
 
-### 7. No images, ever
+### 7. No images, ever, outside the verification capture
 
-The system observes people in their beds. **No recording, log or artefact
-keeps pixels**: only boxes, keypoints, depths and decisions.
+The system observes people in their beds. **No published format, recording,
+log or artefact of the detector keeps pixels**: only boxes, keypoints, depths
+and decisions. The one exception is the **verification capture**: the crops of
+the bed sent to the verifier, kept by the verifier service (never the
+detector) only when its profile enables it, by stream and day, with a
+retention, to distil small models (ADR 2026-10-13, *La verificación por VLM,
+con captura*). Using it in a residence needs the site's consent.
 
-*Guardian:* the published and recorded formats have nowhere to put pixels.
+*Guardian:* the published and recorded formats have nowhere to put pixels; the
+detector only encodes a crop in memory to send it to the verifier; the capture
+is off unless the verifier's profile enables it.
 
 ## Part II — The architecture
 

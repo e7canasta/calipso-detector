@@ -162,6 +162,7 @@ fn the_live_verifier_answers_over_nats() {
         runtime.handle(),
         url,
         "calipso.verify.v1".into(),
+        "vision.test.room-1".into(),
         "room-1".into(),
         Duration::from_secs(30),
     );

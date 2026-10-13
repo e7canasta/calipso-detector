@@ -84,6 +84,7 @@ async fn main() -> Result<()> {
             &tokio::runtime::Handle::current(),
             config.nats.url.clone(),
             sense.subject.clone(),
+            config.prefix(),
             config.camera.id.clone(),
             Duration::from_secs_f64(sense.wall_timeout_secs),
         )

@@ -109,13 +109,15 @@ pub struct NatsVerifier {
 
 impl NatsVerifier {
     /// Starts the task on `runtime`, on its own connection to `url`. Each
-    /// request carries the camera, the question's versioned id and the ticket
-    /// as headers, and the crop as the payload. Without a reply within
-    /// `wall_timeout`, the answer is unsure.
+    /// request carries the stream (the NATS prefix), the camera, the
+    /// question's versioned id, the ticket and the looked sample as headers,
+    /// and the crop as the payload. Without a reply within `wall_timeout`, the
+    /// answer is unsure.
     pub fn spawn(
         runtime: &tokio::runtime::Handle,
         url: String,
         subject: String,
+        stream: String,
         camera: String,
         wall_timeout: Duration,
     ) -> Self {
@@ -139,6 +141,13 @@ impl NatsVerifier {
                 headers.insert("Calipso-Camera", camera.as_str());
                 headers.insert("Calipso-Question", question.id());
                 headers.insert("Calipso-Ticket", ticket.id.to_string().as_str());
+                headers.insert("Calipso-Stream", stream.as_str());
+                let looked = ticket.looked;
+                let looked = format!(
+                    "{}:{}:{}",
+                    looked.session.0, looked.sequence, looked.source_secs.0
+                );
+                headers.insert("Calipso-Looked", looked.as_str());
                 let reply = tokio::time::timeout(
                     wall_timeout,
                     client.request_with_headers(subject.clone(), headers, jpeg.into()),
