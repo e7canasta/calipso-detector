@@ -73,6 +73,23 @@ dwell_lying_secs = 2.0
 dwell_sitting_up_secs = 3.0
 dwell_getting_out_secs = 1.0
 
+# The slow verifier (white book, volume III): the core asks a closed question
+# where its own reading is doubtful, and the answer fills that digit. Every
+# question, its crop and its answer are what the room's classifiers learn
+# from (volume IV). Remove the section and nothing is asked.
+[verify]
+max_per_hour = 20 # source time; MiMo answers in p50 7 s, p90 21 s
+timeout_secs = 70 # source seconds; above the shell's 65 s wall timeout
+held = { after_secs = 30, valid_secs = 3600 } # O1, O2
+# The grey band of the disparity: sample1's, NOT measured on this camera
+# (the headboard does not separate sitting up here: project 29).
+doubtful_disparity = [0.02, 0.10] # P1
+doubtful_feet_margin = 0.06 # P2, P3: a fraction of the bed's width
+
+[senses.verify]
+# subject = "calipso.verify.v1"
+# wall_timeout_secs = 65
+
 [policy]
 min_confidence = 0.5
 same_body_iou = 0.5
