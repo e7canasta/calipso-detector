@@ -14,8 +14,10 @@ const STATES: [BedPostureState; 4] = [
     BedPostureState::SittingUp,
     BedPostureState::GettingOut,
 ];
-const SEEN: [BedPostureSeen; 5] = [
+const SEEN: [BedPostureSeen; 7] = [
     BedPostureSeen::Held,
+    BedPostureSeen::HeadboardLying,
+    BedPostureSeen::HeadboardUpright,
     BedPostureSeen::LegsOut,
     BedPostureSeen::HeadSide,
     BedPostureSeen::HeadAway,

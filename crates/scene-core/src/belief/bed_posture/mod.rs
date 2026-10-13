@@ -26,7 +26,8 @@ pub enum BedPostureState {
     /// In bed, not yet believed lying: they just came in, or were there at
     /// startup. From here only lying is reported.
     InBed,
-    /// Lying: held in bed, where upright would be seen.
+    /// Lying: held in bed, where upright would be seen; or seen with the head
+    /// at the headboard and the disparity of lying.
     Lying,
     /// Sat up, after lying: the head seen away from the headboard. Sliding
     /// down the bed is sitting up too, on purpose: it deserves a look (G-13).
@@ -49,6 +50,11 @@ pub enum BedPostureSeen {
     HeadSide,
     /// A foot seen past the bed's sides: getting up from below.
     LegsOut,
+    /// The head at the headboard and the disparity of lying.
+    HeadboardLying,
+    /// The head at the headboard and the disparity of sitting up: against the
+    /// headboard.
+    HeadboardUpright,
     /// Nothing that says how they are: the state holds.
     Unknown,
 }

@@ -245,22 +245,21 @@ impl Course<'_> {
     /// What the engine observed in the turn. It reads neither the chronicle
     /// nor the last scene.
     pub(super) fn observed(&mut self, observed: Observed) -> Conclusion {
-        // Layer 1, with what the second level saw of the subject in bed.
-        let seen = crate::refine::seen(
-            &observed.believed,
-            self.monitor.engine.map.bed_for(self.geometry),
-            self.monitor.engine.policy.enrich.as_ref(),
-        );
-        let Engine { policy, belief, .. } = &mut self.monitor.engine;
-        let bed_posture = belief.observe_bed_posture(seen, policy);
         let engine = &self.monitor.engine;
+        let bed = engine.map.bed_for(self.geometry);
+        let enrich = engine.policy.enrich.as_ref();
         // The second level reads what was concluded and delivers its result.
         let refined = crate::refine::refine(
             observed.believed.subject.as_ref().map(|s| s.zone),
             observed.believed.body.as_ref(),
-            engine.map.bed_for(self.geometry),
-            engine.policy.enrich.as_ref(),
+            bed,
+            enrich,
         );
+        // Layer 1, with what the second level saw of the subject in bed.
+        let seen = crate::refine::seen(&observed.believed, refined.posture.as_ref(), bed, enrich);
+        let Engine { policy, belief, .. } = &mut self.monitor.engine;
+        let bed_posture = belief.observe_bed_posture(seen, policy);
+        let engine = &self.monitor.engine;
         Conclusion::Observed(Box::new(Observation {
             at: self.at,
             believed: observed.believed,

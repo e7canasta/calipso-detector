@@ -169,6 +169,9 @@ pub enum Figure {
     FeetFar,
     /// Lying, with an arm hanging off the bed.
     ArmOut,
+    /// Lying, slid down the bed: everything 60 px towards the feet, the head
+    /// below the headboard, the depth of lying.
+    SlidDown,
     /// Leaning out over the side: the head and shoulders past the bed's left
     /// edge (x 100 in the test world).
     LeaningOut,
@@ -176,6 +179,9 @@ pub enum Figure {
     SittingOnTheEdge,
     /// Sitting up: the head and shoulders project beyond the headboard.
     SittingUp,
+    /// Sitting up against the headboard: the head where lying puts it, the
+    /// depth of sitting up (the head and shoulders closer than the hips).
+    SittingUpAgainstTheHeadboard,
     /// Lying, with the shoulders covered.
     NoTorso,
     /// Standing: the same keypoints, with the head closer to the camera.
@@ -205,7 +211,7 @@ impl Figure {
             (15.0, 90.0, 0.9),
         ];
         match self {
-            Figure::Lying | Figure::FeetFar => {}
+            Figure::Lying | Figure::FeetFar | Figure::SittingUpAgainstTheHeadboard => {}
             Figure::FeetCovered => {
                 p[15].2 = 0.1;
                 p[16].2 = 0.1;
@@ -213,6 +219,11 @@ impl Figure {
             Figure::ArmOut => {
                 p[7] = (-170.0, -20.0, 0.9);
                 p[9] = (-200.0, 10.0, 0.9);
+            }
+            Figure::SlidDown => {
+                for point in &mut p {
+                    point.1 += 60.0;
+                }
             }
             Figure::LeaningOut => {
                 for point in p.iter_mut().take(7) {
@@ -248,7 +259,9 @@ impl Figure {
         let slope = 0.002 * (300.0 - y);
         match self {
             Figure::SittingOnTheEdge => 2.0,
-            Figure::SittingUp | Figure::Standing => 2.0 - slope,
+            Figure::SittingUp | Figure::SittingUpAgainstTheHeadboard | Figure::Standing => {
+                2.0 - slope
+            }
             _ => 2.0 + slope,
         }
     }

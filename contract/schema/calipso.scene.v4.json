@@ -216,6 +216,16 @@
           "const": "legs_out"
         },
         {
+          "description": "The head at the headboard and the disparity of lying.",
+          "type": "string",
+          "const": "headboard_lying"
+        },
+        {
+          "description": "The head at the headboard and the disparity of sitting up: against the\nheadboard.",
+          "type": "string",
+          "const": "headboard_upright"
+        },
+        {
           "description": "Nothing that says how they are: the state holds.",
           "type": "string",
           "const": "unknown"
@@ -231,7 +241,7 @@
           "const": "in_bed"
         },
         {
-          "description": "Lying: held in bed, where upright would be seen.",
+          "description": "Lying: held in bed, where upright would be seen; or seen with the head\nat the headboard and the disparity of lying.",
           "type": "string",
           "const": "lying"
         },

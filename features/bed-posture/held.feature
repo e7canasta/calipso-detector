@@ -23,9 +23,9 @@ Feature: The bed posture: the resident they left lying
     Scenario: Held in bed after lying down, the bed posture is lying
       Given the resident came in alone and lay down in samples 1 to 10
       When the camera sees this sequence:
-        | samples | on floor | where | in bed | subject moves | pose  | occupants | bed            |
-        | 11      | 0        |       | 1      | yes           | lying | 1         | occupied, seen |
-        | 12-20   | 0        |       | 0      |               |       | 1         | occupied, held |
+        | samples | on floor | where | in bed | subject moves | pose       | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | sitting up | 1         | occupied, seen |
+        | 12-20   | 0        |       | 0      |               |            | 1         | occupied, held |
       Then in sample 11 the bed posture is "in_bed"
       And in sample 20 the bed posture is "lying", seen "held"
 
@@ -42,17 +42,26 @@ Feature: The bed posture: the resident they left lying
     Scenario: Out of bed it forgets: coming back starts in bed again
       Given the resident came in alone and lay down in samples 1 to 10
       When the camera sees this sequence:
-        | samples | on floor | where    | in bed | pose  | occupants | bed            |
-        | 11-20   | 0        |          | 0      |       | 1         | occupied, held |
-        | 21-23   | 0        |          | 1      | lying | 1         | occupied, seen |
-        | 24-28   | 1        | near bed | 0      |       | 1         | empty          |
-        | 29-38   | 0        |          | 1      | lying | 1         | occupied, seen |
+        | samples | on floor | where    | in bed | pose       | occupants | bed            |
+        | 11-20   | 0        |          | 0      |            | 1         | occupied, held |
+        | 21-23   | 0        |          | 1      | lying      | 1         | occupied, seen |
+        | 24-28   | 1        | near bed | 0      |            | 1         | empty          |
+        | 29-38   | 0        |          | 1      | sitting up | 1         | occupied, seen |
       Then in sample 20 the bed posture is "lying", seen "held"
       And in sample 23 the bed posture is "lying", seen "unknown"
       And in sample 28 there is no bed posture
       And in sample 38 the bed posture is "in_bed"
 
   Rule: Once lying, the head seen away from the headboard is not lying
+
+    Scenario: Slid down the bed: the head below the headboard is sitting up, whatever the disparity
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose      | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | lying     | 1         | occupied, seen |
+        | 12      | 0        |       | 1      | yes           | slid down | 1         | occupied, seen |
+      Then in sample 12 the posture is lying
+      And in sample 12 the bed posture is "sitting_up", seen "head_away"
 
     Scenario: Entering the bed nothing is reported, wherever the head is
       Given the resident came in alone and lay down in samples 1 to 10
@@ -92,3 +101,30 @@ Feature: The bed posture: the resident they left lying
         | 21-23   | 0        |       | 1      |               | lying               | 1         | occupied, seen |
         | 24      | 0        |       | 1      | yes           | sitting on the edge | 1         | occupied, seen |
       Then in sample 24 the bed posture is "getting_out", seen "legs_out"
+
+  Rule: At the headboard, and only there, the disparity says lying or sitting up
+
+    Scenario: Lying in sight at the headboard is lying
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose  | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | lying | 1         | occupied, seen |
+      Then in sample 11 the bed posture is "lying", seen "headboard_lying"
+
+    Scenario: Back at the headboard, lying again
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose        | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | lying       | 1         | occupied, seen |
+        | 12      | 0        |       | 1      | yes           | leaning out | 1         | occupied, seen |
+        | 13      | 0        |       | 1      | yes           | lying       | 1         | occupied, seen |
+      Then in sample 12 the bed posture is "getting_out"
+      And in sample 13 the bed posture is "lying", seen "headboard_lying"
+
+    Scenario: Sitting up against the headboard
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose                            | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | lying                           | 1         | occupied, seen |
+        | 12      | 0        |       | 1      | yes           | sitting up against the headboard | 1         | occupied, seen |
+      Then in sample 12 the bed posture is "sitting_up", seen "headboard_upright"
