@@ -27,3 +27,14 @@ fn the_bed_posture(ward: &mut Ward, n: u32, state: String, seen: String) {
         assert_eq!(b["seen"], seen.as_str(), "{b}");
     }
 }
+
+#[given("the bed posture is not followed")]
+fn not_followed(ward: &mut Ward) {
+    ward.policy.bed_posture = None;
+}
+
+#[then(expr = "in sample {int} there is no bed posture")]
+fn no_bed_posture(ward: &mut Ward, n: u32) {
+    let b = bed_posture(ward, n);
+    assert!(b.is_null(), "{b}");
+}

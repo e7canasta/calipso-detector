@@ -27,3 +27,26 @@ Feature: The bed posture: the resident they left lying
         | 12-20   | 0        |       | 0      |               |       | 1         | occupied, held |
       Then in sample 11 the bed posture is "in_bed"
       And in sample 20 the bed posture is "lying", seen "held"
+
+  Rule: Layer 1 lives while layer 0 believes the resident alone in bed
+
+    Scenario: Not followed, there is no bed posture
+      Given the bed posture is not followed
+      And the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | occupants | bed            |
+        | 11-20   | 0        |       | 0      | 1         | occupied, held |
+      Then in sample 20 there is no bed posture
+
+    Scenario: Out of bed it forgets: coming back starts in bed again
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where    | in bed | occupants | bed            |
+        | 11-20   | 0        |          | 0      | 1         | occupied, held |
+        | 21-23   | 0        |          | 1      | 1         | occupied, seen |
+        | 24-28   | 1        | near bed | 0      | 1         | empty          |
+        | 29-38   | 0        |          | 1      | 1         | occupied, seen |
+      Then in sample 20 the bed posture is "lying", seen "held"
+      And in sample 23 the bed posture is "lying", seen "unknown"
+      And in sample 28 there is no bed posture
+      And in sample 38 the bed posture is "in_bed"
