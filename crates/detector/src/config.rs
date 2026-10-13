@@ -260,10 +260,11 @@ mod defaults {
     pub(super) fn verify_subject() -> String {
         "calipso.verify.v1".to_owned()
     }
-    /// Above the verifier's slowest measured answer: MiMo took up to 27.2 s on
-    /// vador1's crops (2026-10-13).
+    /// Above the verifier's slowest answer: two calls of up to 30 s each (it
+    /// retries a broken reply once); MiMo took up to 43.8 s on vador1's crops
+    /// with a retry (2026-10-13).
     pub(super) fn verify_wall_timeout_secs() -> f64 {
-        35.0
+        65.0
     }
     pub(super) fn keyframe_only() -> bool {
         true
