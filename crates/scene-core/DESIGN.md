@@ -254,19 +254,27 @@ only when the policy follows it (`Policy.bed_posture`), and it only reports
 leaving lying: entering the bed, nothing.
 
 ```text
-refine::seen ──[BedPostureSeen]──► rules::decide(before, seen) ──► Stabilizer ──► Concluded
-second level,    one symbol per      a pure decider: the golden    each state its    state, seen
-pure             sample              table (4 × 7)                 own source time
+             layer 0 ── InBed::{Seen, Held} or nothing ──┐   (Belief wires it)
+                                                          ▼
+refine::seen ──[Sighting]──► rules::decide(l1(t−1), l0(t), sighting) ──► Stabilizer ──► Concluded
+second level,  what layer 1    a pure decider: the golden table (5 × 8)     each state      state, seen
+pure           perceives                                                    its own time
 ```
 
-- **What was seen** (`refine::seen`, pure): held in bed (layer 0); from a
+The row is `l1(t−1) : l0(t) + seen(t) : l1(t)`: layer 0 is an input of
+layer 1, never the other way round.
+
+- **What layer 1 perceives** (`refine::seen`, pure, a `Sighting`): from a
   fresh pose only, in this order, a foot past the bed's sides, the head past
   them, the head away from the headboard, and, only with the head at the
   headboard, the disparity (lying or upright). A kept pose says nothing new:
-  `unknown`.
-- **The rules** (`rules::decide`): held or lying at the headboard is lying;
-  in bed, only lying moves it; once lying, what is seen now rules,
-  symmetrically (sitting up, getting out, back to lying); unknown holds.
+  `unknown`. It does not read layer 0.
+- **The rules** (`rules::decide`): without the resident alone in bed (layer
+  0) there is no layer 1; it is born in bed; held in bed (layer 0) or lying
+  at the headboard is lying; in bed, only lying moves it; once lying, what is
+  seen now rules, symmetrically (sitting up, getting out, back to lying);
+  unknown holds. The published `seen` composes both halves: `held` when
+  layer 0 holds the resident.
 - **The machine** (`Machine`, P1): the stable state and the candidate, with
   the layer-0 `Stabilizer`; unknown lets the candidate keep holding. It forgets
   when layer 0 no longer has the resident alone in bed.
@@ -357,8 +365,8 @@ One concept, one name.
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
 | layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
-| seen (layer 1) | `BedPostureSeen`, `refine::seen` | The symbol a sample reduces to, the column of layer 1's table: `held`, `headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown` |
-| decide | `bed_posture::rules::decide` | Layer 1's pure decider: what we believed and what we saw to what we believe; the golden table `contract/bed-posture-table.txt` |
+| sighting, seen (layer 1) | `bed_posture::Sighting`, `refine::seen`; `BedPostureSeen` | What layer 1 perceives by itself in a sample (`headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown`); published as `seen`, which says `held` when layer 0 holds the resident |
+| decide | `bed_posture::rules::decide` | Layer 1's pure decider, the row `l1(t−1) : l0(t) + seen(t) : l1(t)`; the golden table `contract/bed-posture-table.txt` |
 
 ## 8. Module map
 
