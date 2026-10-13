@@ -149,11 +149,12 @@ impl Belief {
     /// it.
     pub(crate) fn observe_bed_posture(
         &mut self,
+        at: SampleRef,
         seen: Option<BedPostureSeen>,
         policy: &Policy,
     ) -> Option<bed_posture::Concluded> {
-        policy.bed_posture?;
-        self.bed_posture.step(seen)
+        let policy = policy.bed_posture.as_ref()?;
+        self.bed_posture.step(at, seen, policy)
     }
 
     /// Reinforcement looked: the latch is spent until the main detector sees

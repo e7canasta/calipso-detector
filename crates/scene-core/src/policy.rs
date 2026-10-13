@@ -83,9 +83,17 @@ pub struct CalibrationPolicy {
 }
 
 /// Follow the resident they left lying: layer 1, the bed posture (R18, 1806).
-/// Its thresholds come with the scenarios that need them (1804).
+/// Each state counts once it held its own source time (rule 9); zero, at
+/// once. The profile sets them per camera (1804).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct BedPosturePolicy {}
+pub struct BedPosturePolicy {
+    /// Source seconds lying must hold, to arm it or to come back to it.
+    pub dwell_lying_secs: f64,
+    /// Source seconds sitting up must hold.
+    pub dwell_sitting_up_secs: f64,
+    /// Source seconds getting out must hold: the one to report in time.
+    pub dwell_getting_out_secs: f64,
+}
 
 /// The policies of one camera. Optional senses start switched off.
 #[derive(Debug, Clone, PartialEq)]

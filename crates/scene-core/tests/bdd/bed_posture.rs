@@ -28,6 +28,23 @@ fn the_bed_posture(ward: &mut Ward, n: u32, state: String, seen: String) {
     }
 }
 
+#[given(
+    regex = r#"^the bed posture "(lying|sitting_up|getting_out)" must hold (\d+) seconds of source time$"#
+)]
+fn must_hold(ward: &mut Ward, state: String, secs: u32) {
+    let policy = ward
+        .policy
+        .bed_posture
+        .as_mut()
+        .expect("\"the bed posture is followed\" first");
+    let secs = f64::from(secs);
+    match state.as_str() {
+        "lying" => policy.dwell_lying_secs = secs,
+        "sitting_up" => policy.dwell_sitting_up_secs = secs,
+        _ => policy.dwell_getting_out_secs = secs,
+    }
+}
+
 #[given("the bed posture is not followed")]
 fn not_followed(ward: &mut Ward) {
     ward.policy.bed_posture = None;

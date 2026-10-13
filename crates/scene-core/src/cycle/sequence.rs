@@ -257,8 +257,9 @@ impl Course<'_> {
         );
         // Layer 1, with what the second level saw of the subject in bed.
         let seen = crate::refine::seen(&observed.believed, refined.posture.as_ref(), bed, enrich);
+        let at = self.at;
         let Engine { policy, belief, .. } = &mut self.monitor.engine;
-        let bed_posture = belief.observe_bed_posture(seen, policy);
+        let bed_posture = belief.observe_bed_posture(at, seen, policy);
         let engine = &self.monitor.engine;
         Conclusion::Observed(Box::new(Observation {
             at: self.at,
