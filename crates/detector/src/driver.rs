@@ -151,10 +151,11 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
                         Probe::Verify {
                             ticket,
                             region,
+                            bed,
                             question,
                         } => {
                             let started = Instant::now();
-                            let taken = verifier.ask(&frame, *ticket, *region, *question);
+                            let taken = verifier.ask(&frame, *ticket, *region, bed, *question);
                             let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
                             (taken.map(|()| Reading::Dispatched), spent)
                         }

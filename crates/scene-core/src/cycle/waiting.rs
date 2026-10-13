@@ -138,6 +138,7 @@ impl Waiting {
             Probe::Verify {
                 ticket,
                 region: look.region,
+                bed: look.bed,
                 question: look.question,
             },
             Continuation::Verify { refined },

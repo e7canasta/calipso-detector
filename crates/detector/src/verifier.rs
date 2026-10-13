@@ -6,7 +6,7 @@
 //! crop goes to the local verifier and is dropped.
 use image::{DynamicImage, codecs::jpeg::JpegEncoder};
 use scene_core::{
-    geom::Rect,
+    geom::{Quad, Rect},
     look::{Answer, Failure, Question, Ticket, Verified},
 };
 use std::marker::PhantomData;
@@ -17,11 +17,14 @@ use std::time::Duration;
 /// the turn, and gives back the answers that arrived since the last call.
 pub trait VerifierPort {
     type Frame;
+    /// `region` is the crop; `bed` the bed grown by the crop's margin, which
+    /// the verifier may rectify the crop to.
     fn ask(
         &mut self,
         frame: &Self::Frame,
         ticket: Ticket,
         region: Rect,
+        bed: &Quad,
         question: Question,
     ) -> Result<(), Failure>;
     fn answers(&mut self) -> Vec<Verified>;
@@ -40,12 +43,26 @@ impl<F> Default for NoVerifier<F> {
 
 impl<F> VerifierPort for NoVerifier<F> {
     type Frame = F;
-    fn ask(&mut self, _: &F, _: Ticket, _: Rect, _: Question) -> Result<(), Failure> {
+    fn ask(&mut self, _: &F, _: Ticket, _: Rect, _: &Quad, _: Question) -> Result<(), Failure> {
         Err(Failure::Model)
     }
     fn answers(&mut self) -> Vec<Verified> {
         Vec::new()
     }
+}
+
+/// The bed's corners in the crop's pixels, as the `Calipso-Bed` header says
+/// them: `x,y x,y x,y x,y`, headboard left, headboard right, foot right, foot
+/// left. The verifier can rectify the crop to the bed with them; the crop sent
+/// stays the natural one.
+pub fn bed_in_crop(frame: &DynamicImage, region: Rect, bed: &Quad) -> String {
+    let x0 = region.x0.clamp(0.0, frame.width() as f32).floor();
+    let y0 = region.y0.clamp(0.0, frame.height() as f32).floor();
+    bed.0
+        .iter()
+        .map(|p| format!("{:.1},{:.1}", p.x - x0, p.y - y0))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// The crop of the frame over `region`, clamped to it, as a JPEG in memory.
@@ -96,6 +113,7 @@ pub fn read_answer(reply: &[u8]) -> Answer {
 struct Request {
     ticket: Ticket,
     question: Question,
+    bed: String,
     jpeg: Vec<u8>,
 }
 
@@ -134,6 +152,7 @@ impl NatsVerifier {
             while let Some(Request {
                 ticket,
                 question,
+                bed,
                 jpeg,
             }) = queue.recv().await
             {
@@ -142,6 +161,7 @@ impl NatsVerifier {
                 headers.insert("Calipso-Question", question.id());
                 headers.insert("Calipso-Ticket", ticket.id.to_string().as_str());
                 headers.insert("Calipso-Stream", stream.as_str());
+                headers.insert("Calipso-Bed", bed.as_str());
                 let looked = ticket.looked;
                 let looked = format!(
                     "{}:{}:{}",
@@ -177,6 +197,7 @@ impl VerifierPort for NatsVerifier {
         frame: &DynamicImage,
         ticket: Ticket,
         region: Rect,
+        bed: &Quad,
         question: Question,
     ) -> Result<(), Failure> {
         let jpeg = jpeg_crop(frame, region)?;
@@ -184,6 +205,7 @@ impl VerifierPort for NatsVerifier {
             .try_send(Request {
                 ticket,
                 question,
+                bed: bed_in_crop(frame, region, bed),
                 jpeg,
             })
             .map_err(|_| Failure::Model)
@@ -204,6 +226,14 @@ mod tests {
         assert_eq!(read_answer(b"Yes, the person is sitting up."), Answer::Yes);
         assert_eq!(read_answer(b"I cannot tell"), Answer::Unsure);
         assert_eq!(read_answer(b""), Answer::Unsure);
+    }
+
+    #[test]
+    fn the_bed_is_said_in_the_crop_s_pixels() {
+        let frame = DynamicImage::new_rgb8(64, 48);
+        let bed = Quad::from_rect(Rect::new(10.0, 12.0, 40.0, 30.0));
+        let said = bed_in_crop(&frame, Rect::new(8.0, 8.0, 42.0, 34.0), &bed);
+        assert_eq!(said, "2.0,4.0 32.0,4.0 32.0,22.0 2.0,22.0");
     }
 
     #[test]

@@ -175,6 +175,8 @@ const VERIFY_PAD: f32 = 0.15;
 pub(crate) struct VerifyLook {
     pub(crate) target: Target,
     pub(crate) region: Rect,
+    /// The bed grown by the crop's margin: the shell rectifies to it.
+    pub(crate) bed: crate::geom::Quad,
     pub(crate) question: Question,
     pub(crate) places: Option<BodyPlaces>,
 }
@@ -274,12 +276,17 @@ fn ask(
     if spent {
         return Consideration::Decided(Decision::Skip(SkipReason::BudgetSpent));
     }
-    let Some(bed) = g.map.bed_for(g.geometry) else {
+    let Some(bed) = g
+        .map
+        .bed_for(g.geometry)
+        .and_then(|bed| crate::map::grown_bed(bed, f64::from(VERIFY_PAD)))
+    else {
         return Consideration::Decided(Decision::Skip(SkipReason::NoBedGeometry));
     };
     Consideration::Decided(Decision::Ask(VerifyLook {
         target,
-        region: bed.bounds().expand(VERIFY_PAD),
+        region: bed.bounds(),
+        bed,
         question,
         places,
     }))

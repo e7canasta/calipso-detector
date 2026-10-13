@@ -47,8 +47,12 @@ pub enum Probe {
     Verify {
         /// What the answer will be about.
         ticket: Ticket,
-        /// The crop, in whole-frame pixels.
+        /// The crop's bounding box, in whole-frame pixels (the ledger's region).
         region: Rect,
+        /// The bed grown by the crop's margin, in `Quad`'s order (headboard
+        /// left, headboard right, foot right, foot left): the shell rectifies
+        /// the crop to it, the headboard always up.
+        bed: crate::geom::Quad,
         /// The closed question.
         question: Question,
     },

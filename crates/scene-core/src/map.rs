@@ -5,6 +5,25 @@ mod plane;
 
 pub(crate) use plane::{BedArea, BedPlane};
 
+/// The image points of some bed coordinates (`u` across the bed, `v` from
+/// the foot, 0, to the headboard, 1). `None` if the bed is degenerate. The
+/// shell uses it to rectify the verifier's crop to the bed.
+pub fn bed_points(bed: &crate::geom::Quad, uv: &[(f64, f64)]) -> Option<Vec<crate::geom::Point>> {
+    let plane = BedPlane::of(bed)?;
+    Some(uv.iter().map(|&(u, v)| plane.point(u, v)).collect())
+}
+
+/// The bed grown by `margin` in its own coordinates, as a quadrilateral in the
+/// image, in `Quad`'s order: headboard left, headboard right, foot right, foot
+/// left. `None` if the bed is degenerate.
+pub(crate) fn grown_bed(bed: &crate::geom::Quad, margin: f64) -> Option<crate::geom::Quad> {
+    let (lo, hi) = (-margin, 1.0 + margin);
+    let plane = BedPlane::of(bed)?;
+    Some(crate::geom::Quad(
+        [(lo, hi), (hi, hi), (hi, lo), (lo, lo)].map(|(u, v)| plane.point(u, v)),
+    ))
+}
+
 use crate::body::BedSite;
 use crate::geom::{Point, Quad, Rect};
 use crate::policy::FocusPolicy;
@@ -273,6 +292,23 @@ pub enum Calibration {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_grown_bed_of_a_rectangle_is_the_grown_rectangle() {
+        use crate::geom::{Quad, Rect};
+        let bed = Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
+        let grown = super::grown_bed(&bed, 0.15).unwrap();
+        let b = grown.bounds();
+        let near = |a: f32, e: f32| (a - e).abs() < 0.01;
+        assert!(near(b.x0, 40.0) && near(b.x1, 560.0), "{b:?}");
+        assert!(near(b.y0, 55.0) && near(b.y1, 445.0), "{b:?}");
+        // Quad's order, as the shell rectifies it: the headboard (top) first.
+        assert!(
+            near(grown.0[0].y, 55.0) && near(grown.0[0].x, 40.0),
+            "{:?}",
+            grown.0
+        );
+    }
+
     use super::*;
 
     #[test]

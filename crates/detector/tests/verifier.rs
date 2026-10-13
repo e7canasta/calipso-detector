@@ -29,6 +29,7 @@ impl VerifierPort for Scripted {
         frame: &DynamicImage,
         ticket: Ticket,
         region: Rect,
+        _bed: &scene_core::geom::Quad,
         question: Question,
     ) -> Result<(), Failure> {
         let jpeg = jpeg_crop(frame, region)?;
@@ -139,6 +140,7 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
             &frame,
             ticket,
             Rect::new(8.0, 11.0, 112.0, 89.0),
+            &scene_core::geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
             Question::HeldInBed,
         )
         .unwrap();
@@ -183,6 +185,7 @@ fn the_live_verifier_answers_over_nats() {
             &frame,
             ticket,
             Rect::new(8.0, 11.0, 112.0, 89.0),
+            &scene_core::geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
             Question::HeldInBed,
         )
         .unwrap();
