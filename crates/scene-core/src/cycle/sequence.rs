@@ -55,7 +55,13 @@ impl Course<'_> {
     /// always runs. Neither a reconnection nor another image size releases
     /// anyone: the belief starts from scratch only with the process.
     pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
-        self.monitor.engine.verification.settle(self.at);
+        let Engine {
+            policy,
+            verification,
+            ..
+        } = &mut self.monitor.engine;
+        verification.settle(self.at);
+        verification.expire(self.at, policy);
         self.monitor.engine.frame = Some(frame);
         self.geometry = self.monitor.engine.map.gate(frame);
         let Engine {

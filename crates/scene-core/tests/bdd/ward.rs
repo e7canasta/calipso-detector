@@ -142,8 +142,9 @@ impl Ward {
             let (due, owed): (Vec<_>, Vec<_>) = std::mem::take(&mut self.verifier.owed)
                 .into_iter()
                 .partition(|t| {
-                    t.looked.session == at.session
-                        && at.source_secs.0 - t.looked.source_secs.0 >= latency
+                    // From an earlier session, it arrives late, at once.
+                    t.looked.session != at.session
+                        || at.source_secs.0 - t.looked.source_secs.0 >= latency
                 });
             self.verifier.owed = owed;
             for ticket in due {

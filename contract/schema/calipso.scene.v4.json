@@ -2055,6 +2055,11 @@
           "description": "A verification is already in flight: one at a time per camera.",
           "type": "string",
           "const": "verify_busy"
+        },
+        {
+          "description": "The camera's verification budget for the hour is spent.",
+          "type": "string",
+          "const": "budget_spent"
         }
       ]
     },

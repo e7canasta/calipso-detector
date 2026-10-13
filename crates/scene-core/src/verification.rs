@@ -35,6 +35,9 @@ pub enum Verifier {
     Vlm,
 }
 
+/// An hour of source time: the budget's window.
+pub(crate) const HOUR_SECS: f64 = 3600.0;
+
 /// The provenance of a held body: whether a verifier looked, and when.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct HeldCheck {
@@ -73,6 +76,9 @@ pub(crate) struct Verification {
     issued: u64,
     /// One request at a time per camera.
     in_flight: Option<Ticket>,
+    /// The samples requests were issued at, for the budget: at most an hour of
+    /// them, in the current session.
+    asked: Vec<SampleRef>,
     held: Option<HeldEntry>,
     /// Answers that arrived since the last turn, to settle at the next one.
     answers: Vec<Verified>,
@@ -91,7 +97,15 @@ impl Verification {
         let followed = policy.verify.and_then(|v| v.held).is_some();
         self.held = match (oldest.filter(|_| followed), self.held) {
             (None, _) => None,
-            (Some(since), Some(held)) if held.since == since => Some(held),
+            // A new session: source time starts over, and so does the wait.
+            (Some(since), Some(held)) if held.since == since => Some(HeldEntry {
+                held_at: if held.held_at.session == at.session {
+                    held.held_at
+                } else {
+                    at
+                },
+                ..held
+            }),
             (Some(since), _) => Some(HeldEntry {
                 since,
                 held_at: at,
@@ -110,8 +124,20 @@ impl Verification {
         self.in_flight.is_some()
     }
 
+    /// How many requests went out in the last `secs` of source time, in this
+    /// session.
+    pub(crate) fn asked_within(&self, at: SampleRef, secs: f64) -> usize {
+        self.asked
+            .iter()
+            .filter(|a| at.secs_since(**a).is_some_and(|age| age < secs))
+            .count()
+    }
+
     /// A request goes out: its ticket, which the answer will carry.
     pub(crate) fn issue(&mut self, target: Target, at: SampleRef) -> Ticket {
+        self.asked
+            .retain(|a| at.secs_since(*a).is_some_and(|age| age < HOUR_SECS));
+        self.asked.push(at);
         self.issued += 1;
         let ticket = Ticket {
             id: self.issued,
@@ -130,6 +156,22 @@ impl Verification {
     /// An answer arrived between turns.
     pub(crate) fn answered(&mut self, verified: Verified) {
         self.answers.push(verified);
+    }
+
+    /// At the start of a sample's turn, after settling: a request without an
+    /// answer expires after the policy's timeout, or with a new session. The
+    /// thing it asked about may be asked about again.
+    pub(crate) fn expire(&mut self, at: SampleRef, policy: &Policy) {
+        let timeout = policy.verify.and_then(|v| v.timeout_secs);
+        let expired = self
+            .in_flight
+            .is_some_and(|t| match at.secs_since(t.looked) {
+                None => true,
+                Some(age) => timeout.is_some_and(|max| age >= max),
+            });
+        if expired {
+            self.in_flight = None;
+        }
     }
 
     /// At the start of a sample's turn: each answer that still applies changes

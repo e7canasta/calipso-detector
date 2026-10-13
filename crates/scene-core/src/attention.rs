@@ -19,7 +19,7 @@ use crate::map::{Geometry, Map};
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
-use crate::verification::{HeldCheckState, Verification};
+use crate::verification::{HOUR_SECS, HeldCheckState, Verification};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -173,32 +173,51 @@ pub(crate) struct VerifyLook {
     pub(crate) question: Question,
 }
 
-/// Ask the verifier? Only what the policy verifies, one request at a time, and
-/// after the cheap senses had their chance: a body held in bed, unverified,
-/// `after_secs` after it started being held. A held body is asked about once;
-/// asking again is a later policy (book 4: renewing, D5).
+/// Ask the verifier? Only what the policy verifies, one request at a time,
+/// within the hour's budget, and after the cheap senses had their chance: a
+/// body held in bed, unverified, `after_secs` after it started being held; or
+/// checked, once its check is older than `valid_secs` (D5). Without
+/// `valid_secs` a held body is asked about once, so a «no» is never asked
+/// about in a loop.
 pub(crate) fn verify(
     g: &Glimpse<'_>,
     verification: &Verification,
     policy: &Policy,
 ) -> Consideration<VerifyLook> {
-    let Some(held_policy) = policy.verify.and_then(|v| v.held) else {
+    let Some(verify) = policy.verify else {
         return Consideration::Disabled;
     };
-    let Some(held) = verification
-        .held()
-        .filter(|h| h.check.state == HeldCheckState::Unverified)
-    else {
+    let Some(held_policy) = verify.held else {
+        return Consideration::Disabled;
+    };
+    let Some(held) = verification.held() else {
         return Consideration::Inapplicable;
     };
-    let due =
-        g.at.secs_since(held.held_at)
-            .is_some_and(|age| age >= held_policy.after_secs);
+    let due = match held.check.state {
+        HeldCheckState::Unverified => {
+            g.at.secs_since(held.held_at)
+                .is_some_and(|age| age >= held_policy.after_secs)
+        }
+        HeldCheckState::Confirmed | HeldCheckState::NotConfirmed => {
+            held_policy.valid_secs.is_some_and(|valid| {
+                held.check
+                    .looked
+                    .and_then(|looked| g.at.secs_since(looked))
+                    .is_none_or(|age| age >= valid)
+            })
+        }
+    };
     if !due {
         return Consideration::Inapplicable;
     }
     if verification.in_flight() {
         return Consideration::Decided(Decision::Skip(SkipReason::VerifyBusy));
+    }
+    let spent = verify.max_per_hour.is_some_and(|max| {
+        verification.asked_within(g.at, HOUR_SECS) >= usize::try_from(max).unwrap_or(usize::MAX)
+    });
+    if spent {
+        return Consideration::Decided(Decision::Skip(SkipReason::BudgetSpent));
     }
     let Some(bed) = g.map.bed_for(g.geometry) else {
         return Consideration::Decided(Decision::Skip(SkipReason::NoBedGeometry));
@@ -414,6 +433,8 @@ pub enum SkipReason {
     RetryWait,
     /// A verification is already in flight: one at a time per camera.
     VerifyBusy,
+    /// The camera's verification budget for the hour is spent.
+    BudgetSpent,
 }
 
 /// What a look returned.

@@ -130,6 +130,13 @@ pub struct Policy {
 pub struct VerifyPolicy {
     /// `None`: a body held in bed is not verified.
     pub held: Option<HeldVerifyPolicy>,
+    /// Source seconds a request waits for its answer before it expires and
+    /// may be asked again; `None`: it waits as long as it takes. A new
+    /// session expires it: source time is not compared across sessions.
+    pub timeout_secs: Option<f64>,
+    /// How many requests per hour of source time, per camera; `None`: no
+    /// limit. The budget restarts with a new session.
+    pub max_per_hour: Option<u32>,
 }
 
 /// Verify a body held in bed: is the belief still backed by an observation?
@@ -138,6 +145,9 @@ pub struct HeldVerifyPolicy {
     /// Source seconds from `held_in_bed` until it is asked about: the cheap
     /// senses (reinforcement, faces) go first.
     pub after_secs: f64,
+    /// Source seconds a check holds, from the sample it looked at; then the
+    /// held body is asked about again (D5). `None`: it is asked once.
+    pub valid_secs: Option<f64>,
 }
 
 impl Default for Policy {
