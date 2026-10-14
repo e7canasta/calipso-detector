@@ -83,6 +83,13 @@ held = { after_secs = 30, valid_secs = 3600 } # O1, O2
 # sample1 video (2026-10-12) sitting up read -0.06..+0.01 and lying +0.10..+0.39.
 doubtful_disparity = [0.02, 0.10] # P1
 doubtful_feet_margin = 0.06 # P2, P3: a fraction of the bed's width
+# The burst (white book III, ch. 12): a doubt in motion is asked with three
+# frames over ~3 s; on vador1 (2026-10-13) it halved the calls to MiMo and
+# told getting in from getting out.
+frames = { held_in_bed = { frames = 1 }, sitting_in_bed = { frames = 3, every_secs = 1.5 }, leaving_bed = { frames = 3, every_secs = 1.5 } }
+# Only sharp crops count: half the median of the camera's last 20 (it adapts
+# to colour and infrared); after 4 s it asks with the sharpest it has.
+sharpness = { min_ratio = 0.5, window = 20, max_wait_secs = 4 }
 
 [senses.verify]
 # subject = "calipso.verify.v1"
