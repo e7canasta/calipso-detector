@@ -18,7 +18,8 @@ use std::time::Duration;
 pub trait VerifierPort {
     type Frame;
     /// `region` is the crop; `bed` the bed grown by the crop's margin, which
-    /// the verifier may rectify the crop to.
+    /// the verifier may rectify the crop to. `crops`: which crops kept for the
+    /// ticket go, by the order they were kept; empty, this frame's crop.
     fn ask(
         &mut self,
         frame: &Self::Frame,
@@ -26,12 +27,14 @@ pub trait VerifierPort {
         region: Rect,
         bed: &Quad,
         question: Question,
+        crops: &[u8],
     ) -> Result<(), Failure>;
     fn answers(&mut self) -> Vec<Verified>;
     /// Keeps the crop of `region` for the burst of `ticket` (white book,
     /// volume III, ch. 12): it goes out with the `ask` of the same ticket. A
-    /// crop kept for another ticket is dropped: one burst at a time.
-    fn keep(&mut self, frame: &Self::Frame, ticket: Ticket, region: Rect) -> Result<(), Failure>;
+    /// crop kept for another ticket is dropped: one burst at a time. Returns
+    /// how sharp the crop is: the core decides whether it counts.
+    fn keep(&mut self, frame: &Self::Frame, ticket: Ticket, region: Rect) -> Result<f32, Failure>;
 }
 
 /// No verifier: a profile without `[verify]` never asks; if it were asked, it
@@ -47,13 +50,21 @@ impl<F> Default for NoVerifier<F> {
 
 impl<F> VerifierPort for NoVerifier<F> {
     type Frame = F;
-    fn ask(&mut self, _: &F, _: Ticket, _: Rect, _: &Quad, _: Question) -> Result<(), Failure> {
+    fn ask(
+        &mut self,
+        _: &F,
+        _: Ticket,
+        _: Rect,
+        _: &Quad,
+        _: Question,
+        _: &[u8],
+    ) -> Result<(), Failure> {
         Err(Failure::Model)
     }
     fn answers(&mut self) -> Vec<Verified> {
         Vec::new()
     }
-    fn keep(&mut self, _: &F, _: Ticket, _: Rect) -> Result<(), Failure> {
+    fn keep(&mut self, _: &F, _: Ticket, _: Rect) -> Result<f32, Failure> {
         Err(Failure::Model)
     }
 }
@@ -93,6 +104,40 @@ pub fn jpeg_crop(frame: &DynamicImage, region: Rect) -> Result<Vec<u8>, Failure>
         .encode_image(&crop)
         .map_err(|_| Failure::Model)?;
     Ok(jpeg)
+}
+
+/// How sharp the crop of `region` is: the variance of the Laplacian over the
+/// crop in grey, resized to 256 px across, so every crop of a camera is
+/// measured on the same scale (white book, volume III, ch. 12). About a
+/// millisecond.
+pub fn sharpness(frame: &DynamicImage, region: Rect) -> Result<f32, Failure> {
+    let clamp = |v: f32, max: u32| v.clamp(0.0, max as f32) as u32;
+    let (x0, y0) = (
+        clamp(region.x0, frame.width()),
+        clamp(region.y0, frame.height()),
+    );
+    let (x1, y1) = (
+        clamp(region.x1, frame.width()),
+        clamp(region.y1, frame.height()),
+    );
+    if x1 <= x0 + 2 || y1 <= y0 + 2 {
+        return Err(Failure::Model);
+    }
+    let grey = frame.crop_imm(x0, y0, x1 - x0, y1 - y0).to_luma8();
+    let height = (256 * grey.height() / grey.width().max(1)).max(3);
+    let small = image::imageops::resize(&grey, 256, height, image::imageops::FilterType::Triangle);
+    let (w, h) = small.dimensions();
+    let at = |x: u32, y: u32| f64::from(small.get_pixel(x, y)[0]);
+    let mut values = Vec::with_capacity(((w - 2) * (h - 2)) as usize);
+    for y in 1..h - 1 {
+        for x in 1..w - 1 {
+            values.push(at(x - 1, y) + at(x + 1, y) + at(x, y - 1) + at(x, y + 1) - 4.0 * at(x, y));
+        }
+    }
+    let n = values.len().max(1) as f64;
+    let mean = values.iter().sum::<f64>() / n;
+    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    Ok(variance as f32)
 }
 
 /// What the verifier said, from its reply: `yes`, `no` or anything else, which
@@ -232,13 +277,20 @@ impl VerifierPort for NatsVerifier {
         region: Rect,
         bed: &Quad,
         question: Question,
+        crops: &[u8],
     ) -> Result<(), Failure> {
-        let jpeg = jpeg_crop(frame, region)?;
-        let mut jpegs = match self.kept.take() {
+        let kept = match self.kept.take() {
             Some((id, kept)) if id == ticket.id => kept,
             _ => Vec::new(),
         };
-        jpegs.push(jpeg);
+        let jpegs = if crops.is_empty() {
+            vec![jpeg_crop(frame, region)?]
+        } else {
+            crops
+                .iter()
+                .map(|&i| kept.get(usize::from(i)).cloned().ok_or(Failure::Model))
+                .collect::<Result<Vec<_>, _>>()?
+        };
         self.requests
             .try_send(Request {
                 ticket,
@@ -251,13 +303,14 @@ impl VerifierPort for NatsVerifier {
     fn answers(&mut self) -> Vec<Verified> {
         self.answers.try_iter().collect()
     }
-    fn keep(&mut self, frame: &DynamicImage, ticket: Ticket, region: Rect) -> Result<(), Failure> {
+    fn keep(&mut self, frame: &DynamicImage, ticket: Ticket, region: Rect) -> Result<f32, Failure> {
         let jpeg = jpeg_crop(frame, region)?;
+        let sharp = sharpness(frame, region)?;
         match self.kept.as_mut() {
             Some((id, kept)) if *id == ticket.id => kept.push(jpeg),
             _ => self.kept = Some((ticket.id, vec![jpeg])),
         }
-        Ok(())
+        Ok(sharp)
     }
 }
 
@@ -280,6 +333,24 @@ mod tests {
         assert_eq!(one, (vec![1, 2], None));
         let three = frames_payload(&[vec![1, 2], vec![3], vec![4, 5, 6]]);
         assert_eq!(three, (vec![1, 2, 3, 4, 5, 6], Some("2,1,3".to_owned())));
+    }
+
+    #[test]
+    fn a_blurred_crop_is_less_sharp_than_a_sharp_one() {
+        let mut sharp = image::RgbImage::new(64, 64);
+        for (x, y, p) in sharp.enumerate_pixels_mut() {
+            let v = if (x / 4 + y / 4) % 2 == 0 { 255 } else { 0 };
+            *p = image::Rgb([v, v, v]);
+        }
+        let sharp = DynamicImage::ImageRgb8(sharp);
+        let blurred = sharp.blur(3.0);
+        let region = Rect::new(0.0, 0.0, 64.0, 64.0);
+        let (s, b) = (
+            sharpness(&sharp, region).unwrap(),
+            sharpness(&blurred, region).unwrap(),
+        );
+        assert!(s > 4.0 * b, "sharp {s}, blurred {b}");
+        assert!(sharpness(&sharp, Rect::new(70.0, 70.0, 90.0, 90.0)).is_err());
     }
 
     #[test]

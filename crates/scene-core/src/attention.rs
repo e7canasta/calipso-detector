@@ -267,10 +267,9 @@ pub(crate) enum BurstStep {
     Resolved,
     /// `every_secs` has not passed since the last kept crop.
     Wait,
-    /// Keep this sample's crop; more are wanted.
+    /// Keep this sample's crop: the turn sees how sharp it is and whether the
+    /// burst is ready ([`burst_ready`]).
     Keep,
-    /// Keep this one too and ask, with every kept crop.
-    Send,
 }
 
 /// The next step of a burst being collected. It reads, never writes: the turn
@@ -308,11 +307,50 @@ pub(crate) fn burst(
     if age < collecting.burst.every_secs {
         return BurstStep::Wait;
     }
-    if collecting.kept.saturating_add(1) >= collecting.burst.frames {
-        BurstStep::Send
-    } else {
-        BurstStep::Keep
+    BurstStep::Keep
+}
+
+/// After a crop is kept: which kept crops go, if the burst is ready. Ready when
+/// `frames` crops counted (were sharp), and those go; or when the longest wait
+/// passed since the first crop, and then the sharpest it has go, in the order
+/// they were kept. `None`: keep collecting.
+pub(crate) fn burst_ready(
+    at: SampleRef,
+    collecting: &Collecting,
+    policy: Option<&crate::policy::SharpnessPolicy>,
+) -> Option<Vec<u8>> {
+    let frames = usize::from(collecting.burst.frames.max(1));
+    let counted: Vec<u8> = collecting
+        .crops
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.counted)
+        .filter_map(|(i, _)| u8::try_from(i).ok())
+        .collect();
+    if counted.len() >= frames {
+        return Some(counted.into_iter().take(frames).collect());
     }
+    let waited = policy.is_some_and(|p| {
+        at.secs_since(collecting.opened)
+            .is_none_or(|age| age >= p.max_wait_secs)
+    });
+    if !waited || collecting.crops.is_empty() {
+        return None;
+    }
+    let mut sharpest: Vec<(usize, f32)> = collecting
+        .crops
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (i, c.sharpness))
+        .collect();
+    sharpest.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let mut chosen: Vec<u8> = sharpest
+        .into_iter()
+        .take(frames)
+        .filter_map(|(i, _)| u8::try_from(i).ok())
+        .collect();
+    chosen.sort_unstable();
+    Some(chosen)
 }
 
 /// A doubt worth asking: unless a request is in flight, the hour's budget is
@@ -585,7 +623,12 @@ pub enum LookResult {
     /// The verifier took the request: the answer comes in a later turn.
     Dispatched,
     /// The shell kept the crop for a burst.
-    Kept,
+    Kept {
+        /// How sharp the shell measured it.
+        sharpness: f32,
+        /// Whether it counts for the burst: sharp enough for this camera.
+        counted: bool,
+    },
 }
 
 /// An entry of attention's ledger (rule 12): what was decided to look at or

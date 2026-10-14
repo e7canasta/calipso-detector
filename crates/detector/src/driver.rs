@@ -153,9 +153,11 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
                             region,
                             bed,
                             question,
+                            crops,
                         } => {
                             let started = Instant::now();
-                            let taken = verifier.ask(&frame, *ticket, *region, bed, *question);
+                            let taken =
+                                verifier.ask(&frame, *ticket, *region, bed, *question, crops);
                             let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
                             (taken.map(|()| Reading::Dispatched), spent)
                         }
@@ -163,7 +165,7 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
                             let started = Instant::now();
                             let kept = verifier.keep(&frame, *ticket, *region);
                             let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
-                            (kept.map(|()| Reading::Kept), spent)
+                            (kept.map(|sharpness| Reading::Kept { sharpness }), spent)
                         }
                         _ => senses.look(&frame, probe),
                     }

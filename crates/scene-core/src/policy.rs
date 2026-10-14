@@ -149,6 +149,22 @@ pub struct VerifyPolicy {
     /// How many crops each question sends, and how far apart (white book,
     /// volume III, ch. 12). By default one: the looked sample's.
     pub frames: Frames,
+    /// Which kept crops are sharp enough to count; `None`: every one counts.
+    pub sharpness: Option<SharpnessPolicy>,
+}
+
+/// A crop counts for a burst if it is sharp enough, relative to the camera's
+/// own recent crops: the same rule serves colour and infrared, day and night
+/// (white book, volume III, ch. 12). The shell measures; the core decides.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SharpnessPolicy {
+    /// Sharp: at least this fraction of the median of the last crops.
+    pub min_ratio: f32,
+    /// How many of the camera's last kept crops the median looks at.
+    pub window: u16,
+    /// Source seconds from the burst's first crop: then it asks with the
+    /// sharpest it has, rather than wait for sharp ones forever.
+    pub max_wait_secs: f64,
 }
 
 /// A burst: how many crops a question sends and the source seconds between

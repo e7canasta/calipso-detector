@@ -136,14 +136,21 @@ impl Waiting {
         )
     }
 
-    /// The verifier, over its crop, with the ticket its answer will carry.
-    pub(super) fn verify(refined: Refined, ticket: Ticket, look: VerifyLook) -> Self {
+    /// The verifier, over its crop or the kept crops `crops`, with the ticket
+    /// its answer will carry.
+    pub(super) fn verify(
+        refined: Refined,
+        ticket: Ticket,
+        look: VerifyLook,
+        crops: Vec<u8>,
+    ) -> Self {
         Self::new(
             Probe::Verify {
                 ticket,
                 region: look.region,
                 bed: look.bed,
                 question: look.question,
+                crops,
             },
             Continuation::Verify { refined },
         )

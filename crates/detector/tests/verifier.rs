@@ -31,6 +31,7 @@ impl VerifierPort for Scripted {
         region: Rect,
         _bed: &scene_core::geom::Quad,
         question: Question,
+        _crops: &[u8],
     ) -> Result<(), Failure> {
         let jpeg = jpeg_crop(frame, region)?;
         self.asked.push((ticket, question, jpeg));
@@ -51,8 +52,8 @@ impl VerifierPort for Scripted {
             })
             .collect()
     }
-    fn keep(&mut self, _: &DynamicImage, _: Ticket, _: Rect) -> Result<(), Failure> {
-        Ok(())
+    fn keep(&mut self, _: &DynamicImage, _: Ticket, _: Rect) -> Result<f32, Failure> {
+        Ok(100.0)
     }
 }
 
@@ -145,6 +146,7 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
             Rect::new(8.0, 11.0, 112.0, 89.0),
             &scene_core::geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
             Question::HeldInBed,
+            &[],
         )
         .unwrap();
     let (asked, question, jpeg) = &scripted.asked[0];
@@ -190,6 +192,7 @@ fn the_live_verifier_answers_over_nats() {
             Rect::new(8.0, 11.0, 112.0, 89.0),
             &scene_core::geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
             Question::HeldInBed,
+            &[],
         )
         .unwrap();
     let deadline = std::time::Instant::now() + Duration::from_secs(30);

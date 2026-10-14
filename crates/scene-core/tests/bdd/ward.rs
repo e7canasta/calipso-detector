@@ -74,6 +74,9 @@ pub struct Verifier {
     /// Each request still owed, with the sample it went out at: the latency
     /// counts from there, as a burst goes out after its first sample.
     pub owed: Vec<(scene_core::look::Ticket, SampleRef)>,
+    /// The samples whose kept crop is blurred: the shell measures it at 10,
+    /// against 100 for every other.
+    pub blurred: Vec<u32>,
 }
 
 impl fmt::Debug for Ward {
@@ -131,6 +134,13 @@ impl Ward {
     /// Drives a turn with the core's driver (`Turn::drive`): the scripted
     /// senses answer each probe.
     pub fn drive(&mut self, input: Input, script: &Script) {
+        // Whether this sample's kept crop is blurred, before the monitor is borrowed.
+        let blurred = match &input {
+            Input::Sample { at, .. } => {
+                self.verifier.blurred.iter().any(|&n| self.sample(n) == *at)
+            }
+            _ => false,
+        };
         let monitor = self.monitor.get_or_insert_with(|| {
             Monitor::new(
                 self.policy.clone(),
@@ -158,6 +168,12 @@ impl Ward {
             _ => None,
         };
         let output = monitor.handle(input.clone()).drive(|request| {
+            if blurred && matches!(request, scene_core::look::Probe::Keep { .. }) {
+                return (
+                    Ok(scene_core::look::Reading::Kept { sharpness: 10.0 }),
+                    Spent(1.0),
+                );
+            }
             if let (scene_core::look::Probe::Verify { ticket, .. }, Some(sent)) = (request, sent) {
                 asked.push((*ticket, sent));
             }

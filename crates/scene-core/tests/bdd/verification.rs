@@ -7,7 +7,7 @@ use scene_core::contract::{
     HeldCheckState, LookKind, LookOutcome, LookResult, SkipReason, Verifier,
 };
 use scene_core::look::Answer;
-use scene_core::policy::{Band, Burst, HeldVerifyPolicy, VerifyPolicy};
+use scene_core::policy::{Band, Burst, HeldVerifyPolicy, SharpnessPolicy, VerifyPolicy};
 
 use crate::attention::scene;
 use crate::ward::Ward;
@@ -69,8 +69,43 @@ fn crop_kept(ward: &mut Ward, n: u32) {
             .attention
             .looks
             .iter()
-            .any(|l| l.kind == LookKind::Keep && matches!(l.result(), Some(LookResult::Kept))),
+            .any(|l| l.kind == LookKind::Keep
+                && matches!(l.result(), Some(LookResult::Kept { counted: true, .. }))),
         "no crop kept in sample {n}: {:?}",
+        scene.attention.looks
+    );
+}
+
+#[given(
+    expr = "a crop counts if it is {float} of the median of the camera's last {int}, waiting at most {int} seconds"
+)]
+fn sharpness_policy(ward: &mut Ward, ratio: f32, window: u16, wait: u32) {
+    ward.policy
+        .verify
+        .get_or_insert_with(VerifyPolicy::default)
+        .sharpness = Some(SharpnessPolicy {
+        min_ratio: ratio,
+        window,
+        max_wait_secs: f64::from(wait),
+    });
+}
+
+#[given(expr = "the crops of samples {int} to {int} are blurred")]
+fn blurred(ward: &mut Ward, from: u32, to: u32) {
+    ward.verifier.blurred.extend(from..=to);
+}
+
+#[then(expr = "in sample {int} a blurred crop is kept, not counted")]
+fn blurred_kept(ward: &mut Ward, n: u32) {
+    let scene = scene(ward, n);
+    assert!(
+        scene
+            .attention
+            .looks
+            .iter()
+            .any(|l| l.kind == LookKind::Keep
+                && matches!(l.result(), Some(LookResult::Kept { counted: false, .. }))),
+        "no blurred crop kept in sample {n}: {:?}",
         scene.attention.looks
     );
 }

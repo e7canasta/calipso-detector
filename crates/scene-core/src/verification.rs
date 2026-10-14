@@ -74,16 +74,25 @@ pub(crate) struct HeldEntry {
 
 /// A burst being collected (white book, volume III, ch. 12): V's phase 1.
 /// The question is decided and its ticket issued; the shell keeps one crop per
-/// `every_secs` until the last one goes out with the question.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// `every_secs`, and the question goes out with the sharp ones.
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Collecting {
     pub(crate) ticket: Ticket,
     pub(crate) look: VerifyLook,
     pub(crate) burst: Burst,
-    /// Crops the shell kept so far.
-    pub(crate) kept: u8,
+    /// The crops the shell kept, in order.
+    pub(crate) crops: Vec<KeptCrop>,
+    /// The sample the burst opened at: the longest wait counts from it.
+    pub(crate) opened: SampleRef,
     /// The sample the last crop was kept at.
     pub(crate) last: SampleRef,
+}
+
+/// A crop kept for a burst: how sharp, and whether it counts.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct KeptCrop {
+    pub(crate) sharpness: f32,
+    pub(crate) counted: bool,
 }
 
 /// What one camera has asked the verifier and what it owes.
@@ -98,6 +107,9 @@ pub(crate) struct Verification {
     sent: Option<SampleRef>,
     /// A burst being collected: V's phase 1.
     collecting: Option<Collecting>,
+    /// The sharpness of the camera's last kept crops: the reference a crop is
+    /// sharp against (bounded by the policy's window).
+    sharpness: std::collections::VecDeque<f32>,
     /// For a doubtful digit, the places of the looked sample the answer fills.
     asked_places: Option<BodyPlaces>,
     /// The looked sample's places, filled by an answer that still applied: what
@@ -211,17 +223,41 @@ impl Verification {
             ticket,
             look,
             burst,
-            kept: 0,
+            crops: Vec::new(),
+            opened: at,
             last: at,
         });
     }
 
-    /// The shell kept a crop of the burst at `at`.
-    pub(crate) fn kept(&mut self, at: SampleRef) {
+    /// The shell kept a crop of the burst at `at`, this sharp. It counts if it
+    /// is at least `min_ratio` of the median of the camera's last crops (the
+    /// first ones always count); without a policy, every crop counts. Returns
+    /// whether it counted.
+    pub(crate) fn kept(
+        &mut self,
+        at: SampleRef,
+        sharpness: f32,
+        policy: Option<&crate::policy::SharpnessPolicy>,
+    ) -> bool {
+        let counted = match policy {
+            None => true,
+            Some(p) => {
+                let mut recent: Vec<f32> = self.sharpness.iter().copied().collect();
+                recent.sort_by(f32::total_cmp);
+                let median = recent.get(recent.len() / 2).copied();
+                let counted = median.is_none_or(|m| sharpness >= p.min_ratio * m);
+                self.sharpness.push_back(sharpness);
+                while self.sharpness.len() > usize::from(p.window.max(1)) {
+                    self.sharpness.pop_front();
+                }
+                counted
+            }
+        };
         if let Some(collecting) = self.collecting.as_mut() {
-            collecting.kept = collecting.kept.saturating_add(1);
+            collecting.crops.push(KeptCrop { sharpness, counted });
             collecting.last = at;
         }
+        counted
     }
 
     /// The burst is dropped unasked: stale or resolved. Nothing is owed.

@@ -5,7 +5,7 @@ use scene_core::{
     map::{FrameInfo, SiteMap},
     policy::{
         Band, BedPosturePolicy, Burst, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
-        Frames, HeldVerifyPolicy, Policy, ReinforcePolicy, VerifyPolicy,
+        Frames, HeldVerifyPolicy, Policy, ReinforcePolicy, SharpnessPolicy, VerifyPolicy,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -52,6 +52,20 @@ pub struct VerifyConfig {
     /// How many crops each question sends (white book, volume III, ch. 12);
     /// without it, one.
     pub frames: Option<FramesConfig>,
+    /// Which kept crops are sharp enough to count; without it, every one.
+    pub sharpness: Option<SharpnessConfig>,
+}
+
+/// A crop counts if it is at least `min_ratio` of the median sharpness of the
+/// camera's last `window` crops; after `max_wait_secs` the burst asks with the
+/// sharpest it has.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SharpnessConfig {
+    pub min_ratio: f32,
+    #[serde(default = "defaults::sharpness_window")]
+    pub window: u16,
+    pub max_wait_secs: f64,
 }
 
 /// The burst of each question, by its name; a missing one sends one crop.
@@ -287,6 +301,10 @@ pub struct NatsConfig {
 /// What a profile gets when it leaves a field out. Each value is named by what
 /// it means: two fields that share a number do not share a default.
 mod defaults {
+    pub(super) fn sharpness_window() -> u16 {
+        20
+    }
+
     pub(super) fn verify_subject() -> String {
         "calipso.verify.v1".to_owned()
     }
@@ -487,6 +505,14 @@ impl Config {
                     "verify.frames.{name}.every_secs must be a source time, 0 or more"
                 );
             }
+        }
+        if let Some(s) = v.sharpness {
+            ensure!(
+                s.min_ratio.is_finite() && s.min_ratio > 0.0 && s.min_ratio <= 1.0,
+                "verify.sharpness.min_ratio must be in (0, 1]"
+            );
+            ensure!(s.window > 0, "verify.sharpness.window must be positive");
+            positive("verify.sharpness.max_wait_secs", s.max_wait_secs)?;
         }
         if v.doubtful_disparity.is_some() || v.doubtful_feet_margin.is_some() {
             ensure!(
@@ -780,6 +806,11 @@ impl Config {
                     leaving: of(f.leaving_bed),
                 }
             },
+            sharpness: v.sharpness.map(|s| SharpnessPolicy {
+                min_ratio: s.min_ratio,
+                window: s.window,
+                max_wait_secs: s.max_wait_secs,
+            }),
         });
         p
     }
@@ -904,7 +935,7 @@ mod tests {
         let with_headboard = base.replacen("[map]\n", &format!("[map]\n{map}"), 1);
         let posture = "\n[bed_posture]\n";
         let sense = "\n[senses.verify]\n";
-        let verify = "\n[verify]\nmax_per_hour = 20\ntimeout_secs = 8\ndoubtful_disparity = [0.03, 0.12]\ndoubtful_feet_margin = 0.06\n[verify.held]\nafter_secs = 30\nvalid_secs = 3600\n[verify.frames]\nsitting_in_bed = { frames = 3, every_secs = 1.5 }\n";
+        let verify = "\n[verify]\nmax_per_hour = 20\ntimeout_secs = 8\ndoubtful_disparity = [0.03, 0.12]\ndoubtful_feet_margin = 0.06\n[verify.held]\nafter_secs = 30\nvalid_secs = 3600\n[verify.frames]\nsitting_in_bed = { frames = 3, every_secs = 1.5 }\n[verify.sharpness]\nmin_ratio = 0.5\nmax_wait_secs = 4\n";
         let text = format!("{with_headboard}{sense}{posture}{verify}");
         let config = Config::parse(&text).unwrap_or_else(|e| panic!("{e}\n{text}"));
         let policy = config.policy().verify.unwrap();
@@ -920,6 +951,11 @@ mod tests {
             (3, 1.5)
         );
         assert_eq!(policy.frames.held, Burst::ONE);
+        let sharp = policy.sharpness.unwrap();
+        assert_eq!(
+            (sharp.min_ratio, sharp.window, sharp.max_wait_secs),
+            (0.5, 20, 4.0)
+        );
         let held = policy.held.unwrap();
         assert_eq!((held.after_secs, held.valid_secs), (30.0, Some(3600.0)));
         assert_eq!(

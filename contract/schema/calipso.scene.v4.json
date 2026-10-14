@@ -1204,13 +1204,24 @@
           "description": "The shell kept the crop for a burst.",
           "type": "object",
           "properties": {
+            "counted": {
+              "description": "Whether it counts for the burst: sharp enough for this camera.",
+              "type": "boolean"
+            },
+            "sharpness": {
+              "description": "How sharp the shell measured it.",
+              "type": "number",
+              "format": "float"
+            },
             "type": {
               "type": "string",
               "const": "kept"
             }
           },
           "required": [
-            "type"
+            "type",
+            "sharpness",
+            "counted"
           ]
         }
       ]

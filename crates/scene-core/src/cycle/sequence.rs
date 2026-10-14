@@ -193,17 +193,6 @@ impl Course<'_> {
                             let (ticket, region) = (burst.ticket, burst.look.region);
                             return Phase::Waiting(Waiting::keep(refined, ticket, region));
                         }
-                        BurstStep::Send => {
-                            self.monitor
-                                .engine
-                                .verification
-                                .dispatch(burst.ticket, self.at);
-                            return Phase::Waiting(Waiting::verify(
-                                refined,
-                                burst.ticket,
-                                burst.look,
-                            ));
-                        }
                         BurstStep::Stale | BurstStep::Resolved => {
                             self.monitor.engine.verification.drop_burst();
                             let reason = if step == BurstStep::Stale {
@@ -288,17 +277,39 @@ impl Course<'_> {
                 Reached::Enriched(observed, enrichment)
             }
             Continuation::Keep { refined } => {
+                let Engine {
+                    policy,
+                    verification,
+                    ..
+                } = &mut self.monitor.engine;
+                let sharpness_policy = policy.verify.as_ref().and_then(|v| v.sharpness);
                 let result = match outcome.kept() {
-                    Ok(()) => {
-                        self.monitor.engine.verification.kept(self.at);
-                        LookResult::Kept
+                    Ok(sharpness) => {
+                        let counted =
+                            verification.kept(self.at, sharpness, sharpness_policy.as_ref());
+                        LookResult::Kept { sharpness, counted }
                     }
                     Err(failure) => {
-                        self.monitor.engine.verification.failed();
+                        verification.failed();
                         LookResult::failed(failure)
                     }
                 };
                 self.asked(probe, spent, result);
+                // The burst is ready: the question goes out now, with the chosen crops.
+                let verification = &mut self.monitor.engine.verification;
+                let ready = verification.collecting().cloned().and_then(|c| {
+                    attention::burst_ready(self.at, &c, sharpness_policy.as_ref())
+                        .map(|crops| (c, crops))
+                });
+                if let Some((burst, crops)) = ready {
+                    verification.dispatch(burst.ticket, self.at);
+                    return Phase::Waiting(Waiting::verify(
+                        refined,
+                        burst.ticket,
+                        burst.look,
+                        crops,
+                    ));
+                }
                 Reached::Final(refined)
             }
             Continuation::Verify { refined } => {
@@ -443,10 +454,12 @@ impl Course<'_> {
             .verify
             .map(|v| v.frames.of(look.question))
             .unwrap_or_default();
+        let sharpness = policy.verify.and_then(|v| v.sharpness);
         let ticket = verification.issue(look.target, self.at, look.places);
-        if burst.frames <= 1 {
+        // One frame and no sharpness to choose by: this sample's crop, now.
+        if burst.frames <= 1 && sharpness.is_none() {
             verification.dispatch(ticket, self.at);
-            return Phase::Waiting(Waiting::verify(refined, ticket, look));
+            return Phase::Waiting(Waiting::verify(refined, ticket, look, Vec::new()));
         }
         verification.collect(ticket, look, burst, self.at);
         Phase::Waiting(Waiting::keep(refined, ticket, look.region))
@@ -455,7 +468,7 @@ impl Course<'_> {
     /// The step of the burst being collected, if any, with the burst.
     fn burst(&self, refined: &Refined) -> Option<(BurstStep, Collecting)> {
         let verification = &self.monitor.engine.verification;
-        let collecting = *verification.collecting()?;
+        let collecting = verification.collecting()?.clone();
         let layer_1 = refined.bed_posture.map(|b| b.state);
         let held = verification.held().map(|h| h.since);
         let step = attention::burst(

@@ -49,8 +49,9 @@ pub enum Probe {
         /// The crop's bounding box, in whole-frame pixels.
         region: Rect,
     },
-    /// The slow verifier: a closed question about a crop, sent with the crops
-    /// kept for its ticket, in order, this sample's last. The shell only takes
+    /// The slow verifier: a closed question about a crop. With `crops`, the
+    /// crops kept for its ticket that go, by the order they were kept; empty,
+    /// this sample's own crop. The shell only takes
     /// the request (`Reading::Dispatched`); the answer comes later, through
     /// [`Monitor::verified`](crate::Monitor::verified), as evidence of the
     /// sample it looked at (book 4).
@@ -65,6 +66,9 @@ pub enum Probe {
         bed: crate::geom::Quad,
         /// The closed question.
         question: Question,
+        /// Which kept crops go, by the order they were kept; empty: this
+        /// sample's crop.
+        crops: Vec<u8>,
     },
 }
 
@@ -239,8 +243,12 @@ pub enum Reading {
     Depth(Vec<Option<f32>>),
     /// The verifier took the request (`Verify`): the answer comes later.
     Dispatched,
-    /// The shell kept the crop for its burst (`Keep`).
-    Kept,
+    /// The shell kept the crop for its burst (`Keep`), and how sharp it is
+    /// (any scale, the same for every crop of the camera).
+    Kept {
+        /// The crop's sharpness.
+        sharpness: f32,
+    },
 }
 
 /// Milliseconds the shell measured. The core only records them (rule 9).
@@ -289,10 +297,10 @@ impl Outcome {
         }
     }
 
-    /// Did the shell keep the crop?
-    pub(crate) fn kept(&self) -> Result<(), Failure> {
+    /// Did the shell keep the crop, and how sharp is it?
+    pub(crate) fn kept(&self) -> Result<f32, Failure> {
         match &self.result {
-            Ok(Reading::Kept) => Ok(()),
+            Ok(Reading::Kept { sharpness }) => Ok(*sharpness),
             Err(f) => Err(*f),
             Ok(_) => Err(Failure::Model),
         }
