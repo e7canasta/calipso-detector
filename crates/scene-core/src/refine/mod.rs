@@ -4,6 +4,7 @@
 //! changes a count (second-level rule 1). `project` builds the published scene.
 
 mod lying;
+pub(crate) mod parts;
 mod posture;
 mod sighting;
 mod verdict;

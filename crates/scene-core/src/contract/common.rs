@@ -6,7 +6,7 @@
 
 // The domain vocabulary every version publishes: its modules own it.
 pub use crate::attention::{Attention, Look, LookOutcome, LookResult, SkipReason};
-pub use crate::belief::{BedPosture, BedPostureSeen, BedPostureState};
+pub use crate::belief::{BedPosture, BedPostureSeen, BedPostureState, Parts};
 pub use crate::body::{BedPoint, BedSite, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
@@ -201,6 +201,11 @@ pub struct Subject {
     /// follows it (R18, 1806).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bed_posture: Option<BedPosture>,
+    /// The occupancy of the subject's parts against the bed and the headboard,
+    /// with what is retained unseen (white book, volume I, ch. 09). Absent
+    /// without the bed's geometry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parts: Option<Parts>,
 }
 
 /// What was admitted in this sample, apart from the stabilized belief.

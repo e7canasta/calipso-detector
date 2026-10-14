@@ -138,6 +138,7 @@ fn publish_subject(
     believed: &Believed,
     refined: Refinement,
     bed_posture: Option<Concluded>,
+    parts: Option<crate::belief::parts::Concluded>,
     chronicled: &Chronicled,
 ) -> Option<Subject> {
     let s = believed.subject?;
@@ -164,6 +165,7 @@ fn publish_subject(
             seen: b.seen,
             since: chronicled.bed_posture.since,
         }),
+        parts: parts.map(|p| p.published()),
     })
 }
 

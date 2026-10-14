@@ -340,14 +340,29 @@ impl Course<'_> {
             engine.policy.verify.as_ref(),
             filled,
         );
+        // The parts, at layer 0's compass: what the sample saw of them.
+        let seen = crate::refine::parts::seen(&crate::refine::parts::Sample {
+            looked: !matches!(
+                observed.evidence.bodies.bodies,
+                crate::evidence::BodyEvidence::Unavailable(_)
+            ),
+            subject: observed.believed.subject.as_ref(),
+            body: observed.believed.body.as_ref(),
+            faces: &observed.evidence.faces,
+            bed: engine.map.bed_for(self.geometry),
+            headboard: engine.map.headboard_for(self.geometry),
+            min_score: engine.policy.enrich.as_ref().map(|e| e.min_keypoint_score),
+        });
         // Layer 1, on layer 0 and what the second level perceived.
         let at = self.at;
         let Engine { policy, belief, .. } = &mut self.monitor.engine;
+        let parts = belief.observe_parts(at, seen, policy);
         let bed_posture = belief.observe_bed_posture(at, refinement.sighting, policy);
         Refined {
             observed,
             refinement,
             bed_posture,
+            parts,
         }
     }
 
@@ -358,6 +373,7 @@ impl Course<'_> {
             observed,
             refinement: refined,
             bed_posture,
+            parts,
         } = refined;
         let engine = &self.monitor.engine;
         Conclusion::Observed(Box::new(Observation {
@@ -365,6 +381,7 @@ impl Course<'_> {
             believed: observed.believed,
             refined,
             bed_posture,
+            parts,
             held_check: engine.verification.held(),
             evidence: observed.evidence,
             frame: engine.frame,

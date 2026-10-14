@@ -90,6 +90,7 @@ What no change may break. Each one has someone watching it.
 | No panics: no `unwrap`, `expect` or indexing | 21 | `#![deny(...)]` in `lib.rs` |
 | Layer 0 decides as the golden table does | P2 | `belief/occupancy/machine/table.rs` |
 | Layer 1 decides as its golden table does (`contract/bed-posture-table.txt`) | P2 | `belief/bed_posture/rules/table.rs` |
+| The parts decide as their golden table does (`contract/parts-table.txt`) | P2 | `belief/parts/rules/table.rs` |
 | The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
 | The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
 | Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
@@ -292,6 +293,44 @@ layer 1, never the other way round.
 `subject.bed_posture { state, seen, since }`, additively in v4. The events
 of its transitions wait for v5.
 
+### The occupancy of the parts (`belief/parts/`)
+
+Where each part of the subject is against the two planes with their own
+`u/v`, the bed and the headboard, and what is kept unseen. It is not the
+posture: the posture relates the parts to each other, this relates them to
+places. The sister of layer 0, with its shape and at its compass: once per
+sample, with layer 0's dwell, and only while layer 0 has a subject (the only
+occupant, anywhere).
+
+```text
+             layer 0 ── a subject or not ──┐   (Belief wires it)
+                                           ▼
+refine::parts ──[ByPart<Look>]──► rules::decide(places(t−1), subject, seen) ──► Stabilizer ──► Concluded
+second level,  what the sample   a pure decider, position by position:        the places,    seen, places
+pure           saw of each part  the golden table (5 × 5)                      without held   with held
+```
+
+The row is `l0[t] + places[t−1] : seen[t] : places[t]`.
+
+- **What the sample saw** (`refine::parts`, pure, a `ByPart<Look>`): two
+  bits per part, some point inside the region and some outside; both, split.
+  Against the bed `cfhsaip` (the person's box centre, the face, the head, the
+  shoulders, the arms, the groin, the legs); against the headboard `fhs`; and
+  three whole-box flags `BFK` (the person's box in the bed, the face's in the
+  bed, the face's in the headboard). A part counts only from a sense that
+  looked in this sample (`-` otherwise): the box from the main detector, the
+  faces from theirs, the rest from a fresh pose.
+- **The rules** (`rules::decide`): without a subject there are no places and
+  the memory is lost; a part seen takes where it was seen; a part not seen
+  keeps where it was last seen, **held**; never seen, it is unknown.
+- **The machine** (`Machine`, P1): the retention (where each part was last
+  seen) and the places without the held marks, stabilized with layer 0's
+  dwell. Held is not stabilized: it says where the datum of this sample comes
+  from, like a provenance.
+
+`project` publishes `subject.parts { seen, state }` in the trama's notation,
+additively in v4.
+
 ## 6. Projections and observers
 
 The core is Markov: it keeps only what it needs to decide what comes next
@@ -369,6 +408,7 @@ One concept, one name.
 | since when | `chronicle::Since`, `Stamp` | A state and the sample it holds since; dated on a turn, with the previous one if it changed |
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
+| parts, places | `belief::parts`, `ByPart`, `Look`, `Place`, `Parts` | Where each part of the subject is against the bed and the headboard (`cfhsaip · fhs · BFK`), two bits each (inside, outside), and what is held: not seen in this sample, kept where it was last seen. The sister of layer 0, at its compass |
 | layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
 | verification, verifier | `verification`, `Probe::Verify`, `Monitor::verified` | Asking a slow verifier (a VLM over a crop) a closed question, outside the turn: the answer is evidence of the sample it looked at and never moves a count (book 4; white book, volume III) |
 | doubtful digit, grey band | `DisparitySide::Doubtful`, `policy::Band`, `VerifyPolicy::doubtful_disparity` | A body place whose reading falls in the camera's grey band (`?` in the trama): layer 1 reads it as nothing new, and the verifier may fill it. The answer fills the digit of the looked sample; layer 1 runs its own, unchanged table on it (white book, volume III, ch. 10) |
@@ -395,6 +435,7 @@ matters as much as the second.
 | `belief/bed_posture` | Layer 1: the bed posture machine, its rules (a golden table) and its vocabulary | changes a count, or reads a raw reading |
 | `belief/stabilizer` | Source-time stabilizing, for both layers | knows what it counts |
 | `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |
+| `belief/parts` | The occupancy of the subject's parts: where each part is and what is held | changes a count or reads the posture |
 | `refine` | The second level: lying, posture by body groups, the arbiter's verdict (a golden table) and what layer 1 saw (`seen`) | writes the belief or changes a count |
 | `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); the main detector's lens (`Lens`: when it last read the whole frame) | mutates the belief |
 | `body` | Body vocabulary: the COCO-17 pose and its depth | interprets the pose (that is `refine`) |

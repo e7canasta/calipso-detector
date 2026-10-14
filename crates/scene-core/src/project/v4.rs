@@ -91,6 +91,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         believed,
         refined,
         bed_posture,
+        parts,
         held_check,
         evidence,
         frame,
@@ -102,7 +103,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
     } = observation;
     let republished = unobserved(&evidence.bodies.bodies, chronicled.observed);
     let evidence = project_evidence(&evidence, believed.subject.as_ref(), &attention);
-    let subject = publish_subject(&believed, refined, bed_posture, chronicled);
+    let subject = publish_subject(&believed, refined, bed_posture, parts, chronicled);
     let belief::Believed {
         occupancy: occupancy_now,
         transition: changed,

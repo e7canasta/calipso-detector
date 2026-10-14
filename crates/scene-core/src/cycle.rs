@@ -125,6 +125,7 @@ struct Refined {
     observed: Observed,
     refinement: crate::refine::Refinement,
     bed_posture: Option<crate::belief::bed_posture::Concluded>,
+    parts: Option<crate::belief::parts::Concluded>,
 }
 
 /// What comes out of a turn: the scene of the sample and the events it

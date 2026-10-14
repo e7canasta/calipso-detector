@@ -4,6 +4,7 @@
 
 pub(crate) mod bed_posture;
 mod occupancy;
+pub(crate) mod parts;
 mod stabilizer;
 mod subject;
 
@@ -18,6 +19,7 @@ use occupancy::Machine;
 use subject::SubjectMemory;
 
 pub use bed_posture::{BedPosture, BedPostureSeen, BedPostureState};
+pub use parts::Parts;
 
 pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, Room, Tally, Transition};
 pub(crate) use subject::{Enrichment, SubjectBody};
@@ -62,6 +64,8 @@ pub(crate) struct Belief {
     latch: LatchState,
     /// Layer 1: followed only with its policy.
     bed_posture: bed_posture::Machine,
+    /// The occupancy of the subject's parts, at layer 0's compass.
+    parts: parts::Machine,
 }
 
 /// The reinforcement memory: "someone was seen in bed". It is belief; firing
@@ -170,6 +174,21 @@ impl Belief {
             Room::Empty | Room::Alone(Alone::Out) | Room::Accompanied(_) => None,
         };
         self.bed_posture.step(at, l0, sighting, policy)
+    }
+
+    /// The occupancy of the subject's parts: the wire from layer 0. With a
+    /// subject (the only occupant, anywhere) and what the sample saw of its
+    /// parts; without one, or without the bed's plane (`None`), there are no
+    /// places. Same compass as layer 0: once per sample, its dwell.
+    pub(crate) fn observe_parts(
+        &mut self,
+        at: SampleRef,
+        seen: Option<parts::ByPart<parts::Look>>,
+        policy: &Policy,
+    ) -> Option<parts::Concluded> {
+        let subject = seen.is_some() && matches!(self.occupancy.room(), Room::Alone(_));
+        self.parts
+            .step(at, subject, seen.unwrap_or_default(), &policy.persistence)
     }
 
     /// Reinforcement looked: the latch is spent until the main detector sees

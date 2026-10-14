@@ -16,6 +16,7 @@ mod attention;
 mod bed_posture;
 mod contract;
 mod occupancy;
+mod parts;
 mod posture;
 #[path = "../published.rs"]
 mod published;

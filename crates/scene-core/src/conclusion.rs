@@ -35,6 +35,8 @@ pub(crate) struct Observation {
     pub refined: crate::refine::Refinement,
     /// Layer 1, if its policy follows it and the resident is alone in bed.
     pub bed_posture: Option<crate::belief::bed_posture::Concluded>,
+    /// The occupancy of the subject's parts, with a subject and the bed's plane.
+    pub parts: Option<crate::belief::parts::Concluded>,
     /// The verification plane's held body, if it follows one.
     pub held_check: Option<crate::verification::HeldEntry>,
     pub evidence: Perceived,

@@ -1344,6 +1344,24 @@
         }
       ]
     },
+    "Parts": {
+      "description": "The published occupancy of the parts, in the trama's notation: the\npositions in `cfhsaip` against the bed, `fhs` against the headboard and\nthe flags `BFK` (whole boxes inside).",
+      "type": "object",
+      "properties": {
+        "seen": {
+          "description": "What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`, with `-`\nwhere the sense did not look. E.g. `1-11111.0-00000:-10.-01:1--`.",
+          "type": "string"
+        },
+        "state": {
+          "description": "The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :\nBFK.HELD`. Held: not seen in this sample, kept from where it was last\nseen. E.g. `1111111.0000000.0000111:110.001.000:111.000`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "seen",
+        "state"
+      ]
+    },
     "Pending": {
       "description": "A new count that has not stabilized yet.",
       "type": "object",
@@ -2175,6 +2193,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Lying"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parts": {
+          "description": "The occupancy of the subject's parts against the bed and the headboard,\nwith what is retained unseen (white book, volume I, ch. 09). Absent\nwithout the bed's geometry.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Parts"
             },
             {
               "type": "null"
