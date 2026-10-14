@@ -17,9 +17,11 @@
 //! See also: white book, volume I, ch. 09.
 
 mod machine;
+mod reading;
 mod rules;
 
 pub(crate) use machine::Machine;
+pub use reading::PartsReading;
 
 use crate::time::SampleRef;
 
@@ -100,6 +102,8 @@ pub(crate) struct Concluded {
     pub pending: Option<(ByPart<Place>, SampleRef)>,
     /// The places changed in this turn.
     pub transition: Option<PartsTransition>,
+    /// What we believe of the resident from the places: the stable reading.
+    pub reading: PartsReading,
 }
 
 /// A change of the stable places: what we believed, what this sample saw,

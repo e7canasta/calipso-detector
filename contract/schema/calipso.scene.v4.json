@@ -1366,6 +1366,14 @@
             }
           ]
         },
+        "reading": {
+          "description": "What we believe of the resident from the places: the semantic reading\nof the trama (white book, volume I, ch. 10).",
+          "$ref": "#/$defs/PartsReading"
+        },
+        "reading_since": {
+          "description": "Since when the reading holds.",
+          "$ref": "#/$defs/SampleRef"
+        },
         "seen": {
           "description": "What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`. E.g.\n`1-11111.0-00000:-10.-01:1--`.",
           "type": "string"
@@ -1388,7 +1396,9 @@
       },
       "required": [
         "state",
-        "seen"
+        "seen",
+        "reading",
+        "reading_since"
       ]
     },
     "PartsPending": {
@@ -1407,6 +1417,46 @@
       "required": [
         "places",
         "duration"
+      ]
+    },
+    "PartsReading": {
+      "description": "What we believe of the resident from the places of their parts.",
+      "oneOf": [
+        {
+          "description": "Neither the box nor the groin in the bed.",
+          "type": "string",
+          "const": "out_of_bed"
+        },
+        {
+          "description": "The groin in the bed, the box out: getting in or out.",
+          "type": "string",
+          "const": "on_the_edge"
+        },
+        {
+          "description": "The shoulders and the face or the head at the headboard, nothing out.",
+          "type": "string",
+          "const": "lying"
+        },
+        {
+          "description": "Something out of the bed while some of the torso is still at the\nheadboard: leaving from lying.",
+          "type": "string",
+          "const": "trying_to_leave"
+        },
+        {
+          "description": "Everything in the bed, the whole boxes in it, nothing at the headboard.",
+          "type": "string",
+          "const": "sitting_up"
+        },
+        {
+          "description": "Not everything in the bed, nothing at the headboard.",
+          "type": "string",
+          "const": "sitting_in_bed"
+        },
+        {
+          "description": "The places match no rule.",
+          "type": "string",
+          "const": "undecided"
+        }
       ]
     },
     "Pending": {

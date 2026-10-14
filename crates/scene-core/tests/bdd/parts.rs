@@ -2,7 +2,7 @@
 //! against the bed and the headboard, and what is kept unseen, in the trama's
 //! notation as the scene publishes it.
 
-use cucumber::then;
+use cucumber::{given, then};
 use serde_json::Value;
 
 use crate::attention::scene;
@@ -86,4 +86,18 @@ fn parts_since(ward: &mut Ward, n: u32, since: u32) {
     let parts = parts(ward, n);
     let at = serde_json::to_value(ward.sample(since)).expect("a sample serializes");
     assert_eq!(parts["since"], at, "{parts}");
+}
+
+// --- The reading: what we believe from the places
+
+#[given("the bed's headboard delimited down to the shoulders")]
+fn headboard_to_the_shoulders(ward: &mut Ward) {
+    ward.map.as_mut().expect("the bed first").headboard =
+        Some(scene_core::geom::Rect::new(100.0, 100.0, 500.0, 210.0));
+}
+
+#[then(expr = "in sample {int} the parts read {string}")]
+fn parts_read(ward: &mut Ward, n: u32, reading: String) {
+    let parts = parts(ward, n);
+    assert_eq!(parts["reading"], reading.as_str(), "{parts}");
 }

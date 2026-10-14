@@ -27,6 +27,8 @@ pub(super) fn parts(
             },
         }),
         last_cell: chronicled.last_parts.as_ref().map(cell),
+        reading: concluded.reading,
+        reading_since: chronicled.parts_reading.since,
     }
 }
 

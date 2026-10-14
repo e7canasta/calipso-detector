@@ -337,6 +337,18 @@ the turn so that layer 0's events stay together. The cell is
 last cell) and forgets it without places. `project/parts.rs` writes the
 notation, the same for every version (ADR 2026-10-14).
 
+**The reading** (`belief/parts/reading.rs`) is what we believe from the
+places: the semantic sub-state of layer 0 (`out_of_bed`, `on_the_edge`,
+`lying`, `trying_to_leave`, `sitting_up`, `sitting_in_bed`, `undecided`). A
+pure decision list over six facts of the places now (seen or held): the
+groin and the box in the bed, the headboard (unseen, free, partly, lying),
+something out (the arms aside) and the whole boxes in. Its golden table is
+`contract/parts-reading-table.txt`. It is stabilized on its own, the urgent
+ones (`on_the_edge`, `trying_to_leave`) with half of layer 0's dwell, and
+published as `subject.parts.reading` with `reading_since`. Where two
+situations put the parts in the same places (lying and sitting up against the
+headboard) it does not choose: that is the depth's work, in layer 1.
+
 ## 6. Projections and observers
 
 The core is Markov: it keeps only what it needs to decide what comes next
@@ -415,6 +427,7 @@ One concept, one name.
 | core / shell | `scene-core` / `detector` | Without IO / with IO |
 | table | `machine/table.rs`, `contract/layer-0-table.txt` | Every layer-0 combination with its result |
 | parts, places | `belief::parts`, `ByPart`, `Look`, `Place`, `Parts` | Where each part of the subject is against the bed and the headboard (`cfhsaip · fhs · BFK`), two bits each (inside, outside), and what is held: not seen in this sample, kept where it was last seen. The sister of layer 0, at its compass |
+| reading (of the parts) | `belief::parts::PartsReading`, `reading::Facts` | What we believe from the parts' places, the second sentence: a decision list over six facts with its golden table; it leaves to the depth what occupancy cannot tell |
 | layer 1, bed posture | `belief::bed_posture`, `BedPostureState` | Whether the resident left lying is still lying: `in_bed`, `lying`, `sitting_up`, `getting_out`. The sister of layer 0, with its shape (R18) |
 | verification, verifier | `verification`, `Probe::Verify`, `Monitor::verified` | Asking a slow verifier (a VLM over a crop) a closed question, outside the turn: the answer is evidence of the sample it looked at and never moves a count (book 4; white book, volume III) |
 | doubtful digit, grey band | `DisparitySide::Doubtful`, `policy::Band`, `VerifyPolicy::doubtful_disparity` | A body place whose reading falls in the camera's grey band (`?` in the trama): layer 1 reads it as nothing new, and the verifier may fill it. The answer fills the digit of the looked sample; layer 1 runs its own, unchanged table on it (white book, volume III, ch. 10) |

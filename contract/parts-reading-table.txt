@@ -1,0 +1,67 @@
+# The parts' reading. Facts: g groin in bed · b box in bed · headboard (unseen, free, partly,
+# lying: shoulders and face or head at it) · o something out of bed (arms aside) · B whole boxes in bed.
+# g b headboard o B | reading [urgent: half the dwell]
+0 0 unseen  0 0 | out_of_bed
+0 0 free    0 0 | out_of_bed
+0 0 partly  0 0 | out_of_bed
+0 0 lying   0 0 | out_of_bed
+0 0 unseen  0 1 | out_of_bed
+0 0 free    0 1 | out_of_bed
+0 0 partly  0 1 | out_of_bed
+0 0 lying   0 1 | out_of_bed
+0 0 unseen  1 0 | out_of_bed
+0 0 free    1 0 | out_of_bed
+0 0 partly  1 0 | out_of_bed
+0 0 lying   1 0 | out_of_bed
+0 0 unseen  1 1 | out_of_bed
+0 0 free    1 1 | out_of_bed
+0 0 partly  1 1 | out_of_bed
+0 0 lying   1 1 | out_of_bed
+0 1 unseen  0 0 | undecided
+0 1 free    0 0 | sitting_in_bed
+0 1 partly  0 0 | trying_to_leave [urgent]
+0 1 lying   0 0 | lying
+0 1 unseen  0 1 | undecided
+0 1 free    0 1 | sitting_up
+0 1 partly  0 1 | undecided
+0 1 lying   0 1 | lying
+0 1 unseen  1 0 | undecided
+0 1 free    1 0 | sitting_in_bed
+0 1 partly  1 0 | trying_to_leave [urgent]
+0 1 lying   1 0 | trying_to_leave [urgent]
+0 1 unseen  1 1 | undecided
+0 1 free    1 1 | sitting_in_bed
+0 1 partly  1 1 | trying_to_leave [urgent]
+0 1 lying   1 1 | trying_to_leave [urgent]
+1 0 unseen  0 0 | on_the_edge [urgent]
+1 0 free    0 0 | on_the_edge [urgent]
+1 0 partly  0 0 | on_the_edge [urgent]
+1 0 lying   0 0 | on_the_edge [urgent]
+1 0 unseen  0 1 | on_the_edge [urgent]
+1 0 free    0 1 | on_the_edge [urgent]
+1 0 partly  0 1 | on_the_edge [urgent]
+1 0 lying   0 1 | on_the_edge [urgent]
+1 0 unseen  1 0 | on_the_edge [urgent]
+1 0 free    1 0 | on_the_edge [urgent]
+1 0 partly  1 0 | on_the_edge [urgent]
+1 0 lying   1 0 | on_the_edge [urgent]
+1 0 unseen  1 1 | on_the_edge [urgent]
+1 0 free    1 1 | on_the_edge [urgent]
+1 0 partly  1 1 | on_the_edge [urgent]
+1 0 lying   1 1 | on_the_edge [urgent]
+1 1 unseen  0 0 | undecided
+1 1 free    0 0 | sitting_in_bed
+1 1 partly  0 0 | trying_to_leave [urgent]
+1 1 lying   0 0 | lying
+1 1 unseen  0 1 | undecided
+1 1 free    0 1 | sitting_up
+1 1 partly  0 1 | undecided
+1 1 lying   0 1 | lying
+1 1 unseen  1 0 | undecided
+1 1 free    1 0 | sitting_in_bed
+1 1 partly  1 0 | trying_to_leave [urgent]
+1 1 lying   1 0 | trying_to_leave [urgent]
+1 1 unseen  1 1 | undecided
+1 1 free    1 1 | sitting_in_bed
+1 1 partly  1 1 | trying_to_leave [urgent]
+1 1 lying   1 1 | trying_to_leave [urgent]

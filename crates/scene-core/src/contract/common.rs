@@ -6,7 +6,7 @@
 
 // The domain vocabulary every version publishes: its modules own it.
 pub use crate::attention::{Attention, Look, LookOutcome, LookResult, SkipReason};
-pub use crate::belief::{BedPosture, BedPostureSeen, BedPostureState};
+pub use crate::belief::{BedPosture, BedPostureSeen, BedPostureState, PartsReading};
 pub use crate::body::{BedPoint, BedSite, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
@@ -144,6 +144,11 @@ pub struct Parts {
     /// The cell of the last change: `before | seen | after`, the places
     /// without HELD.
     pub last_cell: Option<String>,
+    /// What we believe of the resident from the places: the semantic reading
+    /// of the trama (white book, volume I, ch. 10).
+    pub reading: PartsReading,
+    /// Since when the reading holds.
+    pub reading_since: SampleRef,
 }
 
 /// New places of the parts, waiting to hold.

@@ -2,8 +2,9 @@
 //! has a subject, and nothing otherwise. Markov (P1): the retention and the
 //! places that are holding, in source time (rule 9), with layer 0's dwell.
 
+use super::reading::{self, Facts};
 use super::rules::decide;
-use super::{ByPart, Concluded, Look, PartsTransition, Place};
+use super::{ByPart, Concluded, Look, PartsReading, PartsTransition, Place};
 use crate::belief::stabilizer::Stabilizer;
 use crate::policy::Persistence;
 use crate::time::SampleRef;
@@ -16,6 +17,9 @@ pub(crate) struct Machine {
     /// The places without the held marks, stabilized: a part that flickers
     /// between inside and outside does not move them.
     places: Option<Stabilizer<ByPart<Place>>>,
+    /// The reading of the places now (retained included), stabilized with its
+    /// own dwell: the urgent ones count sooner.
+    reading: Option<Stabilizer<PartsReading>>,
 }
 
 impl Machine {
@@ -40,6 +44,17 @@ impl Machine {
             .get_or_insert_with(|| Stabilizer::new(ByPart::default()));
         let change = places.observe(at, unheld(now), persistence);
         let stable = places.stable();
+        let read_now = reading::read(Facts::of(&now));
+        let read = self
+            .reading
+            .get_or_insert_with(|| Stabilizer::new(PartsReading::Undecided));
+        read.observe(
+            at,
+            read_now,
+            &Persistence {
+                dwell_secs: reading::dwell(read_now, persistence.dwell_secs),
+            },
+        );
         Some(Concluded {
             seen,
             state: held_as(stable, now),
@@ -52,6 +67,7 @@ impl Machine {
                 first_seen: c.first,
                 after: c.to,
             }),
+            reading: read.stable(),
         })
     }
 }

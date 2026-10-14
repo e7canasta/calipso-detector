@@ -5,7 +5,7 @@
 //! (P1, P4).
 
 use crate::belief::parts::PartsTransition;
-use crate::belief::{Alone, BedPostureState, Occupants, Room, Transition};
+use crate::belief::{Alone, BedPostureState, Occupants, PartsReading, Room, Transition};
 use crate::conclusion::Observation;
 use crate::evidence::BodyEvidence;
 use crate::refine::VerdictState;
@@ -33,6 +33,8 @@ pub(crate) struct Chronicle {
     transition: Option<(SampleRef, TransitionKey)>,
     /// The last change of the parts' places, while there are places.
     parts: Option<PartsTransition>,
+    /// Since when the parts' reading holds; `None` is "no places".
+    parts_reading: Since<Option<PartsReading>>,
 }
 
 impl Default for Chronicle {
@@ -46,6 +48,7 @@ impl Default for Chronicle {
             observed: None,
             transition: None,
             parts: None,
+            parts_reading: Since::new(None),
         }
     }
 }
@@ -71,6 +74,7 @@ pub(crate) struct Chronicled {
     /// The last change of the parts' places, this turn's included: since when
     /// the places hold and the last cell.
     pub last_parts: Option<PartsTransition>,
+    pub parts_reading: Stamp<Option<PartsReading>>,
 }
 
 /// The room's name, as the fold remembers it. Every accompanied room is one
@@ -149,6 +153,8 @@ pub(crate) struct Entry {
     pub transition: Option<TransitionKey>,
     /// Whether there are parts' places in this turn, and their change if any.
     pub parts: Option<Option<PartsTransition>>,
+    /// The parts' reading, if there are places.
+    pub parts_reading: Option<PartsReading>,
 }
 
 impl Entry {
@@ -170,6 +176,7 @@ impl Entry {
                 .as_ref()
                 .map(TransitionKey::of),
             parts: observation.parts.map(|p| p.transition),
+            parts_reading: observation.parts.map(|p| p.reading),
         }
     }
 }
@@ -186,6 +193,7 @@ impl Chronicle {
             seen,
             transition,
             parts,
+            parts_reading,
         } = entry;
         if seen {
             self.observed = Some(at);
@@ -215,6 +223,7 @@ impl Chronicle {
             last_transition: self.transition.as_ref().map(|(_, key)| *key),
             parts_transition_since,
             last_parts: self.parts,
+            parts_reading: self.parts_reading.update(parts_reading, at),
         }
     }
 }
@@ -290,6 +299,7 @@ mod tests {
             seen,
             transition: None,
             parts: None,
+            parts_reading: None,
         }
     }
 
