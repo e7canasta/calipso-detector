@@ -11,3 +11,4 @@ target/
 
 # API keys: never versioned (read them into the environment at run time)
 *.key
+.idea/

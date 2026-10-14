@@ -105,7 +105,7 @@ dwell_secs = 2.0 # source seconds a new count must hold
 resolution = [1920, 1080]
 bed = [[785,355], [1160,370], [1240,1075], [705,1075]]
 # Face region when no body is seen; with a body, the core asks for its box.
-headboard = [785,355,1160,520]
+headboard = [800,240,1140,500]
 # Optional focus box instead of the grown bed: it must contain the bed and reach
 # whoever stands next to it. Draw it on a frame, like the bed.
 focus = [570, 175, 1375, 1080]
