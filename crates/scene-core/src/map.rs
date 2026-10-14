@@ -47,7 +47,8 @@ pub struct SiteMap {
     pub bed: Quad,
     /// The resolution the bed was delimited for; `None`: it always applies.
     pub resolution: Option<FrameInfo>,
-    /// Where the headboard is: where to look for faces with no subject in sight.
+    /// Where the headboard is: around it, faces are looked for with no subject
+    /// in sight.
     pub headboard: Option<Rect>,
     /// Where the main detector looks while the resident is alone in bed;
     /// `None`: the bed grown by the focus policy's pad.
@@ -167,6 +168,14 @@ impl Map {
     /// The headboard, if the geometry applies.
     pub(crate) fn headboard_for(&self, geometry: Geometry) -> Option<Rect> {
         self.site.headboard.filter(|_| geometry == Geometry::Valid)
+    }
+
+    /// Where faces are looked for with nobody in sight, if the geometry
+    /// applies: the headboard grown by `pad`. The search grows, the headboard
+    /// does not: where the head is is still decided against it.
+    pub(crate) fn faces_region(&self, geometry: Geometry, pad: f32) -> Option<Rect> {
+        self.headboard_for(geometry)
+            .map(|headboard| headboard.expand(pad))
     }
 
     /// Where the main detector looks while focusing, if the geometry applies:

@@ -45,6 +45,17 @@ Feature: Calibrate the empty bed
     Then in sample 5 the bed was not calibrated because faces are in sight
     And the bed was calibrated in sample 6
 
+  Scenario: A face beside the headboard, found by the margin, also holds the calibration back
+    Given there is a face detector with minimum confidence 0.5
+    And the bed's headboard delimited
+    And faces are looked for at the headboard grown by 0.5
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | faces            | occupants | bed   |
+      | 1-5     | 0        |       | 0      | beside headboard | 0         | empty |
+      | 6-8     | 0        |       | 0      |                  | 0         | empty |
+    Then in sample 5 the bed was not calibrated because faces are in sight
+    And the bed was calibrated in sample 6
+
   Scenario: The last one just left: it waits for the count to stabilize
     Given the resident came in alone and lay down in samples 1 to 10
     When the camera sees this sequence:

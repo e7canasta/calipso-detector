@@ -85,6 +85,7 @@ fn sense_fails(w: &mut Shell, sense: String) {
         Policy {
             faces: Some(FacePolicy {
                 min_confidence: 0.3,
+                headboard_pad: 0.0,
             }),
             ..Policy::default()
         }
@@ -122,6 +123,7 @@ fn empty_faces(w: &mut Shell) {
     let policy = Policy {
         faces: Some(FacePolicy {
             min_confidence: 0.3,
+            headboard_pad: 0.0,
         }),
         ..Policy::default()
     };

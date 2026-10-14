@@ -39,6 +39,14 @@ Feature: The face capability
     Then the core policy accepts faces from 0.30
     And the published profile names the senses "detect, faces"
 
+  Scenario: The profile's headboard margin reaches the core policy
+    Given a profile with "[senses.faces]" of model "face/yolov12l-face.onnx", minimum confidence 0.30 and headboard margin 0.5
+    Then the core policy looks for faces at the headboard grown by 0.5
+
+  Scenario: Without a margin in the profile, faces are looked for at the exact headboard
+    Given a profile with "[senses.faces]" of model "face/yolov12l-face.onnx" and minimum confidence 0.30
+    Then the core policy looks for faces at the headboard grown by 0
+
   Scenario: With reinforcement and faces, the profile names them in order
     Given a profile with "[senses.reinforce]" and "[senses.faces]"
     Then the published profile names the senses "detect, reinforce, faces"

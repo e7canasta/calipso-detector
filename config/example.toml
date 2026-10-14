@@ -34,6 +34,7 @@ backend_confidence = 0.25
 # model = "face/yolov12l-face.onnx" # FP16, input 192
 # backend_confidence = 0.25 # cannot exceed senses.faces.min_confidence
 # min_confidence = 0.30
+# headboard_pad = 0.5 # with nobody in sight, the headboard grown by this fraction on each side
 
 # Optional pose: without the section, the core does not ask for the subject's pose.
 # [senses.pose]

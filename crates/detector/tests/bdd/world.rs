@@ -338,6 +338,21 @@ fn faces_profile(w: &mut Shell, section: String, model: String, minimum: f32) {
     ));
 }
 
+#[given(
+    expr = "a profile with {string} of model {string}, minimum confidence {float} and headboard margin {float}"
+)]
+fn faces_profile_with_margin(
+    w: &mut Shell,
+    section: String,
+    model: String,
+    minimum: f32,
+    pad: f32,
+) {
+    w.parse_config(&format!(
+        "\n{section}\nmodel = \"{model}\"\nmin_confidence = {minimum}\nheadboard_pad = {pad}\n"
+    ));
+}
+
 #[given(expr = "a profile with {string} and {string}")]
 fn both_profiles(w: &mut Shell, reinforce: String, faces: String) {
     w.parse_config(&format!("\n{reinforce}\nmodel = \"yolo26l.onnx\"\nbed_padding = 0.15\n{faces}\nmodel = \"face/yolov12l-face.onnx\"\nmin_confidence = 0.30\n"));
@@ -353,4 +368,9 @@ fn invalid_faces(w: &mut Shell, section: String, backend: f32, minimum: f32) {
 #[then(expr = "the core policy accepts faces from {float}")]
 fn faces_policy(w: &mut Shell, minimum: f32) {
     assert_eq!(w.config().policy().faces.unwrap().min_confidence, minimum);
+}
+
+#[then(expr = "the core policy looks for faces at the headboard grown by {float}")]
+fn faces_margin(w: &mut Shell, pad: f32) {
+    assert_eq!(w.config().policy().faces.unwrap().headboard_pad, pad);
 }

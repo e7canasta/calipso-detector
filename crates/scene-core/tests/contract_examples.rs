@@ -284,6 +284,7 @@ fn faces_say_whether_they_are_on_the_current_subject() {
     policy.persistence.dwell_secs = 0.0;
     policy.faces = Some(FacePolicy {
         min_confidence: 0.5,
+        headboard_pad: 0.0,
     });
     let mut monitor = Monitor::new(
         policy,

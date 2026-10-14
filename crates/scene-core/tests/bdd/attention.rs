@@ -28,7 +28,19 @@ fn no_headboard(ward: &mut Ward) {
 
 #[given(expr = "there is a face detector with minimum confidence {float}")]
 fn faces(ward: &mut Ward, min_confidence: f32) {
-    ward.policy.faces = Some(FacePolicy { min_confidence });
+    ward.policy.faces = Some(FacePolicy {
+        min_confidence,
+        headboard_pad: 0.0,
+    });
+}
+
+#[given(expr = "faces are looked for at the headboard grown by {float}")]
+fn faces_margin(ward: &mut Ward, pad: f32) {
+    ward.policy
+        .faces
+        .as_mut()
+        .expect("a face detector first")
+        .headboard_pad = pad;
 }
 
 #[given("there is no reinforcement detector")]
@@ -244,6 +256,11 @@ fn faces_on_the_body(ward: &mut Ward, n: u32) {
 #[then(expr = "in sample {int} faces were looked for at the headboard")]
 fn faces_at_the_headboard(ward: &mut Ward, n: u32) {
     assert_eq!(region(ward, n, LookKind::Faces), HEADBOARD);
+}
+
+#[then(expr = "in sample {int} faces were looked for at the headboard grown by {float}")]
+fn faces_at_the_grown_headboard(ward: &mut Ward, n: u32, pad: f32) {
+    assert_eq!(region(ward, n, LookKind::Faces), HEADBOARD.expand(pad));
 }
 
 #[then(expr = "in sample {int} faces were not looked for because there is nowhere to look")]

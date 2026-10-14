@@ -29,6 +29,7 @@ fn faces_on_current_resident_are_published_in_frame_coordinates_on_subject() {
     let policy = Policy {
         faces: Some(FacePolicy {
             min_confidence: 0.3,
+            headboard_pad: 0.0,
         }),
         ..Policy::default()
     };

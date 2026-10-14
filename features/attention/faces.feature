@@ -41,6 +41,31 @@ Feature: The face policy
       | 1-3     | 0        |       | 0      | 0         | empty |
     Then in sample 3 faces were not looked for because there is nowhere to look
 
+  # The headboard is where faces are looked for, not where the head must be: a
+  # head that leaves it, covered and unseen, would never be found by its face.
+  # The search grows by the margin; where the head is is still decided against
+  # the exact headboard (project 33).
+
+  Scenario: With nobody in sight, faces are looked for at the headboard grown by its margin
+    Given faces are looked for at the headboard grown by 0.5
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | occupants | bed   |
+      | 1-3     | 0        |       | 0      | 0         | empty |
+    Then in sample 3 faces were looked for at the headboard grown by 0.5
+
+  Scenario: A face beside the headboard, inside the margin, is found
+    Given faces are looked for at the headboard grown by 0.5
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | faces            | occupants | bed   |
+      | 1-3     | 0        |       | 0      | beside headboard | 0         | empty |
+    Then the last sample accepted 1 face
+
+  Scenario: Without a margin, a face beside the headboard is not found
+    When the camera sees this sequence:
+      | samples | on floor | where | in bed | faces            | occupants | bed   |
+      | 1-3     | 0        |       | 0      | beside headboard | 0         | empty |
+    Then the last sample accepted 0 faces
+
   Scenario: A face on the seen resident is marked as on the subject
     Given the resident came in alone and lay down in samples 1 to 10
     When the camera sees this sequence:

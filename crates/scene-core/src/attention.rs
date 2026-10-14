@@ -389,7 +389,8 @@ fn ask(
 }
 
 /// Where to look for faces: in the subject's box if seen; otherwise at the
-/// headboard (also when the detector failed). With neither, nothing is searched.
+/// headboard grown by the policy's margin (also when the detector failed).
+/// With neither, nothing is searched.
 /// The face policy goes with the look: evidence admits the faces with it.
 pub(crate) fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegion, FacePolicy)> {
     let Some(policy) = policy.faces else {
@@ -398,7 +399,7 @@ pub(crate) fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegi
     Consideration::Decided(
         match (
             g.bodies.seen().and_then(|b| b.best()),
-            g.map.headboard_for(g.geometry),
+            g.map.faces_region(g.geometry, policy.headboard_pad),
         ) {
             (Some(best), _) => Decision::Ask((FaceRegion::Subject(best.bbox), policy)),
             (_, Some(headboard)) => Decision::Ask((FaceRegion::Headboard(headboard), policy)),

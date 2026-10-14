@@ -223,6 +223,12 @@ pub struct Faces {
     pub backend_confidence: f32,
     #[serde(default = "defaults::face_min_confidence")]
     pub min_confidence: f32,
+    /// Margin around the headboard where faces are looked for with nobody in
+    /// sight, as a fraction of its width and height on each side; without it,
+    /// the headboard itself. Serialized only if present, so the hash does not
+    /// change.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headboard_pad: Option<f32>,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -634,6 +640,9 @@ impl Config {
                 faces.backend_confidence <= faces.min_confidence,
                 "senses.faces.backend_confidence cannot exceed senses.faces.min_confidence"
             );
+            if let Some(pad) = faces.headboard_pad {
+                not_negative("senses.faces.headboard_pad", f64::from(pad))?;
+            }
         }
         if let Some(pose) = &self.senses.pose {
             model("senses.pose.model", &pose.model)?;
@@ -766,6 +775,7 @@ impl Config {
         });
         p.faces = self.senses.faces.as_ref().map(|config| FacePolicy {
             min_confidence: config.min_confidence,
+            headboard_pad: config.headboard_pad.unwrap_or(0.0),
         });
         p.enrich = self.senses.pose.as_ref().map(|config| EnrichPolicy {
             move_threshold: config.move_threshold,

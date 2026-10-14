@@ -51,6 +51,10 @@ pub struct Persistence {
 pub struct FacePolicy {
     /// Below this score a face does not count.
     pub min_confidence: f32,
+    /// With nobody in sight, the headboard is grown by this fraction of its
+    /// width and height on each side to look for faces: a head that left it
+    /// is still found. Where the head is is decided against the exact one.
+    pub headboard_pad: f32,
 }
 
 /// The subject's pose and depth, only when worth it.

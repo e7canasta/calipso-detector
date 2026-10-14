@@ -36,6 +36,10 @@ bed_padding = 0.15 # fraction of the bed's width and height on each side
 model = "face/yolov12l-face.onnx" # FP16, input 192
 backend_confidence = 0.25 # cannot exceed senses.faces.min_confidence
 min_confidence = 0.30
+# With nobody in sight, faces are looked for at the headboard grown by this
+# fraction on each side: a head that left it is still found (project 33).
+# With [733,126,1146,340] the search is x 526-1353, y 19-447.
+headboard_pad = 0.5
 
 # Pose and depth; removing the sections turns the policy off.
 [senses.pose]
