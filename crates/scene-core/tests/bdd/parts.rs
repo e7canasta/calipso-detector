@@ -30,3 +30,60 @@ fn no_parts(ward: &mut Ward, n: u32) {
     let parts = parts(ward, n);
     assert!(parts.is_null(), "{parts}");
 }
+
+// --- Published like layer 0: pending, since, the change and its cell
+
+fn turn(ward: &Ward, n: u32) -> &scene_core::Output {
+    let at = ward.sample(n);
+    &ward
+        .turns
+        .iter()
+        .rev()
+        .find(|t| t.output.at == at)
+        .unwrap_or_else(|| panic!("there was no sample {n}"))
+        .output
+}
+
+fn change(ward: &Ward, n: u32) -> Option<&scene_core::contract::v4::PartsChange> {
+    turn(ward, n).events.iter().find_map(|e| match e {
+        scene_core::contract::Event::Parts(p) => Some(p),
+        _ => None,
+    })
+}
+
+#[then(
+    expr = "in sample {int} the parts' new places {string} are pending for {float} of {float} seconds"
+)]
+fn parts_pending(ward: &mut Ward, n: u32, places: String, have: f64, need: f64) {
+    let parts = parts(ward, n);
+    let pending = &parts["pending"];
+    assert_eq!(pending["places"], places.as_str(), "{parts}");
+    assert_eq!(pending["duration"]["have"], have, "{parts}");
+    assert_eq!(pending["duration"]["need"], need, "{parts}");
+}
+
+#[then(expr = "in sample {int} the parts changed from {string} to {string}")]
+fn parts_changed(ward: &mut Ward, n: u32, before: String, after: String) {
+    let change = change(ward, n).unwrap_or_else(|| panic!("no parts change in sample {n}"));
+    assert_eq!(change.before.places, before, "{change:?}");
+    assert_eq!(change.after.places, after, "{change:?}");
+    assert_eq!(
+        change.cell,
+        format!("{before} | {} | {after}", change.seen.parts),
+        "{change:?}"
+    );
+    let parts = parts(ward, n);
+    assert_eq!(parts["last_cell"], change.cell.as_str(), "{parts}");
+}
+
+#[then(expr = "in sample {int} no parts change was published")]
+fn no_parts_change(ward: &mut Ward, n: u32) {
+    assert!(change(ward, n).is_none(), "{:?}", change(ward, n));
+}
+
+#[then(expr = "in sample {int} the parts hold since sample {int}")]
+fn parts_since(ward: &mut Ward, n: u32, since: u32) {
+    let parts = parts(ward, n);
+    let at = serde_json::to_value(ward.sample(since)).expect("a sample serializes");
+    assert_eq!(parts["since"], at, "{parts}");
+}

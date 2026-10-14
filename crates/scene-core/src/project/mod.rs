@@ -7,6 +7,7 @@
 //! `contract::common`, so a next version shares it without depending on v4
 //! (C2).
 
+mod parts;
 pub(crate) mod v4;
 
 use crate::attention::Attention;
@@ -138,8 +139,10 @@ fn publish_subject(
     believed: &Believed,
     refined: Refinement,
     bed_posture: Option<Concluded>,
-    parts: Option<crate::belief::parts::Concluded>,
+    body_parts: Option<crate::belief::parts::Concluded>,
     chronicled: &Chronicled,
+    at: SampleRef,
+    dwell_secs: f64,
 ) -> Option<Subject> {
     let s = believed.subject?;
     let (pose, depth) = believed
@@ -165,7 +168,7 @@ fn publish_subject(
             seen: b.seen,
             since: chronicled.bed_posture.since,
         }),
-        parts: parts.map(|p| p.published()),
+        parts: body_parts.map(|p| parts::parts(&p, chronicled, at, dwell_secs)),
     })
 }
 

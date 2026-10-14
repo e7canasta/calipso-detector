@@ -290,7 +290,7 @@
       ]
     },
     "Event": {
-      "description": "A message of `events.v4`. Within a turn they come out in order: `sensor`,\n`transition`, `map`, `derived`.",
+      "description": "A message of `events.v4`. Within a turn they come out in order: `sensor`,\n`transition`, `map`, `derived`, `parts`.",
       "oneOf": [
         {
           "description": "A layer-0 change, with its facts.",
@@ -302,6 +302,20 @@
             }
           },
           "$ref": "#/$defs/Transition",
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "A change of the parts' places: the second trama of occupancy.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "parts"
+            }
+          },
+          "$ref": "#/$defs/PartsChange",
           "required": [
             "kind"
           ]
@@ -638,6 +652,102 @@
         "mode",
         "bed",
         "unexplained"
+      ]
+    },
+    "PartsAfter": {
+      "description": "The parts' places after a change.",
+      "type": "object",
+      "properties": {
+        "places": {
+          "description": "The places, without HELD.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "places"
+      ]
+    },
+    "PartsBefore": {
+      "description": "The parts' places before a change.",
+      "type": "object",
+      "properties": {
+        "lasted_secs": {
+          "description": "Source seconds since `since`; `None` without `since` or across sessions.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "places": {
+          "description": "The places, without HELD.",
+          "type": "string"
+        },
+        "since": {
+          "description": "The sample of the previous change; `None` on the first.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "places"
+      ]
+    },
+    "PartsChange": {
+      "description": "A change of the parts' places: the second trama of occupancy, the\ncomplement of a layer-0 transition with its shape (white book, volume I,\nch. 09). The places are written `bed IN.OUT : headboard IN.OUT : BFK`.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "description": "The places we believe.",
+          "$ref": "#/$defs/PartsAfter"
+        },
+        "at": {
+          "description": "The sample in which the new places held.",
+          "$ref": "#/$defs/SampleRef"
+        },
+        "before": {
+          "description": "The places we believed, and since when.",
+          "$ref": "#/$defs/PartsBefore"
+        },
+        "cell": {
+          "description": "The row this change crossed: `before | seen | after`.",
+          "type": "string"
+        },
+        "seen": {
+          "description": "What this sample saw, and how long the new places held.",
+          "$ref": "#/$defs/PartsSeen"
+        }
+      },
+      "required": [
+        "at",
+        "cell",
+        "before",
+        "seen",
+        "after"
+      ]
+    },
+    "PartsSeen": {
+      "description": "What the sample of a parts' change saw.",
+      "type": "object",
+      "properties": {
+        "parts": {
+          "description": "The trama of the sample: `-` where the sense did not look.",
+          "type": "string"
+        },
+        "span": {
+          "description": "The span the new places held.",
+          "$ref": "#/$defs/Span"
+        }
+      },
+      "required": [
+        "parts",
+        "span"
       ]
     },
     "Phase": {

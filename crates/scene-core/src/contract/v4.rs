@@ -241,6 +241,50 @@ pub struct Transition {
     pub facts: Vec<Fact>,
 }
 
+/// A change of the parts' places: the second trama of occupancy, the
+/// complement of a layer-0 transition with its shape (white book, volume I,
+/// ch. 09). The places are written `bed IN.OUT : headboard IN.OUT : BFK`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PartsChange {
+    /// The sample in which the new places held.
+    pub at: SampleRef,
+    /// The row this change crossed: `before | seen | after`.
+    pub cell: String,
+    /// The places we believed, and since when.
+    pub before: PartsBefore,
+    /// What this sample saw, and how long the new places held.
+    pub seen: PartsSeen,
+    /// The places we believe.
+    pub after: PartsAfter,
+}
+
+/// The parts' places before a change.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PartsBefore {
+    /// The places, without HELD.
+    pub places: String,
+    /// The sample of the previous change; `None` on the first.
+    pub since: Option<SampleRef>,
+    /// Source seconds since `since`; `None` without `since` or across sessions.
+    pub lasted_secs: Option<f64>,
+}
+
+/// What the sample of a parts' change saw.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PartsSeen {
+    /// The trama of the sample: `-` where the sense did not look.
+    pub parts: String,
+    /// The span the new places held.
+    pub span: Span,
+}
+
+/// The parts' places after a change.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PartsAfter {
+    /// The places, without HELD.
+    pub places: String,
+}
+
 /// A change in what was published, computed by comparing turns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -326,12 +370,14 @@ pub struct MapEvent {
 }
 
 /// A message of `events.v4`. Within a turn they come out in order: `sensor`,
-/// `transition`, `map`, `derived`.
+/// `transition`, `map`, `derived`, `parts`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Event {
     /// A layer-0 change, with its facts.
     Transition(Transition),
+    /// A change of the parts' places: the second trama of occupancy.
+    Parts(PartsChange),
     /// A change in what was published, by comparing turns.
     Derived(DerivedEvent),
     /// A reception change.
@@ -345,6 +391,7 @@ impl Event {
     pub fn at(&self) -> SampleRef {
         match self {
             Self::Transition(e) => e.at,
+            Self::Parts(e) => e.at,
             Self::Derived(e) => e.at,
             Self::Sensor(e) => e.at,
             Self::Map(e) => e.at,

@@ -12,9 +12,9 @@ use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::contract::v4::{
     Attention, Before, Cause, Cell, Context, DerivedBody, DerivedEvent, Evidence,
-    Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState, Mode, Occupancy, Phase,
-    Rbh, Republished, Room, SampleRef, Seen, SensorBody, SensorEvent, SensorState, Span,
-    Transition,
+    Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState, Mode, Occupancy,
+    PartsAfter, PartsBefore, PartsChange, PartsSeen, Phase, Rbh, Republished, Room, SampleRef,
+    Seen, SensorBody, SensorEvent, SensorState, Span, Transition,
 };
 pub(crate) use crate::contract::v4::{Event, Scene};
 use crate::map::BedCalibrated;
@@ -103,7 +103,15 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
     } = observation;
     let republished = unobserved(&evidence.bodies.bodies, chronicled.observed);
     let evidence = project_evidence(&evidence, believed.subject.as_ref(), &attention);
-    let subject = publish_subject(&believed, refined, bed_posture, parts, chronicled);
+    let subject = publish_subject(
+        &believed,
+        refined,
+        bed_posture,
+        parts,
+        chronicled,
+        at,
+        dwell_secs,
+    );
     let belief::Believed {
         occupancy: occupancy_now,
         transition: changed,
@@ -131,15 +139,26 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         sensor,
         republished,
     };
-    let events = events(at, changed.as_ref(), calibrated, chronicled, after, &scene);
+    let parts_changed = parts.and_then(|p| p.transition);
+    let events = events(
+        at,
+        changed.as_ref(),
+        parts_changed.as_ref(),
+        calibrated,
+        chronicled,
+        after,
+        &scene,
+    );
     (scene, events)
 }
 
 /// The events of an observed turn, in order: the layer-0 transition, the
-/// calibration and, last, the derived ones, each with the occupancy after.
+/// calibration, the derived ones, each with the occupancy after, and, last,
+/// the change of the parts' places.
 fn events(
     at: SampleRef,
     changed: Option<&belief::Transition>,
+    parts_changed: Option<&crate::belief::parts::PartsTransition>,
     calibrated: Option<BedCalibrated>,
     chronicled: &Chronicled,
     after: Occupancy,
@@ -178,7 +197,38 @@ fn events(
             to: scene.bed.state,
         })
     }));
+    // The second trama last: layer 0's events stay together.
+    events.extend(
+        parts_changed.map(|t| Event::Parts(parts_change(t, chronicled.parts_transition_since))),
+    );
     events
+}
+
+/// A change of the parts' places, with since when the places we believed
+/// held: the complement of a layer-0 transition, with its shape.
+fn parts_change(
+    t: &crate::belief::parts::PartsTransition,
+    since: Option<SampleRef>,
+) -> PartsChange {
+    PartsChange {
+        at: t.at,
+        cell: super::parts::cell(t),
+        before: PartsBefore {
+            places: super::parts::places(&t.before),
+            since,
+            lasted_secs: since.and_then(|since| t.at.secs_since(since)),
+        },
+        seen: PartsSeen {
+            parts: super::parts::seen(&t.seen),
+            span: Span {
+                first: t.first_seen,
+                secs: t.at.secs_since(t.first_seen).unwrap_or(0.0),
+            },
+        },
+        after: PartsAfter {
+            places: super::parts::places(&t.after),
+        },
+    }
 }
 
 /// A layer-0 transition, with since when what we believed held. A transition

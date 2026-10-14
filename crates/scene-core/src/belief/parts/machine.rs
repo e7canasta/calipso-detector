@@ -3,7 +3,7 @@
 //! places that are holding, in source time (rule 9), with layer 0's dwell.
 
 use super::rules::decide;
-use super::{ByPart, Concluded, Look, Place};
+use super::{ByPart, Concluded, Look, PartsTransition, Place};
 use crate::belief::stabilizer::Stabilizer;
 use crate::policy::Persistence;
 use crate::time::SampleRef;
@@ -38,10 +38,20 @@ impl Machine {
         let places = self
             .places
             .get_or_insert_with(|| Stabilizer::new(ByPart::default()));
-        places.observe(at, unheld(now), persistence);
+        let change = places.observe(at, unheld(now), persistence);
+        let stable = places.stable();
         Some(Concluded {
             seen,
-            state: held_as(places.stable(), now),
+            state: held_as(stable, now),
+            places: stable,
+            pending: places.pending().map(|c| (c.value, c.first)),
+            transition: change.map(|c| PartsTransition {
+                at,
+                before: c.from,
+                seen,
+                first_seen: c.first,
+                after: c.to,
+            }),
         })
     }
 }

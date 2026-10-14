@@ -21,8 +21,7 @@ mod rules;
 
 pub(crate) use machine::Machine;
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use crate::time::SampleRef;
 
 /// Something per position of the trama, in its order.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -82,72 +81,35 @@ pub(crate) struct Place {
 
 impl Place {
     /// Has it ever been seen?
-    fn known(self) -> bool {
+    pub(crate) fn known(self) -> bool {
         self.inside || self.outside
     }
 }
 
-/// What the parts concluded in a turn: what was seen and the places believed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What the parts concluded in a turn: what was seen, the places believed
+/// (held where not seen now), the stable places, the places that are holding
+/// and, if new places held in this turn, the change. The same shape as a
+/// layer-0 turn: a state, a pending candidate and a transition.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Concluded {
     pub seen: ByPart<Look>,
     pub state: ByPart<Place>,
+    /// The stable places, without the held marks.
+    pub places: ByPart<Place>,
+    /// New places waiting to hold, and the first sample that saw them.
+    pub pending: Option<(ByPart<Place>, SampleRef)>,
+    /// The places changed in this turn.
+    pub transition: Option<PartsTransition>,
 }
 
-/// The published occupancy of the parts, in the trama's notation: the
-/// positions in `cfhsaip` against the bed, `fhs` against the headboard and
-/// the flags `BFK` (whole boxes inside).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Parts {
-    /// What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`, with `-`
-    /// where the sense did not look. E.g. `1-11111.0-00000:-10.-01:1--`.
-    pub seen: String,
-    /// The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :
-    /// BFK.HELD`. Held: not seen in this sample, kept from where it was last
-    /// seen. E.g. `1111111.0000000.0000111:110.001.000:111.000`.
-    pub state: String,
-}
-
-impl Concluded {
-    /// In the trama's notation.
-    pub(crate) fn published(&self) -> Parts {
-        let looks = |looks: &[Look], side: fn(bool, bool) -> bool| -> String {
-            looks
-                .iter()
-                .map(|l| match *l {
-                    Look::NotLooked => '-',
-                    Look::Looked { inside, outside } => bit(side(inside, outside)),
-                })
-                .collect()
-        };
-        let places = |places: &[Place], side: fn(Place) -> bool| -> String {
-            places.iter().map(|p| bit(side(*p))).collect()
-        };
-        let (seen, state) = (&self.seen, &self.state);
-        Parts {
-            seen: format!(
-                "{}.{}:{}.{}:{}",
-                looks(&seen.bed, |i, _| i),
-                looks(&seen.bed, |_, o| o),
-                looks(&seen.headboard, |i, _| i),
-                looks(&seen.headboard, |_, o| o),
-                looks(&seen.whole, |i, _| i),
-            ),
-            state: format!(
-                "{}.{}.{}:{}.{}.{}:{}.{}",
-                places(&state.bed, |p| p.inside),
-                places(&state.bed, |p| p.outside),
-                places(&state.bed, |p| p.held),
-                places(&state.headboard, |p| p.inside),
-                places(&state.headboard, |p| p.outside),
-                places(&state.headboard, |p| p.held),
-                places(&state.whole, |p| p.inside),
-                places(&state.whole, |p| p.held),
-            ),
-        }
-    }
-}
-
-fn bit(b: bool) -> char {
-    if b { '1' } else { '0' }
+/// A change of the stable places: what we believed, what this sample saw,
+/// what we believe, and the first sample that saw the new places. The
+/// parts' row as a value, like layer 0's `Transition`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct PartsTransition {
+    pub at: SampleRef,
+    pub before: ByPart<Place>,
+    pub seen: ByPart<Look>,
+    pub first_seen: SampleRef,
+    pub after: ByPart<Place>,
 }

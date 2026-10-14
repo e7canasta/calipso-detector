@@ -146,6 +146,9 @@ pub fn facts(output: &Output) -> Vec<Fact> {
                 },
                 after: d.after.into(),
             }),
+            // A change of the parts' places carries no facts: it is not on
+            // layer 0's tape.
+            Event::Parts(_) => {}
             Event::Sensor(s) => {
                 let SensorBody::SensorChanged { from, to } = s.body;
                 rows.push(Fact {

@@ -90,3 +90,31 @@ Feature: The occupancy of the parts
         | 14-17   | 1        | door  | 1      |               |       | 2         | occupied, seen |
       Then in sample 13 the parts are "1011111.0000000.0011111:010.001.011:100.000"
       And in sample 17 there are no parts
+
+  Rule: The parts are published as layer 0 is: pending, since when, and a change with its cell
+
+    # Lying down, the pose saw only the head, in bed below the headboard. The
+    # fresh pose of sample 11 sees everything: the new places hold after the
+    # dwell, as a layer-0 count does, and only then a change is published.
+    Scenario: New places are pending until they hold, then a change is published with its cell
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose  | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | lying | 1         | occupied, seen |
+        | 12-14   | 0        |       | 1      |               |       | 1         | occupied, seen |
+      Then in sample 11 the parts' new places "1011111.0000000:010.001:100" are pending for 0 of 2 seconds
+      And in sample 12 the parts' new places "1011111.0000000:010.001:100" are pending for 1 of 2 seconds
+      And in sample 12 no parts change was published
+      And in sample 13 the parts changed from "1010000.0000000:000.010:100" to "1011111.0000000:010.001:100"
+      And in sample 14 the parts hold since sample 13
+      And in sample 14 no parts change was published
+
+    Scenario: A part not seen again changes nothing: retaining is not a change
+      Given the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose  | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | lying | 1         | occupied, seen |
+        | 12-13   | 0        |       | 1      |               |       | 1         | occupied, seen |
+        | 14-20   | 0        |       | 0      |               |       | 1         | occupied, held |
+      Then in sample 13 the parts changed from "1010000.0000000:000.010:100" to "1011111.0000000:010.001:100"
+      And in sample 20 the parts hold since sample 13

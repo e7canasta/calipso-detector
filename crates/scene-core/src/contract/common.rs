@@ -6,7 +6,7 @@
 
 // The domain vocabulary every version publishes: its modules own it.
 pub use crate::attention::{Attention, Look, LookOutcome, LookResult, SkipReason};
-pub use crate::belief::{BedPosture, BedPostureSeen, BedPostureState, Parts};
+pub use crate::belief::{BedPosture, BedPostureSeen, BedPostureState};
 pub use crate::body::{BedPoint, BedSite, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
@@ -119,6 +119,39 @@ pub struct Pending {
     /// The new count per zone, waiting to hold.
     pub counts: Counts,
     /// Source seconds it has held, against the required dwell.
+    pub duration: Progress<f64>,
+}
+
+/// The occupancy of the subject's parts: the second trama of occupancy, the
+/// complement of layer 0 with its shape. In its notation: the positions
+/// `cfhsaip` against the bed, `fhs` against the headboard and the flags `BFK`
+/// (whole boxes inside), two bits each (IN, OUT; both: split); `-` where the
+/// sense did not look; HELD where not seen now, kept from where it was last
+/// seen (white book, volume I, ch. 09).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Parts {
+    /// The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :
+    /// BFK.HELD`. E.g. `1011111.0000000.0011111:010.001.011:100.000`.
+    pub state: String,
+    /// What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`. E.g.
+    /// `1-11111.0-00000:-10.-01:1--`.
+    pub seen: String,
+    /// Since when the stable places hold: the sample of their last change;
+    /// `None` before the first.
+    pub since: Option<SampleRef>,
+    /// New places that have not held long enough yet.
+    pub pending: Option<PartsPending>,
+    /// The cell of the last change: `before | seen | after`, the places
+    /// without HELD.
+    pub last_cell: Option<String>,
+}
+
+/// New places of the parts, waiting to hold.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PartsPending {
+    /// The places waiting: `bed IN.OUT : headboard IN.OUT : BFK`.
+    pub places: String,
+    /// Source seconds they have held, against the required dwell.
     pub duration: Progress<f64>,
 }
 

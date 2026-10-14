@@ -4,6 +4,7 @@
 //! one that translates the fold into the contract. Nobody reads it to decide
 //! (P1, P4).
 
+use crate::belief::parts::PartsTransition;
 use crate::belief::{Alone, BedPostureState, Occupants, Room, Transition};
 use crate::conclusion::Observation;
 use crate::evidence::BodyEvidence;
@@ -30,6 +31,8 @@ pub(crate) struct Chronicle {
     observed: Option<SampleRef>,
     /// The last layer-0 transition: its sample and the counts that name its cell.
     transition: Option<(SampleRef, TransitionKey)>,
+    /// The last change of the parts' places, while there are places.
+    parts: Option<PartsTransition>,
 }
 
 impl Default for Chronicle {
@@ -42,6 +45,7 @@ impl Default for Chronicle {
             bed_posture: Since::new(None),
             observed: None,
             transition: None,
+            parts: None,
         }
     }
 }
@@ -60,6 +64,13 @@ pub(crate) struct Chronicled {
     pub transition_since: Option<SampleRef>,
     /// The last transition, this turn's included.
     pub last_transition: Option<TransitionKey>,
+    /// The sample of the parts' change before this turn's: since when the
+    /// places we believed held. `None` if this turn had no change or it is
+    /// the first.
+    pub parts_transition_since: Option<SampleRef>,
+    /// The last change of the parts' places, this turn's included: since when
+    /// the places hold and the last cell.
+    pub last_parts: Option<PartsTransition>,
 }
 
 /// The room's name, as the fold remembers it. Every accompanied room is one
@@ -136,6 +147,8 @@ pub(crate) struct Entry {
     pub seen: bool,
     /// The transition, if layer 0 changed in this turn.
     pub transition: Option<TransitionKey>,
+    /// Whether there are parts' places in this turn, and their change if any.
+    pub parts: Option<Option<PartsTransition>>,
 }
 
 impl Entry {
@@ -156,6 +169,7 @@ impl Entry {
                 .transition
                 .as_ref()
                 .map(TransitionKey::of),
+            parts: observation.parts.map(|p| p.transition),
         }
     }
 }
@@ -171,6 +185,7 @@ impl Chronicle {
             bed_posture,
             seen,
             transition,
+            parts,
         } = entry;
         if seen {
             self.observed = Some(at);
@@ -181,6 +196,15 @@ impl Chronicle {
         if let Some(key) = transition {
             self.transition = Some((at, key));
         }
+        // Without places, what was folded of them is forgotten, as the
+        // machine forgets.
+        let parts_change = parts.flatten();
+        let parts_transition_since = parts_change.and_then(|_| self.parts.map(|p| p.at));
+        match parts {
+            None => self.parts = None,
+            Some(Some(change)) => self.parts = Some(change),
+            Some(None) => {}
+        }
         Chronicled {
             room: self.room.update(room, at),
             bed: self.bed.update(bed, at),
@@ -189,6 +213,8 @@ impl Chronicle {
             observed: self.observed,
             transition_since,
             last_transition: self.transition.as_ref().map(|(_, key)| *key),
+            parts_transition_since,
+            last_parts: self.parts,
         }
     }
 }
@@ -263,6 +289,7 @@ mod tests {
             bed_posture: None,
             seen,
             transition: None,
+            parts: None,
         }
     }
 

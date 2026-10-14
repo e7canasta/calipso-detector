@@ -1345,21 +1345,68 @@
       ]
     },
     "Parts": {
-      "description": "The published occupancy of the parts, in the trama's notation: the\npositions in `cfhsaip` against the bed, `fhs` against the headboard and\nthe flags `BFK` (whole boxes inside).",
+      "description": "The occupancy of the subject's parts: the second trama of occupancy, the\ncomplement of layer 0 with its shape. In its notation: the positions\n`cfhsaip` against the bed, `fhs` against the headboard and the flags `BFK`\n(whole boxes inside), two bits each (IN, OUT; both: split); `-` where the\nsense did not look; HELD where not seen now, kept from where it was last\nseen (white book, volume I, ch. 09).",
       "type": "object",
       "properties": {
+        "last_cell": {
+          "description": "The cell of the last change: `before | seen | after`, the places\nwithout HELD.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pending": {
+          "description": "New places that have not held long enough yet.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PartsPending"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "seen": {
-          "description": "What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`, with `-`\nwhere the sense did not look. E.g. `1-11111.0-00000:-10.-01:1--`.",
+          "description": "What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`. E.g.\n`1-11111.0-00000:-10.-01:1--`.",
           "type": "string"
         },
+        "since": {
+          "description": "Since when the stable places hold: the sample of their last change;\n`None` before the first.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "state": {
-          "description": "The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :\nBFK.HELD`. Held: not seen in this sample, kept from where it was last\nseen. E.g. `1111111.0000000.0000111:110.001.000:111.000`.",
+          "description": "The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :\nBFK.HELD`. E.g. `1011111.0000000.0011111:010.001.011:100.000`.",
           "type": "string"
         }
       },
       "required": [
-        "seen",
-        "state"
+        "state",
+        "seen"
+      ]
+    },
+    "PartsPending": {
+      "description": "New places of the parts, waiting to hold.",
+      "type": "object",
+      "properties": {
+        "duration": {
+          "description": "Source seconds they have held, against the required dwell.",
+          "$ref": "#/$defs/Progress"
+        },
+        "places": {
+          "description": "The places waiting: `bed IN.OUT : headboard IN.OUT : BFK`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "places",
+        "duration"
       ]
     },
     "Pending": {

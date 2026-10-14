@@ -19,7 +19,6 @@ use occupancy::Machine;
 use subject::SubjectMemory;
 
 pub use bed_posture::{BedPosture, BedPostureSeen, BedPostureState};
-pub use parts::Parts;
 
 pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, Room, Tally, Transition};
 pub(crate) use subject::{Enrichment, SubjectBody};

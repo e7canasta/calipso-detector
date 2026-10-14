@@ -328,8 +328,14 @@ The row is `l0[t] + places[t−1] : seen[t] : places[t]`.
   dwell. Held is not stabilized: it says where the datum of this sample comes
   from, like a provenance.
 
-`project` publishes `subject.parts { seen, state }` in the trama's notation,
-additively in v4.
+It is published as layer 0 is, being its complement: the scene carries
+`subject.parts { state, seen, since, pending { places, duration }, last_cell }`
+and `events.v4` a `parts` event per change of the stable places, `{ at, cell,
+before { places, since, lasted_secs }, seen { parts, span }, after }`, last in
+the turn so that layer 0's events stay together. The cell is
+`before | seen | after`. `chronicle` folds the last change (since when, the
+last cell) and forgets it without places. `project/parts.rs` writes the
+notation, the same for every version (ADR 2026-10-14).
 
 ## 6. Projections and observers
 
