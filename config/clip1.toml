@@ -1,0 +1,115 @@
+# Local go2rtc, always live: videos/clip1_gop6.mp4.
+# Initial profile derived from vador1.toml. The geometry is drawn on a frame
+# from 2026-10-19 and is still unmeasured: review it before trusting posture.
+[camera]
+site = "local"
+id = "clip1"
+
+[stream]
+url = "rtsp://127.0.0.1:8554/clip1"
+# username = "user"
+# password = "secret"
+keyframe_only = true
+reconnect_delay_secs = 2
+sample_interval_ms = 1000
+stall_timeout_secs = 10
+
+[senses.detect]
+model = "yolo26s.onnx" # relative to CALIPSO_MODELS, or an absolute path
+backend_confidence = 0.25
+
+# Focus: while the resident is alone in bed, the main detector looks at the bed
+# up close. With this bed (x 685-1110, y 220-715) and pad 0.25 the focus is
+# x 579-1216, y 96-839: about twice the pixels per body. Removing the section
+# turns it off.
+[senses.detect.focus]
+pad = 0.25 # fraction of the bed's width and height on each side
+walk_secs = 3 # the least staff take to walk from the door to the bed: measure it on the recording
+wide_every_secs = 3 # the whole frame at least this often; cannot exceed walk_secs
+
+# Reinforcement, copied from vador1; removing the section turns the policy off.
+[senses.reinforce]
+model = "yolo26l.onnx" # relative to CALIPSO_MODELS, or an absolute path
+backend_confidence = 0.25 # cannot exceed policy.min_confidence
+bed_padding = 0.15 # fraction of the bed's width and height on each side
+
+# Faces FP16 192: copied from vador1.
+[senses.faces]
+model = "face/yolov12l-face.onnx" # FP16, input 192
+backend_confidence = 0.25 # cannot exceed senses.faces.min_confidence
+min_confidence = 0.30
+# With nobody in sight, faces are looked for at the headboard grown by this
+# fraction on each side: a head that left it is still found.
+headboard_pad = 0.5
+
+# Pose and depth; removing the sections turns the policy off.
+[senses.pose]
+model = "yolo26s-pose.onnx"
+backend_confidence = 0.25
+move_threshold = 0.1 # fraction of the subject's diagonal: the pose is requested again
+crop_pad = 0.2
+min_keypoint_score = 0.5 # below it a keypoint is not seen: no depth, no reasoning, not drawn
+# max_age_secs: without the key. Not measured on clip1: add it if a still pose
+# is not renewed.
+
+[senses.depth]
+model = "yolo26s-depth.onnx" # subject (with pose) and empty bed (with calibration)
+# posture_tolerance: 0.05 by default. It was measured on sample1, NOT on clip1:
+# this camera still needs its own labels.
+# Depth over the bed, for the subject and the empty bed alike.
+crop_pad = 0.25
+
+# Learn the empty bed at startup; requires [senses.depth].
+[calibration]
+retry_secs = 2.0 # source seconds between failed attempts
+
+# Layer 1, the bed posture (R18): whether the resident left lying is still
+# lying, sat up or is getting out. It needs [map] headboard and [senses.pose].
+# Initial times, not yet measured on clip1.
+[bed_posture]
+dwell_lying_secs = 2.0
+dwell_sitting_up_secs = 3.0
+dwell_getting_out_secs = 1.0
+
+# The slow verifier (white book, volume III): the core asks a closed question
+# where its own reading is doubtful, and the answer fills that digit. It needs
+# calipso-verifier listening on [senses.verify].subject; without it, questions
+# time out. Remove [verify] and [senses.verify] for a first test without it.
+[verify]
+max_per_hour = 20 # source time; MiMo answers in p50 7 s, p90 21 s
+timeout_secs = 70 # source seconds; above the shell's 65 s wall timeout
+held = { after_secs = 30, valid_secs = 3600 } # O1, O2
+# The grey band of the disparity: sample1's, NOT measured on clip1.
+doubtful_disparity = [0.02, 0.10] # P1
+doubtful_feet_margin = 0.06 # P2, P3: a fraction of the bed's width
+# The burst (white book III, ch. 12): a doubt in motion is asked with three
+# frames over ~3 s.
+frames = { held_in_bed = { frames = 1 }, sitting_in_bed = { frames = 3, every_secs = 1.5 }, leaving_bed = { frames = 3, every_secs = 1.5 } }
+# Only sharp crops count: half the median of the camera's last 20 (it adapts
+# to colour and infrared); after 4 s it asks with the sharpest it has.
+sharpness = { min_ratio = 0.5, window = 20, max_wait_secs = 4 }
+
+[senses.verify]
+# subject = "calipso.verify.v1"
+# wall_timeout_secs = 65
+
+[policy]
+min_confidence = 0.5
+same_body_iou = 0.5
+near_bed_margin = 0.10
+dwell_secs = 2.0 # source seconds a new count must hold
+
+[map]
+resolution = [1920, 1080]
+# Mattress corners, starting at the headboard: top-left, top-right,
+# bottom-right, bottom-left. Approximate, drawn on the frame at 1 s.
+bed = [[745, 220], [1065, 220], [1110, 715], [685, 715]]
+# Face region when no body is seen; with a body, the core asks for its box.
+headboard = [780, 110, 1090, 300]
+# Optional focus box instead of the grown bed: it must contain the bed and reach
+# whoever stands next to it. Draw it on a frame, like the bed.
+# focus = [580, 96, 1216, 839]
+
+[nats]
+url = "nats://127.0.0.1:4222"
+# prefix = "vision.local.clip1"
