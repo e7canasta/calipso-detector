@@ -123,6 +123,63 @@ impl Quad {
     }
 }
 
+impl Quad {
+    /// Does it overlap the box, with some area? The quadrilateral convex:
+    /// a corner of one inside the other, or two edges that cross.
+    pub(crate) fn touches(&self, r: &Rect) -> bool {
+        let boxed = Quad::from_rect(*r).0;
+        let edges = |v: [Point; 4]| v.into_iter().zip(v.into_iter().cycle().skip(1));
+        boxed.iter().any(|&p| self.contains(p))
+            || self.0.iter().any(|&p| r.contains(p))
+            || edges(self.0).any(|a| edges(boxed).any(|b| cross(a, b)))
+    }
+}
+
+/// Do the two segments cross at a single point inside both?
+fn cross((p, q): (Point, Point), (r, s): (Point, Point)) -> bool {
+    let side = |a: Point, b: Point, c: Point| (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    let (d1, d2) = (side(r, s, p), side(r, s, q));
+    let (d3, d4) = (side(p, q, r), side(p, q, s));
+    d1 * d2 < 0.0 && d3 * d4 < 0.0
+}
+
+/// A delimited zone: a box, or a quadrilateral for a camera that sees it at
+/// an angle (a corner camera sees the headboard on the diagonal, and its box
+/// takes in mattress and floor). Only asked what falls inside it; what is
+/// cropped around it is its bounds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Zone {
+    Box(Rect),
+    /// Convex, in any order around it.
+    Quad(Quad),
+}
+
+impl Zone {
+    /// Does it contain the point? A box counts its edges as inside.
+    pub(crate) fn contains(&self, p: Point) -> bool {
+        match self {
+            Zone::Box(r) => r.contains(p),
+            Zone::Quad(q) => q.contains(p),
+        }
+    }
+
+    /// Does `other` fall entirely inside it?
+    pub(crate) fn contains_rect(&self, other: &Rect) -> bool {
+        match self {
+            Zone::Box(r) => r.contains_rect(other),
+            Zone::Quad(q) => Quad::from_rect(*other).0.iter().all(|&p| q.contains(p)),
+        }
+    }
+
+    /// The smallest box that contains it.
+    pub(crate) fn bounds(&self) -> Rect {
+        match self {
+            Zone::Box(r) => *r,
+            Zone::Quad(q) => q.bounds(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,6 +215,47 @@ mod tests {
         assert!((a.iou(&Rect::new(5.0, 0.0, 15.0, 10.0)) - 1.0 / 3.0).abs() < 1e-6);
         assert!(a.contains_rect(&Rect::new(2.0, 2.0, 8.0, 8.0)));
         assert_eq!(a.expand(0.1), Rect::new(-1.0, -1.0, 11.0, 11.0));
+    }
+
+    /// The headboard seen from the corner: a band on the diagonal.
+    fn band() -> Quad {
+        Quad([
+            Point { x: 300.0, y: 100.0 },
+            Point { x: 400.0, y: 200.0 },
+            Point { x: 350.0, y: 250.0 },
+            Point { x: 250.0, y: 150.0 },
+        ])
+    }
+
+    #[test]
+    fn a_diagonal_zone_leaves_out_what_its_box_takes_in() {
+        let quad = Zone::Quad(band());
+        let boxed = Zone::Box(band().bounds());
+        let off_the_band = Point { x: 380.0, y: 120.0 };
+        assert!(boxed.contains(off_the_band));
+        assert!(!quad.contains(off_the_band));
+        assert!(quad.contains(Point { x: 325.0, y: 175.0 }));
+        assert!(quad.contains_rect(&Rect::new(315.0, 165.0, 335.0, 185.0)));
+        assert!(!quad.contains_rect(&Rect::new(300.0, 120.0, 340.0, 185.0)));
+        assert_eq!(quad.bounds(), Rect::new(250.0, 100.0, 400.0, 250.0));
+    }
+
+    #[test]
+    fn a_box_touches_a_quadrilateral_by_a_corner_or_by_crossing_edges() {
+        let q = band();
+        assert!(q.touches(&Rect::new(320.0, 160.0, 330.0, 170.0)), "inside");
+        assert!(
+            q.touches(&Rect::new(200.0, 50.0, 450.0, 300.0)),
+            "around it"
+        );
+        assert!(
+            q.touches(&Rect::new(290.0, 0.0, 310.0, 400.0)),
+            "across, no corner inside"
+        );
+        assert!(
+            !q.touches(&Rect::new(360.0, 100.0, 400.0, 140.0)),
+            "in its box, off the band"
+        );
     }
 
     #[test]

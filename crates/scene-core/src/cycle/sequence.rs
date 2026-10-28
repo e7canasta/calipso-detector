@@ -351,6 +351,7 @@ impl Course<'_> {
             faces: &observed.evidence.faces,
             bed: engine.map.bed_for(self.geometry),
             headboard: engine.map.headboard_for(self.geometry),
+            bed_frame: engine.policy.admission.bed_frame,
             min_score: engine.policy.enrich.as_ref().map(|e| e.min_keypoint_score),
         });
         // Layer 1, on layer 0 and what the second level perceived.

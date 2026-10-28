@@ -270,6 +270,11 @@ pub struct PolicyConfig {
     pub near_bed_margin: f32,
     /// Source seconds a new count must hold.
     pub dwell_secs: f64,
+    /// For a camera that sees the bed at an angle: near the bed measured in
+    /// the bed's own coordinates, and the person's box in bed when this share
+    /// of it falls in the bed. Left out of the hash when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bed_frame: Option<f32>,
 }
 /// Without a `[policy]` section, the core's own defaults.
 impl Default for PolicyConfig {
@@ -284,15 +289,25 @@ impl Default for PolicyConfig {
             same_body_iou: admission.same_body_iou,
             near_bed_margin: admission.near_bed_margin,
             dwell_secs: persistence.dwell_secs,
+            bed_frame: admission.bed_frame,
         }
     }
 }
+/// The headboard: a box `[x0, y0, x1, y1]`, or four points like the bed's
+/// for a camera that sees it at an angle.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum HeadboardConfig {
+    Box([f32; 4]),
+    Quad([[f32; 2]; 4]),
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct MapConfig {
     pub resolution: [u32; 2],
     pub bed: [[f32; 2]; 4],
-    pub headboard: Option<[f32; 4]>,
+    pub headboard: Option<HeadboardConfig>,
     /// Where the main detector looks while focusing; without it, the bed
     /// grown by the focus's pad. Left out of the hash when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -693,6 +708,12 @@ impl Config {
             "policy.near_bed_margin",
             f64::from(self.policy.near_bed_margin),
         )?;
+        if let Some(share) = self.policy.bed_frame {
+            ensure!(
+                share > 0.0 && share <= 1.0,
+                "policy.bed_frame: the share of the box in bed, in (0, 1]"
+            );
+        }
         not_negative("policy.dwell_secs", self.policy.dwell_secs)
     }
 
@@ -700,28 +721,38 @@ impl Config {
     fn validate_map(&self) -> Result<()> {
         let [w, h] = self.map.resolution;
         ensure!(w > 0 && h > 0, "map.resolution must be positive");
+        let within = |points: &[[f32; 2]; 4]| {
+            points.iter().all(|[x, y]| {
+                x.is_finite()
+                    && y.is_finite()
+                    && *x >= 0.0
+                    && *y >= 0.0
+                    && *x <= w as f32
+                    && *y <= h as f32
+            })
+        };
+        let degenerate = |points: &[[f32; 2]; 4]| {
+            let area: f32 = points
+                .iter()
+                .zip(points.iter().cycle().skip(1))
+                .take(4)
+                .map(|([x, y], [u, v])| x * v - y * u)
+                .sum();
+            !(area.is_finite() && area.abs() > 0.0)
+        };
+        ensure!(within(&self.map.bed), "map.bed: points outside resolution");
         ensure!(
-            self.map.bed.iter().all(|[x, y]| x.is_finite()
-                && y.is_finite()
-                && *x >= 0.0
-                && *y >= 0.0
-                && *x <= w as f32
-                && *y <= h as f32),
-            "map.bed: points outside resolution"
-        );
-        let area: f32 = self
-            .map
-            .bed
-            .iter()
-            .zip(self.map.bed.iter().cycle().skip(1))
-            .take(4)
-            .map(|([x, y], [u, v])| x * v - y * u)
-            .sum();
-        ensure!(
-            area.is_finite() && area.abs() > 0.0,
+            !degenerate(&self.map.bed),
             "map.bed: degenerate quadrilateral"
         );
-        if let Some([x0, y0, x1, y1]) = self.map.headboard {
+        if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
+            ensure!(within(points), "map.headboard: points outside resolution");
+            ensure!(
+                !degenerate(points),
+                "map.headboard: degenerate quadrilateral"
+            );
+        }
+        if let Some(HeadboardConfig::Box([x0, y0, x1, y1])) = self.map.headboard {
             ensure!(
                 [x0, y0, x1, y1].iter().all(|v| v.is_finite())
                     && x0 >= 0.0
@@ -761,6 +792,7 @@ impl Config {
         p.admission.min_confidence = self.policy.min_confidence;
         p.admission.same_body_iou = self.policy.same_body_iou;
         p.admission.near_bed_margin = self.policy.near_bed_margin;
+        p.admission.bed_frame = self.policy.bed_frame;
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
             .senses
@@ -828,10 +860,15 @@ impl Config {
         let mut map = SiteMap::new(Quad(self.map.bed.map(|[x, y]| Point { x, y })));
         let [width, height] = self.map.resolution;
         map.resolution = Some(FrameInfo { width, height });
-        map.headboard = self
-            .map
-            .headboard
-            .map(|[x0, y0, x1, y1]| Rect::new(x0, y0, x1, y1));
+        match self.map.headboard {
+            Some(HeadboardConfig::Box([x0, y0, x1, y1])) => {
+                map.headboard = Some(Rect::new(x0, y0, x1, y1));
+            }
+            Some(HeadboardConfig::Quad(points)) => {
+                map.headboard_area = Some(Quad(points.map(|[x, y]| Point { x, y })));
+            }
+            None => {}
+        }
         map.focus = self
             .map
             .focus

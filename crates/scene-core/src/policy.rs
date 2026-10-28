@@ -11,6 +11,14 @@ pub struct AdmissionPolicy {
     /// A body on the floor is "near the bed" if its box touches the bed grown
     /// by this fraction of its width and height on each side.
     pub near_bed_margin: f32,
+    /// `Some`: the bed's zones in its own coordinates, for a camera that sees
+    /// the bed at an angle. Near the bed is the bed grown by
+    /// `near_bed_margin` across and along it, not its bounding box grown; and
+    /// the person's box is in bed when at least this share of it falls in the
+    /// bed. A body lying on the diagonal of a narrow bed spills its box's
+    /// corners far past the rails: corners say nothing there, the share does.
+    /// `None`: in the image's axes, the box's four corners in the bed.
+    pub bed_frame: Option<f32>,
 }
 
 /// Look at the bed again with a finer detector when someone is lost.
@@ -253,6 +261,7 @@ impl Default for Policy {
                 min_confidence: 0.5,
                 same_body_iou: 0.5,
                 near_bed_margin: 0.10,
+                bed_frame: None,
             },
             persistence: Persistence { dwell_secs: 2.0 },
             faces: None,

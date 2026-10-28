@@ -12,7 +12,7 @@ use crate::belief::SubjectBody;
 use crate::belief::parts::{ByPart, Look};
 use crate::body::{BodyPoint, Joint};
 use crate::evidence::FaceEvidence;
-use crate::geom::{Point, Quad, Rect};
+use crate::geom::{Point, Quad, Rect, Zone};
 use crate::look::Detection;
 use crate::map::BedPlane;
 use crate::provenance::Provenance;
@@ -30,7 +30,12 @@ pub(crate) struct Sample<'a> {
     /// The bed, if its geometry applies.
     pub bed: Option<&'a Quad>,
     /// The headboard, if delimited and its geometry applies.
-    pub headboard: Option<Rect>,
+    pub headboard: Option<Zone>,
+    /// `Some`: the person's box is in bed when at least this share of it
+    /// falls in the bed ([`AdmissionPolicy`]).
+    ///
+    /// [`AdmissionPolicy`]: crate::policy::AdmissionPolicy
+    pub bed_frame: Option<f32>,
     /// Below this score a pose point is not seen; without a pose policy, none.
     pub min_score: Option<f32>,
 }
@@ -63,7 +68,7 @@ pub(crate) fn seen(s: &Sample<'_>) -> Option<ByPart<Look>> {
     let bed = BedPlane::of(s.bed?)?;
     let in_bed = |p: Point| bed.inside(p);
     let in_headboard = |p: Point| s.headboard.is_some_and(|h| h.contains(p));
-    let box_in_bed = |r: &Rect| corners(r).iter().all(|p| bed.inside(*p));
+    let box_in_bed = |r: &Rect| box_in_bed(&bed, r, s.bed_frame);
 
     // The person's box: seen now, or looked for and not seen.
     let person = s
@@ -169,6 +174,25 @@ fn group(points: impl Iterator<Item = Point>, inside: &dyn Fn(Point) -> bool) ->
     })
 }
 
+/// Is the box in bed? Its four corners inside it or, with a `share`, at
+/// least that share of the box: counted on a grid of points over it.
+fn box_in_bed(bed: &BedPlane, r: &Rect, share: Option<f32>) -> bool {
+    let Some(share) = share else {
+        return corners(r).iter().all(|&p| bed.inside(p));
+    };
+    const N: usize = 8;
+    let at = |i: usize, lo: f32, hi: f32| lo + (hi - lo) * (i as f32 + 0.5) / N as f32;
+    let inside = (0..N * N)
+        .filter(|k| {
+            bed.inside(Point {
+                x: at(k % N, r.x0, r.x1),
+                y: at(k / N, r.y0, r.y1),
+            })
+        })
+        .count();
+    inside as f32 >= share * (N * N) as f32
+}
+
 fn corners(r: &Rect) -> [Point; 4] {
     [
         Point { x: r.x0, y: r.y0 },
@@ -176,4 +200,33 @@ fn corners(r: &Rect) -> [Point; 4] {
         Point { x: r.x1, y: r.y1 },
         Point { x: r.x0, y: r.y1 },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A bed twice as long as wide seen from the corner, at 45°: headboard
+    /// up and to the right, foot down and to the left.
+    fn diagonal() -> BedPlane {
+        BedPlane::of(&Quad([
+            Point { x: 370.0, y: 88.0 },
+            Point { x: 512.0, y: 230.0 },
+            Point { x: 230.0, y: 512.0 },
+            Point { x: 88.0, y: 370.0 },
+        ]))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_body_lying_on_the_diagonal_spills_the_corners_of_its_box() {
+        // Lying along the bed, head to foot: its box's corners fall far past
+        // the rails, most of the box is in bed.
+        let lying = Rect::new(180.0, 180.0, 420.0, 420.0);
+        assert!(!box_in_bed(&diagonal(), &lying, None));
+        assert!(box_in_bed(&diagonal(), &lying, Some(0.7)));
+        // Standing beside the bed, at its side: little of the box is in it.
+        let beside = Rect::new(400.0, 300.0, 470.0, 500.0);
+        assert!(!box_in_bed(&diagonal(), &beside, Some(0.7)));
+    }
 }

@@ -25,7 +25,7 @@ pub(crate) fn grown_bed(bed: &crate::geom::Quad, margin: f64) -> Option<crate::g
 }
 
 use crate::body::BedSite;
-use crate::geom::{Point, Quad, Rect};
+use crate::geom::{Point, Quad, Rect, Zone};
 use crate::policy::FocusPolicy;
 use crate::time::SampleRef;
 use schemars::JsonSchema;
@@ -50,6 +50,10 @@ pub struct SiteMap {
     /// Where the headboard is: around it, faces are looked for with no subject
     /// in sight.
     pub headboard: Option<Rect>,
+    /// The headboard drawn as a quadrilateral, for a camera that sees it at an
+    /// angle. It rules over `headboard`; faces are looked for, and the map
+    /// published, with its bounds.
+    pub headboard_area: Option<Quad>,
     /// Where the main detector looks while the resident is alone in bed;
     /// `None`: the bed grown by the focus policy's pad.
     pub focus: Option<Rect>,
@@ -65,6 +69,7 @@ pub(crate) struct SiteGeometry {
     pub bed: Quad,
     pub resolution: Option<FrameInfo>,
     pub headboard: Option<Rect>,
+    pub headboard_area: Option<Quad>,
     pub focus: Option<Rect>,
 }
 
@@ -94,6 +99,7 @@ impl From<SiteMap> for Map {
                 bed: initial.bed,
                 resolution: initial.resolution,
                 headboard: initial.headboard,
+                headboard_area: initial.headboard_area,
                 focus: initial.focus,
             },
             calibration: CalibrationMemory {
@@ -114,6 +120,7 @@ impl SiteMap {
             bed,
             resolution: None,
             headboard: None,
+            headboard_area: None,
             focus: None,
             bed_reference: None,
             calibration_attempt: None,
@@ -166,8 +173,16 @@ impl Map {
     }
 
     /// The headboard, if the geometry applies.
-    pub(crate) fn headboard_for(&self, geometry: Geometry) -> Option<Rect> {
-        self.site.headboard.filter(|_| geometry == Geometry::Valid)
+    pub(crate) fn headboard_for(&self, geometry: Geometry) -> Option<Zone> {
+        self.headboard().filter(|_| geometry == Geometry::Valid)
+    }
+
+    /// The headboard delimited: the quadrilateral if drawn, else the box.
+    fn headboard(&self) -> Option<Zone> {
+        self.site
+            .headboard_area
+            .map(Zone::Quad)
+            .or(self.site.headboard.map(Zone::Box))
     }
 
     /// Where faces are looked for with nobody in sight, if the geometry
@@ -175,7 +190,7 @@ impl Map {
     /// does not: where the head is is still decided against it.
     pub(crate) fn faces_region(&self, geometry: Geometry, pad: f32) -> Option<Rect> {
         self.headboard_for(geometry)
-            .map(|headboard| headboard.expand(pad))
+            .map(|headboard| headboard.bounds().expand(pad))
     }
 
     /// Where the main detector looks while focusing, if the geometry applies:
@@ -205,7 +220,7 @@ impl Map {
             focus: focus.and_then(|f| self.focus_region(geometry, f.pad)),
             geometry,
             bed: self.site.bed,
-            headboard: self.site.headboard,
+            headboard: self.headboard().map(|headboard| headboard.bounds()),
             calibration: self
                 .reference()
                 .map_or(Calibration::Unavailable, |reference| {

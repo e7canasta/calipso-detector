@@ -232,6 +232,13 @@ fn admit_from(
         };
     };
     let near = bed.bounds().expand(policy.near_bed_margin);
+    let grown = policy
+        .bed_frame
+        .and_then(|_| crate::map::grown_bed(bed, f64::from(policy.near_bed_margin)));
+    let near_bed = |b: &Rect| match grown {
+        Some(grown) => grown.touches(b),
+        None => b.iou(&near) > 0.0,
+    };
     let mut bodies = Bodies::default();
     for d in admitted {
         if bed.contains(d.detection.bbox.centroid()) {
@@ -239,7 +246,7 @@ fn admit_from(
         } else {
             bodies.floor.push(FloorBody {
                 detection: d.detection,
-                near_bed: d.detection.bbox.iou(&near) > 0.0,
+                near_bed: near_bed(&d.detection.bbox),
                 source: d.source,
             });
         }
@@ -438,6 +445,7 @@ mod tests {
         min_confidence: 0.5,
         same_body_iou: 0.5,
         near_bed_margin: 0.10,
+        bed_frame: None,
     };
 
     fn seen(a: Admission) -> Bodies {
@@ -458,6 +466,41 @@ mod tests {
         assert!(b.floor[0].near_bed, "next to the bed");
         assert!(!b.floor[1].near_bed, "at the door");
         assert_eq!(b.far(), 1);
+    }
+
+    #[test]
+    fn in_the_bed_frame_near_the_bed_follows_a_bed_seen_on_the_diagonal() {
+        // From the corner the bed is a diamond; its bounding box takes in the
+        // room's corners.
+        let diamond = Quad([
+            Point { x: 300.0, y: 100.0 },
+            Point { x: 500.0, y: 300.0 },
+            Point { x: 300.0, y: 500.0 },
+            Point { x: 100.0, y: 300.0 },
+        ]);
+        let in_the_corner = Detection {
+            bbox: Rect::new(105.0, 105.0, 150.0, 170.0),
+            confidence: 0.9,
+            label: Label::Person,
+        };
+        let beside = Detection {
+            bbox: Rect::new(420.0, 380.0, 470.0, 470.0),
+            ..in_the_corner
+        };
+        let near = |policy: &AdmissionPolicy| {
+            let b = seen(admit(Ok(&[in_the_corner, beside]), Some(&diamond), policy));
+            (b.floor[0].near_bed, b.floor[1].near_bed)
+        };
+        assert_eq!(near(&POLICY), (true, true), "image axes: the box grown");
+        let bed_frame = AdmissionPolicy {
+            bed_frame: Some(0.7),
+            ..POLICY
+        };
+        assert_eq!(
+            near(&bed_frame),
+            (false, true),
+            "the bed grown in its coordinates"
+        );
     }
 
     #[test]
@@ -533,6 +576,7 @@ mod source_tests {
             min_confidence: 0.5,
             same_body_iou: 0.5,
             near_bed_margin: 0.1,
+            bed_frame: None,
         };
         let d = |confidence| Detection {
             bbox: bed.bounds(),

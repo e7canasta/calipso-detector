@@ -6,7 +6,7 @@
 
 use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
-use crate::geom::{Point, Rect};
+use crate::geom::{Point, Zone};
 use crate::map::{BedArea, BedPlane, Geometry, Map};
 use crate::policy::Policy;
 use schemars::JsonSchema;
@@ -82,7 +82,7 @@ const HEAD: [Joint; 5] = [
 /// Where a head can be: the headboard region and, if known, the bed's plane.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Bounds {
-    headboard: Rect,
+    headboard: Zone,
     bed: Option<BedPlane>,
 }
 
@@ -175,6 +175,7 @@ pub(crate) fn place(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geom::Rect;
     use crate::look::{Detection, Label};
 
     const HEADBOARD: Rect = Rect {
@@ -205,7 +206,7 @@ mod tests {
 
     fn by(faces: &FaceEvidence, pose: Option<&[Keypoint]>) -> HeadPlace {
         let bounds = Bounds {
-            headboard: HEADBOARD,
+            headboard: Zone::Box(HEADBOARD),
             bed: None,
         };
         place(faces, pose, Some(bounds), 0.5)
@@ -215,7 +216,7 @@ mod tests {
     fn in_bed(faces: &FaceEvidence, pose: Option<&[Keypoint]>) -> HeadPlace {
         let bed = crate::geom::Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
         let bounds = Bounds {
-            headboard: HEADBOARD,
+            headboard: Zone::Box(HEADBOARD),
             bed: BedPlane::of(&bed),
         };
         place(faces, pose, Some(bounds), 0.5)
