@@ -5,7 +5,8 @@ use scene_core::{
     map::{FrameInfo, SiteMap},
     policy::{
         Band, BedPosturePolicy, Burst, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
-        Frames, HeldVerifyPolicy, Policy, ReinforcePolicy, SharpnessPolicy, VerifyPolicy,
+        Frames, HeldVerifyPolicy, Policy, ReinforcePolicy, ShadowPolicy, SharpnessPolicy,
+        VerifyPolicy,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,19 @@ pub struct Config {
     /// nothing is verified (white book, volume III). It needs
     /// `[senses.verify]`.
     pub verify: Option<VerifyConfig>,
+    /// The geometry's shadow: estimates published next to what is decided,
+    /// deciding nothing (white book, volume VII, ch. 11). Without the
+    /// section, nothing is computed. Left out of the hash when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<ShadowConfig>,
+}
+
+/// `ShadowPolicy`: what the shadow measures.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShadowConfig {
+    /// Near the bed, in metres; it needs `map.bed_size_m`.
+    pub near_m: f32,
 }
 
 /// `VerifyPolicy`: what this stream verifies, and nothing else. Each stream
@@ -312,6 +326,14 @@ pub struct MapConfig {
     /// grown by the focus's pad. Left out of the hash when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus: Option<[f32; 4]>,
+    /// Where the bed stands on the floor, four points like the bed: the
+    /// shadow measures points on the floor against it. Left out of the hash
+    /// when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bed_floor: Option<[[f32; 2]; 4]>,
+    /// The bed's width and length in metres. Left out of the hash when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bed_size_m: Option<[f32; 2]>,
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -745,6 +767,29 @@ impl Config {
             !degenerate(&self.map.bed),
             "map.bed: degenerate quadrilateral"
         );
+        if let Some(points) = &self.map.bed_floor {
+            ensure!(within(points), "map.bed_floor: points outside resolution");
+            ensure!(
+                !degenerate(points),
+                "map.bed_floor: degenerate quadrilateral"
+            );
+        }
+        if let Some([width, length]) = self.map.bed_size_m {
+            ensure!(
+                width.is_finite() && length.is_finite() && width > 0.0 && length > 0.0,
+                "map.bed_size_m: the bed's width and length in metres, positive"
+            );
+        }
+        if let Some(shadow) = &self.shadow {
+            ensure!(
+                shadow.near_m.is_finite() && shadow.near_m > 0.0,
+                "shadow.near_m: a distance in metres, positive"
+            );
+            ensure!(
+                self.map.bed_size_m.is_some(),
+                "shadow needs map.bed_size_m: near the bed is measured in metres"
+            );
+        }
         if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
             ensure!(within(points), "map.headboard: points outside resolution");
             ensure!(
@@ -793,6 +838,9 @@ impl Config {
         p.admission.same_body_iou = self.policy.same_body_iou;
         p.admission.near_bed_margin = self.policy.near_bed_margin;
         p.admission.bed_frame = self.policy.bed_frame;
+        p.shadow = self.shadow.as_ref().map(|shadow| ShadowPolicy {
+            near_m: shadow.near_m,
+        });
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
             .senses
@@ -873,6 +921,11 @@ impl Config {
             .map
             .focus
             .map(|[x0, y0, x1, y1]| Rect::new(x0, y0, x1, y1));
+        map.bed_floor = self
+            .map
+            .bed_floor
+            .map(|points| Quad(points.map(|[x, y]| Point { x, y })));
+        map.bed_size_m = self.map.bed_size_m;
         map
     }
     pub fn ingest(&self) -> ingest::IngestConfig {
@@ -903,6 +956,10 @@ impl Config {
         }
         if let Some(v) = &self.verify {
             canonical.extend(serde_json::to_vec(v)?);
+        }
+        // The shadow adds to the scene: it enters the hash only if present.
+        if let Some(shadow) = &self.shadow {
+            canonical.extend(serde_json::to_vec(shadow)?);
         }
         let digest = Sha256::digest(canonical);
         let hex: String = digest
@@ -1210,6 +1267,41 @@ mod tests {
             assert!(error.to_string().contains(field), "{error}");
         }
         assert!(Config::parse(&format!("{VALID}{section}unknown = 1\n")).is_err());
+    }
+
+    #[test]
+    fn the_shadow_needs_the_bed_size_validates_and_leaves_the_hash_when_absent() {
+        let baseline = Config::parse(VALID).unwrap();
+        assert!(baseline.policy().shadow.is_none());
+        assert!(baseline.site_map().bed_floor.is_none());
+        let map = "bed_floor = [[110, 150], [490, 150], [490, 430], [110, 430]]\nbed_size_m = [0.9, 2.0]\n";
+        let with_map = VALID.replacen("[map]\n", &format!("[map]\n{map}"), 1);
+        let shadow = "\n[shadow]\nnear_m = 0.6\n";
+        let config = Config::parse(&format!("{with_map}{shadow}")).unwrap();
+        assert_eq!(config.policy().shadow, Some(ShadowPolicy { near_m: 0.6 }));
+        let site = config.site_map();
+        assert_eq!(site.bed_size_m, Some([0.9, 2.0]));
+        assert!(site.bed_floor.is_some());
+        // The map's keys alone change no policy and keep their own hash.
+        let map_only = Config::parse(&with_map).unwrap();
+        assert!(map_only.policy().shadow.is_none());
+        assert_ne!(
+            map_only.profile().unwrap().hash,
+            config.profile().unwrap().hash
+        );
+        let error = Config::parse(&format!("{VALID}{shadow}")).unwrap_err();
+        assert!(error.to_string().contains("bed_size_m"), "{error}");
+        for (from, to, field) in [
+            ("near_m = 0.6", "near_m = 0", "shadow.near_m"),
+            ("near_m = 0.6", "near_m = nan", "shadow.near_m"),
+            ("[0.9, 2.0]", "[0.9, -2.0]", "map.bed_size_m"),
+            ("[490, 430]", "[990, 430]", "map.bed_floor"),
+        ] {
+            let error =
+                Config::parse(&format!("{with_map}{shadow}").replace(from, to)).unwrap_err();
+            assert!(error.to_string().contains(field), "{error}");
+        }
+        assert!(Config::parse(&format!("{with_map}{shadow}unknown = 1\n")).is_err());
     }
 
     #[test]

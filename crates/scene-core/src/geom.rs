@@ -96,7 +96,7 @@ impl Quad {
     }
 
     /// The smallest rectangle that contains it.
-    pub(crate) fn bounds(&self) -> Rect {
+    pub fn bounds(&self) -> Rect {
         let xs = self.0.map(|p| p.x);
         let ys = self.0.map(|p| p.y);
         Rect {

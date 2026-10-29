@@ -1269,6 +1269,65 @@
         }
       ]
     },
+    "MapShadow": {
+      "description": "The geometry's shadow over the site (white book, volume VII, ch. 11): it\ndecides nothing; it is published to choose with data. Temporary.",
+      "type": "object",
+      "properties": {
+        "bed_floor": {
+          "description": "Where the bed stands on the floor, if delimited.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bed_size_m": {
+          "description": "The bed's width and length in metres, if known.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "headboard_area": {
+          "description": "The headboard as a quadrilateral, if it was drawn as one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "near": {
+          "description": "Near the bed in metres: the footprint (the mattress, without one) grown\nby the shadow's distance in its own coordinates. Absent without the\nbed's size.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "near_today": {
+          "description": "Near the bed as decided today: the bed's bounding box grown by the\nadmission's margin.",
+          "$ref": "#/$defs/Rect"
+        }
+      },
+      "required": [
+        "near_today"
+      ]
+    },
     "MapState": {
       "description": "What is published of the static world.",
       "type": "object",
@@ -1301,6 +1360,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shadow": {
+          "description": "The geometry's shadow: what a geometry that does not decide yet sees\nof the site. Absent, and not published, unless the profile asks for it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapShadow"
             },
             {
               "type": "null"

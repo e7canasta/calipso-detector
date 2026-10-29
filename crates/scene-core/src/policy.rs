@@ -133,6 +133,18 @@ pub struct Policy {
     pub bed_posture: Option<BedPosturePolicy>,
     /// `None`: there is no verifier; nothing is verified.
     pub verify: Option<VerifyPolicy>,
+    /// `None`: no shadow is computed or published.
+    pub shadow: Option<ShadowPolicy>,
+}
+
+/// The geometry's shadow (white book, volume VII, ch. 11): estimates of a
+/// geometry that does not decide yet, published next to what is decided. It
+/// changes no decision.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShadowPolicy {
+    /// Near the bed, in metres: the footprint grown by this much in its own
+    /// coordinates. It needs the bed's size.
+    pub near_m: f32,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume
@@ -272,6 +284,7 @@ impl Default for Policy {
             depth_pad: None,
             bed_posture: None,
             verify: None,
+            shadow: None,
         }
     }
 }

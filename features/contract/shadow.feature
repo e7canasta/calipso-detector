@@ -1,5 +1,4 @@
 # language: en
-@wip
 Feature: The geometry's shadow is published next to what is decided
   As whoever designs the engine for a corner camera
   I want each scene to carry where the bed and "near the bed" fall for a geometry that does not decide yet

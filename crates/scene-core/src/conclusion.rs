@@ -23,7 +23,8 @@ pub(crate) enum Conclusion {
         reason: RepublishReason,
         changed: Option<SensorChanged>,
         sensor: SensorState,
-        map: MapState,
+        /// Boxed: with the geometry's shadow the map is the largest field.
+        map: Box<MapState>,
     },
 }
 

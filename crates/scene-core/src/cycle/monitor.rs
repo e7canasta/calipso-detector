@@ -106,7 +106,7 @@ impl Monitor {
                 let last = self.last.as_ref().map(|(at, scene)| (scene.as_ref(), *at));
                 Output {
                     at,
-                    scene: Arc::new(v4::republish(last, reason, sensor, map)),
+                    scene: Arc::new(v4::republish(last, reason, sensor, *map)),
                     events: v4::sensor_events(changed, last.map(|(scene, _)| scene)),
                 }
             }

@@ -17,16 +17,22 @@ pub fn bed_points(bed: &crate::geom::Quad, uv: &[(f64, f64)]) -> Option<Vec<crat
 /// image, in `Quad`'s order: headboard left, headboard right, foot right, foot
 /// left. `None` if the bed is degenerate.
 pub(crate) fn grown_bed(bed: &crate::geom::Quad, margin: f64) -> Option<crate::geom::Quad> {
-    let (lo, hi) = (-margin, 1.0 + margin);
+    grown(bed, margin, margin)
+}
+
+/// The bed grown by `across` on each side and by `along` at each end, in its
+/// own coordinates (fractions of its width and length), in `Quad`'s order.
+fn grown(bed: &crate::geom::Quad, across: f64, along: f64) -> Option<crate::geom::Quad> {
+    let (u0, u1, v0, v1) = (-across, 1.0 + across, -along, 1.0 + along);
     let plane = BedPlane::of(bed)?;
     Some(crate::geom::Quad(
-        [(lo, hi), (hi, hi), (hi, lo), (lo, lo)].map(|(u, v)| plane.point(u, v)),
+        [(u0, v1), (u1, v1), (u1, v0), (u0, v0)].map(|(u, v)| plane.point(u, v)),
     ))
 }
 
 use crate::body::BedSite;
 use crate::geom::{Point, Quad, Rect, Zone};
-use crate::policy::FocusPolicy;
+use crate::policy::{Policy, ShadowPolicy};
 use crate::time::SampleRef;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -57,6 +63,11 @@ pub struct SiteMap {
     /// Where the main detector looks while the resident is alone in bed;
     /// `None`: the bed grown by the focus policy's pad.
     pub focus: Option<Rect>,
+    /// Where the bed stands on the floor, drawn like the bed: the shadow
+    /// measures points on the floor against it. `None`: not delimited.
+    pub bed_floor: Option<Quad>,
+    /// The bed's width and length in metres. `None`: unknown.
+    pub bed_size_m: Option<[f32; 2]>,
     /// The learned depth of the empty bed, in the depth model's relative scale.
     pub bed_reference: Option<f32>,
     /// The last calibration attempt, for the retry delay.
@@ -71,6 +82,8 @@ pub(crate) struct SiteGeometry {
     pub headboard: Option<Rect>,
     pub headboard_area: Option<Quad>,
     pub focus: Option<Rect>,
+    pub bed_floor: Option<Quad>,
+    pub bed_size_m: Option<[f32; 2]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -101,6 +114,8 @@ impl From<SiteMap> for Map {
                 headboard: initial.headboard,
                 headboard_area: initial.headboard_area,
                 focus: initial.focus,
+                bed_floor: initial.bed_floor,
+                bed_size_m: initial.bed_size_m,
             },
             calibration: CalibrationMemory {
                 reference: initial.bed_reference.map(|depth| BedReference {
@@ -122,6 +137,8 @@ impl SiteMap {
             headboard: None,
             headboard_area: None,
             focus: None,
+            bed_floor: None,
+            bed_size_m: None,
             bed_reference: None,
             calibration_attempt: None,
             calibrated_at: None,
@@ -207,6 +224,30 @@ impl Map {
         self.bed_for(geometry).map(|bed| bed.bounds().expand(pad))
     }
 
+    /// The geometry's shadow over the site, which decides nothing (white
+    /// book, volume VII, ch. 11): near the bed in metres, on the footprint if
+    /// it is delimited and on the mattress if not, next to near as decided
+    /// today.
+    fn shadow(&self, shadow: ShadowPolicy, near_bed_margin: f32) -> MapShadow {
+        let site = &self.site;
+        let near = site.bed_size_m.and_then(|[width, length]| {
+            let plane = site.bed_floor.unwrap_or(site.bed);
+            let metres = f64::from(shadow.near_m);
+            grown(
+                &plane,
+                metres / f64::from(width),
+                metres / f64::from(length),
+            )
+        });
+        MapShadow {
+            bed_floor: site.bed_floor,
+            bed_size_m: site.bed_size_m,
+            near,
+            near_today: site.bed.bounds().expand(near_bed_margin),
+            headboard_area: site.headboard_area,
+        }
+    }
+
     /// The bed, if the geometry applies.
     pub(crate) fn bed_for(&self, geometry: Geometry) -> Option<&Quad> {
         (geometry == Geometry::Valid).then_some(&self.site.bed)
@@ -214,10 +255,16 @@ impl Map {
 
     /// The static world as this turn sees it: the configured geometry and
     /// what was learned of the empty bed.
-    /// With the focus the policy configured, if any.
-    pub(crate) fn state(&self, geometry: Geometry, focus: Option<&FocusPolicy>) -> MapState {
+    /// With the focus the policy configured, if any, and the shadow if asked.
+    pub(crate) fn state(&self, geometry: Geometry, policy: &Policy) -> MapState {
         MapState {
-            focus: focus.and_then(|f| self.focus_region(geometry, f.pad)),
+            focus: policy
+                .focus
+                .as_ref()
+                .and_then(|f| self.focus_region(geometry, f.pad)),
+            shadow: policy
+                .shadow
+                .map(|shadow| self.shadow(shadow, policy.admission.near_bed_margin)),
             geometry,
             bed: self.site.bed,
             headboard: self.headboard().map(|headboard| headboard.bounds()),
@@ -279,6 +326,29 @@ pub enum Geometry {
     },
 }
 
+/// The geometry's shadow over the site (white book, volume VII, ch. 11): it
+/// decides nothing; it is published to choose with data. Temporary.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct MapShadow {
+    /// Where the bed stands on the floor, if delimited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bed_floor: Option<Quad>,
+    /// The bed's width and length in metres, if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bed_size_m: Option<[f32; 2]>,
+    /// Near the bed in metres: the footprint (the mattress, without one) grown
+    /// by the shadow's distance in its own coordinates. Absent without the
+    /// bed's size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub near: Option<Quad>,
+    /// Near the bed as decided today: the bed's bounding box grown by the
+    /// admission's margin.
+    pub near_today: Rect,
+    /// The headboard as a quadrilateral, if it was drawn as one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headboard_area: Option<Quad>,
+}
+
 /// What is published of the static world.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MapState {
@@ -293,6 +363,10 @@ pub struct MapState {
     /// not published, when the main detector does not focus.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus: Option<Rect>,
+    /// The geometry's shadow: what a geometry that does not decide yet sees
+    /// of the site. Absent, and not published, unless the profile asks for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<MapShadow>,
     /// What the map learned about the empty bed.
     pub calibration: Calibration,
 }

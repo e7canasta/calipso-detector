@@ -22,6 +22,7 @@ mod posture;
 mod published;
 #[path = "../script.rs"]
 mod script;
+mod shadow;
 mod subject;
 mod verification;
 mod ward;
