@@ -386,6 +386,10 @@ One concept, one name.
 | observation | `conclusion::Observation` | What a turn observed and believed, together: the input of the chronicle and the projection |
 | look, probe | `look`, `Probe` | What the core asks the shell to look at |
 | focus | `FocusPolicy`, `SiteMap::focus`, `attention::primary_region` | Where the main detector looks while the resident is alone in bed: the bed up close |
+| shadow | `ShadowPolicy`, `MapShadow` | Estimates of a geometry that does not decide yet, published next to what the engine decides, to choose with data; asked for by the profile, temporary (white book, volume VII, ch. 11) |
+| bed footprint | `SiteMap::bed_floor` | Where the bed stands on the floor: the same rectangle as the mattress, drawn at floor level. Points on the floor (ankles, a box's lower edge) are measured against it, not against the mattress (volume VII, ch. 04) |
+| bed size | `SiteMap::bed_size_m` | The bed's width and length in metres: it turns the bed's `u/v` into metres |
+| near (in metres) | `ShadowPolicy::near_m`, `MapShadow::near` | Near the bed as a distance: the footprint grown by this many metres in its own coordinates, not the bed's bounding box grown by a fraction |
 | widen | `attention::widen` | The focus did not confirm what is believed: the same turn looks at the whole frame before believing |
 | sentinel, lens | `FocusPolicy::wide_every_secs`, `attention::Lens` | The whole frame at least this often; the lens remembers when it was last read |
 | reading | `Reading` | What the shell returns for a probe |
