@@ -116,7 +116,10 @@ impl Course<'_> {
                     })
                 }
                 // Believe.
-                Reached::Evidence(evidence) => {
+                Reached::Evidence(mut evidence) => {
+                    let engine = &self.monitor.engine;
+                    let site = crate::shadow::Site::of(&engine.map, self.geometry, &engine.policy);
+                    evidence.cast_shadow(site.as_ref());
                     let believed = self.believe(&evidence.bodies);
                     Reached::Belief(Observed {
                         believed,

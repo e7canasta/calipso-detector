@@ -63,6 +63,7 @@ fn bodies(floor: u32, far: u32, bed: u32) -> Bodies {
             .map(|i| Body {
                 detection: bbox(i),
                 source: BodySource::Primary,
+                shadow: None,
             })
             .collect(),
         floor: (0..floor)
@@ -70,6 +71,7 @@ fn bodies(floor: u32, far: u32, bed: u32) -> Bodies {
                 detection: bbox(10 + i),
                 near_bed: i >= far,
                 source: BodySource::Primary,
+                shadow: None,
             })
             .collect(),
     }

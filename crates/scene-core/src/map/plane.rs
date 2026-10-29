@@ -2,7 +2,7 @@
 //! coordinates, `u` across and `v` from the foot (0) to the headboard (1). It
 //! is scene-analytics' convention (`spatial`), so the values are comparable.
 
-use crate::geom::{Point, Quad};
+use crate::geom::{Point, Quad, Rect};
 
 /// The bed homography both ways, each as the nine coefficients of
 /// `u = (a·x + b·y + c) / (g·x + h·y + i)` and `v = (d·x + e·y + f) / (g·x + h·y + i)`:
@@ -70,6 +70,23 @@ impl BedPlane {
             x: x as f32,
             y: y as f32,
         }
+    }
+
+    /// The share of a box over the bed: of an 8 × 8 grid of points over it,
+    /// how many fall inside.
+    pub(crate) fn share(&self, r: &Rect) -> f32 {
+        const N: u8 = 8;
+        let at = |i: u8, lo: f32, hi: f32| lo + (hi - lo) * (f32::from(i) + 0.5) / f32::from(N);
+        let inside = (0..N)
+            .flat_map(|i| (0..N).map(move |j| (i, j)))
+            .filter(|&(i, j)| {
+                self.inside(Point {
+                    x: at(i, r.x0, r.x1),
+                    y: at(j, r.y0, r.y1),
+                })
+            })
+            .count();
+        inside as f32 / f32::from(N * N)
     }
 
     /// Does the point fall inside the bed, `[0, 1]²`, edges included?

@@ -186,12 +186,13 @@ fn project_evidence(
 
 /// The admitted bodies, with their zone when the bed geometry applied.
 fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
-    let seen = |d: &Detection, source, zone, near_bed| BodySeen {
+    let seen = |d: &Detection, source, zone, near_bed, shadow| BodySeen {
         zone,
         near_bed,
         bbox: d.bbox,
         confidence: d.confidence,
         source,
+        shadow,
     };
     match evidence {
         BodyEvidence::Unavailable(_) => BodiesEvidence::default(),
@@ -199,7 +200,7 @@ fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
             status: BodiesStatus::Unzoned,
             items: unzoned
                 .iter()
-                .map(|b| seen(&b.detection, b.source, None, None))
+                .map(|b| seen(&b.detection, b.source, None, None, b.shadow))
                 .collect(),
         },
         BodyEvidence::Seen(bodies) => BodiesEvidence {
@@ -207,13 +208,16 @@ fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
             items: bodies
                 .bed
                 .iter()
-                .map(|b| seen(&b.detection, b.source, Some(Zone::Bed), None))
-                .chain(
-                    bodies
-                        .floor
-                        .iter()
-                        .map(|b| seen(&b.detection, b.source, Some(Zone::Floor), Some(b.near_bed))),
-                )
+                .map(|b| seen(&b.detection, b.source, Some(Zone::Bed), None, b.shadow))
+                .chain(bodies.floor.iter().map(|b| {
+                    seen(
+                        &b.detection,
+                        b.source,
+                        Some(Zone::Floor),
+                        Some(b.near_bed),
+                        b.shadow,
+                    )
+                }))
                 .collect(),
         },
     }

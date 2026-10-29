@@ -46,6 +46,10 @@ pub struct Config {
 pub struct ShadowConfig {
     /// Near the bed, in metres; it needs `map.bed_size_m`.
     pub near_m: f32,
+    /// A body's support within this many metres of the bed is in bed for the
+    /// shadow; 0 by default.
+    #[serde(default)]
+    pub support_margin_m: f32,
 }
 
 /// `VerifyPolicy`: what this stream verifies, and nothing else. Each stream
@@ -786,6 +790,10 @@ impl Config {
                 "shadow.near_m: a distance in metres, positive"
             );
             ensure!(
+                shadow.support_margin_m.is_finite() && shadow.support_margin_m >= 0.0,
+                "shadow.support_margin_m: a distance in metres, not negative"
+            );
+            ensure!(
                 self.map.bed_size_m.is_some(),
                 "shadow needs map.bed_size_m: near the bed is measured in metres"
             );
@@ -840,6 +848,7 @@ impl Config {
         p.admission.bed_frame = self.policy.bed_frame;
         p.shadow = self.shadow.as_ref().map(|shadow| ShadowPolicy {
             near_m: shadow.near_m,
+            support_margin_m: shadow.support_margin_m,
         });
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
@@ -1278,7 +1287,13 @@ mod tests {
         let with_map = VALID.replacen("[map]\n", &format!("[map]\n{map}"), 1);
         let shadow = "\n[shadow]\nnear_m = 0.6\n";
         let config = Config::parse(&format!("{with_map}{shadow}")).unwrap();
-        assert_eq!(config.policy().shadow, Some(ShadowPolicy { near_m: 0.6 }));
+        assert_eq!(
+            config.policy().shadow,
+            Some(ShadowPolicy {
+                near_m: 0.6,
+                support_margin_m: 0.0
+            })
+        );
         let site = config.site_map();
         assert_eq!(site.bed_size_m, Some([0.9, 2.0]));
         assert!(site.bed_floor.is_some());

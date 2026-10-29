@@ -2,12 +2,15 @@
 //! volume VII, ch. 11): what a geometry that does not decide yet sees,
 //! published next to what is decided.
 
-use cucumber::{given, then};
+use cucumber::{given, then, when};
+use scene_core::contract::{BodySeen, ShadowPlane, Zone};
 use scene_core::geom::{Quad, Rect};
+use scene_core::look::{Detection, Label};
 use scene_core::map::MapShadow;
 use scene_core::policy::ShadowPolicy;
 use scene_core::{Monitor, Output};
 
+use crate::script::Script;
 use crate::ward::Ward;
 
 /// Within a pixel: the expectations are written rounded.
@@ -26,7 +29,10 @@ fn size(ward: &mut Ward, width: f32, length: f32) {
 
 #[given(expr = "the geometry's shadow measures near the bed within {float} metres")]
 fn shadow_on(ward: &mut Ward, near_m: f32) {
-    ward.policy.shadow = Some(ShadowPolicy { near_m });
+    ward.policy.shadow = Some(ShadowPolicy {
+        near_m,
+        support_margin_m: 0.0,
+    });
 }
 
 fn shadow(ward: &Ward) -> MapShadow {
@@ -116,6 +122,9 @@ fn shadow_decides_nothing(ward: &mut Ward) {
         let mut with = turn.output.scene.as_ref().clone();
         assert!(with.map.shadow.is_some(), "the shadow was asked for");
         with.map.shadow = None;
+        for body in &mut with.evidence.bodies.items {
+            body.shadow = None;
+        }
         assert_eq!(*bare.scene, with, "the scene at {:?} differs", bare.at);
         assert_eq!(
             bare.events, turn.output.events,
@@ -123,4 +132,72 @@ fn shadow_decides_nothing(ward: &mut Ward) {
             bare.at
         );
     }
+}
+
+// --- Stage 2: each body
+
+#[when(regex = r"^in sample (\d+) the camera sees a person at (\d+),(\d+) to (\d+),(\d+)$")]
+fn sees_a_person(ward: &mut Ward, n: u32, x0: f32, y0: f32, x1: f32, y1: f32) {
+    let person = Detection {
+        bbox: Rect::new(x0, y0, x1, y1),
+        confidence: 0.9,
+        label: Label::Person,
+    };
+    ward.turn_with(ward.sample(n), Script::bodies(vec![person]));
+}
+
+fn body(ward: &Ward) -> BodySeen {
+    let items = &ward.last().output.scene.evidence.bodies.items;
+    assert_eq!(items.len(), 1, "a single body: {items:?}");
+    items.first().cloned().expect("a body")
+}
+
+fn zone(name: &str) -> Zone {
+    match name {
+        "bed" => Zone::Bed,
+        "floor" => Zone::Floor,
+        other => panic!("unknown zone {other}"),
+    }
+}
+
+#[then(
+    regex = r#"^the body is in the "(bed|floor)" today and (?:in|on) the "(bed|floor)" for the shadow$"#
+)]
+fn zones(ward: &mut Ward, today: String, shadow: String) {
+    let body = body(ward);
+    assert_eq!(body.zone, Some(zone(&today)));
+    assert_eq!(body.shadow.expect("a shadow").zone, Some(zone(&shadow)));
+}
+
+#[then(
+    regex = r#"^the body's support falls (\d+(?:\.\d+)?) metres from the bed, on the "(floor|mattress)"$"#
+)]
+fn support(ward: &mut Ward, metres: f32, plane: String) {
+    let shadow = body(ward).shadow.expect("a shadow");
+    let distance = shadow.support_distance_m.expect("a distance");
+    assert!(
+        (distance - metres).abs() <= 0.01,
+        "{distance} is not {metres}"
+    );
+    let expected = match plane.as_str() {
+        "floor" => ShadowPlane::Floor,
+        _ => ShadowPlane::Mattress,
+    };
+    assert_eq!(shadow.support_plane, expected);
+}
+
+#[then("the body's support is near the bed for the shadow")]
+fn support_near(ward: &mut Ward) {
+    assert_eq!(body(ward).shadow.expect("a shadow").near_bed, Some(true));
+}
+
+#[then(expr = "the body's share over the mattress is {float}")]
+fn share_over_the_mattress(ward: &mut Ward, share: f32) {
+    let got = body(ward).shadow.expect("a shadow").share;
+    assert!((got - share).abs() < 1e-6, "{got} is not {share}");
+}
+
+#[then("the body carries no shadow")]
+fn no_body_shadow(ward: &mut Ward) {
+    assert_eq!(body(ward).shadow, None);
 }

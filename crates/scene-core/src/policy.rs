@@ -145,6 +145,9 @@ pub struct ShadowPolicy {
     /// Near the bed, in metres: the footprint grown by this much in its own
     /// coordinates. It needs the bed's size.
     pub near_m: f32,
+    /// A body's support within this many metres of the bed is in bed for the
+    /// shadow; past it, on the floor.
+    pub support_margin_m: f32,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume

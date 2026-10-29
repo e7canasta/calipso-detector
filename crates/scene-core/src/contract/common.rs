@@ -20,6 +20,7 @@ pub use crate::refine::{
     VerdictState,
 };
 pub use crate::sensor::SensorState;
+pub use crate::shadow::{BodyShadow, PlanePoint, ShadowPlane};
 pub use crate::time::{SampleRef, SessionId, SourceSecs};
 pub use crate::verification::{HeldCheck, HeldCheckState, Verifier};
 pub use crate::zone::{Counts, Zone};
@@ -292,6 +293,10 @@ pub struct BodySeen {
     pub confidence: f32,
     /// Which detector saw it.
     pub source: BodySource,
+    /// Where it falls for the geometry's shadow: absent unless the profile
+    /// asks for it. It decides nothing (white book, volume VII, ch. 11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<BodyShadow>,
 }
 
 /// What happened with faces in this sample.

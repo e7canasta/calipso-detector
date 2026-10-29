@@ -8,6 +8,7 @@ use crate::estimation;
 use crate::geom::{Point, Quad, Rect};
 use crate::look::{DepthTarget, Detection, Failure, Label};
 use crate::policy::{AdmissionPolicy, FacePolicy};
+use crate::shadow::BodyShadow;
 use crate::zone::Counts;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,9 @@ pub(crate) type Sensed<T> = Result<T, Failure>;
 pub(crate) struct Body {
     pub detection: Detection,
     pub source: BodySource,
+    /// Where it falls for the geometry's shadow, if asked for: it decides
+    /// nothing (white book, volume VII, ch. 11).
+    pub shadow: Option<BodyShadow>,
 }
 
 /// A body off the bed, and whether it is near it.
@@ -30,6 +34,8 @@ pub(crate) struct FloorBody {
     pub detection: Detection,
     pub near_bed: bool,
     pub source: BodySource,
+    /// Where it falls for the geometry's shadow, if asked for.
+    pub shadow: Option<BodyShadow>,
 }
 
 /// The accepted bodies of a sample, per zone, from most to least confident.
@@ -104,6 +110,23 @@ pub(crate) struct Admission {
 pub(crate) struct Perceived {
     pub bodies: Admission,
     pub faces: FaceEvidence,
+}
+
+impl Perceived {
+    /// Each body zoned in this sample, with where it falls for the geometry's
+    /// shadow. Without the shadow (`None`), nothing changes; with it, nothing
+    /// that is believed changes either.
+    pub(crate) fn cast_shadow(&mut self, site: Option<&crate::shadow::Site>) {
+        let (Some(site), BodyEvidence::Seen(bodies)) = (site, &mut self.bodies.bodies) else {
+            return;
+        };
+        for body in &mut bodies.bed {
+            body.shadow = Some(site.body(&body.detection.bbox));
+        }
+        for body in &mut bodies.floor {
+            body.shadow = Some(site.body(&body.detection.bbox));
+        }
+    }
 }
 
 impl Admission {
@@ -215,6 +238,7 @@ fn admit_from(
             None => admitted.push(Body {
                 detection: *d,
                 source,
+                shadow: None,
             }),
         }
     }
@@ -248,6 +272,7 @@ fn admit_from(
                 detection: d.detection,
                 near_bed: near_bed(&d.detection.bbox),
                 source: d.source,
+                shadow: None,
             });
         }
     }

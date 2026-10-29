@@ -175,22 +175,12 @@ fn group(points: impl Iterator<Item = Point>, inside: &dyn Fn(Point) -> bool) ->
 }
 
 /// Is the box in bed? Its four corners inside it or, with a `share`, at
-/// least that share of the box: counted on a grid of points over it.
+/// least that share of the box over it.
 fn box_in_bed(bed: &BedPlane, r: &Rect, share: Option<f32>) -> bool {
-    let Some(share) = share else {
-        return corners(r).iter().all(|&p| bed.inside(p));
-    };
-    const N: usize = 8;
-    let at = |i: usize, lo: f32, hi: f32| lo + (hi - lo) * (i as f32 + 0.5) / N as f32;
-    let inside = (0..N * N)
-        .filter(|k| {
-            bed.inside(Point {
-                x: at(k % N, r.x0, r.x1),
-                y: at(k / N, r.y0, r.y1),
-            })
-        })
-        .count();
-    inside as f32 >= share * (N * N) as f32
+    match share {
+        Some(share) => bed.share(r) >= share,
+        None => corners(r).iter().all(|&p| bed.inside(p)),
+    }
 }
 
 fn corners(r: &Rect) -> [Point; 4] {

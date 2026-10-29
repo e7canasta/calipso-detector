@@ -57,7 +57,6 @@ Feature: The geometry's shadow is published next to what is decided
   # lower. The support is the centre of the box's lower edge, measured on the
   # footprint; 30 px past its foot is 0.1 of its length: 0.2 m.
 
-  @wip
   Scenario: Standing by the near side: in bed today, on the floor for the shadow
     Given the bed's footprint on the floor is delimited as 100,140 to 500,440
     And the bed measures 0.9 by 2.0 metres
@@ -67,7 +66,6 @@ Feature: The geometry's shadow is published next to what is decided
     And the body's support falls 0.2 metres from the bed, on the "floor"
     And the body's support is near the bed for the shadow
 
-  @wip
   Scenario: Lying in bed: in bed today and for the shadow
     Given the bed's footprint on the floor is delimited as 100,140 to 500,440
     And the bed measures 0.9 by 2.0 metres
@@ -77,14 +75,12 @@ Feature: The geometry's shadow is published next to what is decided
     And the body's support falls 0 metres from the bed, on the "floor"
     And the body's share over the mattress is 1
 
-  @wip
   Scenario: Without the footprint the support is measured on the mattress
     Given the bed measures 0.9 by 2.0 metres
     And the geometry's shadow measures near the bed within 0.6 metres
     When in sample 1 the camera sees a person at 80,200 to 160,470
     Then the body's support falls 0.47 metres from the bed, on the "mattress"
 
-  @wip
   Scenario: Without the shadow the bodies carry none
     When in sample 1 the camera sees a person at 80,200 to 160,470
     Then the body carries no shadow

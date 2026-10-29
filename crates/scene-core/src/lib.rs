@@ -66,6 +66,7 @@ mod project;
 mod provenance;
 mod refine;
 mod sensor;
+mod shadow;
 mod time;
 mod verification;
 mod zone;

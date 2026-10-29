@@ -451,6 +451,17 @@
             "null"
           ]
         },
+        "shadow": {
+          "description": "Where it falls for the geometry's shadow: absent unless the profile\nasks for it. It decides nothing (white book, volume VII, ch. 11).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BodyShadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "source": {
           "description": "Which detector saw it.",
           "$ref": "#/$defs/BodySource"
@@ -471,6 +482,61 @@
         "bbox",
         "confidence",
         "source"
+      ]
+    },
+    "BodyShadow": {
+      "description": "The shadow of one body. It decides nothing.",
+      "type": "object",
+      "properties": {
+        "centroid": {
+          "description": "The box's centre on the mattress: what decides the zone today.",
+          "$ref": "#/$defs/PlanePoint"
+        },
+        "near_bed": {
+          "description": "On the floor for the shadow: whether the support is within the\nshadow's distance of the bed. Absent in bed or without the bed's size.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "share": {
+          "description": "The share of the box over the mattress, on an 8 × 8 grid.",
+          "type": "number",
+          "format": "float"
+        },
+        "support": {
+          "description": "The centre of the box's lower edge, where a standing body rests.",
+          "$ref": "#/$defs/PlanePoint"
+        },
+        "support_distance_m": {
+          "description": "How far the support is from the bed, in metres; zero inside. Absent\nwithout the bed's size.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "support_plane": {
+          "description": "Where the support was measured.",
+          "$ref": "#/$defs/ShadowPlane"
+        },
+        "zone": {
+          "description": "The zone the support says: in bed within the shadow's margin, on the\nfloor past it. Absent without the bed's size.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Zone"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "centroid",
+        "support",
+        "support_plane",
+        "share"
       ]
     },
     "BodySource": {
@@ -1562,6 +1628,38 @@
         }
       ]
     },
+    "PlanePoint": {
+      "description": "A point of the image and where it falls in the bed's coordinates on a\nplane: `u` across, `v` from the foot (0) to the headboard (1).",
+      "type": "object",
+      "properties": {
+        "u": {
+          "description": "Across the bed: 0 and 1 are its sides.",
+          "type": "number",
+          "format": "float"
+        },
+        "v": {
+          "description": "Along the bed: 0 the foot, 1 the headboard.",
+          "type": "number",
+          "format": "float"
+        },
+        "x": {
+          "description": "In image pixels.",
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "description": "In image pixels.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "u",
+        "v"
+      ]
+    },
     "Point": {
       "description": "A point on the image plane.",
       "type": "object",
@@ -2206,6 +2304,21 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0
+    },
+    "ShadowPlane": {
+      "description": "The plane a point was measured on.",
+      "oneOf": [
+        {
+          "description": "The bed's footprint on the floor.",
+          "type": "string",
+          "const": "floor"
+        },
+        {
+          "description": "The mattress, when there is no footprint.",
+          "type": "string",
+          "const": "mattress"
+        }
+      ]
     },
     "SkipReason": {
       "description": "Why nothing was looked at (rule 12).",
