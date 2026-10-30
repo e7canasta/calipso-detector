@@ -8,6 +8,7 @@ use crate::estimation;
 use crate::geom::{Point, Quad, Rect};
 use crate::look::{DepthTarget, Detection, Failure, Label};
 use crate::policy::{AdmissionPolicy, FacePolicy};
+use crate::room::{BodyZone, Frontal};
 use crate::shadow::BodyShadow;
 use crate::zone::Counts;
 use schemars::JsonSchema;
@@ -255,25 +256,17 @@ fn admit_from(
             result,
         };
     };
-    let near = bed.bounds().expand(policy.near_bed_margin);
-    let grown = policy
-        .bed_frame
-        .and_then(|_| crate::map::grown_bed(bed, f64::from(policy.near_bed_margin)));
-    let near_bed = |b: &Rect| match grown {
-        Some(grown) => grown.touches(b),
-        None => b.iou(&near) > 0.0,
-    };
+    let room = Frontal::of(bed, policy);
     let mut bodies = Bodies::default();
     for d in admitted {
-        if bed.contains(d.detection.bbox.centroid()) {
-            bodies.bed.push(d);
-        } else {
-            bodies.floor.push(FloorBody {
+        match room.body_zone(&d.detection.bbox) {
+            BodyZone::Bed => bodies.bed.push(d),
+            BodyZone::Floor { near_bed } => bodies.floor.push(FloorBody {
                 detection: d.detection,
-                near_bed: near_bed(&d.detection.bbox),
+                near_bed,
                 source: d.source,
                 shadow: None,
-            });
+            }),
         }
     }
     Admission {

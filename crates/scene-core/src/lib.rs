@@ -65,6 +65,7 @@ pub mod policy;
 mod project;
 mod provenance;
 mod refine;
+mod room;
 mod sensor;
 mod shadow;
 mod time;
