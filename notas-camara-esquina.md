@@ -22,7 +22,7 @@ prueba con una persona acostada mostro problemas que no son de zonas solamente.
   la cama", no "en el borde".
 - `live` con la cama girada a 45 grados (perfil `calipso-dist/config/live3.toml`),
   acostado y levantandose, 16:23-16:27 UTC. Grabacion:
-  `calipso/data/camara-esquina/live3-2026-10-28.rrd`.
+  `calipso/workshop/34-camara-en-diagonal/grabaciones/live3-2026-10-28.rrd`.
 
 ## Lo que fallo (live3-2026-10-28.rrd)
 
@@ -57,4 +57,4 @@ prueba con una persona acostada mostro problemas que no son de zonas solamente.
   Rerun lo dibuje.
 - El laboratorio: binario de la rama fuera de Docker, prefijo propio, frames de
   go2rtc con la escena del momento y lo inferido dibujado encima. Scripts y
-  cuadros de esa sesion: `calipso/data/camara-esquina/`.
+  cuadros de esa sesion: `calipso/workshop/34-camara-en-diagonal/`.

@@ -1,7 +1,7 @@
 # Diseño: capa 0 y capa 1 con el cuerpo en coordenadas de la cama
 
 Rama `camara-esquina`. Parte de las fallas medidas en `notas-camara-esquina.md`
-y en el loop de `dig1` (2026-10-28, `calipso/data/camara-esquina/`). La
+y en el loop de `dig1` (2026-10-28, `calipso/workshop/34-camara-en-diagonal/`). La
 pregunta: con la cama en diagonal, ¿con qué se decide ocupación (capa 0) y
 postura en cama (capa 1)?
 
