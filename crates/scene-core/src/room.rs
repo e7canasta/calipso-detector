@@ -6,11 +6,14 @@
 //! a polygon. It answers from the map and the policy; it remembers nothing
 //! and counts nothing.
 //!
+//! The profile chooses the piece (volume VII, ch. 14): `Frontal`, the engine
+//! as it was, or `TwoPlanes`, for a camera that sees the bed on the diagonal.
+//!
 //! The crops (P7) are the map's: `Map::focus_region` and its siblings.
 
 use crate::geom::{Point, Quad, Rect, Zone};
 use crate::map::{BedArea, BedPlane, Geometry, Map};
-use crate::policy::AdmissionPolicy;
+use crate::policy::{AdmissionPolicy, Policy, TwoPlanesPolicy};
 
 /// Where a point of the head falls against the bed and its headboard: the
 /// geometry's answer, which `head` turns into the fact it publishes.
@@ -31,6 +34,137 @@ pub(crate) enum HeadArea {
 pub(crate) enum BodyZone {
     Bed,
     Floor { near_bed: bool },
+}
+
+/// The room's geometry of a turn: the piece the profile chose. Frontal
+/// answers every question; in two planes, the mattress and the footprint
+/// answer where a body is (P1, P2) and frontal the rest. The layers ask it
+/// and do not know which one they got.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Room {
+    frontal: Frontal,
+    two_planes: Option<TwoPlanes>,
+}
+
+impl Room {
+    /// The room of this turn, if the bed's geometry applies to its frame: in
+    /// two planes if the profile asks for it and the planes can be built,
+    /// frontal otherwise.
+    pub(crate) fn of(map: &Map, geometry: Geometry, policy: &Policy) -> Option<Self> {
+        let frontal = Frontal::of(map, geometry, &policy.admission)?;
+        let two_planes = policy
+            .two_planes
+            .and_then(|two| TwoPlanes::of(&frontal, map, two));
+        Some(Self {
+            frontal,
+            two_planes,
+        })
+    }
+
+    /// P1, P2: where a body is, by the piece.
+    pub(crate) fn body_zone(&self, bbox: &Rect) -> BodyZone {
+        match &self.two_planes {
+            Some(two) => two.body_zone(bbox),
+            None => self.frontal.body_zone(bbox),
+        }
+    }
+
+    pub(crate) fn has_plane(&self) -> bool {
+        self.frontal.has_plane()
+    }
+
+    pub(crate) fn has_headboard(&self) -> bool {
+        self.frontal.has_headboard()
+    }
+
+    pub(crate) fn head_area(&self, p: Point) -> HeadArea {
+        self.frontal.head_area(p)
+    }
+
+    pub(crate) fn in_bed(&self, p: Point) -> bool {
+        self.frontal.in_bed(p)
+    }
+
+    pub(crate) fn in_headboard(&self, p: Point) -> bool {
+        self.frontal.in_headboard(p)
+    }
+
+    pub(crate) fn box_in_headboard(&self, r: &Rect) -> bool {
+        self.frontal.box_in_headboard(r)
+    }
+
+    pub(crate) fn box_in_bed(&self, r: &Rect) -> bool {
+        self.frontal.box_in_bed(r)
+    }
+
+    pub(crate) fn past_the_sides(&self, p: Point) -> bool {
+        self.frontal.past_the_sides(p)
+    }
+
+    pub(crate) fn beyond_side(&self, p: Point) -> Option<f64> {
+        self.frontal.beyond_side(p)
+    }
+}
+
+#[cfg(test)]
+impl Room {
+    /// A frontal room, for the layers' tests.
+    pub(crate) fn new(bed: &Quad, headboard: Option<Zone>, admission: &AdmissionPolicy) -> Self {
+        Self {
+            frontal: Frontal::new(bed, headboard, admission),
+            two_planes: None,
+        }
+    }
+}
+
+/// The camera that sees the bed on the diagonal (volume VII, ch. 14): where a
+/// body is by the share of its box over the mattress and by its support (the
+/// centre of the box's lower edge) against the bed's footprint on the floor,
+/// in metres. Every other question, frontal answers.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TwoPlanes {
+    mattress: BedPlane,
+    floor: BedPlane,
+    size: [f32; 2],
+    policy: TwoPlanesPolicy,
+}
+
+impl TwoPlanes {
+    /// With the mattress, the footprint and the bed's size; without any of
+    /// them, or with degenerate corners, there are no two planes.
+    fn of(frontal: &Frontal, map: &Map, policy: TwoPlanesPolicy) -> Option<Self> {
+        Some(Self {
+            mattress: frontal.plane?,
+            floor: BedPlane::of(map.site.bed_floor.as_ref()?)?,
+            size: map.site.bed_size_m?,
+            policy,
+        })
+    }
+
+    /// P1, P2: in bed with enough of the box over the mattress and the
+    /// support close to the footprint; on the floor otherwise, near the bed
+    /// with the support within the policy's distance.
+    fn body_zone(&self, bbox: &Rect) -> BodyZone {
+        let support = Point {
+            x: bbox.centroid().x,
+            y: bbox.y1,
+        };
+        let (u, v) = self.floor.project(support);
+        let distance = distance_m(u as f32, v as f32, self.size);
+        if self.mattress.share(bbox) >= self.policy.share && distance <= self.policy.support_m {
+            return BodyZone::Bed;
+        }
+        BodyZone::Floor {
+            near_bed: distance <= self.policy.near_m,
+        }
+    }
+}
+
+/// How far a point in bed coordinates is from the bed, in metres: past a side
+/// by `u`, past an end by `v`, both when past a corner. Zero inside.
+pub(crate) fn distance_m(u: f32, v: f32, [width, length]: [f32; 2]) -> f32 {
+    let past = |c: f32| (-c).max(c - 1.0).max(0.0);
+    (past(u) * width).hypot(past(v) * length)
 }
 
 /// The camera that sees the bed along the image (volume VII, ch. 02): the

@@ -15,7 +15,7 @@ use crate::evidence::FaceEvidence;
 use crate::geom::{Point, Rect};
 use crate::look::Detection;
 use crate::provenance::Provenance;
-use crate::room::Frontal;
+use crate::room::Room;
 
 /// What the sample offers to see the parts with.
 pub(crate) struct Sample<'a> {
@@ -29,7 +29,7 @@ pub(crate) struct Sample<'a> {
     pub faces: &'a FaceEvidence,
     /// The room, if the bed's geometry applies: where the bed and the
     /// headboard are.
-    pub room: Option<&'a Frontal>,
+    pub room: Option<&'a Room>,
     /// Below this score a pose point is not seen; without a pose policy, none.
     pub min_score: Option<f32>,
 }

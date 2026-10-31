@@ -135,11 +135,10 @@ fn point_on(plane: &BedPlane, p: Point) -> PlanePoint {
     }
 }
 
-/// How far a point in bed coordinates is from the bed, in metres: past a side
-/// by `u`, past an end by `v`, both when past a corner. Zero inside.
-fn distance_m(p: PlanePoint, [width, length]: [f32; 2]) -> f32 {
-    let past = |c: f32| (-c).max(c - 1.0).max(0.0);
-    (past(p.u) * width).hypot(past(p.v) * length)
+/// How far a point in bed coordinates is from the bed, in metres: the room's
+/// own measure, so the shadow and the room in two planes agree.
+fn distance_m(p: PlanePoint, size: [f32; 2]) -> f32 {
+    crate::room::distance_m(p.u, p.v, size)
 }
 
 #[cfg(test)]

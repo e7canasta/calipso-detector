@@ -1,5 +1,4 @@
 # language: en
-@wip
 Feature: The room in two planes
   As whoever installs a corner camera that sees the bed on the diagonal
   I want the profile to choose a room measured on the mattress and on the floor

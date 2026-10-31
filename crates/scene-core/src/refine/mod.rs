@@ -12,7 +12,7 @@ mod verdict;
 use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
 use crate::policy::{EnrichPolicy, VerifyPolicy};
-use crate::room::Frontal;
+use crate::room::Room;
 use crate::zone::Zone;
 pub use lying::{Lying, LyingState};
 pub use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
@@ -41,7 +41,7 @@ pub(crate) struct Refinement {
 pub(crate) fn refine(
     zone: Option<Zone>,
     body: Option<&SubjectBody>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     enrich: Option<&EnrichPolicy>,
     verify: Option<&VerifyPolicy>,
     filled: Option<BodyPlaces>,

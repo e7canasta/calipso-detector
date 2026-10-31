@@ -8,7 +8,7 @@ use crate::estimation;
 use crate::geom::{Point, Rect};
 use crate::look::{DepthTarget, Detection, Failure, Label};
 use crate::policy::{AdmissionPolicy, FacePolicy};
-use crate::room::{BodyZone, Frontal};
+use crate::room::{BodyZone, Room};
 use crate::shadow::BodyShadow;
 use crate::zone::Counts;
 use schemars::JsonSchema;
@@ -209,7 +209,7 @@ pub(crate) fn faces(
 /// Nobody is rejected for being off the bed.
 pub(crate) fn admit(
     reading: Sensed<&[Detection]>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     policy: &AdmissionPolicy,
 ) -> Admission {
     admit_from(reading, room, policy, BodySource::Primary)
@@ -217,7 +217,7 @@ pub(crate) fn admit(
 
 fn admit_from(
     reading: Sensed<&[Detection]>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     policy: &AdmissionPolicy,
     source: BodySource,
 ) -> Admission {
@@ -281,7 +281,7 @@ fn admit_from(
 pub(crate) fn consolidate(
     primary: Admission,
     reinforcement: Sensed<&[Detection]>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     policy: &AdmissionPolicy,
 ) -> (Admission, LookResult) {
     let second = admit_from(reinforcement, room, policy, BodySource::Reinforcement);
@@ -447,9 +447,9 @@ mod tests {
     use super::*;
     use crate::geom::Quad;
 
-    fn bed() -> Frontal {
+    fn bed() -> Room {
         let bed = Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
-        Frontal::new(&bed, None, &POLICY)
+        Room::new(&bed, None, &POLICY)
     }
 
     fn person(x0: f32, confidence: f32) -> Detection {
@@ -507,7 +507,7 @@ mod tests {
             ..in_the_corner
         };
         let near = |policy: &AdmissionPolicy| {
-            let room = Frontal::new(&diamond, None, policy);
+            let room = Room::new(&diamond, None, policy);
             let b = seen(admit(Ok(&[in_the_corner, beside]), Some(&room), policy));
             (b.floor[0].near_bed, b.floor[1].near_bed)
         };
@@ -605,7 +605,7 @@ mod source_tests {
             label: Label::Person,
         };
         for (confidence, source) in [(0.9, BodySource::Reinforcement), (0.7, BodySource::Primary)] {
-            let room = Frontal::new(&bed, None, &p);
+            let room = Room::new(&bed, None, &p);
             let primary = admit(Ok(&[d(0.8)]), Some(&room), &p);
             let (admission, _) = consolidate(primary, Ok(&[d(confidence)]), Some(&room), &p);
             let bodies = admission.bodies.seen().unwrap();

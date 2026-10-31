@@ -16,7 +16,7 @@ use crate::head::HeadPlaceState;
 use crate::policy::EnrichPolicy;
 use crate::policy::{Band, VerifyPolicy};
 use crate::provenance::Provenance;
-use crate::room::Frontal;
+use crate::room::Room;
 
 /// Where each part of the body layer 1 reads is, in one sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,7 +99,7 @@ impl BodyPlaces {
 pub(super) fn places_of(
     body: &SubjectBody,
     posture: Option<&Posture>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     enrich: &EnrichPolicy,
     verify: Option<&VerifyPolicy>,
 ) -> Option<BodyPlaces> {
@@ -132,7 +132,7 @@ pub(super) fn of(own: Option<BodyPlaces>, filled: Option<BodyPlaces>) -> Sightin
 fn places(
     body: &SubjectBody,
     posture: Option<&Posture>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     enrich: &EnrichPolicy,
     doubtful: Option<Band>,
     feet_margin: Option<f32>,

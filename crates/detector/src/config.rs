@@ -6,7 +6,7 @@ use scene_core::{
     policy::{
         Band, BedPosturePolicy, Burst, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
         Frames, HeldVerifyPolicy, Policy, ReinforcePolicy, ShadowPolicy, SharpnessPolicy,
-        VerifyPolicy,
+        TwoPlanesPolicy, VerifyPolicy,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -38,6 +38,47 @@ pub struct Config {
     /// section, nothing is computed. Left out of the hash when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<ShadowConfig>,
+    /// The room's geometry, the piece that answers where a body is (white
+    /// book, volume VII, ch. 14). Without the section, frontal: the engine as
+    /// it was. Left out of the hash when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub occupancy: Option<OccupancyConfig>,
+}
+
+/// Which room geometry answers the questions of space, and its thresholds.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OccupancyConfig {
+    /// `"frontal"` (by default) or `"two_planes"`.
+    #[serde(default)]
+    pub geometry: RoomGeometry,
+    /// The thresholds of the room in two planes; required with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub two_planes: Option<TwoPlanesConfig>,
+}
+
+/// The pieces of the room's geometry.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoomGeometry {
+    /// The camera that sees the bed along the image: the engine as it was.
+    #[default]
+    Frontal,
+    /// The camera that sees the bed on the diagonal: the mattress and the
+    /// footprint on the floor. It needs `map.bed_floor` and `map.bed_size_m`.
+    TwoPlanes,
+}
+
+/// `TwoPlanesPolicy`: when a body is in bed, and near it, in two planes.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TwoPlanesConfig {
+    /// The share of the box over the mattress to be in bed, in (0, 1].
+    pub share: f32,
+    /// The support at most this many metres from the footprint to be in bed.
+    pub support_m: f32,
+    /// On the floor, the support within this many metres is near the bed.
+    pub near_m: f32,
 }
 
 /// `ShadowPolicy`: what the shadow measures.
@@ -798,6 +839,39 @@ impl Config {
                 "shadow needs map.bed_size_m: near the bed is measured in metres"
             );
         }
+        if let Some(occupancy) = &self.occupancy {
+            match (occupancy.geometry, &occupancy.two_planes) {
+                (RoomGeometry::Frontal, Some(_)) => {
+                    anyhow::bail!("occupancy.two_planes needs occupancy.geometry = \"two_planes\"")
+                }
+                (RoomGeometry::TwoPlanes, None) => anyhow::bail!(
+                    "occupancy.geometry = \"two_planes\" needs [occupancy.two_planes]"
+                ),
+                (RoomGeometry::TwoPlanes, Some(two)) => {
+                    ensure!(
+                        two.share.is_finite() && two.share > 0.0 && two.share <= 1.0,
+                        "occupancy.two_planes.share: the share of the box in bed, in (0, 1]"
+                    );
+                    ensure!(
+                        two.support_m.is_finite() && two.support_m >= 0.0,
+                        "occupancy.two_planes.support_m: a distance in metres, not negative"
+                    );
+                    ensure!(
+                        two.near_m.is_finite() && two.near_m > 0.0,
+                        "occupancy.two_planes.near_m: a distance in metres, positive"
+                    );
+                    ensure!(
+                        self.map.bed_floor.is_some(),
+                        "occupancy in two planes needs map.bed_floor: the support rests on it"
+                    );
+                    ensure!(
+                        self.map.bed_size_m.is_some(),
+                        "occupancy in two planes needs map.bed_size_m: distances are in metres"
+                    );
+                }
+                (RoomGeometry::Frontal, None) => {}
+            }
+        }
         if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
             ensure!(within(points), "map.headboard: points outside resolution");
             ensure!(
@@ -850,6 +924,16 @@ impl Config {
             near_m: shadow.near_m,
             support_margin_m: shadow.support_margin_m,
         });
+        p.two_planes = self
+            .occupancy
+            .as_ref()
+            .filter(|o| o.geometry == RoomGeometry::TwoPlanes)
+            .and_then(|o| o.two_planes.as_ref())
+            .map(|two| TwoPlanesPolicy {
+                share: two.share,
+                support_m: two.support_m,
+                near_m: two.near_m,
+            });
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
             .senses
@@ -969,6 +1053,10 @@ impl Config {
         // The shadow adds to the scene: it enters the hash only if present.
         if let Some(shadow) = &self.shadow {
             canonical.extend(serde_json::to_vec(shadow)?);
+        }
+        // The room's geometry decides: it enters the hash only if present.
+        if let Some(occupancy) = &self.occupancy {
+            canonical.extend(serde_json::to_vec(occupancy)?);
         }
         let digest = Sha256::digest(canonical);
         let hex: String = digest
@@ -1317,6 +1405,87 @@ mod tests {
             assert!(error.to_string().contains(field), "{error}");
         }
         assert!(Config::parse(&format!("{with_map}{shadow}unknown = 1\n")).is_err());
+    }
+
+    #[test]
+    fn two_planes_needs_its_geometry_validates_and_leaves_the_hash_when_absent() {
+        let baseline = Config::parse(VALID).unwrap();
+        assert!(baseline.policy().two_planes.is_none());
+        let map = "bed_floor = [[110, 150], [490, 150], [490, 430], [110, 430]]\nbed_size_m = [0.9, 2.0]\n";
+        let with_map = VALID.replacen("[map]\n", &format!("[map]\n{map}"), 1);
+        let occupancy = "\n[occupancy]\ngeometry = \"two_planes\"\n\n[occupancy.two_planes]\nshare = 0.45\nsupport_m = 0.10\nnear_m = 0.60\n";
+        let config = Config::parse(&format!("{with_map}{occupancy}")).unwrap();
+        assert_eq!(
+            config.policy().two_planes,
+            Some(TwoPlanesPolicy {
+                share: 0.45,
+                support_m: 0.10,
+                near_m: 0.60
+            })
+        );
+        // Frontal said out loud is frontal, with the hash of its own section.
+        let frontal = Config::parse(&format!(
+            "{with_map}\n[occupancy]\ngeometry = \"frontal\"\n"
+        ))
+        .unwrap();
+        assert!(frontal.policy().two_planes.is_none());
+        let map_only = Config::parse(&with_map).unwrap();
+        assert_ne!(
+            map_only.profile().unwrap().hash,
+            config.profile().unwrap().hash
+        );
+        for (base, from, to, field) in [
+            (VALID.to_string(), "", "", "map.bed_floor"),
+            (
+                with_map.clone(),
+                "share = 0.45",
+                "share = 0",
+                "two_planes.share",
+            ),
+            (
+                with_map.clone(),
+                "share = 0.45",
+                "share = 1.5",
+                "two_planes.share",
+            ),
+            (
+                with_map.clone(),
+                "support_m = 0.10",
+                "support_m = -1",
+                "two_planes.support_m",
+            ),
+            (
+                with_map.clone(),
+                "near_m = 0.60",
+                "near_m = 0",
+                "two_planes.near_m",
+            ),
+            (
+                with_map.clone(),
+                "geometry = \"two_planes\"",
+                "geometry = \"frontal\"",
+                "needs occupancy.geometry",
+            ),
+        ] {
+            let text = format!("{base}{occupancy}");
+            let text = if from.is_empty() {
+                text
+            } else {
+                text.replace(from, to)
+            };
+            let error = Config::parse(&text).unwrap_err();
+            assert!(error.to_string().contains(field), "{error}");
+        }
+        let sizeless = with_map.replace("bed_size_m = [0.9, 2.0]\n", "");
+        let error = Config::parse(&format!("{sizeless}{occupancy}")).unwrap_err();
+        assert!(error.to_string().contains("bed_size_m"), "{error}");
+        let sectionless = format!("{with_map}\n[occupancy]\ngeometry = \"two_planes\"\n");
+        let error = Config::parse(&sectionless).unwrap_err();
+        assert!(
+            error.to_string().contains("[occupancy.two_planes]"),
+            "{error}"
+        );
+        assert!(Config::parse(&format!("{with_map}{occupancy}unknown = 1\n")).is_err());
     }
 
     #[test]

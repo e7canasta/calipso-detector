@@ -19,7 +19,7 @@ use crate::head::HeadPlace;
 use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
-use crate::room::Frontal;
+use crate::room::Room;
 use crate::sensor::SensorChanged;
 use crate::verification::Collecting;
 
@@ -547,9 +547,9 @@ impl Course<'_> {
 
     /// The room's geometry for this turn: every question of space goes to it.
     /// `None` if the bed's geometry does not apply to the frame.
-    fn room(&self) -> Option<Frontal> {
+    fn room(&self) -> Option<Room> {
         let engine = &self.monitor.engine;
-        Frontal::of(&engine.map, self.geometry, &engine.policy.admission)
+        Room::of(&engine.map, self.geometry, &engine.policy)
     }
 
     /// The main detector's reading, admitted by zones and noted in the ledger.

@@ -8,7 +8,7 @@ use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
 use crate::geom::Point;
 use crate::policy::Policy;
-use crate::room::{Frontal, HeadArea};
+use crate::room::{HeadArea, Room};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -97,7 +97,7 @@ const HEAD: [Joint; 5] = [
 pub(crate) fn of_turn(
     faces: &FaceEvidence,
     pose: Option<&[Keypoint]>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     policy: &Policy,
 ) -> HeadPlace {
     let min_score = policy
@@ -114,7 +114,7 @@ pub(crate) fn of_turn(
 pub(crate) fn place(
     faces: &FaceEvidence,
     pose: Option<&[Keypoint]>,
-    room: Option<&Frontal>,
+    room: Option<&Room>,
     min_score: f32,
 ) -> HeadPlace {
     let Some(room) = room.filter(|room| room.has_headboard()) else {
@@ -184,8 +184,8 @@ mod tests {
             .collect()
     }
 
-    fn room(bed: Quad) -> Frontal {
-        Frontal::new(
+    fn room(bed: Quad) -> Room {
+        Room::new(
             &bed,
             Some(Zone::Box(HEADBOARD)),
             &AdmissionPolicy {
