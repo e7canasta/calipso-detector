@@ -11,6 +11,9 @@ use scene_core::contract::Source;
 use std::{io::Write, path::PathBuf, time::Duration};
 use tokio_util::sync::CancellationToken;
 
+/// The stall watchdog's timeout over frames: a year, never in a test.
+const NEVER_STALLS: Duration = Duration::from_secs(365 * 24 * 3600);
+
 #[derive(Debug, Parser)]
 #[command(
     version,
@@ -65,7 +68,9 @@ fn main() -> Result<()> {
         config.policy(),
         config.site_map(),
         senses,
-        Duration::from_secs(config.stream.stall_timeout_secs),
+        // No camera, nothing to stall: the watchdog runs on the wall clock,
+        // and a slow turn on a loaded machine must not change the scenes.
+        NEVER_STALLS,
     );
     let mut error = None;
     driver.run(&mut source, &CancellationToken::new(), |processed| {
