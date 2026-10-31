@@ -185,6 +185,10 @@ pub enum Figure {
     /// Sitting on the edge, legs off the bed, leaning forward: the head
     /// below the headboard as well.
     SittingOnTheEdgeHeadDown,
+    /// Sitting on the foot of the bed, the feet on the floor past its foot
+    /// end (y 460 in the test world, the footprint ends at 440), not past
+    /// its sides: a corner camera's edge (white book, volume VII, ch. 04).
+    SittingOnTheFoot,
     /// Sitting up: the head and shoulders project beyond the headboard.
     SittingUp,
     /// Sitting up against the headboard: the head where lying puts it, the
@@ -244,6 +248,12 @@ impl Figure {
                     point.1 += 60.0;
                 }
             }
+            Figure::SittingOnTheFoot => {
+                p[13] = (-15.0, 150.0, 0.9);
+                p[14] = (15.0, 150.0, 0.9);
+                p[15] = (-15.0, 210.0, 0.9);
+                p[16] = (15.0, 210.0, 0.9);
+            }
             Figure::SittingOnTheEdge => {
                 p[13] = (280.0, 30.0, 0.9);
                 p[14] = (290.0, 30.0, 0.9);
@@ -272,7 +282,9 @@ impl Figure {
     pub fn depth(self, y: f32) -> f32 {
         let slope = 0.002 * (300.0 - y);
         match self {
-            Figure::SittingOnTheEdge | Figure::SittingOnTheEdgeHeadDown => 2.0,
+            Figure::SittingOnTheEdge
+            | Figure::SittingOnTheEdgeHeadDown
+            | Figure::SittingOnTheFoot => 2.0,
             Figure::SittingUp | Figure::SittingUpAgainstTheHeadboard | Figure::Standing => {
                 2.0 - slope
             }

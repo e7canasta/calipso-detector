@@ -412,6 +412,7 @@ One concept, one name.
 | support | `room::TwoPlanes`, `BodyShadow::support` | The centre of a box's lower edge: where a standing body rests on the floor, measured against the bed's footprint |
 | doubtful body | `room::Room::doubtful` | A body the box alone cannot place: in two planes, one left on the floor by its support with enough of its box over the mattress. Its pose is asked before believing, and the room places it with it (white book, volume VII, ch. 15) |
 | knee | `room::knee_deg`, `TwoPlanesPolicy::knee_bent_deg`, `BodySeen::knee_deg` | The hip–knee–ankle angle of a pose, from the midpoints of both sides: bent, the pelvis rests on the mattress; straight, on the floor |
+| a foot out | `Room::foot_out`, `Room::foot_beyond` | P6 for a foot, layer 1's legs out: frontal, past the mattress's sides; in two planes, out of the footprint on the floor past any edge, the foot end too, where a foot rests (white book, volume VII, ch. 04) |
 | shadow | `ShadowPolicy`, `MapShadow` | Estimates of a geometry that does not decide yet, published next to what the engine decides, to choose with data; asked for by the profile, temporary (white book, volume VII, ch. 11) |
 | bed footprint | `SiteMap::bed_floor` | Where the bed stands on the floor: the same rectangle as the mattress, drawn at floor level. Points on the floor (ankles, a box's lower edge) are measured against it, not against the mattress (volume VII, ch. 04) |
 | bed size | `SiteMap::bed_size_m` | The bed's width and length in metres: it turns the bed's `u/v` into metres |

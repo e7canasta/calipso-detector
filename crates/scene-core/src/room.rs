@@ -132,12 +132,23 @@ impl Room {
         self.frontal.box_in_bed(r)
     }
 
-    pub(crate) fn past_the_sides(&self, p: Point) -> bool {
-        self.frontal.past_the_sides(p)
+    /// P6 for a foot: is it out of the bed? Frontal, past the mattress's
+    /// sides; in two planes, out of the footprint on the floor, where a foot
+    /// rests (white book, volume VII, ch. 04).
+    pub(crate) fn foot_out(&self, p: Point) -> bool {
+        match &self.two_planes {
+            Some(two) => two.foot_beyond(p) > 0.0,
+            None => self.frontal.past_the_sides(p),
+        }
     }
 
-    pub(crate) fn beyond_side(&self, p: Point) -> Option<f64> {
-        self.frontal.beyond_side(p)
+    /// P6 for a foot: how far out of the bed it is, in bed widths; negative
+    /// inside. `None` without the bed's plane.
+    pub(crate) fn foot_beyond(&self, p: Point) -> Option<f64> {
+        match &self.two_planes {
+            Some(two) => Some(two.foot_beyond(p)),
+            None => self.frontal.beyond_side(p),
+        }
     }
 }
 
@@ -216,6 +227,17 @@ impl TwoPlanes {
             },
             knee_deg,
         }
+    }
+
+    /// How far a foot is out of the footprint, past any of its edges, in bed
+    /// widths: negative inside. A foot sitting on the edge rests past the
+    /// foot end as well as past the sides; a foot in bed, raised by the
+    /// mattress, falls farther from the camera, inside the footprint.
+    fn foot_beyond(&self, p: Point) -> f64 {
+        let (u, v) = self.floor.project(p);
+        let [width, length] = self.size;
+        let along = f64::from(length / width);
+        (-u).max(u - 1.0).max(-v * along).max((v - 1.0) * along)
     }
 
     /// How far the box's support is from the footprint, in metres.

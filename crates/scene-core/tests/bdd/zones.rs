@@ -147,6 +147,7 @@ pub(crate) fn figure(name: &str) -> crate::script::Figure {
         "slid down" => Figure::SlidDown,
         "sitting on the edge" => Figure::SittingOnTheEdge,
         "sitting on the edge, head down" => Figure::SittingOnTheEdgeHeadDown,
+        "sitting on the foot of the bed" => Figure::SittingOnTheFoot,
         "sitting up" => Figure::SittingUp,
         "sitting up against the headboard" => Figure::SittingUpAgainstTheHeadboard,
         "no torso" => Figure::NoTorso,

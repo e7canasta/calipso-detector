@@ -137,9 +137,9 @@ fn places(
     doubtful: Option<Band>,
     feet_margin: Option<f32>,
 ) -> BodyPlaces {
-    let past_the_sides = |p: Point| room.is_some_and(|room| room.past_the_sides(p));
-    // How far past the nearest side, in bed widths: negative inside.
-    let beyond_side = |p: Point| room.and_then(|room| room.beyond_side(p));
+    let past_the_sides = |p: Point| room.is_some_and(|room| room.foot_out(p));
+    // How far out of the bed, in bed widths: negative inside.
+    let beyond_side = |p: Point| room.and_then(|room| room.foot_beyond(p));
     let near_a_side = |p: Point| {
         feet_margin.is_some_and(|m| beyond_side(p).is_some_and(|b| b.abs() <= f64::from(m)))
     };
