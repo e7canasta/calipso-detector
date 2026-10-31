@@ -15,4 +15,7 @@ git worktree add -q --detach "$tmp/calipso-detector" "$sha"
 ln -s "$(cd "$root/../calipso-golden" && pwd)" "$tmp/calipso-golden"
 (cd "$tmp/calipso-detector" && CARGO_TARGET_DIR="$root/target/loop/$sha" cargo build -q --release -p detector)
 cp "$root/target/loop/$sha/release/calipso-detector" "$out"
+# The frames binary, from the revision that brought it on (frames.sh).
+frames="$root/target/loop/$sha/release/calipso-detector-frames"
+[ -x "$frames" ] && cp "$frames" "$out-frames"
 echo "$out <- $sha"

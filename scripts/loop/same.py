@@ -55,7 +55,8 @@ def loops(path):
         else:
             events[session].append((round(t, 1), json.dumps(body, sort_keys=True)))
     longest = max((max(v) for v in scenes.values()), default=0)
-    cold = min(scenes, default=None)
+    # A single session (frames, scripts/loop/frames.sh): no cold start to leave out.
+    cold = min(scenes, default=None) if len(scenes) > 1 else None
     full = {s: v for s, v in scenes.items() if s != cold and min(v) < 1.5 and max(v) > longest - 5}
     return full, events
 

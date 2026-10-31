@@ -1,5 +1,6 @@
 //! The source port: where samples come from and what happens to the transport.
-//! Live, RTSP with decode.
+//! Live, RTSP with decode; for the loop test, frames from a directory.
+pub mod frames;
 pub mod rtsp;
 
 use ingest::{IngestError, StreamEvent};
