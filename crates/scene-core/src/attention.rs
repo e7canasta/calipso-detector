@@ -5,7 +5,7 @@
 
 use crate::belief::bed_posture::BedPostureState;
 use crate::belief::{Alone, Belief, Believed, InBed, LatchState, Room};
-use crate::body::{BedSite, Keypoint};
+use crate::body::Keypoint;
 use crate::estimation;
 use crate::evidence::BodyEvidence;
 use crate::evidence::FaceEvidence;
@@ -16,7 +16,6 @@ use crate::head::HeadPlace;
 use crate::head::HeadPlaceState;
 use crate::look::FaceRegion;
 use crate::look::{DepthTarget, Failure, LookKind, Question, Target};
-use crate::map::BedPlane;
 use crate::map::{Geometry, Map};
 use crate::policy::VerifyPolicy;
 use crate::policy::{FacePolicy, Policy};
@@ -496,12 +495,8 @@ pub(crate) fn deepen(
     }
     // The stand-in is situational: the bed's centre is the hips only with the
     // head at the headboard (1707). Away from it, the bed is not looked at.
-    let plane = g.map.bed_for(g.geometry).and_then(BedPlane::of);
-    if let Some(plane) = plane.filter(|_| head.at_headboard()) {
-        points.extend(BedSite::ALL.map(|site| {
-            let (u, v) = site.at();
-            (DepthTarget::Bed(site), plane.point(u, v))
-        }));
+    if let Some(sites) = g.map.bed_sites(g.geometry).filter(|_| head.at_headboard()) {
+        points.extend(sites.map(|(site, p)| (DepthTarget::Bed(site), p)));
     }
     Consideration::Decided(match lens {
         Err(reason) => Decision::Skip(reason),

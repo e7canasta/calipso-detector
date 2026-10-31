@@ -13,10 +13,10 @@ use crate::belief::bed_posture::Sighting;
 use crate::body::Joint;
 use crate::geom::Point;
 use crate::head::HeadPlaceState;
-use crate::map::{BedArea, BedPlane};
 use crate::policy::EnrichPolicy;
 use crate::policy::{Band, VerifyPolicy};
 use crate::provenance::Provenance;
+use crate::room::Frontal;
 
 /// Where each part of the body layer 1 reads is, in one sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,7 +99,7 @@ impl BodyPlaces {
 pub(super) fn places_of(
     body: &SubjectBody,
     posture: Option<&Posture>,
-    plane: Option<BedPlane>,
+    room: Option<&Frontal>,
     enrich: &EnrichPolicy,
     verify: Option<&VerifyPolicy>,
 ) -> Option<BodyPlaces> {
@@ -107,7 +107,7 @@ pub(super) fn places_of(
         places(
             body,
             posture,
-            plane,
+            room,
             enrich,
             verify.and_then(|v| v.doubtful_disparity),
             verify.and_then(|v| v.doubtful_feet_margin),
@@ -132,19 +132,14 @@ pub(super) fn of(own: Option<BodyPlaces>, filled: Option<BodyPlaces>) -> Sightin
 fn places(
     body: &SubjectBody,
     posture: Option<&Posture>,
-    plane: Option<BedPlane>,
+    room: Option<&Frontal>,
     enrich: &EnrichPolicy,
     doubtful: Option<Band>,
     feet_margin: Option<f32>,
 ) -> BodyPlaces {
-    let past_the_sides = |p: Point| plane.is_some_and(|bed| bed.locate(p) == BedArea::PastTheSides);
+    let past_the_sides = |p: Point| room.is_some_and(|room| room.past_the_sides(p));
     // How far past the nearest side, in bed widths: negative inside.
-    let beyond_side = |p: Point| {
-        plane.map(|bed| {
-            let (u, _) = bed.project(p);
-            (-u).max(u - 1.0)
-        })
-    };
+    let beyond_side = |p: Point| room.and_then(|room| room.beyond_side(p));
     let near_a_side = |p: Point| {
         feet_margin.is_some_and(|m| beyond_side(p).is_some_and(|b| b.abs() <= f64::from(m)))
     };

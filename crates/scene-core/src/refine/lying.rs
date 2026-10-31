@@ -2,8 +2,8 @@
 
 use crate::body::{BodyPoint, Joint};
 use crate::geom::Point;
-use crate::map::BedPlane;
 use crate::provenance::Provenance;
+use crate::room::Frontal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// keypoints: lying. Visible feet confirm it if they are inside and deny it if
 /// any is outside; with no feet in sight, it is assumed. Without a visible
 /// torso or hips, it is unknown. The head is not required.
-pub(super) fn classify(points: &[BodyPoint], plane: &BedPlane, min_score: f32) -> LyingState {
+pub(super) fn classify(points: &[BodyPoint], room: &Frontal, min_score: f32) -> LyingState {
     let visible: Vec<&BodyPoint> = points.iter().filter(|p| p.is_seen(min_score)).collect();
     let part = |joints: [Joint; 2]| -> Option<Point> {
         let found: Vec<&&BodyPoint> = visible
@@ -32,9 +32,9 @@ pub(super) fn classify(points: &[BodyPoint], plane: &BedPlane, min_score: f32) -
     ) else {
         return LyingState::Unknown;
     };
-    let is_inside = |p: &BodyPoint| plane.inside(Point { x: p.x, y: p.y });
+    let is_inside = |p: &BodyPoint| room.in_bed(Point { x: p.x, y: p.y });
     let inside = visible.iter().filter(|p| is_inside(p)).count();
-    if !plane.inside(torso) || !plane.inside(hips) || 2 * inside <= visible.len() {
+    if !room.in_bed(torso) || !room.in_bed(hips) || 2 * inside <= visible.len() {
         return LyingState::No;
     }
     let feet: Vec<&&BodyPoint> = visible
@@ -77,8 +77,9 @@ mod tests {
     use super::*;
     use crate::geom::{Quad, Rect};
 
-    fn plane() -> BedPlane {
-        BedPlane::of(&Quad::from_rect(Rect::new(0.0, 0.0, 100.0, 200.0))).unwrap()
+    fn bed() -> Frontal {
+        let bed = Quad::from_rect(Rect::new(0.0, 0.0, 100.0, 200.0));
+        Frontal::new(&bed, None, &crate::policy::Policy::default().admission)
     }
 
     fn point(i: usize, x: f32, y: f32, score: f32) -> BodyPoint {
@@ -104,7 +105,7 @@ mod tests {
 
     #[test]
     fn feet_inside_confirm_and_no_feet_assume() {
-        let p = plane();
+        let p = bed();
         assert_eq!(
             classify(&lying_body(Some((50.0, 190.0))), &p, 0.3),
             LyingState::Confirmed
@@ -115,7 +116,7 @@ mod tests {
     #[test]
     fn a_foot_outside_denies_it() {
         assert_eq!(
-            classify(&lying_body(Some((150.0, 190.0))), &plane(), 0.3),
+            classify(&lying_body(Some((150.0, 190.0))), &bed(), 0.3),
             LyingState::No
         );
     }
@@ -125,7 +126,7 @@ mod tests {
         let mut body = lying_body(None);
         body[5].score = 0.1;
         body[6].score = 0.1;
-        assert_eq!(classify(&body, &plane(), 0.3), LyingState::Unknown);
+        assert_eq!(classify(&body, &bed(), 0.3), LyingState::Unknown);
     }
 
     #[test]
@@ -140,6 +141,6 @@ mod tests {
                 p
             })
             .collect();
-        assert_eq!(classify(&body, &plane(), 0.3), LyingState::No);
+        assert_eq!(classify(&body, &bed(), 0.3), LyingState::No);
     }
 }

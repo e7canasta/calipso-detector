@@ -5,7 +5,7 @@
 use crate::attention::LookResult;
 use crate::body::{BedPoint, Keypoint};
 use crate::estimation;
-use crate::geom::{Point, Quad, Rect};
+use crate::geom::{Point, Rect};
 use crate::look::{DepthTarget, Detection, Failure, Label};
 use crate::policy::{AdmissionPolicy, FacePolicy};
 use crate::room::{BodyZone, Frontal};
@@ -209,15 +209,15 @@ pub(crate) fn faces(
 /// Nobody is rejected for being off the bed.
 pub(crate) fn admit(
     reading: Sensed<&[Detection]>,
-    bed: Option<&Quad>,
+    room: Option<&Frontal>,
     policy: &AdmissionPolicy,
 ) -> Admission {
-    admit_from(reading, bed, policy, BodySource::Primary)
+    admit_from(reading, room, policy, BodySource::Primary)
 }
 
 fn admit_from(
     reading: Sensed<&[Detection]>,
-    bed: Option<&Quad>,
+    room: Option<&Frontal>,
     policy: &AdmissionPolicy,
     source: BodySource,
 ) -> Admission {
@@ -249,14 +249,13 @@ fn admit_from(
         candidates: count(detections.len()),
         rejected,
     };
-    let Some(bed) = bed else {
+    let Some(room) = room else {
         return Admission {
             bodies: BodyEvidence::Unzoned(admitted),
             primary: NONE,
             result,
         };
     };
-    let room = Frontal::of(bed, policy);
     let mut bodies = Bodies::default();
     for d in admitted {
         match room.body_zone(&d.detection.bbox) {
@@ -282,10 +281,10 @@ fn admit_from(
 pub(crate) fn consolidate(
     primary: Admission,
     reinforcement: Sensed<&[Detection]>,
-    bed: Option<&Quad>,
+    room: Option<&Frontal>,
     policy: &AdmissionPolicy,
 ) -> (Admission, LookResult) {
-    let second = admit_from(reinforcement, bed, policy, BodySource::Reinforcement);
+    let second = admit_from(reinforcement, room, policy, BodySource::Reinforcement);
     let bodies = match (primary.bodies, second.bodies) {
         (BodyEvidence::Seen(a), BodyEvidence::Seen(b)) => {
             let mut beds = a.bed;
@@ -446,9 +445,11 @@ pub enum RejectReason {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geom::Quad;
 
-    fn bed() -> Quad {
-        Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))
+    fn bed() -> Frontal {
+        let bed = Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
+        Frontal::new(&bed, None, &POLICY)
     }
 
     fn person(x0: f32, confidence: f32) -> Detection {
@@ -506,7 +507,8 @@ mod tests {
             ..in_the_corner
         };
         let near = |policy: &AdmissionPolicy| {
-            let b = seen(admit(Ok(&[in_the_corner, beside]), Some(&diamond), policy));
+            let room = Frontal::new(&diamond, None, policy);
+            let b = seen(admit(Ok(&[in_the_corner, beside]), Some(&room), policy));
             (b.floor[0].near_bed, b.floor[1].near_bed)
         };
         assert_eq!(near(&POLICY), (true, true), "image axes: the box grown");
@@ -587,6 +589,7 @@ mod tests {
 #[cfg(test)]
 mod source_tests {
     use super::*;
+    use crate::geom::Quad;
     #[test]
     fn the_winning_box_keeps_its_source_detector() {
         let bed = Quad::from_rect(Rect::new(0.0, 0.0, 100.0, 100.0));
@@ -602,8 +605,9 @@ mod source_tests {
             label: Label::Person,
         };
         for (confidence, source) in [(0.9, BodySource::Reinforcement), (0.7, BodySource::Primary)] {
-            let primary = admit(Ok(&[d(0.8)]), Some(&bed), &p);
-            let (admission, _) = consolidate(primary, Ok(&[d(confidence)]), Some(&bed), &p);
+            let room = Frontal::new(&bed, None, &p);
+            let primary = admit(Ok(&[d(0.8)]), Some(&room), &p);
+            let (admission, _) = consolidate(primary, Ok(&[d(confidence)]), Some(&room), &p);
             let bodies = admission.bodies.seen().unwrap();
             assert_eq!(bodies.bed.len(), 1);
             assert_eq!(bodies.bed[0].source, source);

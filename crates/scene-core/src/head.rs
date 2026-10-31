@@ -6,9 +6,9 @@
 
 use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
-use crate::geom::{Point, Zone};
-use crate::map::{BedArea, BedPlane, Geometry, Map};
+use crate::geom::Point;
 use crate::policy::Policy;
+use crate::room::Frontal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -79,55 +79,20 @@ const HEAD: [Joint; 5] = [
     Joint::RightEar,
 ];
 
-/// Where a head can be: the headboard region and, if known, the bed's plane.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct Bounds {
-    headboard: Zone,
-    bed: Option<BedPlane>,
-}
-
 /// Where the head is in a turn with a pose, with what it saw (the faces and
-/// the pose) against the site's headboard and bed (R17, R18). A fact of the
+/// the pose) against the room's headboard and bed (R17, R18). A fact of the
 /// turn, with or without depth: the depth look and layer 1 read it.
 pub(crate) fn of_turn(
     faces: &FaceEvidence,
     pose: Option<&[Keypoint]>,
-    map: &Map,
-    geometry: Geometry,
+    room: Option<&Frontal>,
     policy: &Policy,
 ) -> HeadPlace {
     let min_score = policy
         .enrich
         .as_ref()
         .map_or(f32::INFINITY, |p| p.min_keypoint_score);
-    place(faces, pose, Bounds::of_site(map, geometry), min_score)
-}
-
-impl Bounds {
-    /// The site's: its headboard and its bed's plane, when the geometry
-    /// applies. Without the headboard delimited, none.
-    fn of_site(map: &Map, geometry: Geometry) -> Option<Self> {
-        map.headboard_for(geometry).map(|headboard| Self {
-            headboard,
-            bed: map.bed_for(geometry).and_then(BedPlane::of),
-        })
-    }
-
-    /// Where a point of the head falls: the headboard region first; away from
-    /// it, in the bed's u/v, past its sides or inside it.
-    fn of(&self, p: Point) -> HeadPlaceState {
-        if self.headboard.contains(p) {
-            return HeadPlaceState::AtHeadboard;
-        }
-        let Some(bed) = self.bed else {
-            return HeadPlaceState::Elsewhere;
-        };
-        match bed.locate(p) {
-            BedArea::Inside => HeadPlaceState::BelowHeadboard,
-            BedArea::PastTheSides => HeadPlaceState::AtSide,
-            BedArea::PastTheEnds => HeadPlaceState::Elsewhere,
-        }
-    }
+    place(faces, pose, room, min_score)
 }
 
 /// Where the head is, from what this turn saw: a face accepted inside the
@@ -137,18 +102,17 @@ impl Bounds {
 pub(crate) fn place(
     faces: &FaceEvidence,
     pose: Option<&[Keypoint]>,
-    bounds: Option<Bounds>,
+    room: Option<&Frontal>,
     min_score: f32,
 ) -> HeadPlace {
-    let Some(bounds) = bounds else {
+    let Some(room) = room.filter(|room| room.has_headboard()) else {
         return HeadPlace::UNKNOWN;
     };
-    let headboard = bounds.headboard;
     let faces: &[_] = match faces {
         FaceEvidence::Seen(faces) => faces,
         _ => &[],
     };
-    if faces.iter().any(|f| headboard.contains(f.bbox.centroid())) {
+    if faces.iter().any(|f| room.in_headboard(f.bbox.centroid())) {
         return HeadPlace::of(HeadPlaceState::AtHeadboard, HeadEvidence::Face);
     }
     let head: Vec<&Keypoint> = pose
@@ -164,19 +128,20 @@ pub(crate) fn place(
             x: head.iter().map(|k| k.x).sum::<f32>() / n,
             y: head.iter().map(|k| k.y).sum::<f32>() / n,
         };
-        return HeadPlace::of(bounds.of(centroid), HeadEvidence::PoseHead);
+        return HeadPlace::of(room.head_place(centroid), HeadEvidence::PoseHead);
     }
     match faces.first() {
         None => HeadPlace::UNKNOWN,
-        Some(face) => HeadPlace::of(bounds.of(face.bbox.centroid()), HeadEvidence::Face),
+        Some(face) => HeadPlace::of(room.head_place(face.bbox.centroid()), HeadEvidence::Face),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geom::Rect;
+    use crate::geom::{Quad, Rect, Zone};
     use crate::look::{Detection, Label};
+    use crate::policy::AdmissionPolicy;
 
     const HEADBOARD: Rect = Rect {
         x0: 100.0,
@@ -204,22 +169,29 @@ mod tests {
             .collect()
     }
 
+    fn room(bed: Quad) -> Frontal {
+        Frontal::new(
+            &bed,
+            Some(Zone::Box(HEADBOARD)),
+            &AdmissionPolicy {
+                min_confidence: 0.5,
+                same_body_iou: 0.5,
+                near_bed_margin: 0.1,
+                bed_frame: None,
+            },
+        )
+    }
+
+    /// Against the headboard alone: a degenerate bed has no plane.
     fn by(faces: &FaceEvidence, pose: Option<&[Keypoint]>) -> HeadPlace {
-        let bounds = Bounds {
-            headboard: Zone::Box(HEADBOARD),
-            bed: None,
-        };
-        place(faces, pose, Some(bounds), 0.5)
+        let point = crate::geom::Point { x: 0.0, y: 0.0 };
+        place(faces, pose, Some(&room(Quad([point; 4]))), 0.5)
     }
 
     /// With the test world's bed, (100,100)–(500,400), under the headboard.
     fn in_bed(faces: &FaceEvidence, pose: Option<&[Keypoint]>) -> HeadPlace {
-        let bed = crate::geom::Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
-        let bounds = Bounds {
-            headboard: Zone::Box(HEADBOARD),
-            bed: BedPlane::of(&bed),
-        };
-        place(faces, pose, Some(bounds), 0.5)
+        let bed = Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
+        place(faces, pose, Some(&room(bed)), 0.5)
     }
 
     #[test]

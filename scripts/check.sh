@@ -92,6 +92,20 @@ check_cycle_sequences() {
 step "cycle only sequences"
 check_cycle_sequences
 
+# The questions of space have one owner (white book, volume VII, ch. 01): the
+# layers ask `room` and get named facts back. The bed's plane stays with the
+# map, which crops with it, the room, which answers with it, and the shadow,
+# which measures a geometry that does not decide yet.
+check_space_has_one_owner() {
+  local found
+  found=$(grep -rl 'BedPlane' crates/scene-core/src \
+            | grep -vE '^crates/scene-core/src/(map\.rs|map/|room\.rs|shadow\.rs)' \
+            || true)
+  [ -z "$found" ] || fail "a question of space outside room: $found"
+}
+step "space has one owner"
+check_space_has_one_owner
+
 step "tests"
 cargo test --workspace --quiet || fail "tests"
 

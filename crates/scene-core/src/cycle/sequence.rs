@@ -19,6 +19,7 @@ use crate::head::HeadPlace;
 use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
+use crate::room::Frontal;
 use crate::sensor::SensorChanged;
 use crate::verification::Collecting;
 
@@ -233,7 +234,7 @@ impl Course<'_> {
                 let (bodies, result) = evidence::consolidate(
                     primary,
                     outcome.bodies(),
-                    self.monitor.engine.map.bed_for(self.geometry),
+                    self.room().as_ref(),
                     &self.monitor.engine.policy.admission,
                 );
                 self.asked(probe, spent, result);
@@ -334,11 +335,12 @@ impl Course<'_> {
     /// the digit the verifier filled if an answer arrived; layer 1 reads it.
     fn refine(&mut self, observed: Observed) -> Refined {
         let filled = self.monitor.engine.verification.take_filled();
+        let room = self.room();
         let engine = &self.monitor.engine;
         let refinement = crate::refine::refine(
             observed.believed.subject.as_ref().map(|s| s.zone),
             observed.believed.body.as_ref(),
-            engine.map.bed_for(self.geometry),
+            room.as_ref(),
             engine.policy.enrich.as_ref(),
             engine.policy.verify.as_ref(),
             filled,
@@ -352,9 +354,7 @@ impl Course<'_> {
             subject: observed.believed.subject.as_ref(),
             body: observed.believed.body.as_ref(),
             faces: &observed.evidence.faces,
-            bed: engine.map.bed_for(self.geometry),
-            headboard: engine.map.headboard_for(self.geometry),
-            bed_frame: engine.policy.admission.bed_frame,
+            room: room.as_ref(),
             min_score: engine.policy.enrich.as_ref().map(|e| e.min_keypoint_score),
         });
         // Layer 1, on layer 0 and what the second level perceived.
@@ -511,8 +511,12 @@ impl Course<'_> {
     }
 
     fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
-        let Engine { policy, map, .. } = &self.monitor.engine;
-        crate::head::of_turn(&observed.evidence.faces, pose, map, self.geometry, policy)
+        crate::head::of_turn(
+            &observed.evidence.faces,
+            pose,
+            self.room().as_ref(),
+            &self.monitor.engine.policy,
+        )
     }
 
     fn deepen(
@@ -541,11 +545,18 @@ impl Course<'_> {
 
     // --- Mechanism.
 
+    /// The room's geometry for this turn: every question of space goes to it.
+    /// `None` if the bed's geometry does not apply to the frame.
+    fn room(&self) -> Option<Frontal> {
+        let engine = &self.monitor.engine;
+        Frontal::of(&engine.map, self.geometry, &engine.policy.admission)
+    }
+
     /// The main detector's reading, admitted by zones and noted in the ledger.
     fn admit(&mut self, probe: &Probe, outcome: Outcome) -> Admission {
         let admission = evidence::admit(
             outcome.bodies(),
-            self.monitor.engine.map.bed_for(self.geometry),
+            self.room().as_ref(),
             &self.monitor.engine.policy.admission,
         );
         self.asked(probe, outcome.spent, admission.result.clone());

@@ -11,9 +11,8 @@ mod verdict;
 
 use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
-use crate::geom::Quad;
-use crate::map::BedPlane;
 use crate::policy::{EnrichPolicy, VerifyPolicy};
+use crate::room::Frontal;
 use crate::zone::Zone;
 pub use lying::{Lying, LyingState};
 pub use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
@@ -42,7 +41,7 @@ pub(crate) struct Refinement {
 pub(crate) fn refine(
     zone: Option<Zone>,
     body: Option<&SubjectBody>,
-    bed: Option<&Quad>,
+    room: Option<&Frontal>,
     enrich: Option<&EnrichPolicy>,
     verify: Option<&VerifyPolicy>,
     filled: Option<BodyPlaces>,
@@ -55,9 +54,8 @@ pub(crate) fn refine(
     };
     let pose = &body.pose;
     let provenance = pose.provenance;
-    let plane = bed.and_then(BedPlane::of);
-    let lying = plane.map(|plane| Lying {
-        state: lying::classify(&pose.keypoints, &plane, enrich.min_keypoint_score),
+    let lying = room.filter(|room| room.has_plane()).map(|room| Lying {
+        state: lying::classify(&pose.keypoints, room, enrich.min_keypoint_score),
         provenance,
     });
     let posture = posture::classify(body, enrich).map(|r| Posture {
@@ -73,7 +71,7 @@ pub(crate) fn refine(
         head_place: Some(body.head_place),
     });
     let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.as_ref().map(|p| p.state)));
-    let places = sighting::places_of(body, posture.as_ref(), plane, enrich, verify);
+    let places = sighting::places_of(body, posture.as_ref(), room, enrich, verify);
     Refinement {
         lying,
         posture,

@@ -248,6 +248,19 @@ impl Map {
         }
     }
 
+    /// Where the bed's sites are in the image, if the geometry applies and the
+    /// bed has a plane: the subject's depth look measures the bed there.
+    pub(crate) fn bed_sites(
+        &self,
+        geometry: Geometry,
+    ) -> Option<[(BedSite, Point); BedSite::ALL.len()]> {
+        let plane = BedPlane::of(self.bed_for(geometry)?)?;
+        Some(BedSite::ALL.map(|site| {
+            let (u, v) = site.at();
+            (site, plane.point(u, v))
+        }))
+    }
+
     /// The bed, if the geometry applies.
     pub(crate) fn bed_for(&self, geometry: Geometry) -> Option<&Quad> {
         (geometry == Geometry::Valid).then_some(&self.site.bed)
