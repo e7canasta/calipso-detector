@@ -163,12 +163,26 @@ cleaned up with the net in place.
 *Guardian:* in a series, the scenario and the test come before the
 implementation.
 
-### 17. Bisectable commits, daily integration
+### 17. Bisectable commits, verified at the size of the change
 
-One logical change per commit. Each commit builds and passes `scripts/check.sh`.
-`main` is integrated at least daily and is always deployable.
+One logical change per commit. Each check runs at its moment, and no larger
+than the question it answers:
 
-*Guardian:* `scripts/check.sh` per commit (`git rebase -x scripts/check.sh main`),
+| Level | When | What |
+| --- | --- | --- |
+| Working | every change | the crate that changed, or one feature or test module: `cargo test -p scene-core --test bdd -- --name '…'`, `cargo test -p detector --test it nats::` |
+| Quick | every commit | `scripts/quick.sh`: format, then clippy and tests of the crates that changed and of those that depend on them |
+| Full | every version: a branch into `main`, a cut | `scripts/check.sh`, the whole gate; `scripts/check-guardians.sh` when the gate or a lint changed |
+
+`main` is integrated at least daily and always passes the full gate. A commit
+inside a branch that breaks only what the full gate sees (a license, another
+crate's `#[ignore]`d test) is fixed before the branch goes into `main`.
+
+*Why:* a full gate per commit cost five minutes each and turned a five-minute
+change into twenty (2026-10-31); the quick level costs about ninety seconds
+for a change in the core.
+
+*Guardian:* `scripts/check.sh` on the branch head before it goes into `main`,
 and `scripts/check-guardians.sh` proves each gate fails when its rule is broken.
 
 ### 18. Simple design, YAGNI
@@ -191,6 +205,20 @@ Names in the code are the glossary's. A new term enters the glossary first and
 the code after. The glossary lives in `crates/scene-core/DESIGN.md`.
 
 *Guardian:* review.
+
+### 22. One build, reused
+
+Work happens in the checkout, with its `target/` warm: a branch is switched
+there, not copied. A tool that needs a copy of the workspace (the guardians,
+the loop) keeps it at a fixed path and shares one target, because cargo hashes
+a workspace crate with its path and a new directory is a new build that
+nothing reuses or removes. Debug builds carry line tables only.
+
+*Why:* temporary copies and full debug info grew `target/` to 54 GB, and a
+cold build costs minutes every time (2026-10-31).
+
+*Guardian:* `[profile.dev]` in `Cargo.toml`; review of every script that sets
+`CARGO_TARGET_DIR` or copies the workspace.
 
 ## Governance
 

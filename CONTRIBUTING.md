@@ -10,7 +10,10 @@ for how the engine is built.
 - Toolchain: the one pinned in `rust-toolchain.toml`, plus `cargo-deny` for
   the gate's license audit. The shell's end-to-end tests also use FFmpeg,
   MediaMTX, `nats-server` and the ONNX models in `CALIPSO_MODELS`.
-- `scripts/check.sh` is the gate: format, clippy, the dependency rules,
+- Verification has three levels (rule 17): while working, the crate that
+  changed (`cargo test -p …`); before each commit, `scripts/quick.sh`; once
+  per version, before a branch goes into `main`, `scripts/check.sh`.
+- `scripts/check.sh` is the full gate: format, clippy, the dependency rules,
   every test and the license audit. The end-to-end tests that need a camera
   server, NATS or the models are `#[ignore]`d and say what they require.
 - `scripts/check-guardians.sh` proves that each gate rule fails when it is
@@ -41,8 +44,9 @@ for how the engine is built.
 
 ## Commits
 
-- One logical change per commit, and **every commit passes the gate**
-  (rule 17). For a series: `git rebase -x scripts/check.sh main`.
+- One logical change per commit, and **every commit passes the quick
+  level** (`scripts/quick.sh`, rule 17). The branch passes the full gate,
+  `scripts/check.sh`, once, before it goes into `main`.
 - Subject: `area: what changes`, in the imperative, under 72 characters
   (`attention: renew a still pose before it expires`). The body says why, and
   cites the rule or principle it serves.

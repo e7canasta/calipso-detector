@@ -495,9 +495,11 @@ are for local scope.
 
 ## 10. How to verify
 
-- `scripts/check.sh` on every commit (rule 17): format, clippy, core
-  dependencies, tests and licenses. For a series:
-  `git rebase -x scripts/check.sh main`.
+- Three levels (rule 17): the crate that changed while working;
+  `scripts/quick.sh` on every commit (format, clippy and the tests of the
+  crates that changed and of those that depend on them); `scripts/check.sh`
+  once per version, before a branch goes into `main` (format, clippy, core
+  dependencies, every test and licenses).
 - The layer-0 table: if a rule changed on purpose, the test prints the new
   table to copy into the golden file, and the diff goes into the commit.
 - The golden scenes and their replay through the detector: the contract gives the same.
