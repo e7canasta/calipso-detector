@@ -15,6 +15,12 @@ for how the engine is built.
   server, NATS or the models are `#[ignore]`d and say what they require.
 - `scripts/check-guardians.sh` proves that each gate rule fails when it is
   broken. Run it when you touch `check.sh` or a lint.
+- `target/` holds the gate's build (`debug/`) and the guardians' (`guardians/`:
+  one copy of the workspace per fixture, at a fixed path, sharing one build).
+  Debug builds carry line tables only (`[profile.dev]`). Cargo never removes
+  what it stopped using (a changed feature, flag or toolchain leaves the old
+  build behind): `cargo clean` after a toolchain change, or when `target/`
+  grows.
 
 ## How a change is made
 
