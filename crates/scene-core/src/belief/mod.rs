@@ -206,8 +206,10 @@ impl Belief {
         policy: &Policy,
     ) -> Believed {
         let current = admission.bodies.seen();
-        let transition =
-            current.and_then(|bodies| self.occupancy.step(at, bodies, &policy.persistence));
+        let transition = current.and_then(|bodies| {
+            self.occupancy
+                .step(at, bodies, &policy.persistence, policy.held_left)
+        });
         self.rearm(admission.primary.bed);
         let subject = self.subject_now(current);
         if subject.is_none() {

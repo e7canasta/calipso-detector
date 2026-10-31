@@ -67,6 +67,7 @@ impl Machine {
         at: SampleRef,
         bodies: &Bodies,
         p: &Persistence,
+        held_left: bool,
     ) -> Option<Transition> {
         if self.session.is_some_and(|previous| previous != at.session) {
             self.span.new_session();
@@ -90,6 +91,7 @@ impl Machine {
             held: count(self.held.len()),
             unexplained: self.unexplained,
             bed_phase: self.bed_phase,
+            held_left,
         };
         let moves = conservation::settle(before, settled.seen);
         Some(self.apply(at, before, settled, moves))
@@ -133,6 +135,14 @@ impl Machine {
                     };
                     let held_since = kept.since;
                     Fact::Reappeared { held_since }
+                }
+                // Getting up by the side is getting up: who reads the scene
+                // sees the bed left, as with `LeftBed`.
+                Movement::HeldLeft => {
+                    if self.held.pop().is_none() {
+                        continue;
+                    }
+                    Fact::LeftBed
                 }
                 Movement::LayDown { .. } => {
                     self.bed_phase = BedPhase::Tracking;

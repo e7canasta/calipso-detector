@@ -427,10 +427,11 @@ One concept, one name.
 | span | `Span` | From the last stable count until a new one holds |
 | stabilize | `Stabilizer` | A value counts once it has held in source time |
 | what we believed / what we saw | `Before` / `Seen` | The two input columns of the table |
-| movement | `Movement` | What explains a change: `LeftBed`, `Held`, `Reappeared`, `LayDown`, `Adopted`, `LeftRoom`, … |
+| movement | `Movement` | What explains a change: `LeftBed`, `Held`, `HeldLeft`, `Reappeared`, `LayDown`, `Adopted`, `LeftRoom`, … |
 | settle | `settle` | Which movements explain the change, in order |
 | evolve | `evolve` | How a movement moves the counts |
 | held | `held`, `HeldBody`, `InBed::Held` | Stopped being seen in bed without leaving: still there (rule 1) |
+| side exit | `Movement::HeldLeft`, `Policy::held_left` | Rule 4 bis, a capability of the profile: with someone held in bed, a body that appears on the floor near the bed, not from the door, is the held one who got up by the side. Published as `left_bed` (white book, volume VII, ch. 05) |
 | unexplained | `unexplained` | A body in bed that did not come from the floor (rule 6) |
 | adopt | `BedPhase::Adopting`, `Movement::Adopted` | Before the first climb in, whatever appears in bed is adopted |
 | fact | `Fact`, `Happened` | What happened, in the past tense: `Entered`, `Adopted`, `LayDown`, `HeldInBed`, …; `Happened` carries it with the occupants it leaves |

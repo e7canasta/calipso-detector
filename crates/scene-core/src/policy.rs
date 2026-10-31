@@ -137,6 +137,11 @@ pub struct Policy {
     pub shadow: Option<ShadowPolicy>,
     /// `Some`: the room in two planes; `None`: frontal, the engine as it was.
     pub two_planes: Option<TwoPlanesPolicy>,
+    /// Rule 4 bis (white book, volume VII, ch. 05): with someone held in bed,
+    /// a body that appears on the floor near the bed, not from the door, is
+    /// the held one who got up. `false`: a held body leaves only reappearing
+    /// in bed, as it always did.
+    pub held_left: bool,
 }
 
 /// The geometry's shadow (white book, volume VII, ch. 11): estimates of a
@@ -313,6 +318,7 @@ impl Default for Policy {
             verify: None,
             shadow: None,
             two_planes: None,
+            held_left: false,
         }
     }
 }

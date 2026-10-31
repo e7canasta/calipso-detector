@@ -30,13 +30,16 @@ enum Context {
     Passing,
     /// The bed has no history yet.
     Booting,
+    /// As the base, with rule 4 bis: a held body may leave by the side.
+    SideExit,
 }
 
-const CONTEXTS: [(Context, &str); 4] = [
+const CONTEXTS: [(Context, &str); 5] = [
     (Context::Base, "base"),
     (Context::Far, "far"),
     (Context::Passing, "passing"),
     (Context::Booting, "booting"),
+    (Context::SideExit, "side exit"),
 ];
 
 fn at(secs: f64) -> SampleRef {
@@ -144,14 +147,15 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
         Context::Far => bodies(f, f.min(1), v),
         _ => bodies(f, 0, v),
     };
+    let held_left = matches!(context, Context::SideExit);
     let mut t = 1.0;
     if matches!(context, Context::Passing) {
         let before = (r - b).max(f) + 1;
-        transitions.extend(z.step(at(t), &bodies(before, 0, v), &PERSISTENCE));
+        transitions.extend(z.step(at(t), &bodies(before, 0, v), &PERSISTENCE, held_left));
         t += 0.5;
     }
-    transitions.extend(z.step(at(t), &end, &PERSISTENCE));
-    transitions.extend(z.step(at(t + 1.0), &end, &PERSISTENCE));
+    transitions.extend(z.step(at(t), &end, &PERSISTENCE, held_left));
+    transitions.extend(z.step(at(t + 1.0), &end, &PERSISTENCE, held_left));
     (z, transitions)
 }
 
@@ -278,13 +282,22 @@ fn the_layer_0_invariants_hold_across_the_table() {
                     "{cell}: before of the transition"
                 );
             }
-            // Only visibility in bed changes the retained.
+            // Only visibility in bed changes the retained; with the side
+            // exit, also being seen on the floor (rule 4 bis).
             let retained = i64::from(after.held) - i64::from(h);
             let held = how_many(&events, |e| matches!(e.fact, Fact::HeldInBed { .. }));
             let reappeared = how_many(&events, |e| matches!(e.fact, Fact::Reappeared { .. }));
-            assert_eq!(retained, held - reappeared, "{cell}: retained");
-            // A retained body does not leave without reappearing (rule 4).
-            if reappeared == 0 {
+            if matches!(context, Context::SideExit) {
+                assert!(
+                    retained >= held - reappeared - i64::from(f),
+                    "{cell}: retained"
+                );
+            } else {
+                assert_eq!(retained, held - reappeared, "{cell}: retained");
+            }
+            // A retained body does not leave without reappearing (rule 4), or
+            // with the side exit, without being seen on the floor (4 bis).
+            if reappeared == 0 && !(matches!(context, Context::SideExit) && f > 0) {
                 assert!(
                     after.held >= h,
                     "{cell}: a retained body left without reappearing"

@@ -59,6 +59,10 @@ pub struct OccupancyConfig {
     /// ch. 15); it needs `[senses.pose]`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub knee: Option<KneeConfig>,
+    /// `Policy::held_left`, rule 4 bis: a held body may leave by the side
+    /// (white book, volume VII, ch. 05). Off by default; any geometry.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub held_left: bool,
 }
 
 /// `TwoPlanesPolicy::knee_bent_deg`: a doubtful body's knee bent to this many
@@ -966,6 +970,7 @@ impl Config {
                     .and_then(|o| o.knee.as_ref())
                     .map(|knee| knee.bent_deg),
             });
+        p.held_left = self.occupancy.as_ref().is_some_and(|o| o.held_left);
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
             .senses
@@ -1509,6 +1514,17 @@ mod tests {
             let error = Config::parse(&text).unwrap_err();
             assert!(error.to_string().contains(field), "{error}");
         }
+    }
+
+    #[test]
+    fn the_side_exit_is_off_unless_asked_and_leaves_the_hash_when_absent() {
+        let baseline = Config::parse(VALID).unwrap();
+        assert!(!baseline.policy().held_left);
+        let off = Config::parse(&format!("{VALID}\n[occupancy]\nheld_left = false\n")).unwrap();
+        let on = Config::parse(&format!("{VALID}\n[occupancy]\nheld_left = true\n")).unwrap();
+        assert!(!off.policy().held_left);
+        assert!(on.policy().held_left);
+        assert_ne!(off.profile().unwrap().hash, on.profile().unwrap().hash);
     }
 
     #[test]

@@ -17,6 +17,9 @@ pub(super) struct Before {
     /// How many bodies in the bed count are not occupants (rule 6).
     pub(super) unexplained: u32,
     pub(super) bed_phase: BedPhase,
+    /// Rule 4 bis: a held body may leave by the side, seen on the floor near
+    /// the bed.
+    pub(super) held_left: bool,
 }
 
 /// The bed phase for rule 6: "the bed without
@@ -54,6 +57,9 @@ pub(super) enum Movement {
     LeftBed,
     /// Stopped being seen in bed without leaving: retained (rule 1).
     Held,
+    /// A retained body was seen on the floor near the bed: it got up by the
+    /// side (rule 4 bis).
+    HeldLeft,
     /// A retained body was seen in bed again (rules 2 and 4).
     Reappeared,
     /// Appeared in bed coming from the floor (rule 6). `from_floor`: it left the
@@ -112,7 +118,17 @@ pub(super) fn settle(before: Before, seen: Seen) -> Vec<Movement> {
         // Those who lay down leaving the floor; the rest passed without stabilizing.
         let from_floor = lay_down.min(floor_down);
         let unseen = new - lay_down;
+        // Rule 4 bis: of those who appeared on the floor near the bed, not
+        // from the door, a retained body that did not reappear got up.
+        let held_left = if before.held_left {
+            floor_up
+                .saturating_sub(seen.from_door)
+                .min(before.held - reappeared)
+        } else {
+            0
+        };
         push(Reappeared, reappeared);
+        push(HeldLeft, held_left);
         push(LayDown { from_floor: true }, from_floor);
         push(LayDown { from_floor: false }, lay_down - from_floor);
         if before.bed_phase == BedPhase::Adopting {
@@ -120,7 +136,7 @@ pub(super) fn settle(before: Before, seen: Seen) -> Vec<Movement> {
         }
         // Whoever lay down from the floor did not leave the room.
         push(LeftRoom, floor_down - from_floor);
-        push(Entered, floor_up);
+        push(Entered, floor_up - held_left);
         if before.bed_phase == BedPhase::Tracking {
             push(UnexplainedIn, unseen);
         }
@@ -134,6 +150,7 @@ pub(super) fn evolve(occupants: Occupants, m: Movement) -> Occupants {
     let (floor, bed, held) = match m {
         Movement::LeftBed => (floor + 1, bed.saturating_sub(1), held),
         Movement::Held => (floor, bed.saturating_sub(1), held + 1),
+        Movement::HeldLeft => (floor + 1, bed, held.saturating_sub(1)),
         Movement::Reappeared => (floor, bed + 1, held.saturating_sub(1)),
         Movement::LayDown { from_floor: true } => (floor.saturating_sub(1), bed + 1, held),
         Movement::LayDown { from_floor: false } | Movement::Adopted => (floor, bed + 1, held),
@@ -153,6 +170,7 @@ mod tests {
     struct Tally {
         left_bed: u32,
         held: u32,
+        held_left: u32,
         reappeared: u32,
         lay_down: u32,
         adopted: u32,
@@ -173,6 +191,7 @@ mod tests {
         held: u32,
         unexplained: u32,
         bed_history: bool,
+        held_left: bool,
     }
 
     fn settle(c: Change) -> Tally {
@@ -185,6 +204,7 @@ mod tests {
             } else {
                 BedPhase::Adopting
             },
+            held_left: c.held_left,
         };
         let seen = Seen {
             counts: c.to,
@@ -196,6 +216,7 @@ mod tests {
             *match m {
                 Movement::LeftBed => &mut t.left_bed,
                 Movement::Held => &mut t.held,
+                Movement::HeldLeft => &mut t.held_left,
                 Movement::Reappeared => &mut t.reappeared,
                 Movement::LayDown { .. } => &mut t.lay_down,
                 Movement::Adopted => &mut t.adopted,
@@ -222,6 +243,7 @@ mod tests {
             held: 0,
             unexplained: 0,
             bed_history: true,
+            held_left: false,
         }
     }
 
@@ -250,6 +272,29 @@ mod tests {
     fn rule_3_on_the_floor_no_longer_being_seen_is_leaving() {
         let m = settle(change(c(2, 0), c(0, 0)));
         assert_eq!(m.left_room, 2);
+    }
+
+    #[test]
+    fn rule_4_bis_a_retained_body_leaves_by_the_side_seen_near_the_bed() {
+        // White book, volume VII, ch. 05: (0,0) with one retained → floor.
+        let side = |to: Counts, from_door: u32, held: u32| {
+            settle(Change {
+                held,
+                from_door,
+                held_left: true,
+                ..change(c(0, 0), to)
+            })
+        };
+        let m = side(c(1, 0), 0, 1);
+        assert_eq!((m.held_left, m.entered), (1, 0));
+        // From the door, someone entered: the retained one stays.
+        let m = side(c(1, 0), 1, 1);
+        assert_eq!((m.held_left, m.entered), (0, 1));
+        let m = side(c(2, 0), 1, 1);
+        assert_eq!((m.held_left, m.entered), (1, 1));
+        // With nobody retained, as always.
+        let m = side(c(1, 0), 0, 0);
+        assert_eq!((m.held_left, m.entered), (0, 1));
     }
 
     #[test]

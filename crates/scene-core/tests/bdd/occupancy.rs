@@ -193,3 +193,8 @@ fn no_earlier_observation(ward: &mut Ward) {
         None
     );
 }
+
+#[given("a held resident can leave the bed by the side")]
+fn held_left(ward: &mut Ward) {
+    ward.policy.held_left = true;
+}
