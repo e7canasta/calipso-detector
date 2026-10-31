@@ -2,7 +2,7 @@
 //! a `Probe::Verify` reaches the port with the looked frame, the crop is a
 //! JPEG of the bed, and the answer, delivered before a later sample, confirms
 //! the held occupant in that sample's scene.
-mod support;
+use crate::support;
 
 use detector::driver::Driver;
 use detector::verifier::{VerifierPort, jpeg_crop};

@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 use detector::{
     build,
     publish::{CHANNEL_BUFFER, Kind, PublisherHandle},
@@ -32,14 +32,14 @@ const TIMING: Timing = Timing {
 fn s1_valid_envelopes_events_first_and_contiguous_sequences() {
     let scene_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.scene.v4.json"
+            "../../../../contract/schema/calipso.scene.v4.json"
         ))
         .unwrap(),
     )
     .unwrap();
     let event_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.events.v4.json"
+            "../../../../contract/schema/calipso.events.v4.json"
         ))
         .unwrap(),
     )

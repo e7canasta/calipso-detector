@@ -207,7 +207,7 @@ fn run_demo(senses: u8) {
     let wire = dir.0.join("wire.jsonl");
     let subscriber = Subscription::start(url.clone(), &wire);
     let config = dir.0.join("test.toml");
-    let mut text = include_str!("../../../config/test.toml")
+    let mut text = include_str!("../../../../config/test.toml")
         .replace("18554", &rtsp_port.to_string())
         .replace("nats://127.0.0.1:4222", &url)
         .replace("[160, 96]", "[512, 512]");
@@ -337,14 +337,14 @@ fn run_demo(senses: u8) {
     }
     let scene_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.scene.v4.json"
+            "../../../../contract/schema/calipso.scene.v4.json"
         ))
         .unwrap(),
     )
     .unwrap();
     let event_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../contract/schema/calipso.events.v4.json"
+            "../../../../contract/schema/calipso.events.v4.json"
         ))
         .unwrap(),
     )

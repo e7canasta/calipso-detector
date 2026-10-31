@@ -1,5 +1,4 @@
-#[path = "support/models.rs"]
-mod models;
+use crate::models;
 use image::DynamicImage;
 use models::Model;
 use scene_core::{

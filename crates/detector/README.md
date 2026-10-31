@@ -38,8 +38,8 @@ video is deleted at the end.
 
 ```sh
 cargo test -p detector
-cargo test -p detector --test nats -- --ignored --nocapture
-CALIPSO_MODELS=/path/to/models NATS_BIN=/path/to/nats cargo test -p detector --test demo -- --ignored --nocapture
+cargo test -p detector --test it -- --ignored --nocapture nats::
+CALIPSO_MODELS=/path/to/models NATS_BIN=/path/to/nats cargo test -p detector --test it -- --ignored --nocapture demo::
 ```
 
 The last two commands open temporary local servers; the demo checks SIGTERM and

@@ -15,7 +15,7 @@ fn profile(role: &str) -> String {
     };
     format!(
         "{}\n[senses.{role}]\nmodel = \"/missing/calipso-{role}.onnx\"\n{options}\n",
-        include_str!("../../../config/test.toml")
+        include_str!("../../../../config/test.toml")
     )
 }
 

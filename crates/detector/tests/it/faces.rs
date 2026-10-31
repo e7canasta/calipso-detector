@@ -1,7 +1,4 @@
-#[path = "support/models.rs"]
-#[allow(dead_code)]
-mod models;
-mod support;
+use crate::{models, support};
 use detector::driver::Driver;
 use models::Model;
 use scene_core::{

@@ -4,8 +4,8 @@ use std::{fs, process::Command};
 #[test]
 fn check_prints_the_profile_and_opens_no_models() {
     for text in [
-        include_str!("../../../config/example.toml"),
-        include_str!("../../../config/test.toml"),
+        include_str!("../../../../config/example.toml"),
+        include_str!("../../../../config/test.toml"),
     ] {
         let file = std::env::temp_dir().join(format!("calipso-check-{}.toml", ulid::Ulid::new()));
         fs::write(&file, text).unwrap();

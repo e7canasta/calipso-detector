@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 use scene_core::contract::{BedState, Envelope, Event, FactBody, Mode};
 
 /// The layer-0 facts of some events, in order.
@@ -23,7 +23,7 @@ fn s1_end_to_end_matches_the_approved_events() {
         events.extend(output.events);
         scene = Some(output.scene);
     }
-    let golden: Vec<Event> = include_str!("../../../contract/examples/s1.events.v4.jsonl")
+    let golden: Vec<Event> = include_str!("../../../../contract/examples/s1.events.v4.jsonl")
         .lines()
         .map(|l| serde_json::from_str::<Envelope<Event>>(l).unwrap().body)
         .collect();
