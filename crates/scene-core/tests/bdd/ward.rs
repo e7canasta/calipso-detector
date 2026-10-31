@@ -290,7 +290,7 @@ fn invariants(scene: &Scene, events: &[Fact]) {
             .is_some_and(|p| p.provenance == Provenance::Current)
         {
             assert!(
-                read(&[LookKind::Pose]),
+                read(&[LookKind::Pose, LookKind::PoseBody]),
                 "rule 2: Current pose without a pose reading"
             );
         }

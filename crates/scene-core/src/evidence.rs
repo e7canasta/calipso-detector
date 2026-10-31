@@ -116,6 +116,17 @@ pub(crate) struct Admission {
 pub(crate) struct Perceived {
     pub bodies: Admission,
     pub faces: FaceEvidence,
+    /// The pose a doubtful body was seen with in this turn, before believing.
+    pub posed: Option<PosedBody>,
+}
+
+/// A doubtful body's pose and its box (white book, volume VII, ch. 15): if
+/// the body turns out to be the subject, the second level reads this pose
+/// instead of looking again.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PosedBody {
+    pub bbox: Rect,
+    pub pose: Vec<Keypoint>,
 }
 
 impl Perceived {
@@ -341,13 +352,14 @@ pub(crate) fn pose(reading: Sensed<Option<Vec<Keypoint>>>) -> (Option<Vec<Keypoi
 /// counted as the instrument that saw it counts. A failing or empty pose
 /// leaves it where it was: not seeing the knee proves nothing (rule 1).
 pub(crate) fn pose_body(
-    admission: &mut Admission,
+    perceived: &mut Perceived,
     floor: usize,
     reading: Sensed<Option<Vec<Keypoint>>>,
     room: Option<&Room>,
     policy: &Policy,
 ) -> LookResult {
     let (pose, result) = pose(reading);
+    let admission = &mut perceived.bodies;
     let (Some(pose), Some(room), Some(enrich), BodyEvidence::Seen(bodies)) =
         (pose, room, policy.enrich, &mut admission.bodies)
     else {
@@ -357,6 +369,10 @@ pub(crate) fn pose_body(
         return result;
     };
     let posed = room.posed(&body.detection.bbox, &pose, enrich.min_keypoint_score);
+    perceived.posed = Some(PosedBody {
+        bbox: body.detection.bbox,
+        pose,
+    });
     body.knee_deg = posed.knee_deg;
     if posed.zone != BodyZone::Bed || floor >= bodies.floor.len() {
         return result;

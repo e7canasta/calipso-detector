@@ -116,6 +116,7 @@ impl Course<'_> {
                     Reached::Perceived(Perceived {
                         bodies,
                         faces: FaceEvidence::NotLooked,
+                        posed: None,
                     })
                 }
                 // A doubtful body to place with its pose, before believing?
@@ -148,9 +149,19 @@ impl Course<'_> {
                     Reached::Map(observed)
                 }
                 // Enrich the subject?
-                Reached::Map(observed) => match self.enrich(&observed.believed) {
+                Reached::Map(observed) => match self.enrich(&observed.believed, &observed.evidence)
+                {
                     EnrichPlan::Ask { bbox, region } => {
                         return Phase::Waiting(Waiting::pose(observed, bbox, region));
+                    }
+                    EnrichPlan::Posed { bbox } => {
+                        self.skipped(LookKind::Pose, SkipReason::PosedBefore);
+                        let pose = observed.evidence.posed.as_ref().map(|p| p.pose.clone());
+                        Reached::Pose {
+                            observed,
+                            pose,
+                            bbox,
+                        }
                     }
                     EnrichPlan::Keep(reason) => {
                         self.skipped(LookKind::Pose, reason);
@@ -260,6 +271,7 @@ impl Course<'_> {
                 Reached::Perceived(Perceived {
                     bodies,
                     faces: faces.faces,
+                    posed: None,
                 })
             }
             Continuation::PoseBody {
@@ -267,7 +279,7 @@ impl Course<'_> {
                 floor,
             } => {
                 let result = evidence::pose_body(
-                    &mut perceived.bodies,
+                    &mut perceived,
                     floor,
                     outcome.into_pose(),
                     self.room().as_ref(),
@@ -472,15 +484,16 @@ impl Course<'_> {
     }
 
     fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
-        let Perceived { bodies, faces } = &observed.evidence;
+        let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         attention::calibrate(&g, &observed.believed, &self.monitor.engine.policy)
     }
 
-    fn enrich(&self, believed: &Believed) -> EnrichPlan {
+    fn enrich(&self, believed: &Believed, evidence: &Perceived) -> EnrichPlan {
         let Engine { policy, belief, .. } = &self.monitor.engine;
         let (reference, since) = (belief.pose_reference(), belief.pose_since());
-        attention::enrich(believed, reference, since, self.at, policy)
+        let posed = evidence.posed.as_ref().map(|p| p.bbox);
+        attention::enrich(believed, posed, reference, since, self.at, policy)
     }
 
     /// A question to the slow verifier, if a doubt is worth one. With a burst
@@ -528,7 +541,7 @@ impl Course<'_> {
     }
 
     fn verify(&self, refined: &Refined) -> Consideration<VerifyLook> {
-        let Perceived { bodies, faces } = &refined.observed.evidence;
+        let Perceived { bodies, faces, .. } = &refined.observed.evidence;
         let g = self.glimpse(bodies, faces);
         let Engine {
             policy,
@@ -554,7 +567,7 @@ impl Course<'_> {
         pose: Option<&[Keypoint]>,
         head: HeadPlace,
     ) -> Consideration<SubjectDepthLook> {
-        let Perceived { bodies, faces } = &observed.evidence;
+        let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         attention::deepen(&g, pose, head, &self.monitor.engine.policy)
     }

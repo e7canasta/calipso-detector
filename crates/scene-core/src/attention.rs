@@ -66,6 +66,11 @@ pub(crate) enum EnrichPlan {
     },
     Keep(SkipReason),
     Skip(SkipReason),
+    /// The subject was posed in this turn as a doubtful body, before
+    /// believing: that pose is read, fresh, without looking again.
+    Posed {
+        bbox: Rect,
+    },
 }
 
 /// What the main detector's lens remembers: the last sample it read the whole
@@ -452,6 +457,7 @@ pub(crate) fn pose_bodies(
 /// box grown by the policy's margin.
 pub(crate) fn enrich(
     believed: &Believed,
+    posed: Option<Rect>,
     reference: Option<Rect>,
     since: Option<SampleRef>,
     now: SampleRef,
@@ -465,6 +471,10 @@ pub(crate) fn enrich(
         Some(s) if s.provenance == Provenance::Current => s,
         Some(_) => return EnrichPlan::Skip(SkipReason::NoCurrentSubject),
     };
+    // Posed in this turn as a doubtful body: the same body, already looked at.
+    if posed == Some(subject.bbox) {
+        return EnrichPlan::Posed { bbox: subject.bbox };
+    }
     // A pose from another session, or without a sample, has expired.
     let expired = policy.max_pose_age_secs.is_some_and(|max| {
         since
@@ -614,6 +624,9 @@ pub enum SkipReason {
     NoBedGeometry,
     /// The subject did not move since the last pose: the previous one holds.
     SubjectStill,
+    /// The subject was posed in this turn as a doubtful body, before
+    /// believing: that pose is read without looking again.
+    PosedBefore,
     /// The subject is retained, not seen in this sample.
     NoCurrentSubject,
     /// Without a pose there are no points to measure depth at.

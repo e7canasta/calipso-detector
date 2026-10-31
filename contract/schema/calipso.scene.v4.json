@@ -2367,6 +2367,11 @@
           "const": "subject_still"
         },
         {
+          "description": "The subject was posed in this turn as a doubtful body, before\nbelieving: that pose is read without looking again.",
+          "type": "string",
+          "const": "posed_before"
+        },
+        {
           "description": "The subject is retained, not seen in this sample.",
           "type": "string",
           "const": "no_current_subject"

@@ -212,11 +212,12 @@ fn pose_only_in(ward: &mut Ward, from: u32, to: u32, m: u32) {
 }
 
 #[then(
-    regex = r"^in sample (\d+) the pose was not requested because (the subject did not move|the subject was not seen in this sample)$"
+    regex = r"^in sample (\d+) the pose was not requested because (the subject did not move|the subject was not seen in this sample|it was already seen as a doubtful body)$"
 )]
 fn pose_skipped(ward: &mut Ward, n: u32, reason: String) {
     let expected = match reason.as_str() {
         "the subject did not move" => SkipReason::SubjectStill,
+        "it was already seen as a doubtful body" => SkipReason::PosedBefore,
         _ => SkipReason::NoCurrentSubject,
     };
     assert_eq!(skipped(ward, n, LookKind::Pose), Some(expected));

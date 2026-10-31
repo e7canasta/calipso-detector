@@ -91,3 +91,15 @@ Feature: The room in two planes
     When in sample 1 the camera sees a person at 200,250 to 300,480 and the pose sees them "sitting on the edge"
     Then the pose was not asked for any doubtful body
     And the body is on the "floor"
+
+  Scenario: In two planes with the knee, sitting on the foot of the bed is the subject, posed once
+    Given the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
+    And there is a pose model
+    And a doubtful body is in bed with the knee bent to 150 degrees or less
+    When in sample 1 the camera sees a person at 200,250 to 300,480 and the pose sees them "sitting on the edge"
+    And in sample 2 the camera sees a person at 200,250 to 300,480 and the pose sees them "sitting on the edge"
+    And in sample 3 the camera sees a person at 200,250 to 300,480 and the pose sees them "sitting on the edge"
+    And in sample 4 the camera sees a person at 200,250 to 300,480 and the pose sees them "sitting on the edge"
+    Then the pose was asked for a doubtful body
+    And there is a subject, in bed
+    And in sample 4 the pose was not requested because it was already seen as a doubtful body
