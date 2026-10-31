@@ -135,6 +135,8 @@ pub struct Policy {
     pub verify: Option<VerifyPolicy>,
     /// `None`: no shadow is computed or published.
     pub shadow: Option<ShadowPolicy>,
+    /// `Some`: the room in two planes; `None`: frontal, the engine as it was.
+    pub two_planes: Option<TwoPlanesPolicy>,
 }
 
 /// The geometry's shadow (white book, volume VII, ch. 11): estimates of a
@@ -148,6 +150,23 @@ pub struct ShadowPolicy {
     /// A body's support within this many metres of the bed is in bed for the
     /// shadow; past it, on the floor.
     pub support_margin_m: f32,
+}
+
+/// The room measured in two planes, the mattress and the bed's footprint on
+/// the floor (white book, volume VII, ch. 14): the profile chooses it for a
+/// camera that sees the bed on the diagonal. A box is in bed when enough of
+/// it falls over the mattress and its support (the centre of its lower edge)
+/// rests close enough to the footprint; on the floor, near the bed when its
+/// support is within `near_m`. It needs the footprint and the bed's size.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TwoPlanesPolicy {
+    /// The share of the box over the mattress, from this on, to be in bed.
+    pub share: f32,
+    /// The support, at most this many metres from the footprint, to be in bed.
+    pub support_m: f32,
+    /// On the floor, the support within this many metres of the footprint is
+    /// near the bed.
+    pub near_m: f32,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume
@@ -288,6 +307,7 @@ impl Default for Policy {
             bed_posture: None,
             verify: None,
             shadow: None,
+            two_planes: None,
         }
     }
 }
