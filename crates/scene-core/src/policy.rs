@@ -167,6 +167,11 @@ pub struct TwoPlanesPolicy {
     /// On the floor, the support within this many metres of the footprint is
     /// near the bed.
     pub near_m: f32,
+    /// `Some`: a doubtful body (on the floor by its support, with enough of
+    /// its box over the mattress) has its pose asked before believing, and a
+    /// knee bent to this many degrees or less puts it in bed (white book,
+    /// volume VII, ch. 15). `None`: the box alone decides.
+    pub knee_bent_deg: Option<f32>,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume

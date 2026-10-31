@@ -92,7 +92,7 @@ impl Script {
                 };
                 world::respond(&sample, probe)
             }
-            Probe::Pose { bbox } => self.pose.map(|()| {
+            Probe::Pose { bbox, .. } => self.pose.map(|()| {
                 let c = bbox.centroid();
                 let kp = |dx: f32, dy: f32| Keypoint {
                     x: c.x + dx,

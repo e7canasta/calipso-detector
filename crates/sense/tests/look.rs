@@ -184,7 +184,7 @@ fn model_failure_is_data_and_records_spent_time() {
 
 #[test]
 fn unsupported_requests_fail_and_warn_with_the_requested_kind() {
-    use scene_core::look::{DepthPurpose, FaceRegion};
+    use scene_core::look::{DepthPurpose, FaceRegion, PosePurpose};
     use std::sync::{Arc, Mutex};
     use tracing::{
         Event, Metadata, Subscriber,
@@ -246,7 +246,10 @@ fn unsupported_requests_fail_and_warn_with_the_requested_kind() {
             region: FaceRegion::Subject(rect),
         },
         Probe::Reinforce { region: rect },
-        Probe::Pose { bbox: rect },
+        Probe::Pose {
+            bbox: rect,
+            purpose: PosePurpose::Subject,
+        },
         Probe::Depth {
             purpose: DepthPurpose::Subject,
             points: vec![],

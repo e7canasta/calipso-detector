@@ -136,7 +136,7 @@ const SUBJECT_CHANGES_SHAPE: &str = "subject changes shape";
 const POSE: &str = "pose";
 
 /// A body figure by its name in the table.
-fn figure(name: &str) -> crate::script::Figure {
+pub(crate) fn figure(name: &str) -> crate::script::Figure {
     use crate::script::Figure;
     match name {
         "lying" => Figure::Lying,

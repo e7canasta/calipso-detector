@@ -1,6 +1,6 @@
 #![cfg(feature = "onnx")]
 
-use scene_core::look::{Label, Probe, Reading};
+use scene_core::look::{Label, PosePurpose, Probe, Reading};
 use sense::{Senses, ultralytics::Detector};
 
 #[test]
@@ -126,7 +126,10 @@ fn real_onnx_pose_on_the_person_box() {
         .max_by(|a, b| a.confidence.total_cmp(&b.confidence))
         .expect("a person")
         .bbox;
-    let request = Probe::Pose { bbox };
+    let request = Probe::Pose {
+        bbox,
+        purpose: PosePurpose::Subject,
+    };
     assert!(senses.look(&image, &request).0.is_ok()); // calentamiento
     let mut times = Vec::new();
     for _ in 0..5 {

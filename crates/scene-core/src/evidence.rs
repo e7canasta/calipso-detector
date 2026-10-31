@@ -27,6 +27,9 @@ pub(crate) struct Body {
     /// Where it falls for the geometry's shadow, if asked for: it decides
     /// nothing (white book, volume VII, ch. 11).
     pub shadow: Option<BodyShadow>,
+    /// The knee measured on its pose, if it was doubtful and asked (white
+    /// book, volume VII, ch. 15).
+    pub knee_deg: Option<f32>,
 }
 
 /// A body off the bed, and whether it is near it.
@@ -37,6 +40,8 @@ pub(crate) struct FloorBody {
     pub source: BodySource,
     /// Where it falls for the geometry's shadow, if asked for.
     pub shadow: Option<BodyShadow>,
+    /// The knee measured on its pose, if it was doubtful and asked.
+    pub knee_deg: Option<f32>,
 }
 
 /// The accepted bodies of a sample, per zone, from most to least confident.
@@ -240,6 +245,7 @@ fn admit_from(
                 detection: *d,
                 source,
                 shadow: None,
+                knee_deg: None,
             }),
         }
     }
@@ -265,6 +271,7 @@ fn admit_from(
                 near_bed,
                 source: d.source,
                 shadow: None,
+                knee_deg: None,
             }),
         }
     }

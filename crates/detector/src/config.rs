@@ -933,6 +933,7 @@ impl Config {
                 share: two.share,
                 support_m: two.support_m,
                 near_m: two.near_m,
+                knee_bent_deg: None,
             });
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
@@ -1420,7 +1421,8 @@ mod tests {
             Some(TwoPlanesPolicy {
                 share: 0.45,
                 support_m: 0.10,
-                near_m: 0.60
+                near_m: 0.60,
+                knee_bent_deg: None,
             })
         );
         // Frontal said out loud is frontal, with the hash of its own section.

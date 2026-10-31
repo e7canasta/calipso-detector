@@ -88,7 +88,7 @@ impl Senses {
                 Some(port) => boxes(port.as_mut(), frame, Some(region.rect())).map(Reading::Faces),
                 None => Err(Failure::Model),
             },
-            Probe::Pose { bbox } => match self.pose.as_mut() {
+            Probe::Pose { bbox, .. } => match self.pose.as_mut() {
                 Some(port) => pose(port.as_mut(), frame, *bbox).map(Reading::Pose),
                 None => Err(Failure::Model),
             },

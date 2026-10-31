@@ -297,6 +297,11 @@ pub struct BodySeen {
     /// asks for it. It decides nothing (white book, volume VII, ch. 11).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<BodyShadow>,
+    /// The hip–knee–ankle angle, in degrees, when the body was doubtful and
+    /// its pose was asked before believing: bent, the room put it in bed
+    /// (white book, volume VII, ch. 15).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub knee_deg: Option<f32>,
 }
 
 /// What happened with faces in this sample.

@@ -534,6 +534,11 @@
           "const": "pose"
         },
         {
+          "description": "A doubtful body's pose, before believing.",
+          "type": "string",
+          "const": "pose_body"
+        },
+        {
           "description": "The depth at image points.",
           "type": "string",
           "const": "depth"

@@ -6,7 +6,7 @@ use crate::body::Keypoint;
 use crate::evidence::Admission;
 use crate::geom::{Point, Rect};
 use crate::head::HeadPlace;
-use crate::look::{DepthPurpose, DepthTarget, FaceRegion, Probe, Ticket};
+use crate::look::{DepthPurpose, DepthTarget, FaceRegion, PosePurpose, Probe, Ticket};
 use crate::policy::FacePolicy;
 
 /// Probe and continuation are created together; their fields cannot be
@@ -105,7 +105,10 @@ impl Waiting {
     /// The pose over `region`; the subject's `bbox` goes on as the motion reference.
     pub(super) fn pose(observed: Observed, bbox: Rect, region: Rect) -> Self {
         Self::new(
-            Probe::Pose { bbox: region },
+            Probe::Pose {
+                bbox: region,
+                purpose: PosePurpose::Subject,
+            },
             Continuation::Pose { observed, bbox },
         )
     }

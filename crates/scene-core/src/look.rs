@@ -25,10 +25,13 @@ pub enum Probe {
         /// The bed grown by the policy's padding.
         region: Rect,
     },
-    /// The pose over the subject's box.
+    /// The pose over a body's box: the subject's, or a doubtful body's before
+    /// believing (white book, volume VII, ch. 15). The sense does the same.
     Pose {
-        /// Where to look: the subject's box grown by the pose policy's margin.
+        /// Where to look: the body's box grown by the pose policy's margin.
         bbox: Rect,
+        /// Whose pose it is.
+        purpose: PosePurpose,
     },
     /// The depth at these points.
     Depth {
@@ -149,6 +152,15 @@ pub struct Verified {
     pub answer: Answer,
 }
 
+/// Whose pose is asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PosePurpose {
+    /// The subject's, after believing: the second level and layer 1.
+    Subject,
+    /// A doubtful body's, before believing: the room places it with it.
+    Body,
+}
+
 /// What the depth is measured for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DepthPurpose {
@@ -165,7 +177,14 @@ impl Probe {
             Probe::Detect { .. } => LookKind::Detect,
             Probe::Faces { .. } => LookKind::Faces,
             Probe::Reinforce { .. } => LookKind::Reinforce,
-            Probe::Pose { .. } => LookKind::Pose,
+            Probe::Pose {
+                purpose: PosePurpose::Subject,
+                ..
+            } => LookKind::Pose,
+            Probe::Pose {
+                purpose: PosePurpose::Body,
+                ..
+            } => LookKind::PoseBody,
             Probe::Depth {
                 purpose: DepthPurpose::Subject,
                 ..
@@ -185,7 +204,7 @@ impl Probe {
             Probe::Detect { region } => *region,
             Probe::Faces { region } => Some(region.rect()),
             Probe::Reinforce { region } => Some(*region),
-            Probe::Pose { bbox } => Some(*bbox),
+            Probe::Pose { bbox, .. } => Some(*bbox),
             Probe::Depth { region, .. } => *region,
             Probe::Verify { region, .. } | Probe::Keep { region, .. } => Some(*region),
         }
@@ -336,6 +355,8 @@ pub enum LookKind {
     Reinforce,
     /// The subject's pose.
     Pose,
+    /// A doubtful body's pose, before believing.
+    PoseBody,
     /// The depth at image points.
     Depth,
     /// The depth of the empty bed, to learn it.
@@ -354,6 +375,7 @@ impl LookKind {
             Self::Faces => "faces",
             Self::Reinforce => "reinforce",
             Self::Pose => "pose",
+            Self::PoseBody => "pose_body",
             Self::Depth => "depth",
             Self::Calibrate => "calibrate",
             Self::Verify => "verify",

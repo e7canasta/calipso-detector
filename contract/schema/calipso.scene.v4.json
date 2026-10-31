@@ -444,6 +444,14 @@
           "type": "number",
           "format": "float"
         },
+        "knee_deg": {
+          "description": "The hip–knee–ankle angle, in degrees, when the body was doubtful and\nits pose was asked before believing: bent, the room put it in bed\n(white book, volume VII, ch. 15).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "near_bed": {
           "description": "On the floor: whether it touches the grown bed. Absent in bed.",
           "type": [
@@ -1123,6 +1131,11 @@
           "description": "The subject's pose.",
           "type": "string",
           "const": "pose"
+        },
+        {
+          "description": "A doubtful body's pose, before believing.",
+          "type": "string",
+          "const": "pose_body"
         },
         {
           "description": "The depth at image points.",
