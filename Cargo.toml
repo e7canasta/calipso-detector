@@ -15,3 +15,13 @@ missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Debug and test builds keep what a panic or a failing test needs, the file
+# and the line, and nothing more. Full debug info was 85% of every test
+# binary (a 425 MB `bdd`), multiplied by every test target (2026-10-31).
+[profile.dev]
+debug = "line-tables-only"
+
+# The dependencies (ONNX Runtime, FFmpeg, tokio, ...) without debug info.
+[profile.dev.package."*"]
+debug = false
