@@ -61,6 +61,9 @@ pub(crate) struct Chronicled {
     pub bed: Stamp<BedKind>,
     pub verdict: Stamp<Option<VerdictState>>,
     pub bed_posture: Stamp<Option<BedPostureState>>,
+    /// The first sample of the bed posture before this turn's: since when what
+    /// we believed held. `None` if this turn did not change it or it was undated.
+    pub bed_posture_transition_since: Option<SampleRef>,
     pub observed: Option<SampleRef>,
     /// The sample of the transition before this turn's: since when what we
     /// believed held. `None` if this turn had no transition or it is the first.
@@ -213,11 +216,14 @@ impl Chronicle {
             Some(Some(change)) => self.parts = Some(change),
             Some(None) => {}
         }
+        let bed_posture_held_since = self.bed_posture.since;
+        let bed_posture = self.bed_posture.update(bed_posture, at);
         Chronicled {
             room: self.room.update(room, at),
             bed: self.bed.update(bed, at),
             verdict: self.verdict.update(verdict, at),
-            bed_posture: self.bed_posture.update(bed_posture, at),
+            bed_posture_transition_since: bed_posture.changed_from.and(bed_posture_held_since),
+            bed_posture,
             observed: self.observed,
             transition_since,
             last_transition: self.transition.as_ref().map(|(_, key)| *key),

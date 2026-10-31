@@ -74,6 +74,136 @@
     "body"
   ],
   "$defs": {
+    "BedPostureBefore": {
+      "description": "The bed posture before a change.",
+      "type": "object",
+      "properties": {
+        "lasted_secs": {
+          "description": "Source seconds since `since`; `None` without `since` or across sessions.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "since": {
+          "description": "Its first sample; `None` if it was never dated.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "The state.",
+          "$ref": "#/$defs/BedPostureState"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "BedPostureChange": {
+      "description": "A layer-1 change: the bed posture of the resident left lying, with the\nshape of a layer-0 transition. Only a change while it is followed is a\nrow of `contract/bed-posture-table.txt`; getting into and out of bed are\nlayer 0's events.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "description": "The state we believe.",
+          "$ref": "#/$defs/BedPostureState"
+        },
+        "at": {
+          "description": "The sample in which the new state held.",
+          "$ref": "#/$defs/SampleRef"
+        },
+        "before": {
+          "description": "The state we believed, and since when.",
+          "$ref": "#/$defs/BedPostureBefore"
+        },
+        "cell": {
+          "description": "The row this change crossed: `before | seen | after`.",
+          "type": "string"
+        },
+        "seen": {
+          "description": "What this sample saw.",
+          "$ref": "#/$defs/BedPostureSeen"
+        }
+      },
+      "required": [
+        "at",
+        "cell",
+        "before",
+        "seen",
+        "after"
+      ]
+    },
+    "BedPostureSeen": {
+      "description": "What a sample brought to layer 1, as published: held in bed when layer 0\nholds the resident (there is nothing of theirs to see), otherwise what\nlayer 1 perceived.",
+      "oneOf": [
+        {
+          "description": "Held in bed, alone: unseen without leaving.",
+          "type": "string",
+          "const": "held"
+        },
+        {
+          "description": "The head seen away from the headboard, but not past the bed's sides:\nby definition, not lying.",
+          "type": "string",
+          "const": "head_away"
+        },
+        {
+          "description": "The head seen past the bed's sides.",
+          "type": "string",
+          "const": "head_side"
+        },
+        {
+          "description": "A foot seen past the bed's sides: getting up from below.",
+          "type": "string",
+          "const": "legs_out"
+        },
+        {
+          "description": "The head at the headboard and the disparity of lying.",
+          "type": "string",
+          "const": "headboard_lying"
+        },
+        {
+          "description": "The head at the headboard and the disparity of sitting up: against the\nheadboard.",
+          "type": "string",
+          "const": "headboard_upright"
+        },
+        {
+          "description": "Nothing that says how they are: the state holds.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "BedPostureState": {
+      "description": "How the resident in bed is, as layer 1 believes it.",
+      "oneOf": [
+        {
+          "description": "In bed, not yet believed lying: they just came in, or were there at\nstartup. From here only lying is reported.",
+          "type": "string",
+          "const": "in_bed"
+        },
+        {
+          "description": "Lying: held in bed, where upright would be seen; or seen with the head\nat the headboard and the disparity of lying.",
+          "type": "string",
+          "const": "lying"
+        },
+        {
+          "description": "Sat up, after lying: the head seen away from the headboard. Sliding\ndown the bed is sitting up too, on purpose: it deserves a look (G-13).",
+          "type": "string",
+          "const": "sitting_up"
+        },
+        {
+          "description": "Getting out, after lying: the head or the feet seen past the bed's\nsides.",
+          "type": "string",
+          "const": "getting_out"
+        }
+      ]
+    },
     "BedState": {
       "description": "Is someone in the bed?",
       "oneOf": [
@@ -290,7 +420,7 @@
       ]
     },
     "Event": {
-      "description": "A message of `events.v4`. Within a turn they come out in order: `sensor`,\n`transition`, `map`, `derived`, `parts`.",
+      "description": "A message of `events.v4`. Within a turn they come out in order: `sensor`,\n`transition`, `map`, `derived`, `parts`, `bed_posture`.",
       "oneOf": [
         {
           "description": "A layer-0 change, with its facts.",
@@ -358,6 +488,20 @@
             }
           },
           "$ref": "#/$defs/MapEvent",
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "A layer-1 change: the bed posture.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "bed_posture"
+            }
+          },
+          "$ref": "#/$defs/BedPostureChange",
           "required": [
             "kind"
           ]

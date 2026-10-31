@@ -11,10 +11,10 @@ use crate::belief::{self, Alone, BedPhase, Fact, InBed, Occupants, Tally};
 use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::contract::v4::{
-    Attention, Before, Cause, Cell, Context, DerivedBody, DerivedEvent, Evidence,
-    Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState, Mode, Occupancy,
-    PartsAfter, PartsBefore, PartsChange, PartsSeen, Phase, Rbh, Republished, Room, SampleRef,
-    Seen, SensorBody, SensorEvent, SensorState, Span, Transition,
+    Attention, BedPostureBefore, BedPostureChange, Before, Cause, Cell, Context, DerivedBody,
+    DerivedEvent, Evidence, Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState,
+    Mode, Occupancy, PartsAfter, PartsBefore, PartsChange, PartsSeen, Phase, Rbh, Republished,
+    Room, SampleRef, Seen, SensorBody, SensorEvent, SensorState, Span, Transition,
 };
 pub(crate) use crate::contract::v4::{Event, Scene};
 use crate::map::BedCalibrated;
@@ -101,6 +101,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         sensor,
         dwell_secs,
     } = observation;
+    let bed_posture_changed = bed_posture_change(at, bed_posture.as_ref(), chronicled);
     let republished = unobserved(&evidence.bodies.bodies, chronicled.observed);
     let evidence = project_evidence(&evidence, believed.subject.as_ref(), &attention);
     let subject = publish_subject(
@@ -140,7 +141,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         republished,
     };
     let parts_changed = parts.and_then(|p| p.transition);
-    let events = events(
+    let mut events = events(
         at,
         changed.as_ref(),
         parts_changed.as_ref(),
@@ -149,6 +150,8 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         after,
         &scene,
     );
+    // Layer 1 last: it reads layer 0, as its row does.
+    events.extend(bed_posture_changed.map(Event::BedPosture));
     (scene, events)
 }
 
@@ -202,6 +205,35 @@ fn events(
         parts_changed.map(|t| Event::Parts(parts_change(t, chronicled.parts_transition_since))),
     );
     events
+}
+
+/// A change of layer 1 while it is followed: a row of its table, with since
+/// when the state we believed held. Starting or stopping to follow is not a
+/// row: getting into and out of bed are layer 0's.
+fn bed_posture_change(
+    at: SampleRef,
+    now: Option<&crate::belief::bed_posture::Concluded>,
+    chronicled: &Chronicled,
+) -> Option<BedPostureChange> {
+    let now = now?;
+    let before = chronicled.bed_posture.changed_from.flatten()?;
+    let since = chronicled.bed_posture_transition_since;
+    Some(BedPostureChange {
+        at,
+        cell: format!(
+            "{} | {} | {}",
+            before.as_str(),
+            now.seen.as_str(),
+            now.state.as_str()
+        ),
+        before: BedPostureBefore {
+            state: before,
+            since,
+            lasted_secs: since.and_then(|since| at.secs_since(since)),
+        },
+        seen: now.seen,
+        after: now.state,
+    })
 }
 
 /// A change of the parts' places, with since when the places we believed

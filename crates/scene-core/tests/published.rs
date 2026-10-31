@@ -149,6 +149,8 @@ pub fn facts(output: &Output) -> Vec<Fact> {
             // A change of the parts' places carries no facts: it is not on
             // layer 0's tape.
             Event::Parts(_) => {}
+            // Nor does a change of layer 1: its row is in its own table.
+            Event::BedPosture(_) => {}
             Event::Sensor(s) => {
                 let SensorBody::SensorChanged { from, to } = s.body;
                 rows.push(Fact {

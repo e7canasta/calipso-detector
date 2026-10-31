@@ -40,6 +40,18 @@ pub enum BedPostureState {
     GettingOut,
 }
 
+impl BedPostureState {
+    /// The state as the contract names it: a cell is written with it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::InBed => "in_bed",
+            Self::Lying => "lying",
+            Self::SittingUp => "sitting_up",
+            Self::GettingOut => "getting_out",
+        }
+    }
+}
+
 /// What layer 1 perceives by itself in a sample, from a fresh pose: the
 /// second level's half of the row's input; layer 0's state is the other.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -84,6 +96,19 @@ pub enum BedPostureSeen {
 }
 
 impl BedPostureSeen {
+    /// What was seen as the contract names it: a cell is written with it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Held => "held",
+            Self::HeadAway => "head_away",
+            Self::HeadSide => "head_side",
+            Self::LegsOut => "legs_out",
+            Self::HeadboardLying => "headboard_lying",
+            Self::HeadboardUpright => "headboard_upright",
+            Self::Unknown => "unknown",
+        }
+    }
+
     /// The row's input, as published: layer 0's state and what layer 1
     /// perceived.
     pub(crate) fn of(l0: InBed, sighting: Sighting) -> Self {
@@ -116,4 +141,33 @@ pub struct BedPosture {
     pub seen: BedPostureSeen,
     /// The first sample of this state, without interruption.
     pub since: SampleRef,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BedPostureSeen, BedPostureState};
+
+    fn wire<T: serde::Serialize>(value: T) -> serde_json::Value {
+        serde_json::to_value(value).expect("serializes")
+    }
+
+    #[test]
+    fn the_names_of_a_cell_are_the_wire_names() {
+        use BedPostureState::*;
+        for state in [InBed, Lying, SittingUp, GettingOut] {
+            assert_eq!(wire(state), state.as_str());
+        }
+        use BedPostureSeen::*;
+        for seen in [
+            Held,
+            HeadAway,
+            HeadSide,
+            LegsOut,
+            HeadboardLying,
+            HeadboardUpright,
+            Unknown,
+        ] {
+            assert_eq!(wire(seen), seen.as_str());
+        }
+    }
 }

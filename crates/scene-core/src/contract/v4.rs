@@ -285,6 +285,35 @@ pub struct PartsAfter {
     pub places: String,
 }
 
+/// A layer-1 change: the bed posture of the resident left lying, with the
+/// shape of a layer-0 transition. Only a change while it is followed is a
+/// row of `contract/bed-posture-table.txt`; getting into and out of bed are
+/// layer 0's events.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BedPostureChange {
+    /// The sample in which the new state held.
+    pub at: SampleRef,
+    /// The row this change crossed: `before | seen | after`.
+    pub cell: String,
+    /// The state we believed, and since when.
+    pub before: BedPostureBefore,
+    /// What this sample saw.
+    pub seen: BedPostureSeen,
+    /// The state we believe.
+    pub after: BedPostureState,
+}
+
+/// The bed posture before a change.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BedPostureBefore {
+    /// The state.
+    pub state: BedPostureState,
+    /// Its first sample; `None` if it was never dated.
+    pub since: Option<SampleRef>,
+    /// Source seconds since `since`; `None` without `since` or across sessions.
+    pub lasted_secs: Option<f64>,
+}
+
 /// A change in what was published, computed by comparing turns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -370,7 +399,7 @@ pub struct MapEvent {
 }
 
 /// A message of `events.v4`. Within a turn they come out in order: `sensor`,
-/// `transition`, `map`, `derived`, `parts`.
+/// `transition`, `map`, `derived`, `parts`, `bed_posture`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Event {
@@ -384,6 +413,8 @@ pub enum Event {
     Sensor(SensorEvent),
     /// What the map learned.
     Map(MapEvent),
+    /// A layer-1 change: the bed posture.
+    BedPosture(BedPostureChange),
 }
 
 impl Event {
@@ -395,6 +426,7 @@ impl Event {
             Self::Derived(e) => e.at,
             Self::Sensor(e) => e.at,
             Self::Map(e) => e.at,
+            Self::BedPosture(e) => e.at,
         }
     }
 }

@@ -308,8 +308,13 @@ layer 1, never the other way round.
   (`attention::head_place`); the depth look and layer 1 read it.
 
 `chronicle` dates the state (`bed_posture` since) and `project` publishes
-`subject.bed_posture { state, seen, since }`, additively in v4. The events
-of its transitions wait for v5.
+`subject.bed_posture { state, seen, since }`, additively in v4. Each change
+of the stable state while it is followed is a `bed_posture` event in
+`events.v4`, also additive (the readers are ours, 2026-10-31): `{ at, cell,
+before { state, since, lasted_secs }, seen, after }`, last in the turn. The
+cell is a row of its golden table, `before | seen | after`. Starting or
+stopping to follow is not a row and publishes nothing: getting into and out
+of bed are layer 0's events.
 
 ### The occupancy of the parts (`belief/parts/`)
 
