@@ -9,9 +9,22 @@
 //! The crops (P7) are the map's: `Map::focus_region` and its siblings.
 
 use crate::geom::{Point, Quad, Rect, Zone};
-use crate::head::HeadPlaceState;
 use crate::map::{BedArea, BedPlane, Geometry, Map};
 use crate::policy::AdmissionPolicy;
+
+/// Where a point of the head falls against the bed and its headboard: the
+/// geometry's answer, which `head` turns into the fact it publishes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HeadArea {
+    /// In the headboard.
+    Headboard,
+    /// In bed, away from the headboard.
+    Bed,
+    /// Past the bed's sides (`u < 0` or `u > 1`).
+    PastTheSides,
+    /// Anywhere else, or without the bed's plane.
+    Elsewhere,
+}
 
 /// Where a body falls in the room.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,14 +110,14 @@ impl Frontal {
 
     /// P3: where a point of the head falls: the headboard first; away from
     /// it, in the bed's `u/v`, past its sides or inside it.
-    pub(crate) fn head_place(&self, p: Point) -> HeadPlaceState {
+    pub(crate) fn head_area(&self, p: Point) -> HeadArea {
         if self.in_headboard(p) {
-            return HeadPlaceState::AtHeadboard;
+            return HeadArea::Headboard;
         }
         match self.plane.map(|plane| plane.locate(p)) {
-            None | Some(BedArea::PastTheEnds) => HeadPlaceState::Elsewhere,
-            Some(BedArea::Inside) => HeadPlaceState::BelowHeadboard,
-            Some(BedArea::PastTheSides) => HeadPlaceState::AtSide,
+            None | Some(BedArea::PastTheEnds) => HeadArea::Elsewhere,
+            Some(BedArea::Inside) => HeadArea::Bed,
+            Some(BedArea::PastTheSides) => HeadArea::PastTheSides,
         }
     }
 
@@ -211,8 +224,8 @@ mod tests {
         assert!(!room.in_bed(p) && !room.past_the_sides(p));
         assert!(!room.box_in_bed(&Rect::new(0.0, 0.0, 2.0, 2.0)));
         assert_eq!(room.beyond_side(p), None);
-        assert_eq!(room.head_place(p), HeadPlaceState::AtHeadboard);
+        assert_eq!(room.head_area(p), HeadArea::Headboard);
         let away = Point { x: 50.0, y: 50.0 };
-        assert_eq!(room.head_place(away), HeadPlaceState::Elsewhere);
+        assert_eq!(room.head_area(away), HeadArea::Elsewhere);
     }
 }

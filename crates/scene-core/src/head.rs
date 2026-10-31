@@ -8,7 +8,7 @@ use crate::body::{Joint, Keypoint};
 use crate::evidence::FaceEvidence;
 use crate::geom::Point;
 use crate::policy::Policy;
-use crate::room::Frontal;
+use crate::room::{Frontal, HeadArea};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +39,18 @@ pub enum HeadPlaceState {
     Elsewhere,
     /// Without the headboard delimited, or without a face or a head in sight.
     Unknown,
+}
+
+impl From<HeadArea> for HeadPlaceState {
+    /// The room's answer, as the fact of the head.
+    fn from(area: HeadArea) -> Self {
+        match area {
+            HeadArea::Headboard => Self::AtHeadboard,
+            HeadArea::Bed => Self::BelowHeadboard,
+            HeadArea::PastTheSides => Self::AtSide,
+            HeadArea::Elsewhere => Self::Elsewhere,
+        }
+    }
 }
 
 /// What the head's place was concluded from.
@@ -128,11 +140,14 @@ pub(crate) fn place(
             x: head.iter().map(|k| k.x).sum::<f32>() / n,
             y: head.iter().map(|k| k.y).sum::<f32>() / n,
         };
-        return HeadPlace::of(room.head_place(centroid), HeadEvidence::PoseHead);
+        return HeadPlace::of(room.head_area(centroid).into(), HeadEvidence::PoseHead);
     }
     match faces.first() {
         None => HeadPlace::UNKNOWN,
-        Some(face) => HeadPlace::of(room.head_place(face.bbox.centroid()), HeadEvidence::Face),
+        Some(face) => HeadPlace::of(
+            room.head_area(face.bbox.centroid()).into(),
+            HeadEvidence::Face,
+        ),
     }
 }
 
