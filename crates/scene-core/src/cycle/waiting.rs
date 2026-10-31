@@ -1,9 +1,9 @@
 //! Builds each probe with its continuation.
 
 use super::{Observed, Refined};
-use crate::attention::{DepthLook, SubjectDepthLook, VerifyLook};
+use crate::attention::{BodyPoseLook, DepthLook, SubjectDepthLook, VerifyLook};
 use crate::body::Keypoint;
-use crate::evidence::Admission;
+use crate::evidence::{Admission, Perceived};
 use crate::geom::{Point, Rect};
 use crate::head::HeadPlace;
 use crate::look::{DepthPurpose, DepthTarget, FaceRegion, PosePurpose, Probe, Ticket};
@@ -30,6 +30,11 @@ pub(super) enum Continuation {
         bodies: Admission,
         region: FaceRegion,
         policy: FacePolicy,
+    },
+    /// A doubtful body's pose, before believing: the floor body it is.
+    PoseBody {
+        perceived: Perceived,
+        floor: usize,
     },
     Calibrate {
         observed: Observed,
@@ -87,6 +92,20 @@ impl Waiting {
                 bodies,
                 region,
                 policy,
+            },
+        )
+    }
+
+    /// A doubtful body's pose over `look.region`, before believing.
+    pub(super) fn pose_body(perceived: Perceived, look: BodyPoseLook) -> Self {
+        Self::new(
+            Probe::Pose {
+                bbox: look.region,
+                purpose: PosePurpose::Body,
+            },
+            Continuation::PoseBody {
+                perceived,
+                floor: look.floor,
             },
         )
     }

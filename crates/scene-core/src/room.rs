@@ -11,6 +11,7 @@
 //!
 //! The crops (P7) are the map's: `Map::focus_region` and its siblings.
 
+use crate::body::{Joint, Keypoint};
 use crate::geom::{Point, Quad, Rect, Zone};
 use crate::map::{BedArea, BedPlane, Geometry, Map};
 use crate::policy::{AdmissionPolicy, Policy, TwoPlanesPolicy};
@@ -34,6 +35,22 @@ pub(crate) enum HeadArea {
 pub(crate) enum BodyZone {
     Bed,
     Floor { near_bed: bool },
+}
+
+/// A body the box alone cannot place (white book, volume VII, ch. 15): its
+/// pose is asked before believing. When there are several, the one with the
+/// most of its box over the mattress is asked.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Doubt {
+    /// The share of its box over the mattress.
+    pub(crate) share: f32,
+}
+
+/// Where a doubtful body is with its pose, and the knee measured on it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Posed {
+    pub(crate) zone: BodyZone,
+    pub(crate) knee_deg: Option<f32>,
 }
 
 /// The room's geometry of a turn: the piece the profile chose. Frontal
@@ -66,6 +83,24 @@ impl Room {
         match &self.two_planes {
             Some(two) => two.body_zone(bbox),
             None => self.frontal.body_zone(bbox),
+        }
+    }
+
+    /// P1 in doubt: can the box alone not place this body? Frontal always
+    /// can; in two planes, only with the knee in the profile.
+    pub(crate) fn doubtful(&self, bbox: &Rect) -> Option<Doubt> {
+        self.two_planes.as_ref()?.doubtful(bbox)
+    }
+
+    /// P1 with the pose: where a body is when its pose was seen. Only a
+    /// doubtful body can change zone; any other is where its box puts it.
+    pub(crate) fn posed(&self, bbox: &Rect, pose: &[Keypoint], min_score: f32) -> Posed {
+        match &self.two_planes {
+            Some(two) => two.posed(bbox, pose, min_score),
+            None => Posed {
+                zone: self.frontal.body_zone(bbox),
+                knee_deg: None,
+            },
         }
     }
 
@@ -145,12 +180,7 @@ impl TwoPlanes {
     /// support close to the footprint; on the floor otherwise, near the bed
     /// with the support within the policy's distance.
     fn body_zone(&self, bbox: &Rect) -> BodyZone {
-        let support = Point {
-            x: bbox.centroid().x,
-            y: bbox.y1,
-        };
-        let (u, v) = self.floor.project(support);
-        let distance = distance_m(u as f32, v as f32, self.size);
+        let distance = self.support_m(bbox);
         if self.mattress.share(bbox) >= self.policy.share && distance <= self.policy.support_m {
             return BodyZone::Bed;
         }
@@ -158,6 +188,78 @@ impl TwoPlanes {
             near_bed: distance <= self.policy.near_m,
         }
     }
+
+    /// Doubtful: with the knee in the profile, on the floor by its support
+    /// alone, with enough of the box over the mattress.
+    fn doubtful(&self, bbox: &Rect) -> Option<Doubt> {
+        self.policy.knee_bent_deg?;
+        let share = self.mattress.share(bbox);
+        (share >= self.policy.share && self.support_m(bbox) > self.policy.support_m)
+            .then_some(Doubt { share })
+    }
+
+    /// A doubtful body with its knee bent to the policy's angle or less rests
+    /// its pelvis on the mattress: in bed. Straight, or without a knee in
+    /// sight, it stays where its box puts it.
+    fn posed(&self, bbox: &Rect, pose: &[Keypoint], min_score: f32) -> Posed {
+        let zone = self.body_zone(bbox);
+        let knee_deg = knee_deg(pose, min_score);
+        let bent = matches!(
+            (self.policy.knee_bent_deg, knee_deg),
+            (Some(bent), Some(knee)) if knee <= bent
+        );
+        Posed {
+            zone: if bent && self.doubtful(bbox).is_some() {
+                BodyZone::Bed
+            } else {
+                zone
+            },
+            knee_deg,
+        }
+    }
+
+    /// How far the box's support is from the footprint, in metres.
+    fn support_m(&self, bbox: &Rect) -> f32 {
+        let support = Point {
+            x: bbox.centroid().x,
+            y: bbox.y1,
+        };
+        let (u, v) = self.floor.project(support);
+        distance_m(u as f32, v as f32, self.size)
+    }
+}
+
+/// The hip–knee–ankle angle of a pose in COCO order, in degrees: 180 is a
+/// straight leg. Each joint is the midpoint of the sides seen; without a hip,
+/// a knee or an ankle in sight, none.
+pub(crate) fn knee_deg(pose: &[Keypoint], min_score: f32) -> Option<f32> {
+    let joint = |sides: [Joint; 2]| {
+        let seen: Vec<&Keypoint> = sides
+            .iter()
+            .filter_map(|&j| {
+                let i = Joint::COCO.iter().position(|&c| c == j)?;
+                pose.get(i).filter(|k| k.is_seen(min_score))
+            })
+            .collect();
+        let n = seen.len() as f32;
+        (!seen.is_empty()).then(|| Point {
+            x: seen.iter().map(|k| k.x).sum::<f32>() / n,
+            y: seen.iter().map(|k| k.y).sum::<f32>() / n,
+        })
+    };
+    let hip = joint([Joint::LeftHip, Joint::RightHip])?;
+    let knee = joint([Joint::LeftKnee, Joint::RightKnee])?;
+    let ankle = joint([Joint::LeftAnkle, Joint::RightAnkle])?;
+    let (a, b) = (
+        (hip.x - knee.x, hip.y - knee.y),
+        (ankle.x - knee.x, ankle.y - knee.y),
+    );
+    let lengths = a.0.hypot(a.1) * b.0.hypot(b.1);
+    if lengths <= 0.0 {
+        return None;
+    }
+    let cos = ((a.0 * b.0 + a.1 * b.1) / lengths).clamp(-1.0, 1.0);
+    Some(cos.acos().to_degrees())
 }
 
 /// How far a point in bed coordinates is from the bed, in metres: past a side
@@ -347,6 +449,31 @@ mod tests {
         // Standing beside the bed, at its side: little of the box is in it.
         let beside = Rect::new(400.0, 300.0, 470.0, 500.0);
         assert!(!diagonal(Some(0.7)).box_in_bed(&beside));
+    }
+
+    /// A pose with only the hips, knees and ankles at these points, both
+    /// sides at the same place.
+    fn legs(hip: (f32, f32), knee: (f32, f32), ankle: (f32, f32), score: f32) -> Vec<Keypoint> {
+        let at = |(x, y): (f32, f32), score| Keypoint { x, y, score };
+        let mut pose = vec![at((0.0, 0.0), 0.0); 11];
+        for (p, s) in [(hip, 0.9), (knee, 0.9), (ankle, score)] {
+            pose.extend([at(p, s), at(p, s)]);
+        }
+        pose
+    }
+
+    #[test]
+    fn the_knee_is_straight_standing_and_bent_sitting() {
+        // White book, volume VII, annex A, A2: dig1 at 145 s and at 90 s.
+        let standing = legs((1267.0, 810.0), (1237.0, 923.0), (1221.0, 1024.0), 0.9);
+        let sitting = legs((1450.0, 767.0), (1527.0, 833.0), (1512.0, 941.0), 0.9);
+        let knee = |pose: &[Keypoint]| knee_deg(pose, 0.5).map(f32::round);
+        assert_eq!(knee(&standing), Some(174.0));
+        assert_eq!(knee(&sitting), Some(123.0));
+        // Without the ankles in sight there is no knee.
+        let covered = legs((1450.0, 767.0), (1527.0, 833.0), (1512.0, 941.0), 0.1);
+        assert_eq!(knee_deg(&covered, 0.5), None);
+        assert_eq!(knee_deg(&[], 0.5), None);
     }
 
     #[test]

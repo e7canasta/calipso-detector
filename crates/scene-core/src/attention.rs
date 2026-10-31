@@ -407,6 +407,44 @@ pub(crate) fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegi
     )
 }
 
+/// A doubtful body's pose: which floor body (its index among the sample's
+/// floor bodies) and where to look.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct BodyPoseLook {
+    pub(crate) floor: usize,
+    pub(crate) region: Rect,
+}
+
+/// Ask for a doubtful body's pose, before believing (white book, volume VII,
+/// ch. 15)? The room says which bodies its box cannot place; one look per
+/// turn, for the one with the most of its box over the mattress, over its box
+/// grown by the pose's margin. Without a pose model, nothing to decide;
+/// without a doubtful body, nothing to ask.
+pub(crate) fn pose_bodies(
+    g: &Glimpse<'_>,
+    room: Option<&crate::room::Room>,
+    policy: &Policy,
+) -> Consideration<BodyPoseLook> {
+    let Some(enrich) = &policy.enrich else {
+        return Consideration::Disabled;
+    };
+    let (Some(room), Some(bodies)) = (room, g.bodies.seen()) else {
+        return Consideration::Inapplicable;
+    };
+    bodies
+        .floor
+        .iter()
+        .enumerate()
+        .filter_map(|(i, b)| Some((i, b, room.doubtful(&b.detection.bbox)?)))
+        .max_by(|(_, _, a), (_, _, b)| a.share.total_cmp(&b.share))
+        .map_or(Consideration::Inapplicable, |(floor, b, _)| {
+            Consideration::Decided(Decision::Ask(BodyPoseLook {
+                floor,
+                region: b.detection.bbox.expand(enrich.crop_pad),
+            }))
+        })
+}
+
 /// Ask for the pose? Second attention point, after believing: only with a
 /// subject (a single occupant) seen in this sample, and only if it moved since
 /// the last pose or, with a maximum age, if the last one expired. Without

@@ -55,6 +55,19 @@ pub struct OccupancyConfig {
     /// The thresholds of the room in two planes; required with it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub two_planes: Option<TwoPlanesConfig>,
+    /// The knee of a doubtful body, in two planes (white book, volume VII,
+    /// ch. 15); it needs `[senses.pose]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub knee: Option<KneeConfig>,
+}
+
+/// `TwoPlanesPolicy::knee_bent_deg`: a doubtful body's knee bent to this many
+/// degrees or less puts it in bed.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct KneeConfig {
+    /// The hip–knee–ankle angle, in (0, 180).
+    pub bent_deg: f32,
 }
 
 /// The pieces of the room's geometry.
@@ -871,6 +884,20 @@ impl Config {
                 }
                 (RoomGeometry::Frontal, None) => {}
             }
+            if let Some(knee) = &occupancy.knee {
+                ensure!(
+                    occupancy.geometry == RoomGeometry::TwoPlanes,
+                    "occupancy.knee needs occupancy.geometry = \"two_planes\""
+                );
+                ensure!(
+                    self.senses.pose.is_some(),
+                    "occupancy.knee needs [senses.pose]: the knee is read on the pose"
+                );
+                ensure!(
+                    knee.bent_deg.is_finite() && knee.bent_deg > 0.0 && knee.bent_deg < 180.0,
+                    "occupancy.knee.bent_deg: an angle in degrees, in (0, 180)"
+                );
+            }
         }
         if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
             ensure!(within(points), "map.headboard: points outside resolution");
@@ -933,7 +960,11 @@ impl Config {
                 share: two.share,
                 support_m: two.support_m,
                 near_m: two.near_m,
-                knee_bent_deg: None,
+                knee_bent_deg: self
+                    .occupancy
+                    .as_ref()
+                    .and_then(|o| o.knee.as_ref())
+                    .map(|knee| knee.bent_deg),
             });
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
@@ -1475,6 +1506,37 @@ mod tests {
             } else {
                 text.replace(from, to)
             };
+            let error = Config::parse(&text).unwrap_err();
+            assert!(error.to_string().contains(field), "{error}");
+        }
+    }
+
+    #[test]
+    fn the_knee_needs_two_planes_and_the_pose_validates_and_leaves_the_hash_when_absent() {
+        let map = "bed_floor = [[110, 150], [490, 150], [490, 430], [110, 430]]\nbed_size_m = [0.9, 2.0]\n";
+        let with_map = VALID.replacen("[map]\n", &format!("[map]\n{map}"), 1);
+        let pose = "\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\n";
+        let occupancy = "\n[occupancy]\ngeometry = \"two_planes\"\n\n[occupancy.two_planes]\nshare = 0.45\nsupport_m = 0.10\nnear_m = 0.60\n";
+        let knee = "\n[occupancy.knee]\nbent_deg = 150\n";
+        let without = Config::parse(&format!("{with_map}{pose}{occupancy}")).unwrap();
+        let with = Config::parse(&format!("{with_map}{pose}{occupancy}{knee}")).unwrap();
+        assert_eq!(without.policy().two_planes.unwrap().knee_bent_deg, None);
+        assert_eq!(with.policy().two_planes.unwrap().knee_bent_deg, Some(150.0));
+        assert_ne!(
+            without.profile().unwrap().hash,
+            with.profile().unwrap().hash
+        );
+        for (text, field) in [
+            (format!("{with_map}{occupancy}{knee}"), "[senses.pose]"),
+            (
+                format!("{with_map}{pose}\n[occupancy]\ngeometry = \"frontal\"\n{knee}"),
+                "occupancy.knee needs occupancy.geometry",
+            ),
+            (
+                format!("{with_map}{pose}{occupancy}{}", knee.replace("150", "180")),
+                "occupancy.knee.bent_deg",
+            ),
+        ] {
             let error = Config::parse(&text).unwrap_err();
             assert!(error.to_string().contains(field), "{error}");
         }

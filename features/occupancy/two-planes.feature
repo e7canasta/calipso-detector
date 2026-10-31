@@ -41,7 +41,6 @@ Feature: The room in two planes
   # on the foot of the bed, 200,250 to 300,480: 0.65 of the box over the
   # mattress, its support 40 px past the footprint's foot, 0.27 m.
 
-  @wip
   Scenario: In two planes with the knee, sitting on the foot of the bed with the knee bent is in bed
     Given the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
     And there is a pose model
@@ -51,7 +50,6 @@ Feature: The room in two planes
     And the body is in the "bed"
     And the body's knee measured at most 150 degrees
 
-  @wip
   Scenario: In two planes with the knee, standing by the foot with the leg straight stays on the floor, near the bed
     Given the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
     And there is a pose model
@@ -62,7 +60,6 @@ Feature: The room in two planes
     And the body is near the bed
     And the body's knee measured more than 150 degrees
 
-  @wip
   Scenario: In two planes with the knee, a doubtful body without its ankles in sight stays on the floor
     Given the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
     And there is a pose model
@@ -72,7 +69,6 @@ Feature: The room in two planes
     And the body is on the "floor"
     And the body's knee was not measured
 
-  @wip
   Scenario: In two planes with the knee, a doubtful body stays on the floor if the pose fails
     Given the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
     And there is a pose model
@@ -81,7 +77,6 @@ Feature: The room in two planes
     Then the pose for a doubtful body failed
     And the body is on the "floor"
 
-  @wip
   Scenario: In two planes with the knee, lying in bed is not doubtful
     Given the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
     And there is a pose model
@@ -90,7 +85,6 @@ Feature: The room in two planes
     Then the pose was not asked for any doubtful body
     And the body is in the "bed"
 
-  @wip
   Scenario: In two planes without the knee, no pose is asked before believing
     Given the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
     And there is a pose model

@@ -134,7 +134,8 @@ and a test lowers one to the other (C5).
 
 One turn, in order: detect over the whole image, or over the focus while the
 resident is alone in bed (§3.1); widen to the whole image if the focus did
-not confirm?; admit bodies per zone; reinforce a loss in bed?; believe (stabilize, conserve, derive the subject);
+not confirm?; admit bodies per zone; reinforce a loss in bed?; faces?; a
+doubtful body's pose, for the room to place it (§3.2)?; believe (stabilize, conserve, derive the subject);
 calibrate, pose (and where the head is), depth?; conclude the enrichment; the
 second level reads it and layer 1 steps (§5, layer 1); a doubt worth the slow
 verifier? (a doubtful digit first, then the held body; the answer arrives
@@ -163,8 +164,25 @@ exists:
   each `detect` (`null`: the whole frame); a widened turn has two.
 
 ```text
-Primary(focus | whole) → [Widen] → [Reinforce] → [Faces] → believe → …
+Primary(focus | whole) → [Widen] → [Reinforce] → [Faces] → [PoseBodies] → believe → …
 ```
+
+### 3.2 The doubtful body: its pose before believing
+
+A body the box alone cannot place is **doubtful**, and only the room says
+which (`Room::doubtful`): in two planes with the knee in the profile, one left
+on the floor by its support with enough of its box over the mattress (sitting
+on the foot of the bed, or standing at it). Frontal never has one, so the step
+does not exist for it and nobody outside `room` asks which piece it got.
+
+- `attention::pose_bodies` asks for the pose of the doubtful body with the
+  most box over the mattress, one per turn (`Probe::Pose` with
+  `PosePurpose::Body`, ledger kind `pose_body`).
+- `evidence::pose_body` hands the pose to the room (`Room::posed`): a knee
+  bent to `knee_bent_deg` or less moves the body from the floor to the bed. A
+  failing pose, or no knee in sight, leaves it on the floor (rule 1).
+- The body published carries `knee_deg`. Layer 0 decides where the pelvis is;
+  sitting stays layer 1's (white book, volume VII, ch. 15).
 
 ## 4. Mechanism and policy
 

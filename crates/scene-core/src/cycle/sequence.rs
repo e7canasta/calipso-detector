@@ -7,8 +7,8 @@ use super::waiting::{Continuation, Waiting};
 use super::{Course, Engine, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
-    self, BurstStep, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome,
-    LookResult, SkipReason, SubjectDepthLook, VerifyLook,
+    self, BodyPoseLook, BurstStep, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look,
+    LookOutcome, LookResult, SkipReason, SubjectDepthLook, VerifyLook,
 };
 use crate::belief::{Believed, Enrichment};
 use crate::body::Keypoint;
@@ -32,6 +32,8 @@ enum Reached {
     Primary(Admission),
     /// With the sample's bodies (consolidated with reinforcement, if any).
     Bodies(Admission),
+    /// With the bodies and the faces, before placing a doubtful body.
+    Perceived(Perceived),
     /// With all the evidence.
     Evidence(Perceived),
     /// With the updated belief.
@@ -84,7 +86,7 @@ impl Course<'_> {
     /// requested or the turn goes on.
     ///
     /// ```text
-    /// Primary → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → refine → [Verify] → conclude
+    /// Primary → [Widen] → [Reinforce] → [Faces] → [PoseBodies] → believe → [Calibrate] → [Pose → [Depth]] → refine → [Verify] → conclude
     /// ```
     fn next(&mut self, mut reached: Reached) -> Phase {
         loop {
@@ -111,10 +113,18 @@ impl Course<'_> {
                     if let Some((region, policy)) = self.wanted(LookKind::Faces, considered) {
                         return Phase::Waiting(Waiting::faces(bodies, region, policy));
                     }
-                    Reached::Evidence(Perceived {
+                    Reached::Perceived(Perceived {
                         bodies,
                         faces: FaceEvidence::NotLooked,
                     })
+                }
+                // A doubtful body to place with its pose, before believing?
+                Reached::Perceived(perceived) => {
+                    let considered = self.pose_bodies(&perceived);
+                    if let Some(look) = self.wanted(LookKind::PoseBody, considered) {
+                        return Phase::Waiting(Waiting::pose_body(perceived, look));
+                    }
+                    Reached::Evidence(perceived)
                 }
                 // Believe.
                 Reached::Evidence(mut evidence) => {
@@ -247,10 +257,24 @@ impl Course<'_> {
             } => {
                 let faces = evidence::faces(outcome.faces(), region.rect(), &policy);
                 self.asked(probe, spent, faces.result);
-                Reached::Evidence(Perceived {
+                Reached::Perceived(Perceived {
                     bodies,
                     faces: faces.faces,
                 })
+            }
+            Continuation::PoseBody {
+                mut perceived,
+                floor,
+            } => {
+                let result = evidence::pose_body(
+                    &mut perceived.bodies,
+                    floor,
+                    outcome.into_pose(),
+                    self.room().as_ref(),
+                    &self.monitor.engine.policy,
+                );
+                self.asked(probe, spent, result);
+                Reached::Evidence(perceived)
             }
             Continuation::Calibrate { mut observed } => {
                 let (depth, result) = evidence::depth(outcome.depths());
@@ -440,6 +464,11 @@ impl Course<'_> {
     fn faces(&self, bodies: &Admission) -> Consideration<(FaceRegion, FacePolicy)> {
         let g = self.glimpse(bodies, &FaceEvidence::NotLooked);
         attention::faces(&g, &self.monitor.engine.policy)
+    }
+
+    fn pose_bodies(&self, perceived: &Perceived) -> Consideration<BodyPoseLook> {
+        let g = self.glimpse(&perceived.bodies, &perceived.faces);
+        attention::pose_bodies(&g, self.room().as_ref(), &self.monitor.engine.policy)
     }
 
     fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
