@@ -26,25 +26,38 @@ pub(super) struct Settled {
 #[derive(Debug, Clone, Copy, Default)]
 struct Window {
     far_at_rest: u32,
+    near_at_rest: u32,
     floor_at_rest: u32,
     from_door: u32,
     passing: u32,
+    /// How many extra were already seen near the bed: whoever of them is
+    /// later far walked away, and did not come from the door (rule 5, refined).
+    walked: u32,
 }
 
 impl Window {
     /// The raw count matches the stable one: nobody is on the way.
     fn rest(&mut self, bodies: &Bodies) {
+        let floor = bodies.counts().floor;
         *self = Self {
             far_at_rest: bodies.far(),
-            floor_at_rest: bodies.counts().floor,
+            near_at_rest: floor - bodies.far(),
+            floor_at_rest: floor,
             from_door: 0,
             passing: 0,
+            walked: 0,
         };
     }
 
-    fn track(&mut self, bodies: &Bodies) {
+    /// `near_first`: rule 5, refined (white book, volume VII, ch. 17): those
+    /// seen near the bed before are not from the door when they are far.
+    fn track(&mut self, bodies: &Bodies, near_first: bool) {
         let extra = |now: u32, rest: u32| now.saturating_sub(rest);
-        self.from_door = self.from_door.max(extra(bodies.far(), self.far_at_rest));
+        let far = extra(bodies.far(), self.far_at_rest);
+        let walked = if near_first { self.walked } else { 0 };
+        self.from_door = self.from_door.max(far.saturating_sub(walked));
+        let near = bodies.counts().floor - bodies.far();
+        self.walked = self.walked.max(extra(near, self.near_at_rest));
         self.passing = self
             .passing
             .max(extra(bodies.counts().floor, self.floor_at_rest));
@@ -88,21 +101,23 @@ impl Span {
     pub(super) fn new_session(&mut self) {
         self.window.from_door = 0;
         self.window.passing = 0;
+        self.window.walked = 0;
     }
 
     /// One sample. If the new count held as required, returns the span that
-    /// closed, and the span goes back to rest.
+    /// closed, and the span goes back to rest. `near_first`: rule 5, refined.
     pub(super) fn observe(
         &mut self,
         at: SampleRef,
         bodies: &Bodies,
         p: &Persistence,
+        near_first: bool,
     ) -> Option<Settled> {
         let raw = bodies.counts();
         if raw == self.counts.stable() {
             self.window.rest(bodies);
         } else {
-            self.window.track(bodies);
+            self.window.track(bodies, near_first);
         }
         let Change { from, to, first } = self.counts.observe(at, raw, p)?;
         let seen = Seen {

@@ -62,12 +62,14 @@ impl Machine {
     /// A sample with bodies per zone: it stabilizes and, if the count changed,
     /// applies the moves that explain it and returns the transition. The
     /// machine does not emit: its caller decides what to do with it.
+    /// `held_left` and `near_first`: rules 4 bis and 5 refined, the profile's.
     pub(in crate::belief) fn step(
         &mut self,
         at: SampleRef,
         bodies: &Bodies,
         p: &Persistence,
         held_left: bool,
+        near_first: bool,
     ) -> Option<Transition> {
         if self.session.is_some_and(|previous| previous != at.session) {
             self.span.new_session();
@@ -85,7 +87,7 @@ impl Machine {
                 at,
             });
         }
-        let settled = self.span.observe(at, bodies, p)?;
+        let settled = self.span.observe(at, bodies, p, near_first)?;
         let before = Before {
             stable: settled.from,
             held: count(self.held.len()),

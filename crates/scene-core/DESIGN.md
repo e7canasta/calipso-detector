@@ -440,6 +440,7 @@ One concept, one name.
 | evolve | `evolve` | How a movement moves the counts |
 | held | `held`, `HeldBody`, `InBed::Held` | Stopped being seen in bed without leaving: still there (rule 1) |
 | side exit | `Movement::HeldLeft`, `Policy::held_left` | Rule 4 bis, a capability of the profile: with someone held in bed, a body that appears on the floor near the bed, not from the door, is the held one who got up by the side. Published as `left_bed` (white book, volume VII, ch. 05) |
+| near first | `Policy::near_first` | Rule 5, refined, a capability of the profile: whoever appeared near the bed and then walked away while the count stabilized did not come from the door; they got up and are heading for it (white book, volume VII, ch. 17) |
 | unexplained | `unexplained` | A body in bed that did not come from the floor (rule 6) |
 | adopt | `BedPhase::Adopting`, `Movement::Adopted` | Before the first climb in, whatever appears in bed is adopted |
 | fact | `Fact`, `Happened` | What happened, in the past tense: `Entered`, `Adopted`, `LayDown`, `HeldInBed`, …; `Happened` carries it with the occupants it leaves |

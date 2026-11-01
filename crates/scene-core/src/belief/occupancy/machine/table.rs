@@ -151,11 +151,11 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
     let mut t = 1.0;
     if matches!(context, Context::Passing) {
         let before = (r - b).max(f) + 1;
-        transitions.extend(z.step(at(t), &bodies(before, 0, v), &PERSISTENCE, held_left));
+        transitions.extend(z.step(at(t), &bodies(before, 0, v), &PERSISTENCE, held_left, false));
         t += 0.5;
     }
-    transitions.extend(z.step(at(t), &end, &PERSISTENCE, held_left));
-    transitions.extend(z.step(at(t + 1.0), &end, &PERSISTENCE, held_left));
+    transitions.extend(z.step(at(t), &end, &PERSISTENCE, held_left, false));
+    transitions.extend(z.step(at(t + 1.0), &end, &PERSISTENCE, held_left, false));
     (z, transitions)
 }
 

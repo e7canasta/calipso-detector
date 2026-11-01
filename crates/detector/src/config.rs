@@ -63,6 +63,11 @@ pub struct OccupancyConfig {
     /// (white book, volume VII, ch. 05). Off by default; any geometry.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub held_left: bool,
+    /// `Policy::near_first`, rule 5 refined: whoever appeared near the bed
+    /// and walked away did not come from the door (white book, volume VII,
+    /// ch. 17). Off by default; any geometry.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub near_first: bool,
 }
 
 /// `TwoPlanesPolicy::knee_bent_deg`: a doubtful body's knee bent to this many
@@ -971,6 +976,7 @@ impl Config {
                     .map(|knee| knee.bent_deg),
             });
         p.held_left = self.occupancy.as_ref().is_some_and(|o| o.held_left);
+        p.near_first = self.occupancy.as_ref().is_some_and(|o| o.near_first);
         p.persistence.dwell_secs = self.policy.dwell_secs;
         p.reinforce = self
             .senses
@@ -1524,6 +1530,23 @@ mod tests {
         let on = Config::parse(&format!("{VALID}\n[occupancy]\nheld_left = true\n")).unwrap();
         assert!(!off.policy().held_left);
         assert!(on.policy().held_left);
+        assert_ne!(off.profile().unwrap().hash, on.profile().unwrap().hash);
+    }
+
+    #[test]
+    fn near_first_is_off_unless_asked_and_leaves_the_hash_when_absent() {
+        // An `[occupancy]` already in the profile: the key alone is measured.
+        let occupancy = format!("{VALID}\n[occupancy]\nheld_left = true\n");
+        let baseline = Config::parse(&occupancy).unwrap();
+        assert!(!baseline.policy().near_first);
+        let off = Config::parse(&format!("{occupancy}near_first = false\n")).unwrap();
+        let on = Config::parse(&format!("{occupancy}near_first = true\n")).unwrap();
+        assert!(!off.policy().near_first);
+        assert!(on.policy().near_first);
+        assert_eq!(
+            baseline.profile().unwrap().hash,
+            off.profile().unwrap().hash
+        );
         assert_ne!(off.profile().unwrap().hash, on.profile().unwrap().hash);
     }
 
