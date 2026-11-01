@@ -136,6 +136,19 @@ failing sense). Tests are shell and stay outside.
 *Guardian:* `#![deny(clippy::{unwrap_used, expect_used, panic, unreachable,
 todo, unimplemented, indexing_slicing})]` in the library, with its fixture.
 
+### 23. Space has one owner
+
+`room` answers every question of space (in bed or on the floor, near the bed,
+where a head or a part falls against the bed) with named facts, never with a
+plane or a polygon. The camera's geometry (`Frontal`, `TwoPlanes`) is chosen
+there and nowhere else. `room` remembers nothing and asks nothing of the
+layers above it: what a layer concludes from space (where the head is, the
+posture) belongs to that layer.
+
+*Guardian:* `scripts/check.sh`: the bed's plane (`BedPlane`) only in `map`
+and `room` (fixture `space-outside-room`), and `room` imports no layer above
+it (fixture `room-reads-a-layer`).
+
 ## Part III — How we work
 
 ### 14. Specification before code
