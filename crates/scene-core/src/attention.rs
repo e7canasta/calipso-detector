@@ -4,7 +4,7 @@
 //! in `cycle` (rule 11).
 
 use crate::belief::bed_posture::BedPostureState;
-use crate::belief::{Alone, Belief, Believed, InBed, LatchState, Room};
+use crate::belief::{Alone, Belief, Believed, InBed, Room};
 use crate::body::Keypoint;
 use crate::estimation;
 use crate::evidence::BodyEvidence;
@@ -74,13 +74,27 @@ pub(crate) enum EnrichPlan {
 }
 
 /// What attention remembers of what it already looked at, and nothing else:
-/// the main detector's lens and the last time the empty bed was measured.
-/// Attention reads it; `cycle` notes each look.
+/// the main detector's lens, the reinforcement latch and the last time the
+/// empty bed was measured. Attention reads it; `cycle` notes each look.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct Memory {
     lens: Lens,
+    latch: LatchState,
     /// The last calibration attempt, for the retry delay.
     calibration_attempt: Option<SampleRef>,
+}
+
+/// The reinforcement latch: "someone was seen in bed", so a loss there can
+/// be looked at again, once.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum LatchState {
+    /// Nobody was seen in bed.
+    #[default]
+    Disarmed,
+    /// The main detector saw someone in bed: if lost, it can be reinforced.
+    Armed,
+    /// This loss was already reinforced.
+    Spent,
 }
 
 impl Memory {
@@ -89,8 +103,30 @@ impl Memory {
     pub(crate) fn of(calibration_attempt: Option<SampleRef>) -> Self {
         Self {
             lens: Lens::default(),
+            latch: LatchState::default(),
             calibration_attempt,
         }
+    }
+
+    pub(crate) fn latch(&self) -> LatchState {
+        self.latch
+    }
+
+    /// The main detector saw `primary_bed` in bed, and layer 0 has `bed_seen`
+    /// seen in bed once it believed: someone seen in bed arms the latch; with
+    /// nobody seen in bed, there is no loss to reinforce.
+    pub(crate) fn rearm(&mut self, primary_bed: u32, bed_seen: u32) {
+        if primary_bed > 0 {
+            self.latch = LatchState::Armed;
+        } else if bed_seen == 0 {
+            self.latch = LatchState::Disarmed;
+        }
+    }
+
+    /// Reinforcement looked: the latch is spent until the main detector sees
+    /// someone in bed again.
+    pub(crate) fn reinforced(&mut self) {
+        self.latch = LatchState::Spent;
     }
 
     /// The main detector read the whole frame in this sample.

@@ -342,7 +342,6 @@ round is integrated.
 
 | Debt | Why | Round |
 |---|---|---|
-| The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | verifying the held occupant (book 4) |
 | The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
 | `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Their descriptions say so; renaming them changes the wire, so it waits for the next contract version (C2), together with the positional `rbh` and `fv` | next contract version |
 | The scene's `last_event_seq` is written by the NATS actor (the last event delivered), not where the stream is numbered | The transport writes into the published body: the in-memory sink and NATS agree only while no event is dropped. Moving it changes what the field means to its consumers (C1) | next contract version |

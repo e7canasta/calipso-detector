@@ -71,7 +71,7 @@ flowchart TB
         cycle["cycle<br/>Monitor, Turn: la vuelta y su orden (Course::next)"]
         attention["attention<br/>qué más mirar; solo lee"]
         evidence["evidence<br/>qué lectura cuenta; cuerpos por zona"]
-        belief["belief<br/>capa 0 (occupancy::Machine), sujeto, latch"]
+        belief["belief<br/>capa 0 (occupancy::Machine), sujeto"]
         mapm["map<br/>geometría del sitio y cama aprendida"]
         sensor["sensor<br/>estado de recepción"]
         refine["refine<br/>nivel 2: acostado de verdad, postura"]
@@ -155,10 +155,8 @@ classDiagram
     class Belief {
         -Machine occupancy
         -SubjectMemory subject
-        -LatchState latch
         observe(at, &Admission, &Policy) Believed
         observe_body(at, Believed, Enrichment) Believed
-        reinforced()
     }
     class Chronicle {
         record(Entry) Chronicled

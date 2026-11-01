@@ -424,6 +424,8 @@ One concept, one name.
 | near (in metres) | `ShadowPolicy::near_m`, `MapShadow::near` | Near the bed as a distance: the footprint grown by this many metres in its own coordinates, not the bed's bounding box grown by a fraction |
 | widen | `attention::widen` | The focus did not confirm what is believed: the same turn looks at the whole frame before believing |
 | sentinel, lens | `FocusPolicy::wide_every_secs`, `attention::Lens` | The whole frame at least this often; the lens remembers when it was last read |
+| attention memory | `attention::Memory`, `Engine::attention_memory` | What attention remembers of what it already looked at, and nothing else: the lens, the reinforcement latch and the last calibration attempt. `cycle` notes each look in it; attention's policies read it |
+| reinforcement latch | `attention::LatchState` | Someone was seen in bed by the main detector, so losing them there can be reinforced, once per loss. Part of attention's memory, not of the belief |
 | reading | `Reading` | What the shell returns for a probe |
 | evidence | `evidence` | Which reading counts and how much it is worth; it never decides what is believed |
 | box | `look::Detection` | What a detector returns: a rectangle, a score and a class. It is evidence of a body, not a body |
@@ -493,7 +495,7 @@ matters as much as the second.
 | `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |
 | `belief/parts` | The occupancy of the subject's parts: where each part is and what is held | changes a count or reads the posture |
 | `refine` | The second level: lying, posture by body groups, the arbiter's verdict (a golden table) and what layer 1 saw (`seen`) | writes the belief or changes a count |
-| `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); the main detector's lens (`Lens`: when it last read the whole frame) | mutates the belief |
+| `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); its memory (`Memory`: the lens, the reinforcement latch and the last calibration attempt) | mutates the belief |
 | `body` | Body vocabulary: the COCO-17 pose and its depth | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
@@ -540,7 +542,6 @@ round is integrated.
 | Debt | Why | Round |
 |---|---|---|
 | The verification plane is imperative (`issue`, `settle`, `expire` in `verification.rs`), not a decider with a golden table like layers 0 and 1 | The burst (white book III, ch. 12) adds a phase to V; its rows belong in a table, each with its scenario and mutation, not in loose logic | V as a pure machine: first a refactor that keeps every cell, then the burst |
-| The reinforcement latch lives in `Belief` and its firing in `attention` | It moves memory between belief and attention; it is part of verifying the held occupant | verifying the held occupant (book 4) |
 | The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
 | `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Their descriptions say so; renaming them changes the wire, so it waits for the next contract version (C2), together with the positional `rbh` and `fv` | next contract version |
 | The scene's `last_event_seq` is written by the NATS actor (the last event delivered), not where the stream is numbered | The transport writes into the published body: the in-memory sink and NATS agree only while no event is dropped. Moving it changes what the field means to its consumers (C1) | next contract version |

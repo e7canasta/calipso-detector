@@ -61,24 +61,10 @@ pub(crate) enum Fact {
 pub(crate) struct Belief {
     occupancy: Machine,
     subject: SubjectMemory,
-    latch: LatchState,
     /// Layer 1: followed only with its policy.
     bed_posture: bed_posture::Machine,
     /// The occupancy of the subject's parts, at layer 0's compass.
     parts: parts::Machine,
-}
-
-/// The reinforcement memory: "someone was seen in bed". It is belief; firing
-/// it is attention.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) enum LatchState {
-    /// Nobody was seen in bed.
-    #[default]
-    Disarmed,
-    /// The main detector saw someone in bed: if lost, it can be reinforced.
-    Armed,
-    /// This loss was already reinforced.
-    Spent,
 }
 
 /// The subject as layer 0 believes it: the only occupant, where and with what
@@ -103,10 +89,6 @@ pub(crate) struct Believed {
 }
 
 impl Belief {
-    pub(crate) fn latch(&self) -> LatchState {
-        self.latch
-    }
-
     /// The room's mode, as layer 0 believes it.
     pub(crate) fn room(&self) -> Room {
         self.occupancy.room()
@@ -191,12 +173,6 @@ impl Belief {
             .step(at, subject, seen.unwrap_or_default(), &policy.persistence)
     }
 
-    /// Reinforcement looked: the latch is spent until the main detector sees
-    /// someone in bed again.
-    pub(crate) fn reinforced(&mut self) {
-        self.latch = LatchState::Spent;
-    }
-
     /// Updates the belief with the bodies of a sample. A failure or a sample
     /// without zones proves nothing: they do not change the count (rule 1).
     pub(crate) fn observe(
@@ -210,7 +186,6 @@ impl Belief {
             self.occupancy
                 .step(at, bodies, &policy.persistence, policy.held_left)
         });
-        self.rearm(admission.primary.bed);
         let subject = self.subject_now(current);
         if subject.is_none() {
             self.subject.forget();
@@ -221,16 +196,6 @@ impl Belief {
             subject,
             body: None,
             transition,
-        }
-    }
-
-    /// The main detector saw someone in bed: if lost, it can be reinforced.
-    /// With nobody seen in bed, there is no loss to reinforce.
-    fn rearm(&mut self, primary_bed: u32) {
-        if primary_bed > 0 {
-            self.latch = LatchState::Armed;
-        } else if self.occupancy.seen().bed == 0 {
-            self.latch = LatchState::Disarmed;
         }
     }
 

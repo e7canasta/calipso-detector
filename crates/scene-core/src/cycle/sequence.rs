@@ -262,7 +262,7 @@ impl Course<'_> {
                 // The loss counts as checked only if reinforcement looked: a
                 // failing reinforcement is requested again on the next sample.
                 if outcome.result.is_ok() {
-                    self.monitor.engine.belief.reinforced();
+                    self.monitor.engine.attention_memory.reinforced();
                 }
                 let (bodies, result) = evidence::consolidate(
                     primary,
@@ -487,8 +487,13 @@ impl Course<'_> {
 
     fn reinforce(&self, primary: &Admission) -> Consideration<Rect> {
         let g = self.glimpse(primary, &FaceEvidence::NotLooked);
-        let Engine { policy, belief, .. } = &self.monitor.engine;
-        attention::reinforce(&g, belief.bed_seen(), belief.latch(), policy)
+        let Engine {
+            policy,
+            belief,
+            attention_memory,
+            ..
+        } = &self.monitor.engine;
+        attention::reinforce(&g, belief.bed_seen(), attention_memory.latch(), policy)
     }
 
     fn faces(&self, bodies: &Admission) -> Consideration<(FaceRegion, FacePolicy)> {
@@ -632,9 +637,11 @@ impl Course<'_> {
             policy,
             belief,
             verification,
+            attention_memory,
             ..
         } = &mut self.monitor.engine;
         let believed = belief.observe(self.at, bodies, policy);
+        attention_memory.rearm(bodies.primary.bed, belief.bed_seen());
         verification.observe_held(belief.held_since(), self.at, policy);
         believed
     }
