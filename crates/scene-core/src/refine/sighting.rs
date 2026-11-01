@@ -7,6 +7,7 @@
 //! reads in those places ([`BodyPlaces::sighting`]). The places are facts; the
 //! reading is a decision list over them.
 
+use super::head::HeadPlaceState;
 use super::{Posture, PostureState};
 use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
@@ -16,7 +17,6 @@ use crate::policy::EnrichPolicy;
 use crate::policy::{Band, VerifyPolicy};
 use crate::provenance::Provenance;
 use crate::room::Room;
-use crate::room::head::HeadPlaceState;
 
 /// Where each part of the body layer 1 reads is, in one sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

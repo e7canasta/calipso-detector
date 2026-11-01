@@ -21,7 +21,6 @@ use crate::policy::AdmissionPolicy;
 use crate::policy::Policy;
 
 mod frontal;
-pub(crate) mod head;
 pub(crate) mod shadow;
 mod two_planes;
 

@@ -95,8 +95,7 @@ check_cycle_sequences
 # The questions of space have one owner (white book, volume VII, ch. 01): the
 # layers ask `room` and get named facts back. The bed's plane stays with the
 # map, which crops with it, the room's pieces, which answer with it, and the
-# shadow, which measures a geometry that does not decide yet. `room/head.rs`
-# asks the room like any layer.
+# shadow, which measures a geometry that does not decide yet.
 check_space_has_one_owner() {
   local found
   found=$(grep -rl 'BedPlane' crates/scene-core/src \

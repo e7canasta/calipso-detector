@@ -14,11 +14,11 @@ use crate::geom::Rect;
 pub use crate::look::{Failure, LookKind};
 pub use crate::map::{Calibration, FrameInfo, Geometry, MapState};
 pub use crate::provenance::Provenance;
+pub use crate::refine::head::{HeadEvidence, HeadPlace, HeadPlaceState};
 pub use crate::refine::{
     BodyGroup, BodyGroups, Disparities, Head, Lying, LyingState, Posture, PostureState, Verdict,
     VerdictState,
 };
-pub use crate::room::head::{HeadEvidence, HeadPlace, HeadPlaceState};
 pub use crate::room::shadow::{BodyShadow, PlanePoint, ShadowPlane};
 pub use crate::sensor::SensorState;
 pub use crate::time::{SampleRef, SessionId, SourceSecs};

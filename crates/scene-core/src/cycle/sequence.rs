@@ -19,8 +19,8 @@ use crate::geom::{Point, Rect};
 use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
+use crate::refine::head::HeadPlace;
 use crate::room::Room;
-use crate::room::head::HeadPlace;
 use crate::sensor::SensorChanged;
 use crate::verification::Collecting;
 
@@ -561,7 +561,7 @@ impl Course<'_> {
     }
 
     fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
-        crate::room::head::of_turn(
+        crate::refine::head::of_turn(
             &observed.evidence.faces,
             pose,
             self.room.as_ref(),

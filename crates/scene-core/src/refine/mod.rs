@@ -3,6 +3,7 @@
 //! concluded pose and returns its own result; it never writes the belief or
 //! changes a count (second-level rule 1). `project` builds the published scene.
 
+pub(crate) mod head;
 mod lying;
 pub(crate) mod parts;
 mod posture;
