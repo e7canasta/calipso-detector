@@ -5,32 +5,14 @@
 use std::sync::Arc;
 
 use super::{Course, Engine, Input, Monitor, NoFrame, Open, Output, Phase, Turn};
-use crate::attention::{self, Attention};
-use crate::belief::Belief;
+use crate::attention::Attention;
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
 use crate::look::Verified;
-use crate::map::{CalibrationMemory, Geometry, SiteMap};
+use crate::map::{Geometry, SiteMap};
 use crate::policy::Policy;
 use crate::project::v4;
-use crate::sensor::SensorMemory;
 use crate::time::SampleRef;
-use crate::verification::Verification;
-
-impl Engine {
-    fn new(policy: Policy, map: SiteMap) -> Self {
-        Self {
-            policy,
-            calibration: CalibrationMemory::from(&map),
-            attention_memory: attention::Memory::of(map.calibration_attempt),
-            map: map.into(),
-            belief: Belief::default(),
-            sensor: SensorMemory::default(),
-            verification: Verification::default(),
-            frame: None,
-        }
-    }
-}
 
 impl Input {
     fn at(&self) -> SampleRef {

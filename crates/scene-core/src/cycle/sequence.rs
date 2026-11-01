@@ -3,6 +3,7 @@
 //! requested or the turn goes on, and every answer is interpreted by
 //! `evidence`, `belief` or `map`.
 
+use super::engine::Issued;
 use super::waiting::{Continuation, Waiting};
 use super::{Course, Engine, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
@@ -61,14 +62,7 @@ impl Course<'_> {
     /// always runs. Neither a reconnection nor another image size releases
     /// anyone: the belief starts from scratch only with the process.
     pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
-        let Engine {
-            policy,
-            belief,
-            verification,
-            ..
-        } = &mut self.monitor.engine;
-        verification.settle(self.at, belief);
-        verification.expire(self.at, policy, belief);
+        self.monitor.engine.settle(self.at);
         self.monitor.engine.frame = Some(frame);
         self.geometry = self.monitor.engine.map.gate(frame);
         let Engine {
@@ -329,32 +323,14 @@ impl Course<'_> {
                 Reached::Enriched(observed, enrichment)
             }
             Continuation::Keep { refined } => {
-                let Engine {
-                    policy,
-                    verification,
-                    ..
-                } = &mut self.monitor.engine;
-                let sharpness_policy = policy.verify.as_ref().and_then(|v| v.sharpness);
-                let result = match outcome.kept() {
-                    Ok(sharpness) => {
-                        let counted =
-                            verification.kept(self.at, sharpness, sharpness_policy.as_ref());
-                        LookResult::Kept { sharpness, counted }
-                    }
-                    Err(failure) => {
-                        verification.failed();
-                        LookResult::failed(failure)
-                    }
-                };
+                let result = self.monitor.engine.kept(self.at, outcome.kept());
                 self.asked(probe, spent, result);
                 // The burst is ready: the question goes out now, with the chosen crops.
-                let verification = &mut self.monitor.engine.verification;
-                let ready = verification.collecting().cloned().and_then(|c| {
-                    attention::burst_ready(self.at, &c, sharpness_policy.as_ref())
-                        .map(|crops| (c, crops))
-                });
-                if let Some((burst, crops)) = ready {
-                    verification.dispatch(burst.ticket, self.at);
+                if let Some((burst, crops)) = self.burst_ready() {
+                    self.monitor
+                        .engine
+                        .verification
+                        .dispatch(burst.ticket, self.at);
                     return Phase::Waiting(Waiting::verify(
                         refined,
                         burst.ticket,
@@ -406,10 +382,10 @@ impl Course<'_> {
             min_score: engine.policy.enrich.as_ref().map(|e| e.min_keypoint_score),
         });
         // Layer 1, on layer 0 and what the second level perceived.
-        let at = self.at;
-        let Engine { policy, belief, .. } = &mut self.monitor.engine;
-        let parts = belief.observe_parts(at, seen, policy);
-        let bed_posture = belief.observe_bed_posture(at, refinement.sighting, policy);
+        let (parts, bed_posture) = self
+            .monitor
+            .engine
+            .follow(self.at, seen, refinement.sighting);
         Refined {
             observed,
             refinement,
@@ -534,24 +510,28 @@ impl Course<'_> {
         let Some(look) = self.wanted(LookKind::Verify, considered) else {
             return Phase::Concluded { refined };
         };
+        match self.monitor.engine.issue(self.at, &look) {
+            Issued::Now(ticket) => {
+                Phase::Waiting(Waiting::verify(refined, ticket, look, Vec::new()))
+            }
+            Issued::Collecting(ticket) => {
+                Phase::Waiting(Waiting::keep(refined, ticket, look.region))
+            }
+        }
+    }
+
+    /// The burst being collected, if it is ready to go out, with the crops
+    /// chosen.
+    fn burst_ready(&self) -> Option<(Collecting, Vec<u8>)> {
         let Engine {
             policy,
             verification,
             ..
-        } = &mut self.monitor.engine;
-        let burst = policy
-            .verify
-            .map(|v| v.frames.of(look.question))
-            .unwrap_or_default();
-        let sharpness = policy.verify.and_then(|v| v.sharpness);
-        let ticket = verification.issue(look.target, self.at, look.places);
-        // One frame and no sharpness to choose by: this sample's crop, now.
-        if burst.frames <= 1 && sharpness.is_none() {
-            verification.dispatch(ticket, self.at);
-            return Phase::Waiting(Waiting::verify(refined, ticket, look, Vec::new()));
-        }
-        verification.collect(ticket, look, burst, self.at);
-        Phase::Waiting(Waiting::keep(refined, ticket, look.region))
+        } = &self.monitor.engine;
+        let sharpness = policy.verify.as_ref().and_then(|v| v.sharpness);
+        let collecting = verification.collecting()?.clone();
+        let crops = attention::burst_ready(self.at, &collecting, sharpness.as_ref())?;
+        Some((collecting, crops))
     }
 
     /// The step of the burst being collected, if any, with the burst.
@@ -633,17 +613,7 @@ impl Course<'_> {
 
     /// With all the evidence: the belief is updated.
     fn believe(&mut self, bodies: &Admission) -> Believed {
-        let Engine {
-            policy,
-            belief,
-            verification,
-            attention_memory,
-            ..
-        } = &mut self.monitor.engine;
-        let believed = belief.observe(self.at, bodies, policy);
-        attention_memory.rearm(bodies.primary.bed, belief.bed_seen());
-        verification.observe_held(belief.held_since(), self.at, policy);
-        believed
+        self.monitor.engine.believe(self.at, bodies)
     }
 
     fn asked(&mut self, probe: &Probe, spent: Spent, result: LookResult) {

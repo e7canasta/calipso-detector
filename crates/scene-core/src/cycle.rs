@@ -6,6 +6,7 @@
 //!   state a turn carries;
 //! - `monitor`: what one camera is made of, how a turn opens and what comes
 //!   out of it;
+//! - `engine`: what the engine changes when the turn asks it;
 //! - `sequence`: the order of a turn, in a single place (`Course::next`);
 //! - `waiting`: each probe with its continuation.
 
@@ -25,6 +26,7 @@ use crate::sensor::{SensorChanged, SensorMemory, SensorState};
 use crate::time::SampleRef;
 use crate::verification::Verification;
 
+mod engine;
 mod monitor;
 mod sequence;
 mod waiting;
