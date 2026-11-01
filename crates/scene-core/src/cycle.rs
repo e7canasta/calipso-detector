@@ -20,6 +20,7 @@ use crate::evidence::Perceived;
 use crate::look::{Failure, Outcome, Probe, Reading, Spent};
 use crate::map::{BedCalibrated, FrameInfo, Geometry, Map};
 use crate::policy::Policy;
+use crate::room::Room;
 use crate::sensor::{SensorChanged, SensorMemory, SensorState};
 use crate::time::SampleRef;
 use crate::verification::Verification;
@@ -158,6 +159,10 @@ struct Course<'m> {
     monitor: &'m mut Monitor,
     at: SampleRef,
     geometry: Geometry,
+    /// The room of this turn, built once when it opens: every question of
+    /// space in the turn sees the same one. `None` without a sample, or if
+    /// the bed's geometry does not apply to its frame.
+    room: Option<Room>,
     attention: Attention,
 }
 

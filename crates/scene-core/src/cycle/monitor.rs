@@ -63,6 +63,7 @@ impl Monitor {
             monitor: self,
             at,
             geometry: Geometry::Valid,
+            room: None,
             attention: Attention::default(),
         };
         let phase = match input {

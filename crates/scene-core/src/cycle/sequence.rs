@@ -78,6 +78,7 @@ impl Course<'_> {
             lens,
             ..
         } = &self.monitor.engine;
+        self.room = Room::of(map, self.geometry, policy);
         let region = attention::primary_region(belief, lens, self.at, map, self.geometry, policy);
         Phase::Waiting(Waiting::primary(region))
     }
@@ -255,7 +256,7 @@ impl Course<'_> {
                 let (bodies, result) = evidence::consolidate(
                     primary,
                     outcome.bodies(),
-                    self.room().as_ref(),
+                    self.room.as_ref(),
                     &self.monitor.engine.policy.admission,
                 );
                 self.asked(probe, spent, result);
@@ -282,7 +283,7 @@ impl Course<'_> {
                     &mut perceived,
                     floor,
                     outcome.into_pose(),
-                    self.room().as_ref(),
+                    self.room.as_ref(),
                     &self.monitor.engine.policy,
                 );
                 self.asked(probe, spent, result);
@@ -371,7 +372,7 @@ impl Course<'_> {
     /// the digit the verifier filled if an answer arrived; layer 1 reads it.
     fn refine(&mut self, observed: Observed) -> Refined {
         let filled = self.monitor.engine.verification.take_filled();
-        let room = self.room();
+        let room = self.room;
         let engine = &self.monitor.engine;
         let refinement = crate::refine::refine(
             observed.believed.subject.as_ref().map(|s| s.zone),
@@ -480,7 +481,7 @@ impl Course<'_> {
 
     fn pose_bodies(&self, perceived: &Perceived) -> Consideration<BodyPoseLook> {
         let g = self.glimpse(&perceived.bodies, &perceived.faces);
-        attention::pose_bodies(&g, self.room().as_ref(), &self.monitor.engine.policy)
+        attention::pose_bodies(&g, self.room.as_ref(), &self.monitor.engine.policy)
     }
 
     fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
@@ -556,7 +557,7 @@ impl Course<'_> {
         crate::head::of_turn(
             &observed.evidence.faces,
             pose,
-            self.room().as_ref(),
+            self.room.as_ref(),
             &self.monitor.engine.policy,
         )
     }
@@ -587,18 +588,11 @@ impl Course<'_> {
 
     // --- Mechanism.
 
-    /// The room's geometry for this turn: every question of space goes to it.
-    /// `None` if the bed's geometry does not apply to the frame.
-    fn room(&self) -> Option<Room> {
-        let engine = &self.monitor.engine;
-        Room::of(&engine.map, self.geometry, &engine.policy)
-    }
-
     /// The main detector's reading, admitted by zones and noted in the ledger.
     fn admit(&mut self, probe: &Probe, outcome: Outcome) -> Admission {
         let admission = evidence::admit(
             outcome.bodies(),
-            self.room().as_ref(),
+            self.room.as_ref(),
             &self.monitor.engine.policy.admission,
         );
         self.asked(probe, outcome.spent, admission.result.clone());
