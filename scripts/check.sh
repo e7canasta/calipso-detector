@@ -106,6 +106,20 @@ check_space_has_one_owner() {
 step "space has one owner"
 check_space_has_one_owner
 
+# The room does not depend on the layers above it (DESIGN, glossary: head
+# area): it answers questions of space with the site, the policy and the
+# shared vocabulary, and whoever concludes something asks it. What the room
+# reads from the turn arrives as a point, never as a reading, a belief or a
+# decision.
+check_room_asks_nothing_above() {
+  local layers='evidence|look|belief|refine|attention|verification|cycle|conclusion|chronicle|project|contract|sensor'
+  local found
+  found=$(grep -rnE "crate::(\{[^}]*\b)?($layers)\b" crates/scene-core/src/room/ || true)
+  [ -z "$found" ] || fail "the room depends on a layer above it: $found"
+}
+step "the room asks nothing above it"
+check_room_asks_nothing_above
+
 step "tests"
 cargo test --workspace --quiet || fail "tests"
 

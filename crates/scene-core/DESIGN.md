@@ -93,6 +93,7 @@ What no change may break. Each one has someone watching it.
 | The parts decide as their golden table does (`contract/parts-table.txt`) | P2 | `belief/parts/rules/table.rs` |
 | The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
 | The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
+| The room does not depend on the layers above it: it answers with the site, the policy and the shared vocabulary, and whoever concludes something asks it | ADP (Martin) | `scripts/check.sh` (the room asks nothing above it), with its fixture |
 | Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
 
 ## 3. The loop: one turn per sample
