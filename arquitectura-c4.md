@@ -1,16 +1,20 @@
 # Arquitectura: 4+1 vistas, con C4 y UML
 
-Revisión del código al **2026-10-11**: contrato v4, protocolo `drive`/`cancel`.
-Describe lo implementado; lo previsto se marca como tal. Si este documento y el
-código no coinciden, uno de los dos tiene un error: la referencia del motor es
-[`scene-core/DESIGN.md`](../calipso-detector/crates/scene-core/DESIGN.md), que
-se compila con `cargo doc`.
+Revisión por ingeniería inversa del código al **2026-11-01**, `main` en
+`7e7f443`: contrato v4, protocolo `drive`/`cancel`, verificador lento, geometría
+`Frontal`/`TwoPlanes`. Describe lo implementado; lo previsto se marca como tal.
+Si este documento y el código no coinciden, uno de los dos tiene un error: la
+referencia del motor es [`crates/scene-core/DESIGN.md`](crates/scene-core/DESIGN.md),
+que se compila con `cargo doc`. (El `DESIGN.md` de la raíz es solo un puntero
+a ese.)
+
+La revisión de las reglas y la opinión sobre el diseño están en
+[revision-2026-11-01.md](revision-2026-11-01.md).
 
 El documento sigue las **4+1 vistas** de Kruchten (1995). Cada vista responde
 una pregunta para alguien, y los niveles de **C4** (Brown) se ubican en la vista
-a la que pertenecen. Los diagramas son Mermaid: `flowchart` para C4 (más estable
-que el `C4Context` experimental) y los diagramas UML nativos (`classDiagram`,
-`stateDiagram`, `sequenceDiagram`).
+a la que pertenecen. Los diagramas son Mermaid: `flowchart` para C4 y los
+diagramas UML nativos (`classDiagram`, `stateDiagram`, `sequenceDiagram`).
 
 | Vista | Pregunta | Para quién | Diagramas |
 | --- | --- | --- | --- |
@@ -24,17 +28,29 @@ que el `C4Context` experimental) y los diagramas UML nativos (`classDiagram`,
 ## Resumen
 
 El motor es una **biblioteca Rust con estado, determinista y sin IO**,
-`scene-core`: una función de `(Policy, SiteMap, Input*, Reading*)`. La conduce
-un **proceso por cámara**, `calipso-detector`, que recibe RTSP, decodifica bajo
-demanda, mira con modelos ONNX y publica `calipso.scene.v4` y
-`calipso.events.v4` en NATS. Los consumidores leen solo el contrato publicado.
+`scene-core`: una función de `(Policy, SiteMap, Input*, Reading*, Verified*)`.
+La conduce un **proceso por cámara**, `calipso-detector`, que recibe RTSP,
+decodifica bajo demanda, mira con modelos ONNX, consulta a un verificador lento
+fuera de la vuelta y publica `{prefix}.scene.v4` y `{prefix}.events.v4` en NATS.
+Los consumidores leen solo el contrato publicado.
 
-El motor hace una cosa: **publica la escena y los eventos de cada muestra**,
-como un pipe. Suavizar en el tiempo, confirmar y avisar es de quien consume.
+El motor **publica la escena y los hechos de cada muestra**. Dentro calcula solo
+lo que usa para decidir qué mirar (P7); confirmar en el tiempo y avisar es de
+quien consume (hoy, `calipso-perception-bridge`).
 
 Una crate es una unidad de código, no un contenedor C4. Ingesta, sentidos,
 núcleo y publicación corren **en un mismo proceso**, en hilos con un dueño
-cada uno. No son microservicios.
+cada uno. El verificador sí es otro contenedor: un servicio aparte detrás de
+NATS.
+
+Desde la revisión del 2026-10-11 el núcleo creció en cuatro direcciones:
+
+| Qué entró | Dónde | Spec / tomo |
+| --- | --- | --- |
+| El foco y su centinela: el detector principal mira la cama mientras el residente está solo en ella | `attention` (`Lens`), `map::focus_region` | proyecto 26, DESIGN §3.1 |
+| La geometría como pieza elegida por perfil: `Frontal` o `TwoPlanes` (cama en diagonal), dueña única del espacio | `room/` | white book VII |
+| La capa 1 (postura de cama), la ocupación por partes y el veredicto del nivel 2, cada uno con su tabla dorada | `belief/bed_posture`, `belief/parts`, `refine/verdict` | R16–R18, white book I cap. 09–10, II |
+| El plano de verificación: preguntas al verificador lento (VLM), ráfagas, respuestas entre vueltas | `verification`, `detector::verifier` | white book III y V, ADR 2026-10-13 |
 
 ## 0. Contexto (C1)
 
@@ -43,21 +59,28 @@ flowchart TB
     care["Personal de cuidado<br/>[persona]"]
     maint["Mantenedor<br/>[persona]"]
     camera["Cámara fija<br/>[sistema externo]<br/>RTSP H.264"]
-    engine["Motor Calipso<br/>[sistema de software]<br/>cree quién hay y dónde; decide qué mirar"]
+    engine["Motor Calipso<br/>[sistema de software]<br/>cree quién hay, dónde y cómo; decide qué mirar"]
+    verifier["calipso-verifier<br/>[sistema de software]<br/>VLM local, segunda opinión"]
     nats["NATS<br/>[sistema externo]"]
-    product["Producto Calipso<br/>[sistema externo, previsto]<br/>confirma y avisa"]
-    tools["Herramientas<br/>[sistemas de software]<br/>rerun-bridge · shark · golden"]
+    bridge["calipso-perception-bridge<br/>[sistema de software]<br/>traduce a observaciones de Hive"]
+    hive["Hive / producto<br/>[sistema externo]<br/>confirma y avisa"]
+    tools["Herramientas<br/>[sistemas de software]<br/>rerun-bridge · shark · golden · claqueta (prevista)"]
 
     camera -->|"video"| engine
     maint -->|"perfil TOML por cámara"| engine
-    engine -->|"calipso.scene.v4 · calipso.events.v4"| nats
-    nats -->|"consumo"| tools
-    nats -.->|"consumo"| product
-    product -.->|"situación y alertas"| care
+    engine -->|"recorte de la cama (request/reply)"| verifier
+    verifier -->|"respuesta"| engine
+    engine -->|"scene.v4 · events.v4"| nats
+    nats --> bridge
+    bridge -->|"perception.observation.v1"| hive
+    hive -->|"situación y alertas"| care
+    nats --> tools
 ```
 
 El residente es la persona observada; el motor no identifica a nadie y no
-guarda imágenes (regla 7). Las alertas son del producto que consume.
+guarda imágenes (regla 7). La única salida de píxeles es el recorte de la cama
+hacia el verificador, en memoria; guardarlo es del verificador y solo con su
+perfil y el consentimiento del sitio.
 
 ## 1. Vista lógica
 
@@ -65,33 +88,46 @@ guarda imágenes (regla 7). Las alertas son del producto que consume.
 
 ```mermaid
 flowchart TB
-    shell["Cáscara<br/>detector · replay · pruebas"]
+    shell["Cáscara<br/>driver · replay · BDD"]
 
     subgraph core["scene-core · sin IO"]
-        cycle["cycle<br/>Monitor, Turn: la vuelta y su orden (Course::next)"]
-        attention["attention<br/>qué más mirar; solo lee"]
+        cycle["cycle<br/>Monitor, Turn, Course::next: la vuelta y su orden<br/>engine.rs: qué cambia el motor cuando la vuelta lo pide"]
+        attention["attention<br/>qué mirar, dónde y por qué no<br/>Memory: lente, latch del refuerzo, último intento de calibración"]
         evidence["evidence<br/>qué lectura cuenta; cuerpos por zona"]
-        belief["belief<br/>capa 0 (occupancy::Machine), sujeto"]
-        mapm["map<br/>geometría del sitio y cama aprendida"]
+        room["room<br/>único dueño del espacio<br/>Frontal | TwoPlanes"]
+        mapm["map<br/>mapa estático del sitio, plano de la cama, foco"]
+        subgraph belief["belief"]
+            occ["occupancy<br/>capa 0: la máquina"]
+            subj["subject<br/>pose, profundidad"]
+            parts["parts<br/>dónde está cada parte"]
+            bp["bed_posture<br/>capa 1"]
+        end
+        refine["refine<br/>nivel 2: acostado, postura, veredicto"]
+        verification["verification<br/>qué se preguntó, qué se debe,<br/>cuánto respalda al retenido"]
         sensor["sensor<br/>estado de recepción"]
-        refine["refine<br/>nivel 2: acostado de verdad, postura"]
-        conclusion["conclusion<br/>Observation o qué republicar"]
-        chronicle["chronicle<br/>desde cuándo: el pliegue de las vueltas"]
-        project["project<br/>la única traducción al contrato"]
-        contract["contract<br/>common + v4: el lenguaje publicado"]
+        conclusion["conclusion"]
+        chronicle["chronicle<br/>desde cuándo"]
+        project["project (+ v4, parts)"]
+        contract["contract<br/>common + v4"]
     end
 
     shell -->|"handle(Input)"| cycle
+    shell -->|"verified(Verified)"| cycle
     cycle -->|"&Probe"| shell
     shell -->|"(Reading | Failure, Spent)"| cycle
     cycle -->|"Output { at, scene, events }"| shell
 
-    cycle -->|"Glimpse + Policy"| attention
+    cycle -->|"Glimpse + Policy + Memory"| attention
     cycle -->|"Reading"| evidence
-    cycle -->|"observe · observe_body · reinforced"| belief
-    cycle -->|"gate · learn · state"| mapm
-    cycle -->|"report"| sensor
+    evidence -->|"¿dónde está?"| room
+    room --> mapm
+    cycle --> belief
+    bp -->|"lee"| occ
+    parts -->|"lee"| occ
     cycle --> refine
+    refine -->|"Sighting"| bp
+    cycle --> verification
+    cycle -->|"report"| sensor
     cycle --> conclusion
     conclusion --> chronicle
     conclusion --> project
@@ -102,21 +138,34 @@ flowchart TB
 Las flechas son las únicas conversaciones permitidas:
 
 - **`cycle` solo secuencia** (regla 11). Le pasa la `Policy` entera a quien
-  decide y nunca pregunta qué sentido está configurado; `check.sh` lo vigila.
-- **`attention` lee y nunca escribe** la creencia: recibe un `Glimpse` y
-  devuelve `Consideration<T>`, que es `Ask(T)` o `Skip(reason)` y siempre va al
-  ledger (regla 12).
+  decide; `check.sh` lo vigila. `cycle/engine.rs` agrupa los cambios que el
+  motor hace en sus memorias, en el orden en que dependen entre sí: la vuelta
+  dice cuándo, el motor sabe qué cambiar.
+- **`attention` lee y nunca escribe** la creencia: devuelve `Ask(T)` o
+  `Skip(reason)` y todo va al ledger (regla 12). Su propia memoria
+  (`attention::Memory`: lente, latch, intento de calibración) la anota `cycle`
+  después de cada mirada; `attention` solo la lee.
+- **El espacio tiene un solo dueño.** `room` responde todas las preguntas de
+  espacio con hechos con nombre (`BodyZone`, `HeadArea`), nunca con un plano o un
+  polígono. `check.sh` impide que `BedPlane` aparezca fuera de `map` y `room`
+  (fixture `space-outside-room`) y que `room` dependa de las capas de arriba
+  (fixture `room-reads-a-layer`). La vuelta construye su `Room` una vez.
+- **Dónde está la cabeza es del nivel 2.** La conclusión vive en
+  `refine/head.rs` y su vocabulario (`HeadPlace`) en `body`; `room` solo
+  responde la geometría.
+- **Las capas se apilan sin romperse.** La capa 1 y las partes leen la capa 0 y
+  nunca cambian una cuenta. El nivel 2 reduce la vuelta a un `Sighting` para la
+  capa 1.
+- **La verificación es evidencia sobre la creencia, no creencia.** Nunca mueve
+  una cuenta y ninguna capa la lee (white book III, frontera 2). Se publica.
 - **El dominio no importa el contrato.** Solo `project` traduce, y `cycle`
-  nombra el contrato porque `Output` lo lleva. La proyección común
-  (`project/mod.rs`) nombra solo `contract::common`, para que una versión nueva
-  la comparta sin depender de v4 (C2). Las dos cosas las vigila `check.sh`.
-- **El motor no lee lo publicado** (P4). `chronicle` recuerda el dominio fuera
-  del motor y `project` lo traduce.
+  nombra el contrato porque `Output` lo lleva. `check.sh` lo vigila.
+- **El motor no lee lo publicado** (P4). `chronicle` recuerda el dominio.
 
-Lo público de la biblioteca es `Monitor`, `Turn`, `Input`, `Output`, `contract`
-(con `contract::v4`), `look` (`Probe`, `Reading`, `Failure`, `Spent`), `policy`,
-`map` (`SiteMap`, `FrameInfo`) y `geom`. Todo lo demás es `pub(crate)`, y
-`#![warn(unreachable_pub)]` impide que un `pub` diga más de lo que alcanza.
+Lo público de la biblioteca es `Monitor`, `Turn`, `Input`, `NoFrame`, `Output`,
+`contract` (con `contract::v4`), `look` (`Probe`, `Reading`, `Failure`, `Spent`,
+`Question`, `Ticket`, `Verified`), `policy`, `map` y `geom`. Todo lo demás es
+`pub(crate)`, y `#![warn(unreachable_pub)]` lo vigila.
 
 ### Las clases que sostienen la vuelta (UML)
 
@@ -129,13 +178,23 @@ classDiagram
         -last: (SampleRef, Arc~Scene~)
         +new(Policy, SiteMap) Monitor
         +handle(Input) Turn
+        +verified(Verified)
     }
     class Engine {
         -Policy policy
         -Map map
+        -CalibrationMemory calibration
         -Belief belief
         -SensorMemory sensor
+        -attention::Memory attention_memory
+        -Verification verification
         -frame: FrameInfo
+    }
+    class Belief {
+        -Machine occupancy
+        -SubjectMemory subject
+        -parts
+        -bed_posture
     }
     class Turn {
         -Course course
@@ -148,18 +207,13 @@ classDiagram
         -monitor: &mut Monitor
         -SampleRef at
         -Geometry geometry
+        -room: Option~Room~
         -Attention attention
         next(Reached) Phase
-        advance(Continuation, &Probe, Outcome) Phase
     }
-    class Belief {
-        -Machine occupancy
-        -SubjectMemory subject
-        observe(at, &Admission, &Policy) Believed
-        observe_body(at, Believed, Enrichment) Believed
-    }
-    class Chronicle {
-        record(Entry) Chronicled
+    class Room {
+        -Frontal frontal
+        -two_planes: Option~TwoPlanes~
     }
     class Output {
         +SampleRef at
@@ -172,57 +226,82 @@ classDiagram
     Engine *-- Belief
     Turn *-- Course
     Course --> Monitor : préstamo mutable exclusivo
+    Course *-- Room : una por vuelta
     Turn ..> Output : devuelve
 ```
 
-- `Turn` toma prestado `&mut Monitor`: el compilador impide abrir dos vueltas a
-  la vez.
-- `Open` es la obligación de cerrar: solo `drive` la descarga. Una vuelta
-  soltada sin cerrar dispara la aserción de `Drop` (regla 10).
-- El shell no tiene nada que usar mal: recibe una `&Probe` y devuelve lo que
-  vio. Una lectura de otra clase que la sonda cuenta como un sentido que falla
-  (`Failure::Model`), no como un pánico (regla 21).
+- `Turn` toma prestado `&mut Monitor`: dos vueltas a la vez no compilan.
+- `Open` es la obligación de cerrar: solo `drive` o `cancel` la descargan
+  (regla 10).
+- `Room` no es un trait: es `Frontal` más un `TwoPlanes` opcional que el perfil
+  elige. Un segundo uso real, sin `dyn` (regla 18).
+- `Monitor::verified` es la **segunda puerta** del núcleo: las respuestas del
+  verificador llegan entre vueltas y se asientan al abrir la siguiente.
 
 ### Los estados de una vuelta (UML)
 
+El orden vive en un solo lugar, `Course::next` (`cycle/sequence.rs`). Cada
+estado lleva lo que la vuelta juntó hasta ahí (`Reached`, `Continuation`).
+
 ```mermaid
 stateDiagram-v2
-    [*] --> Waiting: Sample, empieza por Primary
+    [*] --> Primary: Sample (cuadro entero o foco)
     [*] --> Republish: NoFrame o Sensor
-    state Waiting {
+    state Nivel1 {
         Primary --> Widen: ¿el foco no confirma?
-        Widen --> Reinforce
         Primary --> Reinforce: ¿pérdida en la cama?
-        Primary --> Faces
+        Widen --> Reinforce
         Reinforce --> Faces
-        Faces --> Calibrate: tras creer
+        Primary --> Faces
+        Faces --> PoseBodies: ¿cuerpo dudoso? (TwoPlanes)
+        PoseBodies --> Believe
+        Faces --> Believe
+    }
+    state Nivel2 {
+        Believe --> Calibrate
         Calibrate --> Pose
         Pose --> Depth
+        Depth --> Refine: nivel 2 + capa 1 + partes
     }
-    Waiting --> Concluded: sin más miradas
+    state Verificación {
+        Refine --> Keep: ¿ráfaga en curso?
+        Refine --> Verify: ¿duda que valga el VLM?
+    }
+    Keep --> Concluded
+    Verify --> Concluded
+    Refine --> Concluded
     Concluded --> [*]: Observation → chronicle → project
     Republish --> [*]: lo último, declarado (regla 2)
 ```
 
-Cada espera lleva lo que la vuelta juntó hasta ahí (`Continuation`), así que no
-se puede seguir con datos de menos. Cada mirada es opcional salvo la primaria y
-la decide `attention`. El orden vive en un solo lugar:
-
 ```text
-Primary(foco | entero) → [Widen] → [Reinforce] → [Faces] → believe → [Calibrate] → [Pose → [Depth]] → conclude
+Primary(foco | entero) → [Widen] → [Reinforce] → [Faces] → [PoseBodies] → believe
+  → [Calibrate] → [Pose (+ cabeza) → [Depth]] → refine (nivel 2, capa 1, partes)
+  → [Keep (ráfaga)] → [Verify] → conclude
 ```
 
-### La capa 0 por dentro
+Cada mirada es opcional salvo la primaria, y la decide `attention`.
+
+### Las capas por dentro
+
+Las tres máquinas tienen la misma forma: lo visto en la muestra, un *decider*
+puro con su **tabla dorada** y una máquina que lo sostiene en tiempo de fuente.
+
+| Capa | Fila | Tabla dorada | Decider |
+| --- | --- | --- | --- |
+| 0 · ocupación | `rbh[t−1] : fv[t] : contexto → rbh[t] + hechos` | `contract/layer-0-table.txt` | `belief/occupancy/conservation.rs` |
+| partes | `l0[t] + lugares[t−1] : visto[t] → lugares[t]` | `contract/parts-table.txt` | `belief/parts/rules` |
+| 1 · postura de cama | `l1[t−1] : l0[t] + visto[t] → l1[t]` | `contract/bed-posture-table.txt` | `belief/bed_posture/rules` |
+| nivel 2 · veredicto | grupos del cuerpo → acostado / postura | `contract/second-level-table.txt` | `refine/verdict.rs` |
 
 ```text
 Bodies ──► Span ──(Before, Seen)──► settle ──[Movement]──► Machine::apply ──► Transition
             cuándo cambió             qué lo explica         retenidos, sin explicar,
-            (dwell en tiempo de       (las seis reglas)      hechos en orden
-             fuente)
+            (dwell en fuente)         (las reglas)           hechos en orden
 ```
 
-La máquina devuelve la transición como valor y no la emite (P2). Quien la
-recibe no necesita preguntarle nada (P6). La cuenta publicada satisface:
+La máquina devuelve la transición como valor y no la emite (P2). La cuenta
+publicada satisface:
 
 ```text
 room.occupants = floor.seen + bed.seen + len(bed.held)
@@ -240,34 +319,47 @@ flowchart LR
         ingest["Hilo ingest<br/>[std::thread]<br/>retina · solo keyframes"]
         mailbox[("Mailbox&lt;Sample&gt;<br/>un lugar: lo más fresco gana")]
         engine["Motor<br/>[spawn_blocking]<br/>Driver · RtspSource (decode) · Senses (ONNX) · Monitor"]
+        vtask["Tarea verificador<br/>[tarea tokio]<br/>cola de 1 · un request/reply a la vez"]
         handle["PublisherHandle<br/>numera escenas y eventos"]
         actor["Actor NATS<br/>[tarea tokio]<br/>FIFO de eventos (1024) · escena más nueva"]
     end
+    vsvc["calipso-verifier<br/>[contenedor aparte]"]
     nats["NATS"]
 
     camera -->|"RTSP"| ingest
     ingest -->|"Sample"| mailbox
     mailbox -->|"take"| engine
     ingest -->|"StreamEvent (mpsc)"| engine
+    engine -->|"Probe::Verify: recorte JPEG en memoria"| vtask
+    vtask -->|"Verified (mpsc)"| engine
+    vtask <-->|"request/reply"| vsvc
     engine -->|"Output + Timing"| handle
     handle -->|"Publication (mpsc)"| actor
     actor -->|"{prefix}.scene.v4 · {prefix}.events.v4"| nats
 ```
 
 - **Cada recurso nace y muere en su hilo** (`detector/src/main.rs`). Nada se
-  comparte salvo el buzón y dos canales.
+  comparte salvo el buzón y los canales.
 - **El buzón no encola.** Lo que el motor no toma a tiempo lo reemplaza la
   muestra siguiente, y solo se decodifica lo que el motor va a mirar.
 - **El driver no sabe de dónde vienen las muestras ni quién mira.** Se le
-  inyectan una `SampleSource` y un `SensesPort`. En vivo son `RtspSource` y
-  `sense::Senses`; en `calipso-replay`, una escena golden y su mundo guionado:
-  el mismo driver, el mismo núcleo y el mismo publicador.
+  inyectan una `SampleSource`, un `SensesPort` y, si el perfil tiene `[verify]`,
+  un `VerifierPort`. En vivo: `RtspSource`, `Senses`, `NatsVerifier`. En
+  `calipso-replay`: una escena golden con su mundo y su verificador guionados.
+  Mismo driver, mismo núcleo, mismo publicador. Para correr sobre cuadros
+  sueltos existe `source::frames` (y el binario `frames`).
+- **El verificador no bloquea la vuelta.** `ask` encola y vuelve; las
+  respuestas que llegaron se entregan con `Monitor::verified` antes de la
+  muestra siguiente. Su plazo (`wall_timeout_secs`) es de reloj de pared y vive
+  en la cáscara; el núcleo decide si una respuesta todavía vale por sesión y
+  cuerpo retenido (regla 9).
 - **El transporte se vuelve dominio en un solo lugar.** El driver traduce cada
-  `StreamEvent` a `Input::Sensor` (conectando, transmitiendo, sin muestras,
-  reconectando) y vigila el plazo sin muestras.
+  `StreamEvent` a `Input::Sensor` y vigila el plazo sin muestras con
+  `Instant` (en la cáscara).
 - **La escena nunca espera.** El actor reintenta el frente de la cola de eventos
   con id de mensaje NATS, y de la escena publica siempre la más nueva.
-- **Prefijo:** `vision.<site>.<camera>`, salvo que el perfil lo cambie.
+- **Un pánico en la cáscara aborta el proceso** (hook en `main`): lo reinicia
+  el supervisor.
 
 ### El apagado (UML)
 
@@ -285,7 +377,7 @@ sequenceDiagram
     E->>E: la vuelta en curso termina con drive<br/>(o cancel: Failure::Cancelled en lo pendiente)
     E-->>M: Ok
     M->>I: join
-    M->>A: espera (gracia de 3 s para vaciar)
+    M->>A: espera (gracia para vaciar)
     A-->>M: Ok
 ```
 
@@ -302,15 +394,17 @@ flowchart BT
         core["scene-core<br/>serde · schemars"]
         sense["sense<br/>ONNX (ultralytics-inference) · image"]
         ingest["ingest<br/>retina · ffmpeg · tokio<br/>sin dominio"]
-        detector["detector<br/>tokio · async-nats · clap"]
+        detector["detector<br/>tokio · async-nats · clap · image"]
     end
     subgraph golden_repo["calipso-golden"]
         golden["golden<br/>lenguaje de escenas, mundo, destilado"]
         replay["replay<br/>calipso-replay"]
     end
-    subgraph consumers["consumidores del contrato"]
+    subgraph others["otros repositorios"]
+        verifier["calipso-verifier"]
+        pbridge["calipso-perception-bridge"]
         bridge["calipso-rerun-bridge"]
-        shark["calipso-shark<br/>trama · medir"]
+        shark["calipso-shark"]
     end
 
     sense --> core
@@ -324,25 +418,28 @@ flowchart BT
     shark --> core
     core -.->|"dev: escenas en las pruebas"| golden
     detector -.->|"dev"| golden
+    verifier -.->|"solo NATS"| detector
+    pbridge -.->|"solo el contrato en NATS"| core
 ```
 
+Tamaño al 2026-11-01 (líneas de `src`, con pruebas en línea): `scene-core` ≈ 12 550, `detector`
+≈ 3 600 (de ellas `config.rs` 1 750), `ingest` ≈ 750, `sense` ≈ 600. Los
+módulos más grandes del núcleo son `cycle/sequence` (634) y `chronicle` (441).
+`attention/` y `evidence/` son carpetas con un archivo por pregunta y por
+sentido (mesa de refactor, F-6 y F-7).
+
 - `scene-core` depende solo de `serde` y `schemars`. Clippy prohíbe relojes,
-  archivos, red e hilos (`clippy.toml`). `check.sh` verifica en el árbol de
-  dependencias que no entren tokio ni async-nats.
-- `ingest` no conoce el dominio y `sense` no conoce el transporte asíncrono;
-  `check.sh` vigila los dos.
-- Los consumidores usan `scene_core::contract::v4` para leer el contrato.
-  Depender de la crate entera es deuda: un crate de solo tipos del cable (como
-  las cabeceras `uapi` del kernel) los dejaría depender solo del lenguaje
-  publicado (DESIGN §11).
-- La flecha punteada es una dependencia de desarrollo: las pruebas del núcleo
-  corren escenas golden. No hay ciclo en el código que se compila para
-  producción.
+  archivos, red e hilos (`clippy.toml`); `check.sh` verifica el árbol.
+- `ingest` no conoce el dominio, `sense` no conoce el transporte asíncrono ni
+  recibe políticas (regla 6), y `detector` no depende de `golden` en su build
+  normal. Los cuatro árboles los vigila `check.sh`.
+- Los consumidores en Rust usan `scene_core::contract::v4`. Un crate de solo
+  tipos del cable sigue siendo deuda (DESIGN §11).
+- La flecha punteada a `golden` es de desarrollo: sin ciclo en producción.
 
 ### Lo que vigila el diseño
 
-Cada regla de [`RULES.md`](../calipso-detector/RULES.md) tiene un guardián, y
-cada guardián tiene una fixture que lo rompe a propósito
+Cada guardián tiene una fixture que lo rompe a propósito
 (`scripts/check-guardians.sh`): si el guardián no falla, el gate falla.
 
 | Guardián | Regla o principio | Fixture |
@@ -354,7 +451,16 @@ cada guardián tiene una fixture que lo rompe a propósito
 | Snapshots del schema y los ejemplos | 13 | `contract-changes-without-snapshot` |
 | `cycle` no pregunta por la política | 11 | `cycle-consults-a-policy` |
 | La proyección común no nombra una versión | C2 | `common-projection-names-a-version` |
+| El plano de la cama solo en `map` y `room` | 23 | `space-outside-room` |
+| `room` no pregunta nada a las capas de arriba | 23 | `room-reads-a-layer` |
 | Pasos Gherkin sin definir | 15 | `undefined-step`, `undefined-step-shell` |
+
+Más las tablas doradas de capa 0, partes, lectura de las partes, capa 1 y
+nivel 2, con una sola red (`golden::assert_table`): un cambio de regla imprime
+las filas que cambiaron y la tabla nueva, y el diff va en el commit. Y cada
+perfil de `config/` se carga en una prueba del detector
+(`every_profile_in_the_repository_loads`), que `quick.sh` corre cuando cambia
+un perfil.
 
 ## 4. Vista física
 
@@ -363,42 +469,54 @@ flowchart LR
     subgraph room["Habitación"]
         cam["Cámara IP<br/>RTSP"]
     end
-    subgraph edge["Nodo de borde · Linux"]
+    subgraph edge["Nodo de borde · Linux (vador1)"]
         relay["go2rtc<br/>(opcional)"]
         d1["calipso-detector<br/>cámara 1"]
         d2["calipso-detector<br/>cámara N"]
+        v["calipso-verifier<br/>VLM local"]
         models[("modelos ONNX<br/>perfil TOML")]
     end
     subgraph bus["Mensajería"]
         n["NATS"]
     end
     subgraph apps["Consumidores"]
+        pb["perception-bridge → Hive"]
         r["rerun-bridge + visor Rerun"]
         s["shark: grabar y medir"]
-        p["producto (previsto)"]
     end
 
     cam --> relay --> d1
     relay --> d2
     models --- d1
     models --- d2
+    d1 <-->|"verify"| v
     d1 --> n
     d2 --> n
+    n --> pb
     n --> r
     n --> s
-    n -.-> p
 ```
 
-N cámaras son N procesos, cada uno con su perfil. No hay estado compartido
-entre cámaras ni persistencia: la creencia empieza de cero con el proceso, y ni
-una reconexión ni un cambio de resolución sueltan a nadie. El repositorio **no
-tiene manifiesto de despliegue**: «un proceso por cámara» se verifica en
-`main.rs`, no en una topología operativa.
+N cámaras son N procesos, cada uno con su perfil (`config/*.toml`). No hay
+estado compartido entre cámaras ni persistencia de la creencia: empieza de cero
+con el proceso. El repositorio **no tiene manifiesto de despliegue**: «un
+proceso por cámara» se verifica en `main.rs`, no en una topología operativa.
 
 ## 5. Escenarios (+1)
 
-Cada escenario atraviesa las cuatro vistas. Están escritos en Gherkin en
-`features/` y corren en el gate.
+Cada escenario atraviesa las cuatro vistas. Están en Gherkin en `features/`:
+**335 escenarios** al 2026-11-01.
+
+| Carpeta | Escenarios |
+| --- | --- |
+| `attention/` | 83 |
+| `occupancy/` | 51 |
+| `posture/` | 41 |
+| `bed-posture/` | 24 |
+| `contract/` | 24 |
+| `verification/` | 19 |
+| `parts/` | 17 |
+| `shell/` | 76 |
 
 ### Una muestra con alguien en la cama que se pierde
 
@@ -407,93 +525,97 @@ sequenceDiagram
     participant D as Driver (cáscara)
     participant T as Turn (cycle)
     participant A as attention
-    participant E as evidence
+    participant E as evidence + room
     participant B as belief
     participant P as chronicle + project
 
     D->>T: handle(Input::Sample)
-    T-->>D: &Probe::Detect (imagen entera)
+    T->>A: ¿foco o cuadro entero?
+    T-->>D: &Probe::Detect (foco de la cama)
     D->>T: Reading::Bodies([]) · Spent
-    T->>E: admit: ningún cuerpo por zona
+    T->>A: ¿el foco confirma? (retenido, nadie en el piso)
     T->>A: ¿pérdida en la cama? (latch armado)
     A-->>T: Ask(cama agrandada)
     T-->>D: &Probe::Reinforce
     D->>T: Reading::Bodies([caja en la cama])
-    T->>E: consolidate
-    T->>A: ¿caras?
+    T->>E: admitir: room ubica el cuerpo en la cama
     T->>B: observe: estabiliza, conserva, deriva el sujeto
     T->>A: ¿calibrar? ¿pose? ¿profundidad?
-    T->>B: observe_body(enriquecimiento)
+    T->>B: nivel 2 → Sighting → capa 1, partes
+    T->>A: ¿duda que valga el verificador?
     T->>P: Observation → Chronicled → escena y eventos v4
     T-->>D: Output { at, scene, events }
 ```
 
-En las vistas: lógica (el orden de `Course::next`), procesos (todo ocurre en el
-hilo del motor; las miradas son llamadas síncronas a `SensesPort::look`),
-desarrollo (los tipos que cruzan son `Probe` y `Reading`, de `look`) y física
-(un proceso, un modelo por rol).
+### El verificador responde tarde
+
+La vuelta pide `Probe::Verify` con un `Ticket`; el driver encola el recorte y
+la vuelta concluye sin esperar. La respuesta llega en otro hilo; el driver la
+entrega con `Monitor::verified` antes de la muestra siguiente, y la vuelta de
+esa muestra la asienta **solo si lo preguntado sigue en pie**: el mismo cuerpo
+retenido, en la misma sesión. Si no, se descarta. Nunca mueve una cuenta.
 
 ### El decoder no entrega imagen
 
 `Input::NoFrame` abre una vuelta que no pide nada: republica la última escena,
 **declarada** (`republished.reason = decode_failed`), y lo que era actual pasa a
-retenido, porque nada es actual sin una observación (regla 2). Si el que falla
-es el detector principal, la vuelta conserva la creencia y la escena se
-declara con `detect_failed`.
+retenido (regla 2).
 
 ### Apagado a mitad de una mirada
 
-La señal cancela el token. La vuelta en curso termina: lo pendiente responde
-`Failure::Cancelled`, se publica la escena de esa muestra y el proceso cierra
-(ver el apagado en la vista de procesos).
+La señal cancela el token; lo pendiente responde `Failure::Cancelled`, se
+publica la escena de esa muestra y el proceso cierra.
 
 ### Una noche sin cámara
 
 `calipso-replay` corre una escena golden por el **mismo** driver, con una
-`SampleSource` de tramos y un `SensesPort` guionado. Como el núcleo es
-determinista, la misma noche da las mismas escenas, y `calipso-distill` vuelve
-escena una noche publicada.
+`SampleSource` de tramos, un `SensesPort` y un verificador guionados. Como el
+núcleo es determinista, la misma noche da las mismas escenas, y
+`calipso-distill` vuelve escena una noche publicada.
+
+**La grabación siempre queda fuera del detector.** El detector no graba
+nada: grabar es escuchar `scene.v4` y `events.v4` en el bus (`shark`,
+`nats sub`, JetStream). Por eso una noche real se repite solo con lo que se
+publicó. La escena no lleva píxeles, y la respuesta del verificador se publica
+como procedencia (`held.check`), no como lectura: el destilado no la rearma.
 
 ## Hallazgos y límites
 
 | Tema | Evidencia | Consecuencia |
 | --- | --- | --- |
-| Consumidores de la POC | perception-bridge y scene-analytics leían v3 a través de un adaptador (proyecto 22); v3 se retiró el 2026-10-11 | **Abierto:** hay que verificar que lean v4 antes de la próxima corrida en vivo |
-| Consumidores atados al núcleo | rerun-bridge y shark dependen de `scene-core` para leer el contrato | Deuda: un crate de tipos del cable (DESIGN §11) |
-| `Input::Sensor` | lleva un `SampleRef` que el driver toma de la última muestra | Deuda: requiere que `observed_at` sea opcional en la próxima versión del contrato |
-| `last_event_seq` | lo escribe el actor NATS, no el núcleo | Deuda de contrato (DESIGN §11) |
-| Profundidad | `meters` y `reference_m` llevan la escala relativa del modelo | Se renombran en la próxima versión del contrato |
+| Documentos atrasados | `big-picture.md` al 10-13; white book III y VII dicen «propuesta, sin implementar» y el código ya está en `main`; los tomos I, II y VII citan `attention.rs` y `evidence.rs`, hoy carpetas | La regla «si el doc y el código no coinciden, uno tiene un error» no tiene guardián para estos documentos |
+| Segunda puerta del núcleo | `Monitor::verified` fuera de `Input` | La grabación está fuera del detector y se rearma desde lo publicado; la respuesta solo se publica como `held.check` y `distill` la saltea. Una noche destilada da las mismas cuentas y capas (la verificación nunca mueve una cuenta), pero no el `held.check`. Aceptado; conviene escribirlo |
+| Píxeles en el bus | El recorte va por NATS request/reply a `calipso.verify.v1`, fuera del prefijo `vision.<site>.<camera>` | Como grabar es escuchar el bus, la regla 7 depende de que ningún grabador ni stream de JetStream escuche ese subject (por ejemplo, un `>`). Hoy no tiene guardián |
+| Perfil grande | `detector/src/config.rs` ≈ 1 780 líneas | Donde se arma la política. Cada perfil del repositorio ya se carga en una prueba; las combinaciones de capacidades todavía no tienen escena golden por perfil |
+| Consumidores atados al núcleo | rerun-bridge y shark dependen de `scene-core` | Deuda: crate de tipos del cable (DESIGN §11) |
+| `Input::Sensor` | lleva un `SampleRef` inventado de la última muestra | Deuda: `observed_at` opcional en la próxima versión del contrato |
+| `last_event_seq` | lo escribe el actor NATS | Deuda de contrato (DESIGN §11) |
+| Profundidad | `meters` y `reference_m` llevan escala relativa | Se renombran en la próxima versión del contrato |
 | Despliegue | sin manifiesto en el repositorio | La topología se describe acá; no se verifica |
 
 ## Verificación de esta revisión
 
-`scripts/check.sh` en verde al 2026-10-11:
-
-- formato y clippy con `-D warnings`;
-- árboles de dependencias del núcleo, ingest, detector y sense;
-- el dominio sin contrato y `cycle` que solo secuencia;
-- 131 tests de unidad e integración;
-- **122 escenarios Gherkin** del núcleo y **54** de la cáscara;
-- licencias y advisories.
-
-`scripts/check-guardians.sh`: los nueve guardianes fallan cuando deben. Los
-`cargo check` de calipso-golden, calipso-rerun-bridge y calipso-shark compilan
-contra el núcleo de hoy. Las pruebas con cámara, modelo o NATS reales están
-marcadas `#[ignore]` y se corren a mano.
+Revisión **estática** del código en `main@7e7f443`: árbol de módulos, API
+pública (`lib.rs`), `cycle`, `attention`, `room`, `verification`, composición
+del detector (`main.rs`, `driver.rs`, `verifier.rs`), `scripts/check.sh` y sus
+fixtures, conteo de escenarios. **No se corrió** `scripts/check.sh` para esta
+revisión (es documentación; el gate completo va por versión, regla 17).
 
 ## Fuentes
 
-- Motor: [DESIGN.md](../calipso-detector/crates/scene-core/DESIGN.md) ·
-  [RULES.md](../calipso-detector/RULES.md) ·
-  [protocolo](../calipso-detector/crates/scene-core/src/cycle.rs) ·
-  [orden de la vuelta](../calipso-detector/crates/scene-core/src/cycle/sequence.rs) ·
-  [la máquina](../calipso-detector/crates/scene-core/src/belief/occupancy/machine.rs)
-- Cáscara: [composición](../calipso-detector/crates/detector/src/main.rs) ·
-  [driver](../calipso-detector/crates/detector/src/driver.rs) ·
-  [ingest](../calipso-detector/crates/ingest/src/lib.rs) ·
-  [sentidos](../calipso-detector/crates/sense/src/lib.rs)
-- Decisiones: [ADR](adr/), en especial
-  [una sola forma de recorrer la vuelta](adr/2026-10-11-una-sola-forma-de-recorrer-la-vuelta.md)
-  y [retirar v3](adr/2026-10-11-retirar-v3.md).
+- Motor: [DESIGN.md](crates/scene-core/DESIGN.md) · [RULES.md](RULES.md) ·
+  [protocolo](crates/scene-core/src/cycle.rs) ·
+  [orden de la vuelta](crates/scene-core/src/cycle/sequence.rs) ·
+  [espacio](crates/scene-core/src/room/mod.rs) ·
+  [verificación](crates/scene-core/src/verification.rs)
+- Cáscara: [composición](crates/detector/src/main.rs) ·
+  [driver](crates/detector/src/driver.rs) ·
+  [verificador](crates/detector/src/verifier.rs) ·
+  [ingest](crates/ingest/src/lib.rs) · [sentidos](crates/sense/src/lib.rs)
+- Decisiones: [ADR](../calipso-docs/adr/), en especial
+  [una sola forma de recorrer la vuelta](../calipso-docs/adr/2026-10-11-una-sola-forma-de-recorrer-la-vuelta.md),
+  [verificación por VLM con captura](../calipso-docs/adr/2026-10-13-verificacion-vlm-con-captura.md)
+  y [verificar al tamaño del cambio](../calipso-docs/adr/2026-10-31-verificar-al-tamano-del-cambio.md).
+- Especificación: [white book](../calipso-docs/white-book/README.md).
 - P. Kruchten, *The 4+1 View Model of Architecture*, IEEE Software (1995).
   S. Brown, *The C4 model for visualising software architecture*.
