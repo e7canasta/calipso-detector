@@ -29,7 +29,8 @@ changed=$({
 # The crates to check: those whose files changed, then every crate that
 # depends on them, from cargo's own graph. A change outside the crates that
 # shapes the build (manifest, lock, lints, toolchain) checks the workspace;
-# the features belong to the crate whose harness runs them.
+# the features belong to the crate whose harness runs them, and the profiles
+# in config/ to the detector, which loads every one of them.
 crates=$(cargo metadata --format-version 1 --no-deps | CHANGED="$changed" python3 -I -c '
 import json, os, sys
 meta = json.load(sys.stdin)
@@ -43,7 +44,7 @@ for path in changed:
     if path in whole:
         hit = set(packages)
         break
-    if path.startswith("features/shell/"):
+    if path.startswith(("features/shell/", "config/")):
         hit.add("detector")
     elif path.startswith(("features/", "contract/")):
         hit.add("scene-core")

@@ -1167,6 +1167,34 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every profile in the repository loads and builds what the detector
+    /// builds when it starts: the policy, the site map, the ingest and the
+    /// published profile. The kernel builds every defconfig; this is ours.
+    #[test]
+    fn every_profile_in_the_repository_loads() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config");
+        let mut profiles: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|e| e == "toml"))
+            .collect();
+        profiles.sort();
+        assert!(!profiles.is_empty(), "no profile in {}", dir.display());
+        for path in profiles {
+            let config =
+                Config::load(&path).unwrap_or_else(|e| panic!("{}: {e:#}", path.display()));
+            config
+                .profile()
+                .unwrap_or_else(|e| panic!("{}: {e:#}", path.display()));
+            let _ = (
+                config.policy(),
+                config.site_map(),
+                config.ingest(),
+                config.prefix(),
+            );
+        }
+    }
     pub(super) const VALID: &str = include_str!("../tests/support/profile.toml");
     /// The verifier: the policy maps one to one; the sense and the policy come
     /// together; the bands are checked; a profile without it keeps its hash.
