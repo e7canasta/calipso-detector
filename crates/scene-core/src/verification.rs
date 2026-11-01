@@ -95,6 +95,62 @@ pub(crate) struct KeptCrop {
     pub(crate) counted: bool,
 }
 
+/// What a question asked about, without its identity: a column of V's table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Asked {
+    Held,
+    Feet,
+    Disparity,
+}
+
+impl Asked {
+    fn of(target: Target) -> Self {
+        match target {
+            Target::Held { .. } => Self::Held,
+            Target::Feet { .. } => Self::Feet,
+            Target::Disparity { .. } => Self::Disparity,
+        }
+    }
+}
+
+/// What settling a question does to what it asked about: a cell of V's table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Settled {
+    /// Nothing changes.
+    Nothing,
+    /// The doubtful feet of the looked sample are filled.
+    Feet(FeetPlace),
+    /// The doubtful disparity of the looked sample is filled.
+    Disparity(DisparitySide),
+    /// The held body's provenance changes.
+    Held(HeldCheckState),
+}
+
+/// V's decider: what an answer does, or its absence once the request expired
+/// (`None`), when what it asked about still `holds` (the same session, and
+/// the same held body or the same layer-1 state). Pure, and a golden table
+/// (`contract/verification-table.txt`). Feet left without an answer are taken
+/// as out, on the safe side: a call for getting out is not lost to a verifier
+/// that did not answer. A held body is never released: a no only says nobody
+/// saw it (book 4, frontier 3).
+pub(crate) fn decide(asked: Asked, answer: Option<Answer>, holds: bool) -> Settled {
+    if !holds {
+        return Settled::Nothing;
+    }
+    match (asked, answer) {
+        (Asked::Feet, Some(Answer::Yes) | None) => Settled::Feet(FeetPlace::PastTheSides),
+        (Asked::Feet, Some(Answer::No)) => Settled::Feet(FeetPlace::Seen),
+        (Asked::Disparity, Some(Answer::Yes)) => Settled::Disparity(DisparitySide::Upright),
+        (Asked::Disparity, Some(Answer::No)) => Settled::Disparity(DisparitySide::Lying),
+        (Asked::Held, Some(Answer::Yes)) => Settled::Held(HeldCheckState::Confirmed),
+        (Asked::Held, Some(Answer::No | Answer::Unsure)) => {
+            Settled::Held(HeldCheckState::NotConfirmed)
+        }
+        (Asked::Feet | Asked::Disparity, Some(Answer::Unsure))
+        | (Asked::Disparity | Asked::Held, None) => Settled::Nothing,
+    }
+}
+
 /// What one camera has asked the verifier and what it owes.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Verification {
@@ -295,14 +351,22 @@ impl Verification {
             return;
         };
         self.in_flight = None;
-        if let Target::Feet { stable } = ticket.target
-            && ticket.looked.session == at.session
-            && belief.bed_posture_state() == Some(stable)
-        {
-            self.filled = self.asked_places.map(|places| BodyPlaces {
-                feet: FeetPlace::PastTheSides,
-                ..places
-            });
+        let holds = ticket.looked.session == at.session && self.holds(ticket.target, belief);
+        if let Settled::Feet(feet) = decide(Asked::of(ticket.target), None, holds) {
+            self.filled = self
+                .asked_places
+                .map(|places| BodyPlaces { feet, ..places });
+        }
+    }
+
+    /// Whether what `target` asked about still holds: layer 1 in the same
+    /// stable state, or the same body still held and followed.
+    fn holds(&self, target: Target, belief: &Belief) -> bool {
+        match target {
+            Target::Feet { stable } | Target::Disparity { stable } => {
+                belief.bed_posture_state() == Some(stable)
+            }
+            Target::Held { since } => self.held.is_some_and(|h| h.since == since),
         }
     }
 
@@ -319,39 +383,26 @@ impl Verification {
             if ticket.looked.session != at.session {
                 continue;
             }
-            match ticket.target {
-                Target::Feet { stable } => {
-                    let same = belief.bed_posture_state() == Some(stable);
-                    let feet = match answer {
-                        Answer::Yes => Some(FeetPlace::PastTheSides),
-                        Answer::No => Some(FeetPlace::Seen),
-                        Answer::Unsure => None,
-                    };
-                    if let (true, Some(feet), Some(places)) = (same, feet, self.asked_places) {
+            let holds = self.holds(ticket.target, belief);
+            match decide(Asked::of(ticket.target), Some(answer), holds) {
+                Settled::Nothing => {}
+                Settled::Feet(feet) => {
+                    if let Some(places) = self.asked_places {
                         self.filled = Some(BodyPlaces { feet, ..places });
                     }
                 }
-                Target::Disparity { stable } => {
-                    let same = belief.bed_posture_state() == Some(stable);
-                    let side = match answer {
-                        Answer::Yes => Some(DisparitySide::Upright),
-                        Answer::No => Some(DisparitySide::Lying),
-                        Answer::Unsure => None,
-                    };
-                    if let (true, Some(side), Some(places)) = (same, side, self.asked_places) {
+                Settled::Disparity(disparity) => {
+                    if let Some(places) = self.asked_places {
                         self.filled = Some(BodyPlaces {
-                            disparity: side,
+                            disparity,
                             ..places
                         });
                     }
                 }
-                Target::Held { since } => {
-                    if let Some(held) = self.held.as_mut().filter(|h| h.since == since) {
+                Settled::Held(state) => {
+                    if let Some(held) = self.held.as_mut() {
                         held.check = HeldCheck {
-                            state: match answer {
-                                Answer::Yes => HeldCheckState::Confirmed,
-                                Answer::No | Answer::Unsure => HeldCheckState::NotConfirmed,
-                            },
+                            state,
                             by: Some(Verifier::Vlm),
                             looked: Some(ticket.looked),
                         };
@@ -361,3 +412,6 @@ impl Verification {
         }
     }
 }
+
+#[cfg(test)]
+mod table;

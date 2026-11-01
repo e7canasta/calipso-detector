@@ -1,0 +1,25 @@
+# asked | answer | holds | settled
+held | yes | holds | held confirmed
+held | yes | moved on | —
+held | no | holds | held not_confirmed
+held | no | moved on | —
+held | unsure | holds | held not_confirmed
+held | unsure | moved on | —
+held | expired | holds | —
+held | expired | moved on | —
+feet | yes | holds | feet PastTheSides
+feet | yes | moved on | —
+feet | no | holds | feet Seen
+feet | no | moved on | —
+feet | unsure | holds | —
+feet | unsure | moved on | —
+feet | expired | holds | feet PastTheSides
+feet | expired | moved on | —
+disparity | yes | holds | disparity Upright
+disparity | yes | moved on | —
+disparity | no | holds | disparity Lying
+disparity | no | moved on | —
+disparity | unsure | holds | —
+disparity | unsure | moved on | —
+disparity | expired | holds | —
+disparity | expired | moved on | —

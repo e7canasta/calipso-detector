@@ -92,6 +92,7 @@ What no change may break. Each one has someone watching it.
 | Layer 1 decides as its golden table does (`contract/bed-posture-table.txt`) | P2 | `belief/bed_posture/rules/table.rs` |
 | The parts decide as their golden table does (`contract/parts-table.txt`) | P2 | `belief/parts/rules/table.rs` |
 | The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
+| V settles an answer, or its expiry, as its golden table does (`contract/verification-table.txt`) | P2 | `verification/table.rs` |
 | The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
 | Space has one owner: the bed's plane lives only in `map` and `room` | 23 | `scripts/check.sh` (space has one owner), with its fixture |
 | The room does not depend on the layers above it: it answers with the site, the policy and the shared vocabulary, and whoever concludes something asks it | 23, ADP (Martin) | `scripts/check.sh` (the room asks nothing above it), with its fixture |
@@ -534,7 +535,7 @@ are for local scope.
   once per version, before a branch goes into `main` (format, clippy, core
   dependencies, every test and licenses).
 - The golden tables (layer 0, the parts and their reading, layer 1, the
-  second level's arbiter) share one net, `golden::assert_table`: if a rule
+  second level's arbiter, V) share one net, `golden::assert_table`: if a rule
   changed on purpose, the test prints the rows that changed and the whole new
   table to copy into its file under `contract/`, and the diff goes into the
   commit.
@@ -548,7 +549,7 @@ round is integrated.
 
 | Debt | Why | Round |
 |---|---|---|
-| The verification plane is imperative (`issue`, `settle`, `expire` in `verification.rs`), not a decider with a golden table like layers 0 and 1 | The burst (white book III, ch. 12) adds a phase to V; its rows belong in a table, each with its scenario and mutation, not in loose logic | V as a pure machine: first a refactor that keeps every cell, then the burst |
+| The burst's phases (collect, keep, dispatch in `verification.rs`) are imperative. What an answer or an expiry does is already a decider with its golden table (`verification::decide`) | The burst (white book III, ch. 12) adds a phase to V; its rows belong in a table, each with its scenario and mutation, not in loose logic | V's phases as a pure machine, with the burst |
 | The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
 | `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Their descriptions say so; renaming them changes the wire, so it waits for the next contract version (C2), together with the positional `rbh` and `fv` | next contract version |
 | The scene's `last_event_seq` is written by the NATS actor (the last event delivered), not where the stream is numbered | The transport writes into the published body: the in-memory sink and NATS agree only while no event is dropped. Moving it changes what the field means to its consumers (C1) | next contract version |
