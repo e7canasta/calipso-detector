@@ -83,9 +83,9 @@ pub fn bed_in_crop(frame: &DynamicImage, region: Rect, bed: &Quad) -> String {
         .join(" ")
 }
 
-/// The crop of the frame over `region`, clamped to it, as a JPEG in memory.
-/// A region without pixels in the frame fails, like a sense would.
-pub fn jpeg_crop(frame: &DynamicImage, region: Rect) -> Result<Vec<u8>, Failure> {
+/// The pixels of `region` inside the frame, as `(x, y, width, height)`: wider
+/// and taller than `min`, or it fails, like a sense would.
+fn pixels(frame: &DynamicImage, region: Rect, min: u32) -> Result<(u32, u32, u32, u32), Failure> {
     let clamp = |v: f32, max: u32| v.clamp(0.0, max as f32) as u32;
     let (x0, y0) = (
         clamp(region.x0, frame.width()),
@@ -95,10 +95,17 @@ pub fn jpeg_crop(frame: &DynamicImage, region: Rect) -> Result<Vec<u8>, Failure>
         clamp(region.x1, frame.width()),
         clamp(region.y1, frame.height()),
     );
-    if x1 <= x0 || y1 <= y0 {
+    if x1 <= x0 + min || y1 <= y0 + min {
         return Err(Failure::Model);
     }
-    let crop = frame.crop_imm(x0, y0, x1 - x0, y1 - y0).to_rgb8();
+    Ok((x0, y0, x1 - x0, y1 - y0))
+}
+
+/// The crop of the frame over `region`, clamped to it, as a JPEG in memory.
+/// A region without pixels in the frame fails, like a sense would.
+pub fn jpeg_crop(frame: &DynamicImage, region: Rect) -> Result<Vec<u8>, Failure> {
+    let (x, y, width, height) = pixels(frame, region, 0)?;
+    let crop = frame.crop_imm(x, y, width, height).to_rgb8();
     let mut jpeg = Vec::new();
     JpegEncoder::new_with_quality(&mut jpeg, 85)
         .encode_image(&crop)
@@ -111,19 +118,8 @@ pub fn jpeg_crop(frame: &DynamicImage, region: Rect) -> Result<Vec<u8>, Failure>
 /// measured on the same scale (white book, volume III, ch. 12). About a
 /// millisecond.
 pub fn sharpness(frame: &DynamicImage, region: Rect) -> Result<f32, Failure> {
-    let clamp = |v: f32, max: u32| v.clamp(0.0, max as f32) as u32;
-    let (x0, y0) = (
-        clamp(region.x0, frame.width()),
-        clamp(region.y0, frame.height()),
-    );
-    let (x1, y1) = (
-        clamp(region.x1, frame.width()),
-        clamp(region.y1, frame.height()),
-    );
-    if x1 <= x0 + 2 || y1 <= y0 + 2 {
-        return Err(Failure::Model);
-    }
-    let grey = frame.crop_imm(x0, y0, x1 - x0, y1 - y0).to_luma8();
+    let (x, y, width, height) = pixels(frame, region, 2)?;
+    let grey = frame.crop_imm(x, y, width, height).to_luma8();
     let height = (256 * grey.height() / grey.width().max(1)).max(3);
     let small = image::imageops::resize(&grey, 256, height, image::imageops::FilterType::Triangle);
     let (w, h) = small.dimensions();
