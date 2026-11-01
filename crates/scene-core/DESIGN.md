@@ -93,8 +93,9 @@ What no change may break. Each one has someone watching it.
 | The parts decide as their golden table does (`contract/parts-table.txt`) | P2 | `belief/parts/rules/table.rs` |
 | The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
 | The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
-| The room does not depend on the layers above it: it answers with the site, the policy and the shared vocabulary, and whoever concludes something asks it | ADP (Martin) | `scripts/check.sh` (the room asks nothing above it), with its fixture |
-| Determinism: a replay gives the same | 8, 9 | golden scenes and the detector's replay |
+| Space has one owner: the bed's plane lives only in `map` and `room` | 23 | `scripts/check.sh` (space has one owner), with its fixture |
+| The room does not depend on the layers above it: it answers with the site, the policy and the shared vocabulary, and whoever concludes something asks it | 23, ADP (Martin) | `scripts/check.sh` (the room asks nothing above it), with its fixture |
+| Determinism: a replay gives the same. Recording is always outside the detector, so a real night is replayed from what was published: its counts and layers come back, the verifier's answers do not (they are published as provenance, `held.check`, and the distilled scene leaves them out) | 8, 9 | golden scenes and the detector's replay |
 
 ## 3. The loop: one turn per sample
 
@@ -488,7 +489,7 @@ matters as much as the second.
 | `lib.rs` | The public API and rule 21's `deny` | exposes how the core believes |
 | `cycle` (+ `monitor`, `engine`, `sequence`, `waiting`) | The loop protocol (`cycle`), what one camera is made of and what comes out of a turn (`monitor`), what the engine changes when the turn asks it (`engine`), the order of a turn and its ledger (`sequence`), each probe with its continuation (`waiting`) | decides anything |
 | `look` | The protocol's vocabulary: probes, readings, what was asked (`LookKind`) and how it failed | contains pixels |
-| `evidence` | Admits readings: one body per person, its zone | decides what is believed or looked at |
+| `evidence` (+ `bodies`, `faces`, `pose`, `depth`) | Admits readings, one file per sense: one body per person, its zone | decides what is believed or looked at |
 | `belief` | The belief: joins layer 0, the subject and layer 1 | sees a raw reading |
 | `belief/occupancy` | Layer 0: the occupancy machine | knows the second level or the contract |
 | `verification` | The verification plane: what the slow verifier was asked (one ticket in flight), the answers owed, and the held body's provenance (`HeldCheck`). Answers arrive between turns (`Monitor::verified`) and are settled at the next sample's turn | moves a count, or is read by layer 0 or layer 1 |
@@ -497,7 +498,7 @@ matters as much as the second.
 | `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |
 | `belief/parts` | The occupancy of the subject's parts: where each part is and what is held | changes a count or reads the posture |
 | `refine` | The second level: where the head is (`head`, from the faces and the pose, asking the room), lying, posture by body groups, the arbiter's verdict (a golden table) and what layer 1 saw (`seen`) | writes the belief or changes a count |
-| `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); its memory (`Memory`: the lens, the reinforcement latch and the last calibration attempt) | mutates the belief |
+| `attention` (+ `primary`, `faces`, `body`, `depth`, `verify`, `memory`, `ledger`) | What to look at, where and why not, one file per question; its ledger (`Attention`, `Look`, `SkipReason`); its memory (`Memory`: the lens, the reinforcement latch and the last calibration attempt) | mutates the belief |
 | `body` | Body vocabulary: the COCO-17 pose and its depth, the bed's sites and where the head is (`HeadPlace`, concluded by `refine::head`) | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
@@ -532,8 +533,11 @@ are for local scope.
   crates that changed and of those that depend on them); `scripts/check.sh`
   once per version, before a branch goes into `main` (format, clippy, core
   dependencies, every test and licenses).
-- The layer-0 table: if a rule changed on purpose, the test prints the new
-  table to copy into the golden file, and the diff goes into the commit.
+- The golden tables (layer 0, the parts and their reading, layer 1, the
+  second level's arbiter) share one net, `golden::assert_table`: if a rule
+  changed on purpose, the test prints the rows that changed and the whole new
+  table to copy into its file under `contract/`, and the diff goes into the
+  commit.
 - The golden scenes and their replay through the detector: the contract gives the same.
 - A refactor does not change a table cell, a published event or a `.feature`.
 
