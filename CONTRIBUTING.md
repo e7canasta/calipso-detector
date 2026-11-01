@@ -33,7 +33,7 @@ for how the engine is built.
 2. **Red, green, refactor** (rule 16). The smallest code that turns the
    scenario green; then the refactor, with every scenario still green. A
    refactor does not change a table cell, a published event or a `.feature`.
-3. **The contract is published language** (rule 13, C1–C5 in `DESIGN.md`). A
+3. **The contract is published language** (rule 13, C1–C5 in [`DESIGN.md`](crates/scene-core/DESIGN.md)). A
    change to what `calipso.scene` or `calipso.events` publish needs a new
    contract version, never an edit of a published one. The JSON Schema
    snapshots catch it; regenerate them only on purpose:
