@@ -182,6 +182,22 @@ la cáscara), coordinado con las otras sesiones (bridges y claqueta).
 | F-5 | **descartado** | `Course` lee los campos privados de `Engine`. Sacarlo de `cycle` obligaría a hacerlos `pub(crate)`: menos ocultamiento, no más (Parnas). `cycle.rs` declara a propósito el estado de la vuelta y sus hijos lo implementan |
 | F-6 | `93f5275` | `attention/`: `primary`, `faces`, `body`, `depth`, `verify`, `memory`, `ledger`. Las rutas públicas no cambian; el schema tampoco (toma el nombre del tipo, no la ruta) |
 | F-7 | `5bff44e` | `evidence/`: `bodies`, `faces`, `pose`, `depth`, cada uno con sus pruebas |
-| F-8, F-9, F-10 | pendientes | F-8 cambia la forma de la vuelta: merece su propia sesión. F-10 toca los bridges: coordinarlo con su sesión |
+| F-8 | **descartado por ahora** | Leído de cerca, `Course::next` tiene unas 150 líneas, es lineal y cada brazo toma una sola decisión; el typestate ya impide saltear pasos (cada `Reached` lleva sus datos). Partirlo en tres enums agrega indirección sin esconder un secreto. Umbral para revisarlo: unas 300 líneas en `next` |
+| F-9 | `e7e141f` | `config/`: `schema` (cómo se escribe un perfil), `validate`, `policy` (cómo se vuelve política y mapa), `profile` (qué se publica y su hash), `tests`. Rutas públicas y hashes de perfil iguales. No se hizo el `From` por sección: hubiera reescrito la traducción, no movido código |
+| — | `2532676` | DESIGN de la crate: el mapa de módulos con las carpetas nuevas, la regla 23 en los invariantes y el límite del replay (R-1 de la revisión) |
+| — | `e785885` | El recorte del verificador (`jpeg_crop` y `sharpness` repetían el mismo cálculo) en una función `pixels` |
+| F-10 | pendiente | Toca los bridges: coordinarlo con su sesión |
+
+**El barrido de duplicación.** Un script buscó bloques de seis líneas
+repetidos en todas las crates. En producción solo apareció el recorte del
+verificador; el resto son preparaciones de pruebas. El código no tiene
+duplicación que pague un refactor: lo que crece es el tamaño de los
+módulos, no la copia.
+
+**La deuda que el equipo ya anotó** (DESIGN §11): el plano de verificación
+es imperativo (`issue`, `settle`, `expire`) y no un *decider* con tabla
+dorada como las capas 0 y 1. Es el refactor con más valor que queda, pero
+no es mecánico: pide su tabla, sus escenarios y sus mutaciones antes de la
+ráfaga. Merece su propia mesa.
 
 El gate completo (`check.sh`) corrió una vez sobre la serie, en verde (formato, lints, los árboles de dependencias, los guardianes del dominio y del espacio, todas las pruebas, licencias).
