@@ -1,7 +1,7 @@
 # Mesa de refactor — el detector a tres semanas de v4
 
 2026-11-01 · Sobre `main@7e7f443`. Formato: el de la
-[mesa del proyecto 17](../calipso-roadmap/projects/17-escena-v3-en-vivo/docs/04-mesa-de-diseno.md)
+[mesa del proyecto 17](../calipso-roadmap/archivo/proyectos/17-escena-v3-en-vivo/docs/04-mesa-de-diseno.md)
 y la [mesa R7](../calipso-docs/specs/r7/01-mesa-de-diseno.md). Material:
 [arquitectura-c4.md](arquitectura-c4.md) y
 [revision-2026-11-01.md](revision-2026-11-01.md).
