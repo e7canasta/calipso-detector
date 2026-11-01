@@ -4,15 +4,13 @@
 //! new table to copy into `contract/parts-reading-table.txt`.
 
 use super::{Facts, Headboard, PartsReading, dwell, read};
+use crate::golden;
 use serde::Serialize;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/parts-reading-table.txt");
 
 fn wire<T: Serialize>(value: T) -> String {
-    serde_json::to_value(value)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_owned))
-        .unwrap_or_default()
+    golden::name(value).unwrap_or_default()
 }
 
 fn table() -> String {
@@ -60,11 +58,7 @@ fn table() -> String {
 
 #[test]
 fn the_parts_reading_is_the_golden_table() {
-    let table = table();
-    assert!(
-        table == GOLDEN,
-        "the parts reading table changed; if on purpose, copy it to contract/parts-reading-table.txt:\n{table}"
-    );
+    golden::assert_table("parts-reading-table.txt", GOLDEN, &table());
 }
 
 #[test]

@@ -7,6 +7,7 @@
 use super::super::{BedPostureState, Sighting};
 use super::decide;
 use crate::belief::InBed;
+use crate::golden;
 use serde::Serialize;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/bed-posture-table.txt");
@@ -30,8 +31,7 @@ const SIGHTINGS: [(Sighting, &str); 6] = [
 /// A value as the contract names it; nothing is `—`.
 fn wire<T: Serialize>(value: Option<T>) -> String {
     value
-        .and_then(|v| serde_json::to_value(v).ok())
-        .and_then(|v| v.as_str().map(str::to_owned))
+        .and_then(golden::name)
         .unwrap_or_else(|| "—".to_owned())
 }
 
@@ -53,9 +53,5 @@ fn table() -> String {
 
 #[test]
 fn layer_1_decides_as_the_golden_table() {
-    let table = table();
-    assert!(
-        table == GOLDEN,
-        "the bed-posture table changed; if on purpose, copy it to contract/bed-posture-table.txt:\n{table}"
-    );
+    golden::assert_table("bed-posture-table.txt", GOLDEN, &table());
 }

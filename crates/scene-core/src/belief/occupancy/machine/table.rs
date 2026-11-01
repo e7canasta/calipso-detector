@@ -223,18 +223,7 @@ fn table() -> String {
 
 #[test]
 fn the_layer_0_table_is_the_golden_one() {
-    let actual = table();
-    let different: Vec<_> = GOLDEN
-        .lines()
-        .zip(actual.lines())
-        .filter(|(d, a)| d != a)
-        .map(|(d, a)| format!("  golden: {d}\n  now:    {a}"))
-        .collect();
-    assert!(
-        different.is_empty() && GOLDEN.lines().count() == actual.lines().count(),
-        "the layer-0 table changed:\n{}\n\nthe whole new table:\n{actual}",
-        different.join("\n")
-    );
+    crate::golden::assert_table("layer-0-table.txt", GOLDEN, &table());
 }
 
 fn facts(transitions: &[Transition]) -> impl Iterator<Item = &Happened> {

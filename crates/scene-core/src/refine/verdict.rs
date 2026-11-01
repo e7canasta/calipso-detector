@@ -74,15 +74,13 @@ pub(crate) fn arbitrate(zone: Zone, posture: Option<PostureState>) -> Option<Rul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::golden;
 
     const GOLDEN: &str = include_str!("../../../../contract/second-level-table.txt");
 
     /// A value as the contract names it.
     fn wire<T: Serialize>(value: &T) -> String {
-        serde_json::to_value(value)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_default()
+        golden::name(value).unwrap_or_default()
     }
 
     /// Every combination of zone and opinion, one row each.
@@ -110,11 +108,7 @@ mod tests {
 
     #[test]
     fn the_arbiter_decides_as_the_golden_table() {
-        let table = table();
-        assert!(
-            table == GOLDEN,
-            "the second-level table changed; if on purpose, copy it to contract/second-level-table.txt:\n{table}"
-        );
+        golden::assert_table("second-level-table.txt", GOLDEN, &table());
     }
 
     #[test]

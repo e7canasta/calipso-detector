@@ -116,9 +116,5 @@ fn table() -> String {
 
 #[test]
 fn the_parts_decide_as_the_golden_table() {
-    let table = table();
-    assert!(
-        table == GOLDEN,
-        "the parts table changed; if on purpose, copy it to contract/parts-table.txt:\n{table}"
-    );
+    crate::golden::assert_table("parts-table.txt", GOLDEN, &table());
 }

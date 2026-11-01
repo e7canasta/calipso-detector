@@ -58,6 +58,8 @@ mod cycle;
 mod estimation;
 mod evidence;
 pub mod geom;
+#[cfg(test)]
+mod golden;
 pub mod look;
 pub mod map;
 pub mod policy;
