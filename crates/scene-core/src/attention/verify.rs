@@ -10,7 +10,7 @@ use crate::policy::Policy;
 use crate::policy::VerifyPolicy;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
-use crate::verification::{Collecting, HOUR_SECS, HeldCheckState, Verification};
+use crate::verification::{self, Collecting, HOUR_SECS, HeldCheckState, Verification};
 
 /// The crop the verifier looks at: the bed grown by this fraction of its width
 /// and height on each side (white book, volume III, ch. 05).
@@ -133,11 +133,7 @@ pub(crate) fn burst(
     let Some(age) = at.secs_since(collecting.last) else {
         return BurstStep::Stale;
     };
-    let stale = match collecting.ticket.target {
-        Target::Feet { stable } | Target::Disparity { stable } => layer_1 != Some(stable),
-        Target::Held { since } => held != Some(since),
-    };
-    if stale {
+    if !verification::holds(collecting.ticket.target, layer_1, held) {
         return BurstStep::Stale;
     }
     let resolved = match collecting.ticket.target {

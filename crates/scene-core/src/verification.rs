@@ -10,6 +10,7 @@
 
 use crate::attention::VerifyLook;
 use crate::belief::Belief;
+use crate::belief::bed_posture::BedPostureState;
 use crate::look::{Answer, Target, Ticket, Verified};
 use crate::policy::{Burst, Policy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
@@ -148,6 +149,20 @@ pub(crate) fn decide(asked: Asked, answer: Option<Answer>, holds: bool) -> Settl
         }
         (Asked::Feet | Asked::Disparity, Some(Answer::Unsure))
         | (Asked::Disparity | Asked::Held, None) => Settled::Nothing,
+    }
+}
+
+/// Whether what `target` asked about still holds: layer 1 in the stable state
+/// it was asked under, or the same body still held and followed. One rule for
+/// settling an answer and for keeping a burst going.
+pub(crate) fn holds(
+    target: Target,
+    layer_1: Option<BedPostureState>,
+    held: Option<SampleRef>,
+) -> bool {
+    match target {
+        Target::Feet { stable } | Target::Disparity { stable } => layer_1 == Some(stable),
+        Target::Held { since } => held == Some(since),
     }
 }
 
@@ -359,15 +374,14 @@ impl Verification {
         }
     }
 
-    /// Whether what `target` asked about still holds: layer 1 in the same
-    /// stable state, or the same body still held and followed.
+    /// Whether what `target` asked about still holds, with the belief at the
+    /// start of the turn.
     fn holds(&self, target: Target, belief: &Belief) -> bool {
-        match target {
-            Target::Feet { stable } | Target::Disparity { stable } => {
-                belief.bed_posture_state() == Some(stable)
-            }
-            Target::Held { since } => self.held.is_some_and(|h| h.since == since),
-        }
+        holds(
+            target,
+            belief.bed_posture_state(),
+            self.held.map(|h| h.since),
+        )
     }
 
     /// At the start of a sample's turn: each answer that still applies changes
