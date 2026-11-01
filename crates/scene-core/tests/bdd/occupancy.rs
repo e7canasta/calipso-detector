@@ -198,3 +198,8 @@ fn no_earlier_observation(ward: &mut Ward) {
 fn held_left(ward: &mut Ward) {
     ward.policy.held_left = true;
 }
+
+#[given("whoever appears near the bed did not come from the door")]
+fn near_first(ward: &mut Ward) {
+    ward.policy.near_first = true;
+}

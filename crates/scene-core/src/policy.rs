@@ -142,6 +142,11 @@ pub struct Policy {
     /// the held one who got up. `false`: a held body leaves only reappearing
     /// in bed, as it always did.
     pub held_left: bool,
+    /// Rule 5, refined (white book, volume VII, ch. 17): a body that appeared
+    /// near the bed and then walked away did not come from the door. `false`:
+    /// whoever was seen far while the count stabilized came from the door, as
+    /// it always did.
+    pub near_first: bool,
 }
 
 /// The geometry's shadow (white book, volume VII, ch. 11): estimates of a
@@ -319,6 +324,7 @@ impl Default for Policy {
             shadow: None,
             two_planes: None,
             held_left: false,
+            near_first: false,
         }
     }
 }
