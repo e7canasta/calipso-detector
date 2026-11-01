@@ -12,6 +12,7 @@ use crate::attention::{
     LookOutcome, LookResult, SkipReason, SubjectDepthLook, VerifyLook,
 };
 use crate::belief::{Believed, Enrichment};
+use crate::body::HeadPlace;
 use crate::body::Keypoint;
 use crate::conclusion::{Conclusion, Observation, RepublishReason};
 use crate::evidence::{self, Admission, FaceEvidence, Perceived};
@@ -19,7 +20,6 @@ use crate::geom::{Point, Rect};
 use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
-use crate::refine::head::HeadPlace;
 use crate::room::Room;
 use crate::sensor::SensorChanged;
 use crate::verification::Collecting;

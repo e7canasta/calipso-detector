@@ -3,12 +3,12 @@
 //! occupancy: it is the only occupant, if there is exactly one.
 
 use super::Subject;
+use crate::body::HeadPlace;
 use crate::body::{BedPoint, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 use crate::estimation;
 use crate::evidence::SubjectDepths;
 use crate::geom::Rect;
 use crate::provenance::Provenance;
-use crate::refine::head::HeadPlace;
 use crate::time::SampleRef;
 
 /// What to do with the motion reference on receiving a new pose.

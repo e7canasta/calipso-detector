@@ -160,3 +160,62 @@ pub struct BedPoint {
     /// Its depth on the depth model's scale, if it was read.
     pub depth: Option<f32>,
 }
+
+/// Where the head is, and what said so.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct HeadPlace {
+    /// At the headboard, elsewhere, or unknown.
+    pub state: HeadPlaceState,
+    /// What it was concluded from; `None` when unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<HeadEvidence>,
+}
+
+/// Where the head is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HeadPlaceState {
+    /// At the headboard: lying in bed as a bed is used, the hips are at its
+    /// centre.
+    AtHeadboard,
+    /// Seen in bed, below the headboard: lying here is not lying as a bed is
+    /// used (R18, 1807).
+    BelowHeadboard,
+    /// Seen past the bed's sides (`u < 0` or `u > 1`): on the way out.
+    AtSide,
+    /// Seen, but neither at the headboard, in bed nor past its sides; or seen
+    /// without the bed's plane.
+    Elsewhere,
+    /// Without the headboard delimited, or without a face or a head in sight.
+    Unknown,
+}
+
+/// What the head's place was concluded from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HeadEvidence {
+    /// An accepted face.
+    Face,
+    /// The pose's head keypoints (nose, eyes, ears) seen.
+    PoseHead,
+}
+
+impl HeadPlace {
+    /// Nothing to say where the head is.
+    pub const UNKNOWN: HeadPlace = HeadPlace {
+        state: HeadPlaceState::Unknown,
+        by: None,
+    };
+
+    pub(crate) fn of(state: HeadPlaceState, by: HeadEvidence) -> Self {
+        Self {
+            state,
+            by: Some(by),
+        }
+    }
+
+    /// Is the head at the headboard?
+    pub fn at_headboard(&self) -> bool {
+        self.state == HeadPlaceState::AtHeadboard
+    }
+}

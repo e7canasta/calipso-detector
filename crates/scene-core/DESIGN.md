@@ -302,7 +302,7 @@ layer 1, never the other way round.
 - **The machine** (`Machine`, P1): the stable state and the candidate, with
   the layer-0 `Stabilizer`; unknown lets the candidate keep holding. It forgets
   when layer 0 no longer has the resident alone in bed.
-- **Where the head is** (`refine::head::HeadPlace`) is the fact that filters: the
+- **Where the head is** (`body::HeadPlace`) is the fact that filters: the
   headboard region and, away from it, the bed's u/v (`below_headboard`,
   `at_side`). It is computed when the pose arrives
   (`attention::head_place`); the depth look and layer 1 read it.
@@ -457,7 +457,7 @@ One concept, one name.
 | body group | `refine::BodyGroup`, `BodyGroups` | Head, shoulders or pelvis: the median depth of its seen keypoints and how many it saw (R16) |
 | disparity | `Posture::disparity`, `Disparities` | `(upper − pelvis) / mean`: head and shoulders together against the pelvis decide; the feet do not vote (R16) |
 | bed point | `BedPoint`, `BedSite`, `Posture::bed_points` | A fixed site of the bed (today its centre, u/v 0.5) whose depth is read in the same look as the body, with the resident in bed: covered, the blanket over the hips. `upper_bed_centre` is the baseline next to the pelvis' disparity; context, not a vote (R17, 1707) |
-| head place | `refine::head::HeadPlace`, `Posture::head_place` | Where the head is (at the headboard, below it in bed, past the bed's sides, elsewhere, unknown) and what said so: a fact of its own, as the occupancy is where the body is. The bed's centre is the hips only with the head at the headboard; readers read the fact, not how it was concluded (R17, 1707) |
+| head place | `body::HeadPlace`, `Posture::head_place` | Where the head is (at the headboard, below it in bed, past the bed's sides, elsewhere, unknown) and what said so: a fact of its own, as the occupancy is where the body is. The bed's centre is the hips only with the head at the headboard; readers read the fact, not how it was concluded (R17, 1707) |
 | head (of the second level) | `refine::Head` | An independent opinion on how the resident is: today `disparity`; the bed plane, the head's place in the bed and a VLM will follow |
 | arbiter, verdict | `refine::verdict`, `Verdict`, `VerdictState` | The table from the heads' opinions to one verdict, with the heads that support it and since when; only in bed for now (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) |
 | projection | `project` | How the belief looks from outside |
@@ -497,7 +497,7 @@ matters as much as the second.
 | `belief/parts` | The occupancy of the subject's parts: where each part is and what is held | changes a count or reads the posture |
 | `refine` | The second level: where the head is (`head`, from the faces and the pose, asking the room), lying, posture by body groups, the arbiter's verdict (a golden table) and what layer 1 saw (`seen`) | writes the belief or changes a count |
 | `attention` | What to look at, where and why not; its ledger (`Attention`, `Look`, `SkipReason`); its memory (`Memory`: the lens, the reinforcement latch and the last calibration attempt) | mutates the belief |
-| `body` | Body vocabulary: the COCO-17 pose and its depth | interprets the pose (that is `refine`) |
+| `body` | Body vocabulary: the COCO-17 pose and its depth, the bed's sites and where the head is (`HeadPlace`, concluded by `refine::head`) | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
 | `chronicle` | The memory of what was concluded, in the domain: folds the turns | is read by the engine to decide, or imports the contract |

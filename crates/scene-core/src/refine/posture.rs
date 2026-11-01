@@ -1,8 +1,8 @@
 //! Head 2 of the second level: posture by depth disparity.
 //! Stateless: each pose gives its posture.
 
-use super::head::HeadPlace;
 use crate::belief::SubjectBody;
+use crate::body::HeadPlace;
 use crate::body::{BedPoint, BedSite, BodyPoint, Joint};
 use crate::estimation;
 use crate::policy::EnrichPolicy;

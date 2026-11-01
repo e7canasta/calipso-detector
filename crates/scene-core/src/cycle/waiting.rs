@@ -2,12 +2,12 @@
 
 use super::{Observed, Refined};
 use crate::attention::{BodyPoseLook, DepthLook, SubjectDepthLook, VerifyLook};
+use crate::body::HeadPlace;
 use crate::body::Keypoint;
 use crate::evidence::{Admission, Perceived};
 use crate::geom::{Point, Rect};
 use crate::look::{DepthPurpose, DepthTarget, FaceRegion, PosePurpose, Probe, Ticket};
 use crate::policy::FacePolicy;
-use crate::refine::head::HeadPlace;
 
 /// Probe and continuation are created together; their fields cannot be
 /// replaced from the sequencer.

@@ -8,13 +8,13 @@
 pub use crate::attention::{Attention, Look, LookOutcome, LookResult, SkipReason};
 pub use crate::belief::{BedPosture, BedPostureSeen, BedPostureState, PartsReading};
 pub use crate::body::{BedPoint, BedSite, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
+pub use crate::body::{HeadEvidence, HeadPlace, HeadPlaceState};
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
 use crate::geom::Rect;
 pub use crate::look::{Failure, LookKind};
 pub use crate::map::{Calibration, FrameInfo, Geometry, MapState};
 pub use crate::provenance::Provenance;
-pub use crate::refine::head::{HeadEvidence, HeadPlace, HeadPlaceState};
 pub use crate::refine::{
     BodyGroup, BodyGroups, Disparities, Head, Lying, LyingState, Posture, PostureState, Verdict,
     VerdictState,

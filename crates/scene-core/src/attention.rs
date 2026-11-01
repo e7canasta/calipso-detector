@@ -5,6 +5,8 @@
 
 use crate::belief::bed_posture::BedPostureState;
 use crate::belief::{Alone, Belief, Believed, InBed, Room};
+use crate::body::HeadPlace;
+use crate::body::HeadPlaceState;
 use crate::body::Keypoint;
 use crate::estimation;
 use crate::evidence::BodyEvidence;
@@ -18,8 +20,6 @@ use crate::map::{CalibrationMemory, Geometry, Map};
 use crate::policy::VerifyPolicy;
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
-use crate::refine::head::HeadPlace;
-use crate::refine::head::HeadPlaceState;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
 use crate::verification::{Collecting, HOUR_SECS, HeldCheckState, Verification};

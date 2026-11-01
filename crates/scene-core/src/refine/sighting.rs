@@ -7,10 +7,10 @@
 //! reads in those places ([`BodyPlaces::sighting`]). The places are facts; the
 //! reading is a decision list over them.
 
-use super::head::HeadPlaceState;
 use super::{Posture, PostureState};
 use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
+use crate::body::HeadPlaceState;
 use crate::body::Joint;
 use crate::geom::Point;
 use crate::policy::EnrichPolicy;
