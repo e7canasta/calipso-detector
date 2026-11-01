@@ -11,7 +11,10 @@ Los repositorios hermanos están en `../..`:
 | `calipso-detector` (este) | El motor por cámara: ingesta, sentidos, núcleo, publicación | este hub |
 | `calipso-docs` | Libros, white book, ADR, specs históricas, guías | [`../../calipso-docs/README.md`](../../calipso-docs/README.md) |
 | `calipso-roadmap` | Proyectos, estado y handoffs | [`../../calipso-roadmap/README.md`](../../calipso-roadmap/README.md) |
-| `calipso-rerun-bridge`, `calipso-perception-bridge`, `calipso-shark`, `calipso-golden`, `calipso-verifier` | Consumidores y herramientas | cada uno tiene su README |
+| `calipso-rerun-bridge`, `calipso-perception-bridge`, `calipso-golden`, `calipso-verifier` | Consumidores y herramientas | cada uno tiene su README |
+| `calipso-claqueta` | Calibración y aceptación en escena | su README |
+| `calipso-dist` | Distribución y perfiles de sitio | su README |
+| `calipso-shark` | Repo citado por `RUN.md` y las ADR; no está clonado en esta máquina | — |
 
 ## Canon: qué manda sobre qué
 
@@ -23,7 +26,7 @@ Los repositorios hermanos están en `../..`:
 | ¿Qué contrato sale a NATS? | [`../contract/`](../contract) | JSON schema; `scene.v4` y `events.v4` son los vigentes |
 | ¿Cómo se verifica un cambio? | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) y la regla 17 de `RULES.md` | `scripts/quick.sh` por commit, `scripts/check.sh` por versión |
 | ¿Por qué es así? | [`../../calipso-docs/adr/`](../../calipso-docs/adr) | Las ADR no se reescriben; se reemplazan |
-| ¿Cómo se diseña el sistema completo? | [`../arquitectura-c4.md`](../arquitectura-c4.md) (canon) y [`../../calipso-docs/big-picture.md`](../../calipso-docs/big-picture.md) (canon de la visión general) | La copia de `big-picture.md` en la raíz del detector está desfasada: ver «Pendientes» |
+| ¿Cómo se diseña el sistema completo? | [`../arquitectura-c4.md`](../arquitectura-c4.md) (canon) y [`../../calipso-docs/big-picture.md`](../../calipso-docs/big-picture.md) (canon de la visión general) | — |
 | ¿Qué sigue? | `calipso-roadmap` | Los proyectos activos y sus handoffs |
 
 ## Cómo se trabaja acá
@@ -37,5 +40,4 @@ Los repositorios hermanos están en `../..`:
 
 - `RUN.md` depende de rutas de la máquina de desarrollo (`/home/visiona/...`). Hay que generalizarlo o moverlo a una plantilla por sitio.
 - La puesta en marcha en un sitio real (cámara, red, NATS, perfil) no tiene un procedimiento repetible. Hace falta uno con su verificación.
-- `big-picture.md` en la raíz del detector es una copia desfasada (enlaces a `workshop-director/` y `funcional-poc-v3.md`, que están en `calipso-docs`). Retirarla cuando el repo esté libre de otra sesión.
 - Las salidas de `onboarding.md` son de 2026-10-11; volver a correrlas antes de citarlas.
