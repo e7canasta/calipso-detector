@@ -18,7 +18,7 @@ use crate::conclusion::RepublishReason;
 use crate::contract::v4::{Event, Scene};
 use crate::evidence::Perceived;
 use crate::look::{Failure, Outcome, Probe, Reading, Spent};
-use crate::map::{BedCalibrated, FrameInfo, Geometry, Map};
+use crate::map::{BedCalibrated, CalibrationMemory, FrameInfo, Geometry, Map};
 use crate::policy::Policy;
 use crate::room::Room;
 use crate::sensor::{SensorChanged, SensorMemory, SensorState};
@@ -87,6 +87,8 @@ pub struct Monitor {
 struct Engine {
     policy: Policy,
     map: Map,
+    /// What was learned of the empty bed: the loop learns it, the map does not.
+    calibration: CalibrationMemory,
     belief: Belief,
     sensor: SensorMemory,
     /// The main detector's lens: when it last read the whole frame.

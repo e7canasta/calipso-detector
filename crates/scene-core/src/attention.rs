@@ -16,7 +16,7 @@ use crate::head::HeadPlace;
 use crate::head::HeadPlaceState;
 use crate::look::FaceRegion;
 use crate::look::{DepthTarget, Failure, LookKind, Question, Target};
-use crate::map::{Geometry, Map};
+use crate::map::{CalibrationMemory, Geometry, Map};
 use crate::policy::VerifyPolicy;
 use crate::policy::{FacePolicy, Policy};
 use crate::provenance::Provenance;
@@ -569,6 +569,7 @@ pub(crate) struct SubjectDepthLook {
 pub(crate) fn calibrate(
     g: &Glimpse<'_>,
     believed: &Believed,
+    calibration: &CalibrationMemory,
     policy: &Policy,
 ) -> Consideration<DepthLook<Point>> {
     let lens = depth_lens(g, policy);
@@ -576,7 +577,7 @@ pub(crate) fn calibrate(
         return Consideration::Disabled;
     };
     let (map, at) = (g.map, g.at);
-    if map.reference().is_some() {
+    if calibration.reference().is_some() {
         return Consideration::Inapplicable;
     }
     let skip = |r| Consideration::Decided(Decision::Skip(r));
@@ -592,7 +593,7 @@ pub(crate) fn calibrate(
     if occupied {
         return skip(SkipReason::RoomOccupied);
     }
-    if map
+    if calibration
         .last_attempt()
         .and_then(|last| at.secs_since(last))
         .is_some_and(|age| age < policy.retry_secs)

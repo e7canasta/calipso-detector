@@ -92,17 +92,19 @@ pub(crate) struct BedReference {
     pub since: Option<SampleRef>,
 }
 
+/// What was learned of the empty bed, and when it was last tried. It is not
+/// the map: the installer draws the map, the loop learns this.
 #[derive(Debug, Clone, Default, PartialEq)]
-struct CalibrationMemory {
+pub(crate) struct CalibrationMemory {
     reference: Option<BedReference>,
     last_attempt: Option<SampleRef>,
 }
 
-/// The running map: configured geometry and learned memory, with different owners.
+/// The running map: the geometry the installer drew. It does not change while
+/// the loop runs.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Map {
     pub site: SiteGeometry,
-    calibration: CalibrationMemory,
 }
 
 impl From<SiteMap> for Map {
@@ -117,13 +119,18 @@ impl From<SiteMap> for Map {
                 bed_floor: initial.bed_floor,
                 bed_size_m: initial.bed_size_m,
             },
-            calibration: CalibrationMemory {
-                reference: initial.bed_reference.map(|depth| BedReference {
-                    depth,
-                    since: initial.calibrated_at,
-                }),
-                last_attempt: initial.calibration_attempt,
-            },
+        }
+    }
+}
+
+impl From<&SiteMap> for CalibrationMemory {
+    fn from(initial: &SiteMap) -> Self {
+        Self {
+            reference: initial.bed_reference.map(|depth| BedReference {
+                depth,
+                since: initial.calibrated_at,
+            }),
+            last_attempt: initial.calibration_attempt,
         }
     }
 }
@@ -152,29 +159,25 @@ impl SiteMap {
     }
 }
 
-impl Map {
+impl CalibrationMemory {
     pub(crate) fn reference(&self) -> Option<BedReference> {
-        self.calibration.reference
+        self.reference
     }
 
     pub(crate) fn last_attempt(&self) -> Option<SampleRef> {
-        self.calibration.last_attempt
-    }
-
-    pub(crate) fn calibration_points(&self) -> Vec<Point> {
-        calibration_points(&self.site.bed)
+        self.last_attempt
     }
 
     /// Calibration was requested: the retry delay runs from here.
     pub(crate) fn attempted(&mut self, at: SampleRef) {
-        self.calibration.last_attempt = Some(at);
+        self.last_attempt = Some(at);
     }
 
     /// Learns the depth of the empty bed and says so with a domain event;
     /// without a valid measurement it learns nothing.
     pub(crate) fn learn(&mut self, at: SampleRef, depth: Option<f32>) -> Option<BedCalibrated> {
         let depth = depth?;
-        self.calibration.reference = Some(BedReference {
+        self.reference = Some(BedReference {
             depth,
             since: Some(at),
         });
@@ -182,6 +185,23 @@ impl Map {
             at,
             reference_m: depth,
         })
+    }
+
+    /// What is published of it.
+    fn state(&self) -> Calibration {
+        self.reference
+            .map_or(Calibration::Unavailable, |reference| {
+                Calibration::Complete {
+                    reference_m: reference.depth,
+                    since: reference.since,
+                }
+            })
+    }
+}
+
+impl Map {
+    pub(crate) fn calibration_points(&self) -> Vec<Point> {
+        calibration_points(&self.site.bed)
     }
 
     /// Does the bed geometry apply to this frame? (F-09)
@@ -269,7 +289,12 @@ impl Map {
     /// The static world as this turn sees it: the configured geometry and
     /// what was learned of the empty bed.
     /// With the focus the policy configured, if any, and the shadow if asked.
-    pub(crate) fn state(&self, geometry: Geometry, policy: &Policy) -> MapState {
+    pub(crate) fn state(
+        &self,
+        geometry: Geometry,
+        policy: &Policy,
+        calibration: &CalibrationMemory,
+    ) -> MapState {
         MapState {
             focus: policy
                 .focus
@@ -281,14 +306,7 @@ impl Map {
             geometry,
             bed: self.site.bed,
             headboard: self.headboard().map(|headboard| headboard.bounds()),
-            calibration: self
-                .reference()
-                .map_or(Calibration::Unavailable, |reference| {
-                    Calibration::Complete {
-                        reference_m: reference.depth,
-                        since: reference.since,
-                    }
-                }),
+            calibration: calibration.state(),
         }
     }
 }

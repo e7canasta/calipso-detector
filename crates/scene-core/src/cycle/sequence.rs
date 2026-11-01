@@ -38,8 +38,8 @@ enum Reached {
     Evidence(Perceived),
     /// With the updated belief.
     Belief(Observed),
-    /// With the map up to date.
-    Map(Observed),
+    /// With the empty bed learned, if it was measured.
+    Calibrated(Observed),
     /// With the pose (or without it, if it failed).
     Pose {
         observed: Observed,
@@ -144,38 +144,39 @@ impl Course<'_> {
                 Reached::Belief(observed) => {
                     let considered = self.calibrate(&observed);
                     if let Some(look) = self.wanted(LookKind::Calibrate, considered) {
-                        self.monitor.engine.map.attempted(self.at);
+                        self.monitor.engine.calibration.attempted(self.at);
                         return Phase::Waiting(Waiting::calibrate(observed, look));
                     }
-                    Reached::Map(observed)
+                    Reached::Calibrated(observed)
                 }
                 // Enrich the subject?
-                Reached::Map(observed) => match self.enrich(&observed.believed, &observed.evidence)
-                {
-                    EnrichPlan::Ask { bbox, region } => {
-                        return Phase::Waiting(Waiting::pose(observed, bbox, region));
-                    }
-                    EnrichPlan::Posed { bbox } => {
-                        self.skipped(LookKind::Pose, SkipReason::PosedBefore);
-                        let pose = observed.evidence.posed.as_ref().map(|p| p.pose.clone());
-                        Reached::Pose {
-                            observed,
-                            pose,
-                            bbox,
+                Reached::Calibrated(observed) => {
+                    match self.enrich(&observed.believed, &observed.evidence) {
+                        EnrichPlan::Ask { bbox, region } => {
+                            return Phase::Waiting(Waiting::pose(observed, bbox, region));
+                        }
+                        EnrichPlan::Posed { bbox } => {
+                            self.skipped(LookKind::Pose, SkipReason::PosedBefore);
+                            let pose = observed.evidence.posed.as_ref().map(|p| p.pose.clone());
+                            Reached::Pose {
+                                observed,
+                                pose,
+                                bbox,
+                            }
+                        }
+                        EnrichPlan::Keep(reason) => {
+                            self.skipped(LookKind::Pose, reason);
+                            Reached::Enriched(observed, Enrichment::Kept)
+                        }
+                        EnrichPlan::Skip(reason) => {
+                            self.skipped(LookKind::Pose, reason);
+                            Reached::Enriched(observed, Enrichment::None)
+                        }
+                        EnrichPlan::Disabled | EnrichPlan::Inapplicable => {
+                            Reached::Enriched(observed, Enrichment::None)
                         }
                     }
-                    EnrichPlan::Keep(reason) => {
-                        self.skipped(LookKind::Pose, reason);
-                        Reached::Enriched(observed, Enrichment::Kept)
-                    }
-                    EnrichPlan::Skip(reason) => {
-                        self.skipped(LookKind::Pose, reason);
-                        Reached::Enriched(observed, Enrichment::None)
-                    }
-                    EnrichPlan::Disabled | EnrichPlan::Inapplicable => {
-                        Reached::Enriched(observed, Enrichment::None)
-                    }
-                },
+                }
                 // Measure the subject's depth?
                 Reached::Pose {
                     observed,
@@ -292,8 +293,8 @@ impl Course<'_> {
             Continuation::Calibrate { mut observed } => {
                 let (depth, result) = evidence::depth(outcome.depths());
                 self.asked(probe, spent, result);
-                observed.calibrated = self.monitor.engine.map.learn(self.at, depth);
-                Reached::Map(observed)
+                observed.calibrated = self.monitor.engine.calibration.learn(self.at, depth);
+                Reached::Calibrated(observed)
             }
             Continuation::Pose { observed, bbox } => {
                 let (pose, result) = evidence::pose(outcome.into_pose());
@@ -428,7 +429,9 @@ impl Course<'_> {
             frame: engine.frame,
             calibrated: observed.calibrated,
             attention: std::mem::take(&mut self.attention),
-            map: engine.map.state(self.geometry, &engine.policy),
+            map: engine
+                .map
+                .state(self.geometry, &engine.policy, &engine.calibration),
             sensor: engine.sensor.state(),
             dwell_secs: engine.policy.persistence.dwell_secs,
         }))
@@ -445,7 +448,11 @@ impl Course<'_> {
             reason,
             changed,
             sensor: engine.sensor.state(),
-            map: Box::new(engine.map.state(Geometry::Valid, &engine.policy)),
+            map: Box::new(
+                engine
+                    .map
+                    .state(Geometry::Valid, &engine.policy, &engine.calibration),
+            ),
         }
     }
 
@@ -487,7 +494,8 @@ impl Course<'_> {
     fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
-        attention::calibrate(&g, &observed.believed, &self.monitor.engine.policy)
+        let engine = &self.monitor.engine;
+        attention::calibrate(&g, &observed.believed, &engine.calibration, &engine.policy)
     }
 
     fn enrich(&self, believed: &Believed, evidence: &Perceived) -> EnrichPlan {

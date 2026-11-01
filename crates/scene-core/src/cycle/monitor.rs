@@ -10,7 +10,7 @@ use crate::belief::Belief;
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
 use crate::look::Verified;
-use crate::map::{Geometry, SiteMap};
+use crate::map::{CalibrationMemory, Geometry, SiteMap};
 use crate::policy::Policy;
 use crate::project::v4;
 use crate::sensor::SensorMemory;
@@ -21,6 +21,7 @@ impl Engine {
     fn new(policy: Policy, map: SiteMap) -> Self {
         Self {
             policy,
+            calibration: CalibrationMemory::from(&map),
             map: map.into(),
             belief: Belief::default(),
             sensor: SensorMemory::default(),
