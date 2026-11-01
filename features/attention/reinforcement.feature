@@ -37,6 +37,19 @@ Feature: The reinforcement policy
       | 13      | 0        |       | 0      | 0                    | 1         | occupied, seen |
     Then reinforcement was requested in samples 11 and 13
 
+  Scenario: Gets up by the bed: once the bed is believed empty, there is no loss left
+    # Reinforcement looks once, in sample 11. The stabilized count of those
+    # seen in bed reaches 0 in sample 13, and the latch is re-armed with what
+    # that sample believes, not with what the previous one believed: from
+    # sample 14 there is no loss left, not a spent one.
+    Given the resident came in alone and lay down in samples 1 to 10
+    When the camera sees this sequence:
+      | samples | on floor | where    | in bed | occupants | bed   |
+      | 11-14   | 1        | near bed | 0      | 1         | empty |
+    Then reinforcement was requested only in sample 11
+    And in sample 13 reinforcement was not requested because this loss was already reinforced
+    And in sample 14 reinforcement was not requested because nobody was in bed
+
   Scenario: A held occupant is not looked at again
     Given the resident came in alone and lay down in samples 1 to 10
     When the camera sees this sequence:
