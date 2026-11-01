@@ -186,7 +186,9 @@ la cáscara), coordinado con las otras sesiones (bridges y claqueta).
 | F-9 | `e7e141f` | `config/`: `schema` (cómo se escribe un perfil), `validate`, `policy` (cómo se vuelve política y mapa), `profile` (qué se publica y su hash), `tests`. Rutas públicas y hashes de perfil iguales. No se hizo el `From` por sección: hubiera reescrito la traducción, no movido código |
 | — | `2532676` | DESIGN de la crate: el mapa de módulos con las carpetas nuevas, la regla 23 en los invariantes y el límite del replay (R-1 de la revisión) |
 | — | `e785885` | El recorte del verificador (`jpeg_crop` y `sharpness` repetían el mismo cálculo) en una función `pixels` |
-| F-10 | pendiente | Toca los bridges: coordinarlo con su sesión |
+| — | `f18f83a` | **V decide con su tabla.** `settle` y `expire` deciden con `verification::decide(lo preguntado, respuesta o vencida, si sigue en pie)`, un decisor puro con su tabla dorada (`contract/verification-table.txt`, 24 filas), como las capas 0 y 1. Se comprobó que la red falla al alterar una celda. Paga la mitad de la deuda §11 de DESIGN |
+| — | `6a5604f` | **Una regla para «lo que preguntó sigue en pie».** Estaba escrita dos veces: al asentar una respuesta y al seguir una ráfaga. Ahora es `verification::holds` |
+| F-10 | **descartado como refactor** | No es mecánico. El contrato re-exporta tipos del dominio (DESIGN §1: el dominio es dueño del vocabulario). Una crate de cable propia tendría que poseer sus tipos y traducirlos, o llevarse el dominio con ella. Es un cambio de diseño: va con la próxima versión del contrato, como ya dice DESIGN §11 |
 
 **El barrido de duplicación.** Un script buscó bloques de seis líneas
 repetidos en todas las crates. En producción solo apareció el recorte del
@@ -194,10 +196,14 @@ verificador; el resto son preparaciones de pruebas. El código no tiene
 duplicación que pague un refactor: lo que crece es el tamaño de los
 módulos, no la copia.
 
-**La deuda que el equipo ya anotó** (DESIGN §11): el plano de verificación
-es imperativo (`issue`, `settle`, `expire`) y no un *decider* con tabla
-dorada como las capas 0 y 1. Es el refactor con más valor que queda, pero
-no es mecánico: pide su tabla, sus escenarios y sus mutaciones antes de la
-ráfaga. Merece su propia mesa.
+**Lo que queda de la deuda de V** (DESIGN §11): las fases de la ráfaga
+(juntar, guardar, despachar). `attention::burst` ya es una función pura;
+lo imperativo es cómo `Verification` guarda esas fases. Volverlas una
+máquina con tabla es diseñar las filas de la ráfaga, con sus escenarios y
+mutaciones: es trabajo de spec (regla 14), no un refactor.
+
+**Cierre.** Con esto la mesa queda cerrada: todo lo mecánico está hecho, y
+lo que queda (las fases de la ráfaga, la crate del cable) es diseño, con su
+propia mesa.
 
 El gate completo (`check.sh`) corrió una vez sobre la serie, en verde (formato, lints, los árboles de dependencias, los guardianes del dominio y del espacio, todas las pruebas, licencias).
