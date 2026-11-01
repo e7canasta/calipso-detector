@@ -9,7 +9,7 @@ que se compila con `cargo doc`. (El `DESIGN.md` de la raíz es solo un puntero
 a ese.)
 
 La revisión de las reglas y la opinión sobre el diseño están en
-[revision-2026-11-01.md](revision-2026-11-01.md).
+[revision-2026-11-01.md](../calipso-docs/informes/revision-2026-11-01.md).
 
 El documento sigue las **4+1 vistas** de Kruchten (1995). Cada vista responde
 una pregunta para alguien, y los niveles de **C4** (Brown) se ubican en la vista
@@ -583,7 +583,7 @@ como procedencia (`held.check`), no como lectura: el destilado no la rearma.
 
 | Tema | Evidencia | Consecuencia |
 | --- | --- | --- |
-| Documentos atrasados | Corregido el 2026-11-01: `big-picture.md` de la raíz es un puntero a `calipso-docs`, y las citas del white book apuntan a las carpetas nuevas. Sigue abierto: los tomos III y VII dicen «propuesta, sin implementar» y el código ya está en `main` | La regla «si el doc y el código no coinciden, uno tiene un error» no tiene guardián para estos documentos |
+| Documentos atrasados | Corregido el 2026-11-01: se retiró el `big-picture.md` de la raíz (la visión general vive en `calipso-docs/big-picture.md`) y las citas del white book apuntan a las carpetas nuevas. Sigue abierto: los tomos III y VII dicen «propuesta, sin implementar» y el código ya está en `main` | La regla «si el doc y el código no coinciden, uno tiene un error» no tiene guardián para estos documentos |
 | Segunda puerta del núcleo | `Monitor::verified` fuera de `Input` | La grabación está fuera del detector y se rearma desde lo publicado; la respuesta solo se publica como `held.check` y `distill` la saltea. Una noche destilada da las mismas cuentas y capas (la verificación nunca mueve una cuenta), pero no el `held.check`. Aceptado; conviene escribirlo |
 | Píxeles en el bus | El recorte va por NATS request/reply a `calipso.verify.v1`, fuera del prefijo `vision.<site>.<camera>` | Como grabar es escuchar el bus, la regla 7 depende de que ningún grabador ni stream de JetStream escuche ese subject (por ejemplo, un `>`). Hoy no tiene guardián |
 | Perfil grande | `detector/src/config.rs` ≈ 1 780 líneas | Donde se arma la política. Cada perfil del repositorio ya se carga en una prueba; las combinaciones de capacidades todavía no tienen escena golden por perfil |
