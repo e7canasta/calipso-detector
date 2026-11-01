@@ -9,8 +9,8 @@
 use super::super::BedPostureState;
 use super::decide;
 use crate::belief::InBed;
-use crate::head::HeadPlaceState;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
+use crate::room::head::HeadPlaceState;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/bed-posture-frame.txt");
 

@@ -7,8 +7,8 @@ use crate::body::{BedPoint, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
 use crate::estimation;
 use crate::evidence::SubjectDepths;
 use crate::geom::Rect;
-use crate::head::HeadPlace;
 use crate::provenance::Provenance;
+use crate::room::head::HeadPlace;
 use crate::time::SampleRef;
 
 /// What to do with the motion reference on receiving a new pose.

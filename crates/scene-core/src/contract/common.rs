@@ -11,7 +11,6 @@ pub use crate::body::{BedPoint, BedSite, BodyPoint, Joint, Keypoint, Pose, Subje
 pub use crate::conclusion::RepublishReason;
 pub use crate::evidence::{BodySource, RejectReason};
 use crate::geom::Rect;
-pub use crate::head::{HeadEvidence, HeadPlace, HeadPlaceState};
 pub use crate::look::{Failure, LookKind};
 pub use crate::map::{Calibration, FrameInfo, Geometry, MapState};
 pub use crate::provenance::Provenance;
@@ -19,8 +18,9 @@ pub use crate::refine::{
     BodyGroup, BodyGroups, Disparities, Head, Lying, LyingState, Posture, PostureState, Verdict,
     VerdictState,
 };
+pub use crate::room::head::{HeadEvidence, HeadPlace, HeadPlaceState};
+pub use crate::room::shadow::{BodyShadow, PlanePoint, ShadowPlane};
 pub use crate::sensor::SensorState;
-pub use crate::shadow::{BodyShadow, PlanePoint, ShadowPlane};
 pub use crate::time::{SampleRef, SessionId, SourceSecs};
 pub use crate::verification::{HeldCheck, HeldCheckState, Verifier};
 pub use crate::zone::{Counts, Zone};

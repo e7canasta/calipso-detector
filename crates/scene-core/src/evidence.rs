@@ -8,8 +8,8 @@ use crate::estimation;
 use crate::geom::{Point, Rect};
 use crate::look::{DepthTarget, Detection, Failure, Label};
 use crate::policy::{AdmissionPolicy, FacePolicy, Policy};
+use crate::room::shadow::BodyShadow;
 use crate::room::{BodyZone, Room};
-use crate::shadow::BodyShadow;
 use crate::zone::Counts;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -133,7 +133,7 @@ impl Perceived {
     /// Each body zoned in this sample, with where it falls for the geometry's
     /// shadow. Without the shadow (`None`), nothing changes; with it, nothing
     /// that is believed changes either.
-    pub(crate) fn cast_shadow(&mut self, site: Option<&crate::shadow::Site>) {
+    pub(crate) fn cast_shadow(&mut self, site: Option<&crate::room::shadow::Site>) {
         let (Some(site), BodyEvidence::Seen(bodies)) = (site, &mut self.bodies.bodies) else {
             return;
         };

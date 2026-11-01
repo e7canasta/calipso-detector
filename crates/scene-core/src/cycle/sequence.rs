@@ -16,11 +16,11 @@ use crate::body::Keypoint;
 use crate::conclusion::{Conclusion, Observation, RepublishReason};
 use crate::evidence::{self, Admission, FaceEvidence, Perceived};
 use crate::geom::{Point, Rect};
-use crate::head::HeadPlace;
 use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
 use crate::policy::FacePolicy;
 use crate::room::Room;
+use crate::room::head::HeadPlace;
 use crate::sensor::SensorChanged;
 use crate::verification::Collecting;
 
@@ -131,9 +131,7 @@ impl Course<'_> {
                 }
                 // Believe.
                 Reached::Evidence(mut evidence) => {
-                    let engine = &self.monitor.engine;
-                    let site = crate::shadow::Site::of(&engine.map, self.geometry, &engine.policy);
-                    evidence.cast_shadow(site.as_ref());
+                    evidence.cast_shadow(self.room.as_ref().and_then(Room::shadow));
                     let believed = self.believe(&evidence.bodies);
                     Reached::Belief(Observed {
                         believed,
@@ -563,7 +561,7 @@ impl Course<'_> {
     }
 
     fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
-        crate::head::of_turn(
+        crate::room::head::of_turn(
             &observed.evidence.faces,
             pose,
             self.room.as_ref(),

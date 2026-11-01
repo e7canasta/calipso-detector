@@ -12,11 +12,11 @@ use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
 use crate::body::Joint;
 use crate::geom::Point;
-use crate::head::HeadPlaceState;
 use crate::policy::EnrichPolicy;
 use crate::policy::{Band, VerifyPolicy};
 use crate::provenance::Provenance;
 use crate::room::Room;
+use crate::room::head::HeadPlaceState;
 
 /// Where each part of the body layer 1 reads is, in one sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

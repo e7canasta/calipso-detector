@@ -302,7 +302,7 @@ layer 1, never the other way round.
 - **The machine** (`Machine`, P1): the stable state and the candidate, with
   the layer-0 `Stabilizer`; unknown lets the candidate keep holding. It forgets
   when layer 0 no longer has the resident alone in bed.
-- **Where the head is** (`head::HeadPlace`) is the fact that filters: the
+- **Where the head is** (`room::head::HeadPlace`) is the fact that filters: the
   headboard region and, away from it, the bed's u/v (`below_headboard`,
   `at_side`). It is computed when the pose arrives
   (`attention::head_place`); the depth look and layer 1 read it.
@@ -416,7 +416,7 @@ One concept, one name.
 | two planes | `room::TwoPlanes`, `TwoPlanesPolicy` | The room geometry of a camera that sees the bed on the diagonal, chosen by the profile: a body is in bed when enough of its box falls over the mattress and its support rests close to the bed's footprint on the floor; near the bed, by the support's distance in metres. The other questions of space as frontal (white book, volume VII, ch. 14) |
 | support | `room::TwoPlanes`, `BodyShadow::support` | The centre of a box's lower edge: where a standing body rests on the floor, measured against the bed's footprint |
 | doubtful body | `room::Room::doubtful` | A body the box alone cannot place: in two planes, one left on the floor by its support with enough of its box over the mattress. Its pose is asked before believing, and the room places it with it (white book, volume VII, ch. 15) |
-| knee | `room::knee_deg`, `TwoPlanesPolicy::knee_bent_deg`, `BodySeen::knee_deg` | The hip–knee–ankle angle of a pose, from the midpoints of both sides: bent, the pelvis rests on the mattress; straight, on the floor |
+| knee | `room::two_planes::knee_deg`, `TwoPlanesPolicy::knee_bent_deg`, `BodySeen::knee_deg` | The hip–knee–ankle angle of a pose, from the midpoints of both sides: bent, the pelvis rests on the mattress; straight, on the floor |
 | a foot out | `Room::foot_out`, `Room::foot_beyond` | P6 for a foot, layer 1's legs out: frontal, past the mattress's sides; in two planes, out of the footprint on the floor past any edge, the foot end too, where a foot rests (white book, volume VII, ch. 04) |
 | shadow | `ShadowPolicy`, `MapShadow` | Estimates of a geometry that does not decide yet, published next to what the engine decides, to choose with data; asked for by the profile, temporary (white book, volume VII, ch. 11) |
 | bed footprint | `SiteMap::bed_floor` | Where the bed stands on the floor: the same rectangle as the mattress, drawn at floor level. Points on the floor (ankles, a box's lower edge) are measured against it, not against the mattress (volume VII, ch. 04) |
@@ -456,7 +456,7 @@ One concept, one name.
 | body group | `refine::BodyGroup`, `BodyGroups` | Head, shoulders or pelvis: the median depth of its seen keypoints and how many it saw (R16) |
 | disparity | `Posture::disparity`, `Disparities` | `(upper − pelvis) / mean`: head and shoulders together against the pelvis decide; the feet do not vote (R16) |
 | bed point | `BedPoint`, `BedSite`, `Posture::bed_points` | A fixed site of the bed (today its centre, u/v 0.5) whose depth is read in the same look as the body, with the resident in bed: covered, the blanket over the hips. `upper_bed_centre` is the baseline next to the pelvis' disparity; context, not a vote (R17, 1707) |
-| head place | `head::HeadPlace`, `Posture::head_place` | Where the head is (at the headboard, below it in bed, past the bed's sides, elsewhere, unknown) and what said so: a fact of its own, as the occupancy is where the body is. The bed's centre is the hips only with the head at the headboard; readers read the fact, not how it was concluded (R17, 1707) |
+| head place | `room::head::HeadPlace`, `Posture::head_place` | Where the head is (at the headboard, below it in bed, past the bed's sides, elsewhere, unknown) and what said so: a fact of its own, as the occupancy is where the body is. The bed's centre is the hips only with the head at the headboard; readers read the fact, not how it was concluded (R17, 1707) |
 | head (of the second level) | `refine::Head` | An independent opinion on how the resident is: today `disparity`; the bed plane, the head's place in the bed and a VLM will follow |
 | arbiter, verdict | `refine::verdict`, `Verdict`, `VerdictState` | The table from the heads' opinions to one verdict, with the heads that support it and since when; only in bed for now (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) |
 | projection | `project` | How the belief looks from outside |
@@ -484,7 +484,7 @@ matters as much as the second.
 | Module | Responsibility | Never |
 |---|---|---|
 | `lib.rs` | The public API and rule 21's `deny` | exposes how the core believes |
-| `cycle` (+ `monitor`, `sequence`, `waiting`) | The loop protocol (`cycle`), what one camera is made of and what comes out of a turn (`monitor`), the order of a turn and its ledger (`sequence`), each probe with its continuation (`waiting`) | decides anything |
+| `cycle` (+ `monitor`, `engine`, `sequence`, `waiting`) | The loop protocol (`cycle`), what one camera is made of and what comes out of a turn (`monitor`), what the engine changes when the turn asks it (`engine`), the order of a turn and its ledger (`sequence`), each probe with its continuation (`waiting`) | decides anything |
 | `look` | The protocol's vocabulary: probes, readings, what was asked (`LookKind`) and how it failed | contains pixels |
 | `evidence` | Admits readings: one body per person, its zone | decides what is believed or looked at |
 | `belief` | The belief: joins layer 0, the subject and layer 1 | sees a raw reading |
@@ -504,6 +504,7 @@ matters as much as the second.
 | `contract` | The published language, per version. `common`: what no version changes (the envelope without its `SchemaId`, the bed, the subject, the evidence, the causes) and the re-export of the domain vocabulary. `v4` defines its own `SchemaId` and schema; a next version would not depend on it. `contract` re-exports the published version | changes without a major version and an ADR, or is imported by the domain |
 | `policy` | The policies that come from the profiles | is read from a file |
 | `map` | The site's static world | is inferred from the subject |
+| `room` (+ `frontal`, `two_planes`, `shadow`, `head`) | The questions of space, with named facts: the piece the profile chose (`frontal`, `two_planes`), the shadow of a geometry that does not decide yet (`shadow`) and where the head is (`head`, which asks the room like a layer) | remembers, counts, or hands a plane to a layer |
 | `sensor` | The reception state the shell reports | is inferred |
 | `time`, `zone` | Shared vocabulary: the sample and its source time; the zones and the count per zone. `contract` re-exports them | knows the published format |
 | `geom`, `estimation` | Maths without domain | knows a rule |

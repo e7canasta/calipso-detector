@@ -4,9 +4,9 @@
 use crate::belief::SubjectBody;
 use crate::body::{BedPoint, BedSite, BodyPoint, Joint};
 use crate::estimation;
-use crate::head::HeadPlace;
 use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
+use crate::room::head::HeadPlace;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

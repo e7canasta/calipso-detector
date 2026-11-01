@@ -5,9 +5,9 @@ use crate::attention::{BodyPoseLook, DepthLook, SubjectDepthLook, VerifyLook};
 use crate::body::Keypoint;
 use crate::evidence::{Admission, Perceived};
 use crate::geom::{Point, Rect};
-use crate::head::HeadPlace;
 use crate::look::{DepthPurpose, DepthTarget, FaceRegion, PosePurpose, Probe, Ticket};
 use crate::policy::FacePolicy;
+use crate::room::head::HeadPlace;
 
 /// Probe and continuation are created together; their fields cannot be
 /// replaced from the sequencer.
