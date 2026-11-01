@@ -92,12 +92,12 @@ pub(crate) struct BedReference {
     pub since: Option<SampleRef>,
 }
 
-/// What was learned of the empty bed, and when it was last tried. It is not
-/// the map: the installer draws the map, the loop learns this.
+/// What was learned of the empty bed. It is not the map: the installer draws
+/// the map, the loop learns this. When it was last tried is attention's
+/// memory.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct CalibrationMemory {
     reference: Option<BedReference>,
-    last_attempt: Option<SampleRef>,
 }
 
 /// The running map: the geometry the installer drew. It does not change while
@@ -130,7 +130,6 @@ impl From<&SiteMap> for CalibrationMemory {
                 depth,
                 since: initial.calibrated_at,
             }),
-            last_attempt: initial.calibration_attempt,
         }
     }
 }
@@ -162,15 +161,6 @@ impl SiteMap {
 impl CalibrationMemory {
     pub(crate) fn reference(&self) -> Option<BedReference> {
         self.reference
-    }
-
-    pub(crate) fn last_attempt(&self) -> Option<SampleRef> {
-        self.last_attempt
-    }
-
-    /// Calibration was requested: the retry delay runs from here.
-    pub(crate) fn attempted(&mut self, at: SampleRef) {
-        self.last_attempt = Some(at);
     }
 
     /// Learns the depth of the empty bed and says so with a domain event;

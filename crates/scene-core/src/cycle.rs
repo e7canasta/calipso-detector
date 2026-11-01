@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use crate::attention::{Attention, Lens};
+use crate::attention::{self, Attention};
 use crate::belief::{Belief, Believed};
 use crate::chronicle::Chronicle;
 use crate::conclusion::RepublishReason;
@@ -91,8 +91,9 @@ struct Engine {
     calibration: CalibrationMemory,
     belief: Belief,
     sensor: SensorMemory,
-    /// The main detector's lens: when it last read the whole frame.
-    lens: Lens,
+    /// What attention remembers of what it looked at: the lens and the last
+    /// calibration attempt.
+    attention_memory: attention::Memory,
     /// What the slow verifier was asked and what it owes.
     verification: Verification,
     frame: Option<FrameInfo>,

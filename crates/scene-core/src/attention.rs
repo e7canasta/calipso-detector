@@ -73,16 +73,47 @@ pub(crate) enum EnrichPlan {
     },
 }
 
-/// What the main detector's lens remembers: the last sample it read the whole
-/// frame. Attention reads it; `cycle` notes each whole-frame look that read.
+/// What attention remembers of what it already looked at, and nothing else:
+/// the main detector's lens and the last time the empty bed was measured.
+/// Attention reads it; `cycle` notes each look.
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct Lens {
+pub(crate) struct Memory {
+    lens: Lens,
+    /// The last calibration attempt, for the retry delay.
+    calibration_attempt: Option<SampleRef>,
+}
+
+impl Memory {
+    /// What a site remembers when the loop starts: the last calibration
+    /// attempt, if it was saved.
+    pub(crate) fn of(calibration_attempt: Option<SampleRef>) -> Self {
+        Self {
+            lens: Lens::default(),
+            calibration_attempt,
+        }
+    }
+
+    /// The main detector read the whole frame in this sample.
+    pub(crate) fn looked_wide(&mut self, at: SampleRef) {
+        self.lens.looked_wide(at);
+    }
+
+    /// Calibration was requested: the retry delay runs from here.
+    pub(crate) fn calibration_attempted(&mut self, at: SampleRef) {
+        self.calibration_attempt = Some(at);
+    }
+}
+
+/// What the main detector's lens remembers: the last sample it read the whole
+/// frame.
+#[derive(Debug, Clone, Copy, Default)]
+struct Lens {
     last_wide: Option<SampleRef>,
 }
 
 impl Lens {
     /// The main detector read the whole frame in this sample.
-    pub(crate) fn looked_wide(&mut self, at: SampleRef) {
+    fn looked_wide(&mut self, at: SampleRef) {
         self.last_wide = Some(at);
     }
 
@@ -104,7 +135,7 @@ impl Lens {
 /// layer 0 believes.
 pub(crate) fn primary_region(
     belief: &Belief,
-    lens: &Lens,
+    memory: &Memory,
     at: SampleRef,
     map: &Map,
     geometry: Geometry,
@@ -113,7 +144,7 @@ pub(crate) fn primary_region(
     let focus = policy.focus.as_ref()?;
     let region = map.focus_region(geometry, focus.pad)?;
     let alone_in_bed = matches!(belief.room(), Room::Alone(Alone::InBed(_)));
-    let sentinel = lens.wide_due(at, focus.wide_every_secs);
+    let sentinel = memory.lens.wide_due(at, focus.wide_every_secs);
     (alone_in_bed && belief.settled() && !sentinel).then_some(region)
 }
 
@@ -570,6 +601,7 @@ pub(crate) fn calibrate(
     g: &Glimpse<'_>,
     believed: &Believed,
     calibration: &CalibrationMemory,
+    memory: &Memory,
     policy: &Policy,
 ) -> Consideration<DepthLook<Point>> {
     let lens = depth_lens(g, policy);
@@ -593,8 +625,8 @@ pub(crate) fn calibrate(
     if occupied {
         return skip(SkipReason::RoomOccupied);
     }
-    if calibration
-        .last_attempt()
+    if memory
+        .calibration_attempt
         .and_then(|last| at.secs_since(last))
         .is_some_and(|age| age < policy.retry_secs)
     {

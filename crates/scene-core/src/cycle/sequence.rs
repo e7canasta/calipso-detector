@@ -75,11 +75,18 @@ impl Course<'_> {
             policy,
             map,
             belief,
-            lens,
+            attention_memory,
             ..
         } = &self.monitor.engine;
         self.room = Room::of(map, self.geometry, policy);
-        let region = attention::primary_region(belief, lens, self.at, map, self.geometry, policy);
+        let region = attention::primary_region(
+            belief,
+            attention_memory,
+            self.at,
+            map,
+            self.geometry,
+            policy,
+        );
         Phase::Waiting(Waiting::primary(region))
     }
 
@@ -144,7 +151,10 @@ impl Course<'_> {
                 Reached::Belief(observed) => {
                     let considered = self.calibrate(&observed);
                     if let Some(look) = self.wanted(LookKind::Calibrate, considered) {
-                        self.monitor.engine.calibration.attempted(self.at);
+                        self.monitor
+                            .engine
+                            .attention_memory
+                            .calibration_attempted(self.at);
                         return Phase::Waiting(Waiting::calibrate(observed, look));
                     }
                     Reached::Calibrated(observed)
@@ -495,7 +505,13 @@ impl Course<'_> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         let engine = &self.monitor.engine;
-        attention::calibrate(&g, &observed.believed, &engine.calibration, &engine.policy)
+        attention::calibrate(
+            &g,
+            &observed.believed,
+            &engine.calibration,
+            &engine.attention_memory,
+            &engine.policy,
+        )
     }
 
     fn enrich(&self, believed: &Believed, evidence: &Perceived) -> EnrichPlan {
@@ -605,7 +621,7 @@ impl Course<'_> {
         );
         self.asked(probe, outcome.spent, admission.result.clone());
         if probe.region().is_none() && matches!(admission.result, LookResult::Read { .. }) {
-            self.monitor.engine.lens.looked_wide(self.at);
+            self.monitor.engine.attention_memory.looked_wide(self.at);
         }
         admission
     }

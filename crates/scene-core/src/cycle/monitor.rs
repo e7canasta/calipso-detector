@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use super::{Course, Engine, Input, Monitor, NoFrame, Open, Output, Phase, Turn};
-use crate::attention::{Attention, Lens};
+use crate::attention::{self, Attention};
 use crate::belief::Belief;
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
@@ -22,10 +22,10 @@ impl Engine {
         Self {
             policy,
             calibration: CalibrationMemory::from(&map),
+            attention_memory: attention::Memory::of(map.calibration_attempt),
             map: map.into(),
             belief: Belief::default(),
             sensor: SensorMemory::default(),
-            lens: Lens::default(),
             verification: Verification::default(),
             frame: None,
         }
