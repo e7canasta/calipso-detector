@@ -4,7 +4,7 @@
 cat >> crates/scene-core/src/attention/mod.rs <<'RS'
 
 #[allow(dead_code)]
-fn published() -> Option<scene_contract::Scene> {
+fn published() -> Option<scene_contract::v5::Scene> {
     None
 }
 RS

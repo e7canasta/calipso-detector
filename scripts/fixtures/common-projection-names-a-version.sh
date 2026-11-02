@@ -1,5 +1,5 @@
 # expect-step: the domain without contract
-# expect-text: C2: the common projection names a version
+# expect-text: C2: the common projection names a retired version
 # C2: the common projection naming a published version must fail. The name goes
 # before the test module: an item after it fails clippy first, and that is not
 # this guardian.
