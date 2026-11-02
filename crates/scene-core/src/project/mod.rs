@@ -23,10 +23,7 @@ use crate::conclusion::RepublishReason;
 use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
 use crate::look::Detection;
 use crate::refine::Refinement;
-use crate::refine::{
-    BodyGroup, BodyGroups, Disparities, Head, Lying, LyingState, Posture, PostureState, Verdict,
-    VerdictState,
-};
+use crate::refine::{BodyGroup, BodyGroups, Disparities, Lying, LyingState, Posture, PostureState};
 use crate::units::Seconds;
 use crate::verification::{HeldCheck, HeldCheckState, Verifier};
 use scene_contract::{
@@ -237,34 +234,6 @@ impl From<Posture> for scene_contract::Posture {
     }
 }
 
-impl From<Head> for scene_contract::Head {
-    fn from(h: Head) -> Self {
-        match h {
-            Head::Disparity => Self::Disparity,
-        }
-    }
-}
-
-impl From<VerdictState> for scene_contract::VerdictState {
-    fn from(state: VerdictState) -> Self {
-        match state {
-            VerdictState::LyingInBed => Self::LyingInBed,
-            VerdictState::SittingUpInBed => Self::SittingUpInBed,
-            VerdictState::InBed => Self::InBed,
-        }
-    }
-}
-
-impl From<Verdict> for scene_contract::Verdict {
-    fn from(v: Verdict) -> Self {
-        Self {
-            state: v.state.into(),
-            by: v.by.into_iter().map(Into::into).collect(),
-            since: v.since,
-        }
-    }
-}
-
 /// The bed as layer 0 believes it, dated by the chronicle.
 fn bed(
     occupancy: &Occupancy,
@@ -370,14 +339,8 @@ fn publish_subject(
         depth: depth.map(Into::into),
         lying: refined.lying.map(Into::into),
         posture: refined.posture.map(Into::into),
-        verdict: refined.verdict.map(|r| {
-            Verdict {
-                state: r.state,
-                by: r.by,
-                since: chronicled.verdict.since,
-            }
-            .into()
-        }),
+        // The second level's arbiter is gone (C5b): no verdict is published.
+        verdict: None,
         bed_posture: bed_posture.map(|b| {
             BedPosture {
                 state: b.state,

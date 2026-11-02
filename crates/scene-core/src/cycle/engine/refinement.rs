@@ -18,7 +18,6 @@ impl Engine {
         filled: Option<BodyPlaces>,
     ) -> Refined {
         let refinement = crate::refine::refine(
-            observed.believed.subject.as_ref().map(|s| s.zone),
             observed.believed.body.as_ref(),
             room,
             self.enrich.as_ref(),

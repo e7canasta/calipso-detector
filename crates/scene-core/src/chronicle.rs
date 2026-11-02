@@ -8,7 +8,6 @@ use crate::belief::parts::PartsTransition;
 use crate::belief::{Alone, BedPostureState, Occupants, PartsReading, Room, Transition};
 use crate::conclusion::Observation;
 use crate::evidence::BodyEvidence;
-use crate::refine::VerdictState;
 use crate::time::SampleRef;
 use crate::zone::Counts;
 
@@ -24,8 +23,6 @@ use crate::zone::Counts;
 pub(crate) struct Chronicle {
     room: Since<RoomName>,
     bed: Since<BedKind>,
-    /// Since when the second level's verdict holds; `None` is "no verdict".
-    verdict: Since<Option<VerdictState>>,
     /// Since when layer 1's state holds; `None` is "not followed".
     bed_posture: Since<Option<BedPostureState>>,
     observed: Option<SampleRef>,
@@ -43,7 +40,6 @@ impl Default for Chronicle {
         Self {
             room: Since::new(RoomName::Empty),
             bed: Since::new(BedKind::Empty),
-            verdict: Since::new(None),
             bed_posture: Since::new(None),
             observed: None,
             transition: None,
@@ -59,7 +55,6 @@ pub(crate) struct Chronicled {
     /// The room, by name.
     pub room: Stamp<RoomName>,
     pub bed: Stamp<BedKind>,
-    pub verdict: Stamp<Option<VerdictState>>,
     pub bed_posture: Stamp<Option<BedPostureState>>,
     /// The first sample of the bed posture before this turn's: since when what
     /// we believed held. `None` if this turn did not change it or it was undated.
@@ -146,8 +141,6 @@ pub(crate) struct Entry {
     pub at: SampleRef,
     pub room: RoomName,
     pub bed: BedKind,
-    /// The second level's verdict, if any.
-    pub verdict: Option<VerdictState>,
     /// Layer 1's state, if followed.
     pub bed_posture: Option<BedPostureState>,
     /// Whether the turn saw bodies per zone.
@@ -170,7 +163,6 @@ impl Entry {
             at: observation.at,
             room: RoomName::of(occupants),
             bed: BedKind::of(occupants, occupancy.bed_known),
-            verdict: observation.refined.verdict.as_ref().map(|r| r.state),
             bed_posture: observation.bed_posture.map(|b| b.state),
             seen: matches!(observation.evidence.bodies.bodies, BodyEvidence::Seen(_)),
             transition: observation
@@ -191,7 +183,6 @@ impl Chronicle {
             at,
             room,
             bed,
-            verdict,
             bed_posture,
             seen,
             transition,
@@ -221,7 +212,6 @@ impl Chronicle {
         Chronicled {
             room: self.room.update(room, at),
             bed: self.bed.update(bed, at),
-            verdict: self.verdict.update(verdict, at),
             bed_posture_transition_since: bed_posture.changed_from.and(bed_posture_held_since),
             bed_posture,
             observed: self.observed,
@@ -301,7 +291,6 @@ mod tests {
             at: at(secs),
             room,
             bed,
-            verdict: None,
             bed_posture: None,
             seen,
             transition: None,

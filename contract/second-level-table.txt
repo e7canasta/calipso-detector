@@ -1,7 +1,0 @@
-# zone | disparity | verdict | by
-bed | lying | lying_in_bed | disparity
-bed | upright | sitting_up_in_bed | disparity
-bed | unknown | in_bed | —
-floor | lying | — | —
-floor | upright | — | —
-floor | unknown | — | —

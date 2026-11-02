@@ -8,26 +8,20 @@ mod lying;
 pub(crate) mod parts;
 mod posture;
 mod sighting;
-mod verdict;
 
 use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
 use crate::policy::{EnrichPolicy, VerifyPolicy};
 use crate::room::Room;
-use crate::zone::Zone;
 pub(crate) use lying::{Lying, LyingState};
 pub(crate) use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
 pub(crate) use sighting::{BodyPlaces, DisparitySide, FeetPlace};
-pub(crate) use verdict::Ruling;
-pub(crate) use verdict::{Head, Verdict, VerdictState};
 
 /// What the second level derives from the subject's pose.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Refinement {
     pub lying: Option<Lying>,
     pub posture: Option<Posture>,
-    /// The arbiter's ruling, for the chronicle to date and `project` to publish.
-    pub verdict: Option<Ruling>,
     /// What layer 1 perceives by itself in this turn.
     pub sighting: Sighting,
     /// Where the body's parts are, from a fresh pose: the verifier reads its
@@ -40,7 +34,6 @@ pub(crate) struct Refinement {
 /// measured keypoints) and what layer 1 perceives. What cannot be derived is
 /// not published; without a body, layer 1 perceives nothing new.
 pub(crate) fn refine(
-    zone: Option<Zone>,
     body: Option<&SubjectBody>,
     room: Option<&Room>,
     enrich: Option<&EnrichPolicy>,
@@ -71,12 +64,10 @@ pub(crate) fn refine(
         bed_points: body.bed_points.clone(),
         head_place: Some(body.head_place),
     });
-    let verdict = zone.and_then(|zone| verdict::arbitrate(zone, posture.as_ref().map(|p| p.state)));
     let places = sighting::places_of(body, posture.as_ref(), room, enrich, verify);
     Refinement {
         lying,
         posture,
-        verdict,
         sighting: sighting::of(places, filled),
         places,
     }
