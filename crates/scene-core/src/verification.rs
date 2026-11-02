@@ -17,7 +17,9 @@ use crate::time::secs_since;
 use crate::units::Seconds;
 
 mod burst;
-pub(crate) use burst::{BurstStep, Effect, Event, Phase};
+#[cfg(test)]
+pub(crate) use burst::Effect;
+pub(crate) use burst::{AskOut, BurstStep, Dispatch, Event, KeptOut, Phase, TurnOut};
 
 /// An hour of source time: the budget's window.
 pub(crate) const HOUR_SECS: f64 = 3600.0;

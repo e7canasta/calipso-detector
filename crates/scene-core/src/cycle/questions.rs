@@ -17,7 +17,7 @@ use crate::evidence::{Admission, FaceEvidence, Perceived};
 use crate::geom::{Point, Rect};
 use crate::look::{FaceRegion, LookKind};
 use crate::policy::FacePolicy;
-use crate::verification::Effect;
+use crate::verification::{AskOut, Dispatch};
 
 impl Course<'_> {
     // --- The questions to the engine: each one gets the turn's glimpse and the
@@ -70,21 +70,21 @@ impl Course<'_> {
         let Some(look) = self.wanted(LookKind::Verify, considered) else {
             return Phase::Concluded { refined };
         };
-        // An ask emits exactly one probe: the request, or the first crop of its burst.
-        match self.engine.issue(self.at, &look).first() {
-            Some(Effect::ProbeVerify {
+        match self.engine.issue(self.at, &look) {
+            // The request goes out, or the first crop of its burst is kept.
+            AskOut::Sent(Dispatch {
                 ticket,
                 look,
                 crops,
-            }) => Phase::Waiting(Waiting::verify(refined, *ticket, *look, crops.clone())),
-            Some(Effect::ProbeKeep { ticket, region }) => {
-                Phase::Waiting(Waiting::keep(refined, *ticket, *region))
+            }) => Phase::Waiting(Waiting::verify(refined, ticket, look, crops)),
+            AskOut::Collecting { ticket, region } => {
+                Phase::Waiting(Waiting::keep(refined, ticket, region))
             }
-            Some(Effect::Skipped(reason)) => {
-                self.skipped(LookKind::Verify, *reason);
+            AskOut::Busy(reason) => {
+                self.skipped(LookKind::Verify, reason);
                 Phase::Concluded { refined }
             }
-            _ => Phase::Concluded { refined },
+            AskOut::Nothing => Phase::Concluded { refined },
         }
     }
 

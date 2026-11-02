@@ -9,7 +9,7 @@ use crate::belief::Enrichment;
 use crate::evidence::{self, Admission, Perceived};
 use crate::look::Probe;
 use crate::outcome::Outcome;
-use crate::verification::Effect;
+use crate::verification::Dispatch;
 
 impl Course<'_> {
     /// The reading arrived: it is interpreted and the turn continues where it was.
@@ -91,18 +91,15 @@ impl Course<'_> {
                 Reached::Enriched(observed, enrichment)
             }
             Continuation::Keep { refined } => {
-                let (result, effects) = self.engine.kept(self.at, outcome.kept());
+                let (result, kept) = self.engine.kept(self.at, outcome.kept());
                 self.asked(probe, spent, result);
                 // The burst is ready: the question goes out now, with the chosen crops.
-                let ready = effects.into_iter().find_map(|effect| match effect {
-                    Effect::ProbeVerify {
-                        ticket,
-                        look,
-                        crops,
-                    } => Some((ticket, look, crops)),
-                    _ => None,
-                });
-                if let Some((ticket, look, crops)) = ready {
+                if let Some(Dispatch {
+                    ticket,
+                    look,
+                    crops,
+                }) = kept.and_then(|kept| kept.ready)
+                {
                     return Phase::Waiting(Waiting::verify(refined, ticket, look, crops));
                 }
                 Reached::Final(refined)

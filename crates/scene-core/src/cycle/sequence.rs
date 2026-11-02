@@ -12,7 +12,7 @@ use crate::evidence::{Admission, FaceEvidence, Perceived};
 use crate::geom::Rect;
 use crate::look::LookKind;
 use crate::room::Room;
-use crate::verification::{BurstStep, Effect};
+use crate::verification::{BurstStep, TurnOut};
 
 /// How far the turn got, with what it gathered: the point from which
 /// [`Course::next`] continues.
@@ -172,38 +172,28 @@ impl Course<'_> {
                 // Last attention point: a burst being collected goes on; or
                 // a doubt worth the slow verifier?
                 Reached::Refined(refined) => {
-                    let effects = self.engine.verifier_turn(
+                    match self.engine.verifier_turn(
                         self.at,
                         refined.bed_posture.map(|b| b.state),
                         refined.refinement.places,
-                    );
-                    match effects.first() {
+                    ) {
                         // No burst being collected: a doubt may ask now.
-                        None => return self.ask_verifier(refined),
-                        Some(Effect::Waited) => {
+                        TurnOut::Idle => return self.ask_verifier(refined),
+                        TurnOut::Waited => {
                             self.note_busy_doubt(&refined);
                             Reached::Final(refined)
                         }
-                        Some(Effect::ProbeKeep { ticket, region }) => {
+                        TurnOut::Keep { ticket, region } => {
                             self.note_busy_doubt(&refined);
-                            return Phase::Waiting(Waiting::keep(refined, *ticket, *region));
+                            return Phase::Waiting(Waiting::keep(refined, ticket, region));
                         }
-                        Some(Effect::Dropped(step)) => {
-                            let reason = if *step == BurstStep::Stale {
+                        TurnOut::Dropped(step) => {
+                            let reason = if step == BurstStep::Stale {
                                 SkipReason::BurstStale
                             } else {
                                 SkipReason::BurstResolved
                             };
                             self.skipped(LookKind::Verify, reason);
-                            return self.ask_verifier(refined);
-                        }
-                        // A turn emits none of these: they are not what a burst's step is.
-                        Some(
-                            Effect::ProbeVerify { .. }
-                            | Effect::Kept { .. }
-                            | Effect::Settled(_)
-                            | Effect::Skipped(_),
-                        ) => {
                             return self.ask_verifier(refined);
                         }
                     }

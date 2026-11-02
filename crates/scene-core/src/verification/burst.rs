@@ -85,20 +85,27 @@ pub(crate) enum Event {
         oldest: Option<SampleRef>,
         followed: bool,
     },
-    /// The attention decided to ask: sent now, or collected as a burst.
+    /// The attention decided to ask: sent now, or collected as a burst. The
+    /// golden table drives the machine with this event; production calls
+    /// [`Verification::ask`] and gets the answer typed.
+    #[cfg_attr(not(test), allow(dead_code))]
     Ask {
         at: SampleRef,
         look: VerifyLook,
         burst: Burst,
         judged: bool,
     },
-    /// A sample's turn while a burst is being collected: its step.
+    /// A sample's turn while a burst is being collected: its step. Production
+    /// calls [`Verification::turn`].
+    #[cfg_attr(not(test), allow(dead_code))]
     Turn {
         at: SampleRef,
         layer_1: Option<BedPostureState>,
         places: Option<BodyPlaces>,
     },
     /// The shell kept the burst's crop, this sharp: `policy` judges it.
+    /// Production calls [`Verification::kept_crop`].
+    #[cfg_attr(not(test), allow(dead_code))]
     KeptCrop {
         at: SampleRef,
         sharpness: f32,
@@ -110,6 +117,104 @@ pub(crate) enum Event {
     Dispatched { ok: bool },
     /// An answer arrived between turns.
     Answer(Verified),
+}
+
+/// A question ready to leave: its ticket, its look and the crops it goes with
+/// (none: this sample's).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Dispatch {
+    pub(crate) ticket: Ticket,
+    pub(crate) look: VerifyLook,
+    pub(crate) crops: Vec<u8>,
+}
+
+/// What a question does when it is decided (`Verification::ask`), typed: each
+/// variant is the one thing the question can do, so the caller matches it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum AskOut {
+    /// Sent now: one frame, and nothing judges the crops.
+    Sent(Dispatch),
+    /// Collected as a burst: this sample's crop is kept under the ticket first.
+    Collecting { ticket: Ticket, region: Rect },
+    /// Refused: another question is in flight or being collected (P4).
+    Busy(SkipReason),
+    /// Nothing: the question being collected is this same doubt.
+    Nothing,
+}
+
+/// What a turn does to the burst it is collecting (`Verification::turn`), typed.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum TurnOut {
+    /// No burst is being collected: a doubt may ask now.
+    Idle,
+    /// The burst waits for its next crop.
+    Waited,
+    /// The burst keeps this sample's crop under the ticket.
+    Keep { ticket: Ticket, region: Rect },
+    /// The burst was dropped unasked: stale or resolved.
+    Dropped(BurstStep),
+}
+
+/// What a kept crop does (`Verification::kept_crop`), typed: whether it counted,
+/// and, if the burst is now ready, the question that goes out with its crops.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct KeptOut {
+    pub(crate) counted: bool,
+    pub(crate) ready: Option<Dispatch>,
+}
+
+// The effects of each typed output, in the order the table prints them. Only
+// `step` uses them (the golden table reads the effects); the turn reads the
+// typed outputs.
+impl AskOut {
+    fn into_effects(self) -> Vec<Effect> {
+        match self {
+            AskOut::Sent(Dispatch {
+                ticket,
+                look,
+                crops,
+            }) => vec![Effect::ProbeVerify {
+                ticket,
+                look,
+                crops,
+            }],
+            AskOut::Collecting { ticket, region } => vec![Effect::ProbeKeep { ticket, region }],
+            AskOut::Busy(reason) => vec![Effect::Skipped(reason)],
+            AskOut::Nothing => Vec::new(),
+        }
+    }
+}
+
+impl TurnOut {
+    fn into_effects(self) -> Vec<Effect> {
+        match self {
+            TurnOut::Idle => Vec::new(),
+            TurnOut::Waited => vec![Effect::Waited],
+            TurnOut::Keep { ticket, region } => vec![Effect::ProbeKeep { ticket, region }],
+            TurnOut::Dropped(step) => vec![Effect::Dropped(step)],
+        }
+    }
+}
+
+impl KeptOut {
+    fn into_effects(self) -> Vec<Effect> {
+        let mut effects = vec![Effect::Kept {
+            counted: self.counted,
+        }];
+        if let Some(Dispatch {
+            ticket,
+            look,
+            crops,
+        }) = self.ready
+        {
+            effects.push(Effect::ProbeVerify {
+                ticket,
+                look,
+                crops,
+            });
+        }
+        effects
+    }
 }
 
 /// What the machine asks the shell to do, or reports it did.
@@ -250,17 +355,17 @@ impl Verification {
                 look,
                 burst,
                 judged,
-            } => self.ask(at, look, burst, judged),
+            } => self.ask(at, look, burst, judged).into_effects(),
             Event::Turn {
                 at,
                 layer_1,
                 places,
-            } => self.turn(at, layer_1, places),
+            } => self.turn(at, layer_1, places).into_effects(),
             Event::KeptCrop {
                 at,
                 sharpness,
                 policy,
-            } => self.kept_crop(at, sharpness, policy),
+            } => self.kept_crop(at, sharpness, policy).into_effects(),
             Event::KeepFailed | Event::Dispatched { ok: false } => {
                 self.phase = Phase::Idle;
                 Vec::new()
@@ -275,7 +380,13 @@ impl Verification {
 
     /// A question is decided: sent now when one frame is enough and nothing
     /// judges the crops, collected otherwise.
-    fn ask(&mut self, at: SampleRef, look: VerifyLook, burst: Burst, judged: bool) -> Vec<Effect> {
+    pub(crate) fn ask(
+        &mut self,
+        at: SampleRef,
+        look: VerifyLook,
+        burst: Burst,
+        judged: bool,
+    ) -> AskOut {
         // A new doubt does not replace the question being collected or in flight:
         // it waits, and the ledger says so. Attention asks first (the same guard);
         // the machine repeats it, so no path can lose a ticket or a count.
@@ -283,19 +394,19 @@ impl Verification {
             && collecting.ticket.target == look.target
         {
             // The question being collected is not a new doubt: nothing to note.
-            return Vec::new();
+            return AskOut::Nothing;
         }
         if !matches!(self.phase, Phase::Idle) {
-            return vec![Effect::Skipped(SkipReason::VerifyBusy)];
+            return AskOut::Busy(SkipReason::VerifyBusy);
         }
         let ticket = self.issue(look.target, at, look.places);
         if burst.frames <= 1 && !judged {
             self.phase = Phase::InFlight { ticket, sent: at };
-            vec![Effect::ProbeVerify {
+            AskOut::Sent(Dispatch {
                 ticket,
                 look,
                 crops: Vec::new(),
-            }]
+            })
         } else {
             self.phase = Phase::Collecting(Collecting {
                 ticket,
@@ -305,20 +416,20 @@ impl Verification {
                 opened: at,
                 last: at,
             });
-            vec![Effect::ProbeKeep {
+            AskOut::Collecting {
                 ticket,
                 region: look.region,
-            }]
+            }
         }
     }
 
     /// The burst's step at this sample, if one is being collected.
-    fn turn(
+    pub(crate) fn turn(
         &mut self,
         at: SampleRef,
         layer_1: Option<BedPostureState>,
         places: Option<BodyPlaces>,
-    ) -> Vec<Effect> {
+    ) -> TurnOut {
         let (ticket, region, opened, step) = match &self.phase {
             Phase::Collecting(collecting) => (
                 collecting.ticket,
@@ -326,7 +437,7 @@ impl Verification {
                 collecting.opened,
                 burst_step(at, collecting, layer_1, places, self.held.map(|h| h.since)),
             ),
-            _ => return Vec::new(),
+            _ => return TurnOut::Idle,
         };
         match step {
             BurstStep::Stale | BurstStep::Resolved => {
@@ -337,35 +448,35 @@ impl Verification {
                 if let Some(counted) = self.asked.iter().rposition(|a| *a == opened) {
                     self.asked.remove(counted);
                 }
-                vec![Effect::Dropped(step)]
+                TurnOut::Dropped(step)
             }
-            BurstStep::Wait => vec![Effect::Waited],
-            BurstStep::Keep => vec![Effect::ProbeKeep { ticket, region }],
+            BurstStep::Wait => TurnOut::Waited,
+            BurstStep::Keep => TurnOut::Keep { ticket, region },
         }
     }
 
     /// A crop was kept at `at`: it is judged, and if the burst is ready, the
     /// question goes out with the crops chosen.
-    fn kept_crop(
+    pub(crate) fn kept_crop(
         &mut self,
         at: SampleRef,
         sharpness: f32,
         policy: Option<SharpnessPolicy>,
-    ) -> Vec<Effect> {
+    ) -> KeptOut {
         let counted = self.judge_crop(at, sharpness, policy.as_ref());
-        let mut effects = vec![Effect::Kept { counted }];
+        let mut ready = None;
         if let Phase::Collecting(collecting) = &self.phase
             && let Some(crops) = burst_ready(at, collecting, policy.as_ref())
         {
             let (ticket, look) = (collecting.ticket, collecting.look);
             self.phase = Phase::InFlight { ticket, sent: at };
-            effects.push(Effect::ProbeVerify {
+            ready = Some(Dispatch {
                 ticket,
                 look,
                 crops,
             });
         }
-        effects
+        KeptOut { counted, ready }
     }
 
     /// The window of the camera's last crops judges a crop: it counts if it is
