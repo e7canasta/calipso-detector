@@ -18,6 +18,7 @@ use crate::look::{Detection, FaceRegion, Failure, Verified};
 use crate::map::{BedCalibrated, CalibrationMemory, FrameInfo, Geometry, MapState, SiteMap};
 use crate::policy::{FacePolicy, Policy};
 use crate::reception::{self, SensorChanged, SensorState};
+use crate::refine::BodyPlaces;
 use crate::room::Room;
 use crate::time::SampleRef;
 use crate::verification::{Effect, Event, Verification, VerifyRules};
@@ -99,15 +100,12 @@ impl Engine {
     }
 
     /// A sample's turn starts: the verifier's answers are settled as evidence and
-    /// what it owes for too long expires, before anything is looked at.
-    pub(super) fn settle(&mut self, at: SampleRef) {
+    /// what it owes for too long expires, before anything is looked at. The
+    /// digit they filled is returned: the turn carries it to `refine`.
+    pub(super) fn settle(&mut self, at: SampleRef) -> Option<BodyPlaces> {
         let layer_1 = self.belief.bed_posture_state();
-        self.verification.step(Event::Settle { at, layer_1 });
-        self.verification.step(Event::Expire {
-            at,
-            timeout: self.verify_rules.timeout_secs,
-            layer_1,
-        });
+        self.verification
+            .open_turn(at, layer_1, self.verify_rules.timeout_secs)
     }
 
     // --- What the questions of space and attention are answered with.
@@ -343,14 +341,15 @@ impl Engine {
     }
 
     /// The second level reads what was believed and delivers its result, with
-    /// the digit the verifier filled if an answer arrived; layer 1 reads it.
+    /// the digit the verifier filled if an answer arrived (`filled`, from the
+    /// turn's opening); layer 1 reads it.
     pub(super) fn refine(
         &mut self,
         at: SampleRef,
         observed: Observed,
         room: Option<&Room>,
+        filled: Option<BodyPlaces>,
     ) -> Refined {
-        let filled = self.verification.take_filled();
         let refinement = crate::refine::refine(
             observed.believed.subject.as_ref().map(|s| s.zone),
             observed.believed.body.as_ref(),

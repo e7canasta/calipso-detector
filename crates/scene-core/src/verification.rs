@@ -222,8 +222,23 @@ impl Verification {
             .count()
     }
 
-    /// The places an answer filled, once: the turn that reads them takes them.
-    pub(crate) fn take_filled(&mut self) -> Option<BodyPlaces> {
+    /// A sample's turn opens: the answers that still apply settle and what it
+    /// owes for too long expires. The places an answer filled come back here,
+    /// to the turn that opened, which carries them to `refine`.
+    pub(crate) fn open_turn(
+        &mut self,
+        at: SampleRef,
+        layer_1: Option<BedPostureState>,
+        timeout: Option<Seconds>,
+    ) -> Option<BodyPlaces> {
+        self.step(Event::Settle { at, layer_1 });
+        self.step(Event::Expire {
+            at,
+            timeout,
+            layer_1,
+        });
+        // Only settle and expire fill it, and both run here: nothing is left
+        // behind for a later turn to find.
         self.filled.take()
     }
 

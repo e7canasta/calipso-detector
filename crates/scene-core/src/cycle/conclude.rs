@@ -16,7 +16,8 @@ impl Course<'_> {
     /// The second level reads what was concluded and delivers its result, with
     /// the digit the verifier filled if an answer arrived; layer 1 reads it.
     pub(super) fn refine(&mut self, observed: Observed) -> Refined {
-        self.engine.refine(self.at, observed, self.room.as_ref())
+        self.engine
+            .refine(self.at, observed, self.room.as_ref(), self.filled)
     }
 
     /// What the engine observed in the turn. It reads neither the chronicle

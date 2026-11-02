@@ -56,6 +56,7 @@ impl Monitor {
             at,
             geometry: Geometry::Valid,
             room: None,
+            filled: None,
             attention: Attention::default(),
         };
         let phase = match input {
@@ -121,7 +122,7 @@ impl Course<'_> {
     /// always runs. Neither a reconnection nor another image size releases
     /// anyone: the belief starts from scratch only with the process.
     pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
-        self.engine.settle(self.at);
+        self.filled = self.engine.settle(self.at);
         self.geometry = self.engine.open_frame(frame);
         self.room = self.engine.room_of(self.geometry);
         let region = self.engine.primary_region(self.at, self.geometry);

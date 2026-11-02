@@ -31,6 +31,7 @@ use crate::policy::{
     ReinforcePolicy, ShadowPolicy, TwoPlanesPolicy, VerifyPolicy,
 };
 use crate::reception::{self, SensorChanged, SensorState};
+use crate::refine::BodyPlaces;
 use crate::room::Room;
 use crate::time::SampleRef;
 use crate::units::Extension;
@@ -214,6 +215,8 @@ struct Course<'m> {
     /// space in the turn sees the same one. `None` without a sample, or if
     /// the bed's geometry does not apply to its frame.
     room: Option<Room>,
+    /// The digit the verifier filled at the turn's opening: `refine` reads it.
+    filled: Option<BodyPlaces>,
     attention: Attention,
 }
 

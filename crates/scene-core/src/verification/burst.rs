@@ -7,6 +7,18 @@
 //! every duration is `secs_since` of it. The shell keeps what the machine only
 //! asks for: crops (`ProbeKeep`), the request itself (`ProbeVerify`), and the
 //! wall-clock deadline of a request, which is not a source-time expiry.
+//!
+//! Where each event is born in the turn (rule 3: an answer opens no turn):
+//!
+//! | event | point of the turn | engine operation that emits it |
+//! | --- | --- | --- |
+//! | `Answer` | between turns, when the verifier answers | `Monitor::verified` → `Engine::answered` |
+//! | `Settle`, `Expire` | opening the turn, before anything is looked at | `Engine::settle` → `Verification::open_turn` |
+//! | `ObserveHeld` | after believing | `Engine::believe` |
+//! | `Ask` | the last attention point of the turn, when a doubt is asked | `Engine::issue` (from `ask_verifier`) |
+//! | `KeptCrop`, `KeepFailed` | the reading of the burst's crop (`Keep`) | `Engine::kept` |
+//! | `Dispatched` | the reading of the verifier's request (`Verify`) | `Engine::dispatched` |
+//! | `Turn` | after `refine`, at the last attention point | `Engine::verifier_turn` |
 
 use super::{Asked, HeldCheck, Settled, Verification, Verifier, decide, holds};
 use crate::attention::{SkipReason, VerifyLook};
