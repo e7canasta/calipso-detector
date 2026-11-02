@@ -75,18 +75,14 @@ check_domain_contract() {
             crates/scene-core/src crates/scene-core/tests || true)
   found="$found$(grep -nE '^\s*(pub(\(crate\))? )?mod contract;' crates/scene-core/src/lib.rs || true)"
   [ -z "$found" ] || fail "the core names a contract module of its own: $found"
-  # Only project and cycle name the published scene and its events: the domain
-  # speaks its own vocabulary and the wire's shared types, not the publication.
-  found=$(for f in $(grep -rl 'scene_contract' crates/scene-core/src \
-            | grep -vE '^crates/scene-core/src/(project/|cycle\.rs$)' || true); do
-            perl -0777 -ne 'while (/use scene_contract::(\{[^}]*\}|\w+)\s*;/g) {
-              if ($1 =~ /\b(Scene|Event|Envelope|SchemaId)\b/) { print "$ARGV\n"; last } }
-              print "$ARGV\n" if /scene_contract::(Scene|Event|Envelope|SchemaId)\b/' "$f"; done | sort -u)
-  [ -z "$found" ] || fail "the domain names the published scene or events: $found"
   # What no version changes is projected in project/mod.rs without naming a
   # version: no SchemaId, no SceneV4 or EventsV4, no vN:: path (C2).
   found=$(grep -nE 'SchemaId|SceneV4|EventsV4|\bv[0-9]+::' crates/scene-core/src/project/mod.rs || true)
   [ -z "$found" ] || fail "C2: the common projection names a version: $found"
+  # Only project and cycle name the published scene and its events: the rule is a
+  # cargo test, which reads the sources without any tool of the system (F1).
+  cargo test -q -p scene-core --test guardians >/dev/null 2>&1 \
+    || fail "the domain names the published scene or events (cargo test -p scene-core --test guardians)"
 }
 step "the domain without contract"
 check_domain_contract
