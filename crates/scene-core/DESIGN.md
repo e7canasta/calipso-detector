@@ -481,6 +481,14 @@ One concept, one name.
 | decide | `bed_posture::rules::decide` | Layer 1's pure decider, the row `l1(t−1) : l0(t) + seen(t) : l1(t)`; the golden table `contract/bed-posture-table.txt` |
 | reception | `reception::Memory`, `SensorState` (the published field `sensor`) | What the core sees of the source: the reception state the shell reports, remembered and announced when it changes. The core does not infer it. The field `sensor` and its values are the contract and keep their names (ADR 2026-11-02, cascara-por-capacidad-y-nombres) | is inferred, or is read from the stream's clock |
 | StreamWatch | `detector::stream_watch::StreamWatch` (shell) | The health of the stream, with a clock: it translates the transport's states, keeps the stall deadline and says when the reception changed to stalled. Lives in the shell, where the clock is; the core receives its reports as `reception` | decides what the core believes, or is imported by `scene-core` |
+| Seconds | `units::Seconds` | A duration in source time, validated when built: finite and not negative. The TOML reads it as a plain number (`try_from`), so an invalid value never enters the core (ADR 2026-11-02, unidades en el tipo) | a wall-clock timeout (that one is the shell's), a geometry fraction |
+| Confidence | `units::Confidence` | A value in [0, 1], without NaN: a confidence or a threshold on one | a geometry fraction (`pad`, `margin`, `share`), which is not a confidence |
+| SenseProbe | `look::SenseProbe` | The part of a `Probe` that a sense answers: detect, reinforce, faces, pose, depth. A read-only view; a sense's `match` names each variant | the verifier's probes |
+| VerifierProbe | `look::VerifierProbe` | The part of a `Probe` that the verifier answers: verify and keep | a sense's probes |
+| Route | `look::Route` | The total split of a `Probe` into `Sense` or `Verifier`, with no fallback arm: every probe takes exactly one road | a probe that no one answers |
+| OccupancyRules | `belief::occupancy::OccupancyRules` | The slice of the policy that layer 0 reads (persistence, held left, near first), built once when the monitor is built | the whole policy |
+| VerifyRules | `verification::VerifyRules` | The slice of `[verify]` that the verification reads (held, timeout, sharpness, frames), built once when the monitor is built | the whole policy |
+| SeenMark | `belief::occupancy::conservation::SeenMark` | The mark of a body stabilized as seen, with where it came from (`from_door`, `passing`). It is the domain's name: the contract keeps the wire's `Seen` | the wire's `Seen`, or a sighting |
 
 ## 8. Module map
 
