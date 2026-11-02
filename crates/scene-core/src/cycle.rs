@@ -14,7 +14,7 @@
 //!   attention look;
 //! - `conclude`: what the turn leaves behind (the second level, the observation,
 //!   the ledger);
-//! - `waiting`: each probe with its continuation.
+//! - `pending`: each question the turn waits on, with what its answer is read into.
 
 use std::sync::Arc;
 
@@ -42,11 +42,11 @@ use scene_contract::{Event, Scene};
 mod conclude;
 mod engine;
 mod monitor;
+mod pending;
 mod questions;
 mod readings;
 mod sequence;
-mod waiting;
-use waiting::Waiting;
+use pending::Pending;
 
 /// Everything the world tells the core.
 #[derive(Debug, Clone, PartialEq)]
@@ -140,12 +140,13 @@ struct Engine {
     bed_posture: Option<BedPosturePolicy>,
 }
 
-/// What the turn is waiting for. Each waiting stage carries what the turn has
-/// gathered so far: it cannot move on with missing data.
+/// What the turn is waiting for: one question, which carries what the turn has
+/// gathered so far, so it cannot move on with missing data.
 #[derive(Debug)]
 enum Phase {
-    /// Probe and continuation exist together: there is no wait without a probe.
-    Waiting(Waiting),
+    /// The question and its continuation are one value: there is no wait
+    /// without the probe that asks for it.
+    Waiting(Pending),
     /// The turn concluded with all its evidence; projecting remains.
     Concluded { refined: Refined },
     /// No new observation: the last one is republished, declared as such.
@@ -249,10 +250,10 @@ impl Turn<'_> {
         } = self;
         let conclusion = loop {
             phase = match phase {
-                Phase::Waiting(waiting) => {
-                    let (probe, stage) = waiting.into_parts();
+                Phase::Waiting(pending) => {
+                    let probe = pending.probe();
                     let (result, spent) = look(&probe);
-                    course.advance(stage, &probe, Outcome { result, spent })
+                    course.advance(pending, &probe, Outcome { result, spent })
                 }
                 Phase::Concluded { refined } => break course.observed(refined),
                 Phase::Republish { reason, changed } => break course.republished(reason, changed),

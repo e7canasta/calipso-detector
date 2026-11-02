@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use super::waiting::Waiting;
+use super::pending::Pending;
 use super::{Course, Engine, Input, Monitor, NoFrame, Open, Output, Phase, Turn};
 use crate::attention::Attention;
 use crate::chronicle::{Chronicle, Entry};
@@ -126,6 +126,6 @@ impl Course<'_> {
         self.geometry = self.engine.open_frame(frame);
         self.room = self.engine.room_of(self.geometry);
         let region = self.engine.primary_region(self.at, self.geometry);
-        Phase::Waiting(Waiting::primary(region))
+        Phase::Waiting(Pending::Detect { region })
     }
 }

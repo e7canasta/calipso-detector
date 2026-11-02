@@ -3,9 +3,9 @@
 //! `readings`, each question to `attention` is asked in `questions`, and what the
 //! turn leaves behind is in `conclude`.
 
-use super::waiting::Waiting;
+use super::pending::Pending;
 use super::{Course, Observed, Phase, Refined};
-use crate::attention::{EnrichPlan, SkipReason};
+use crate::attention::{EnrichPlan, SkipReason, SubjectDepthLook};
 use crate::belief::Enrichment;
 use crate::body::Keypoint;
 use crate::evidence::{Admission, FaceEvidence, Perceived};
@@ -61,7 +61,7 @@ impl Course<'_> {
                 Reached::Focused(focused) => {
                     let considered = self.widen(&focused);
                     if self.wanted(LookKind::Detect, considered).is_some() {
-                        return Phase::Waiting(Waiting::widen());
+                        return Phase::Waiting(Pending::Detect { region: None });
                     }
                     Reached::Primary(focused)
                 }
@@ -69,7 +69,7 @@ impl Course<'_> {
                 Reached::Primary(primary) => {
                     let considered = self.reinforce(&primary);
                     if let Some(region) = self.wanted(LookKind::Reinforce, considered) {
-                        return Phase::Waiting(Waiting::reinforce(region, primary));
+                        return Phase::Waiting(Pending::Reinforce { region, primary });
                     }
                     Reached::Bodies(primary)
                 }
@@ -77,7 +77,11 @@ impl Course<'_> {
                 Reached::Bodies(bodies) => {
                     let considered = self.faces(&bodies);
                     if let Some((region, policy)) = self.wanted(LookKind::Faces, considered) {
-                        return Phase::Waiting(Waiting::faces(bodies, region, policy));
+                        return Phase::Waiting(Pending::Faces {
+                            region,
+                            policy,
+                            bodies,
+                        });
                     }
                     Reached::Perceived(Perceived {
                         bodies,
@@ -89,7 +93,11 @@ impl Course<'_> {
                 Reached::Perceived(perceived) => {
                     let considered = self.pose_bodies(&perceived);
                     if let Some(look) = self.wanted(LookKind::PoseBody, considered) {
-                        return Phase::Waiting(Waiting::pose_body(perceived, look));
+                        return Phase::Waiting(Pending::PoseBody {
+                            region: look.region,
+                            floor: look.floor,
+                            perceived,
+                        });
                     }
                     Reached::Evidence(perceived)
                 }
@@ -108,7 +116,11 @@ impl Course<'_> {
                     let considered = self.calibrate(&observed);
                     if let Some(look) = self.wanted(LookKind::Calibrate, considered) {
                         self.engine.calibration_attempted(self.at);
-                        return Phase::Waiting(Waiting::calibrate(observed, look));
+                        return Phase::Waiting(Pending::Calibrate {
+                            region: look.region,
+                            points: look.points,
+                            observed,
+                        });
                     }
                     Reached::Calibrated(observed)
                 }
@@ -116,7 +128,11 @@ impl Course<'_> {
                 Reached::Calibrated(observed) => {
                     match self.enrich(&observed.believed, &observed.evidence) {
                         EnrichPlan::Ask { bbox, region } => {
-                            return Phase::Waiting(Waiting::pose(observed, bbox, region));
+                            return Phase::Waiting(Pending::Pose {
+                                region,
+                                bbox,
+                                observed,
+                            });
                         }
                         EnrichPlan::Posed { bbox } => {
                             self.skipped(LookKind::Pose, SkipReason::PosedBefore);
@@ -150,7 +166,15 @@ impl Course<'_> {
                     let considered = self.deepen(&observed, pose.as_deref(), head);
                     match (self.wanted(LookKind::Depth, considered), pose) {
                         (Some(points), Some(pose)) => {
-                            return Phase::Waiting(Waiting::depth(observed, pose, bbox, points));
+                            let SubjectDepthLook { look, head } = points;
+                            return Phase::Waiting(Pending::Depth {
+                                region: look.region,
+                                at: look.points,
+                                pose,
+                                bbox,
+                                observed,
+                                head,
+                            });
                         }
                         (_, pose) => {
                             let primary_seen = observed.evidence.bodies.primary_seen();
@@ -185,7 +209,11 @@ impl Course<'_> {
                         }
                         TurnOut::Keep { ticket, region } => {
                             self.note_busy_doubt(&refined);
-                            return Phase::Waiting(Waiting::keep(refined, ticket, region));
+                            return Phase::Waiting(Pending::Keep {
+                                ticket,
+                                region,
+                                refined,
+                            });
                         }
                         TurnOut::Dropped(step) => {
                             let reason = if step == BurstStep::Stale {

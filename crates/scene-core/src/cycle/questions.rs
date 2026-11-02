@@ -3,7 +3,7 @@
 //! configured (rule 11). Each answer comes back as a consideration: a look is
 //! asked, or the turn goes on.
 
-use super::waiting::Waiting;
+use super::pending::Pending;
 use super::{Course, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
@@ -76,10 +76,17 @@ impl Course<'_> {
                 ticket,
                 look,
                 crops,
-            }) => Phase::Waiting(Waiting::verify(refined, ticket, look, crops)),
-            AskOut::Collecting { ticket, region } => {
-                Phase::Waiting(Waiting::keep(refined, ticket, region))
-            }
+            }) => Phase::Waiting(Pending::Verify {
+                ticket,
+                look,
+                crops,
+                refined,
+            }),
+            AskOut::Collecting { ticket, region } => Phase::Waiting(Pending::Keep {
+                ticket,
+                region,
+                refined,
+            }),
             AskOut::Busy(reason) => {
                 self.skipped(LookKind::Verify, reason);
                 Phase::Concluded { refined }

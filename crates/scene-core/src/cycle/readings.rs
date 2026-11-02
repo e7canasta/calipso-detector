@@ -1,8 +1,8 @@
 //! How each reading moves the turn on: what the shell read is interpreted here,
 //! with the evidence it belongs to, and the turn goes on at `Course::next`.
 
+use super::pending::Pending;
 use super::sequence::Reached;
-use super::waiting::{Continuation, Waiting};
 use super::{Course, Phase};
 use crate::attention::LookResult;
 use crate::belief::Enrichment;
@@ -12,18 +12,14 @@ use crate::outcome::Outcome;
 use crate::verification::Dispatch;
 
 impl Course<'_> {
-    /// The reading arrived: it is interpreted and the turn continues where it was.
-    pub(super) fn advance(
-        &mut self,
-        stage: Continuation,
-        probe: &Probe,
-        outcome: Outcome,
-    ) -> Phase {
+    /// The reading arrived: it is interpreted by the question it answers, and
+    /// the turn continues where it was.
+    pub(super) fn advance(&mut self, pending: Pending, probe: &Probe, outcome: Outcome) -> Phase {
         let spent = outcome.spent;
-        let reached = match stage {
-            Continuation::Primary => Reached::Primary(self.admit(probe, outcome)),
-            Continuation::Focused => Reached::Focused(self.admit(probe, outcome)),
-            Continuation::Reinforce { primary } => {
+        let reached = match pending {
+            Pending::Detect { region: Some(_) } => Reached::Focused(self.admit(probe, outcome)),
+            Pending::Detect { region: None } => Reached::Primary(self.admit(probe, outcome)),
+            Pending::Reinforce { primary, .. } => {
                 // The loss counts as checked only if reinforcement read bodies:
                 // a failing look, or a reading of another kind, is requested
                 // again on the next sample.
@@ -36,7 +32,7 @@ impl Course<'_> {
                 self.asked(probe, spent, result);
                 Reached::Bodies(bodies)
             }
-            Continuation::Faces {
+            Pending::Faces {
                 bodies,
                 region,
                 policy,
@@ -49,9 +45,10 @@ impl Course<'_> {
                     posed: None,
                 })
             }
-            Continuation::PoseBody {
+            Pending::PoseBody {
                 mut perceived,
                 floor,
+                ..
             } => {
                 let result = self.engine.read_pose_body(
                     &mut perceived,
@@ -62,13 +59,13 @@ impl Course<'_> {
                 self.asked(probe, spent, result);
                 Reached::Evidence(perceived)
             }
-            Continuation::Calibrate { mut observed } => {
+            Pending::Calibrate { mut observed, .. } => {
                 let (depth, result) = evidence::depth(outcome.depths());
                 self.asked(probe, spent, result);
                 observed.calibrated = self.engine.learn_bed(self.at, depth);
                 Reached::Calibrated(observed)
             }
-            Continuation::Pose { observed, bbox } => {
+            Pending::Pose { bbox, observed, .. } => {
                 let (pose, result) = evidence::pose(outcome.into_pose());
                 self.asked(probe, spent, result);
                 Reached::Pose {
@@ -77,12 +74,13 @@ impl Course<'_> {
                     bbox,
                 }
             }
-            Continuation::Depth {
+            Pending::Depth {
                 observed,
                 pose,
                 bbox,
                 at,
                 head,
+                ..
             } => {
                 let (depths, result) = evidence::depths(outcome.depths(), &at, pose.len());
                 self.asked(probe, spent, result);
@@ -90,7 +88,7 @@ impl Course<'_> {
                 let enrichment = Enrichment::fresh(Some(pose), depths, head, bbox, primary_seen);
                 Reached::Enriched(observed, enrichment)
             }
-            Continuation::Keep { refined } => {
+            Pending::Keep { refined, .. } => {
                 let (result, kept) = self.engine.kept(self.at, outcome.kept());
                 self.asked(probe, spent, result);
                 // The burst is ready: the question goes out now, with the chosen crops.
@@ -100,11 +98,16 @@ impl Course<'_> {
                     crops,
                 }) = kept.and_then(|kept| kept.ready)
                 {
-                    return Phase::Waiting(Waiting::verify(refined, ticket, look, crops));
+                    return Phase::Waiting(Pending::Verify {
+                        ticket,
+                        look,
+                        crops,
+                        refined,
+                    });
                 }
                 Reached::Final(refined)
             }
-            Continuation::Verify { refined } => {
+            Pending::Verify { refined, .. } => {
                 let result = match outcome.dispatched() {
                     Ok(()) => {
                         self.engine.dispatched(true);
