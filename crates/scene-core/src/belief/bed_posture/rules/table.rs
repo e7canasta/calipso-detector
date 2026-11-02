@@ -29,10 +29,8 @@ const SIGHTINGS: [(Sighting, &str); 6] = [
 ];
 
 /// A value as the contract names it; nothing is `—`.
-fn wire<T: Serialize>(value: Option<T>) -> String {
-    value
-        .and_then(golden::name)
-        .unwrap_or_else(|| "—".to_owned())
+fn cell<T: Serialize>(value: Option<T>) -> String {
+    value.map_or_else(|| "—".to_owned(), golden::wire)
 }
 
 fn table() -> String {
@@ -40,7 +38,7 @@ fn table() -> String {
     for before in BEFORE {
         let mut row = |input: String, l0, sighting| {
             let after = decide(before, l0, sighting);
-            out += &format!("{} | {input} | {}\n", wire(before), wire(after));
+            out += &format!("{} | {input} | {}\n", cell(before), cell(after));
         };
         row("—".to_owned(), None, Sighting::Unknown);
         row("held".to_owned(), Some(InBed::Held), Sighting::Unknown);

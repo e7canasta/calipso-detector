@@ -79,7 +79,7 @@ const SEEN: [(Look, &str); 5] = [
     ),
 ];
 
-fn wire(p: Place) -> String {
+fn place_bits(p: Place) -> String {
     let bit = |b| if b { '1' } else { '0' };
     format!("{}.{}.{}", bit(p.inside), bit(p.outside), bit(p.held))
 }
@@ -102,13 +102,13 @@ fn table() -> String {
     let lost = decide(Some(whole(inside)), false, ByPart::default());
     out += &format!(
         "no subject | * | {}\n",
-        lost.map_or("—".to_owned(), |p| wire(
+        lost.map_or("—".to_owned(), |p| place_bits(
             p.bed.first().copied().unwrap_or_default()
         ))
     );
     for (before, b) in BEFORE {
         for (seen, s) in SEEN {
-            out += &format!("{b} | {s} | {}\n", wire(place(before, seen)));
+            out += &format!("{b} | {s} | {}\n", place_bits(place(before, seen)));
         }
     }
     out

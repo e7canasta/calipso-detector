@@ -13,6 +13,12 @@ pub(crate) fn name<T: Serialize>(value: T) -> Option<String> {
         .and_then(|v| v.as_str().map(str::to_owned))
 }
 
+/// A value as a table writes it: its name in the contract, or nothing if it has
+/// none.
+pub(crate) fn wire<T: Serialize>(value: T) -> String {
+    name(value).unwrap_or_default()
+}
+
 /// Fails unless `actual` is `golden`, row by row. The message shows the rows
 /// that changed and the whole new table: if a rule changed on purpose, it is
 /// copied into `file` and the diff goes into the commit.

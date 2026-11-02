@@ -72,14 +72,8 @@ pub(crate) fn arbitrate(zone: Zone, posture: Option<PostureState>) -> Option<Rul
 mod tests {
     use super::*;
     use crate::golden;
-    use serde::Serialize;
 
     const GOLDEN: &str = include_str!("../../../../contract/second-level-table.txt");
-
-    /// A value as the contract names it.
-    fn wire<T: Serialize>(value: &T) -> String {
-        golden::name(value).unwrap_or_default()
-    }
 
     /// Every combination of zone and opinion, one row each.
     fn table() -> String {
@@ -93,9 +87,9 @@ mod tests {
                 // The table names the cable's values: their names are the contract's.
                 let on_the_wire = |r: &Ruling| {
                     (
-                        wire(&scene_contract::VerdictState::from(r.state)),
+                        golden::wire(scene_contract::VerdictState::from(r.state)),
                         r.by.iter()
-                            .map(|h| wire(&scene_contract::Head::from(*h)))
+                            .map(|h| golden::wire(scene_contract::Head::from(*h)))
                             .collect::<Vec<_>>(),
                     )
                 };
@@ -109,8 +103,8 @@ mod tests {
                 };
                 out += &format!(
                     "{} | {} | {verdict} | {by}\n",
-                    wire(&zone),
-                    wire(&scene_contract::PostureState::from(posture))
+                    golden::wire(zone),
+                    golden::wire(scene_contract::PostureState::from(posture))
                 );
             }
         }

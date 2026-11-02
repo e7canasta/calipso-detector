@@ -6,13 +6,8 @@
 use super::{Facts, Headboard, PartsReading, dwell, read};
 use crate::golden;
 use crate::units::Seconds;
-use serde::Serialize;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/parts-reading-table.txt");
-
-fn wire<T: Serialize>(value: T) -> String {
-    golden::name(value).unwrap_or_default()
-}
 
 /// The name the golden table writes the headboard with.
 fn headboard_name(headboard: Headboard) -> &'static str {
@@ -60,7 +55,7 @@ fn table() -> String {
                 headboard_name(headboard),
                 bit(f.out),
                 bit(f.boxes_in),
-                wire(scene_contract::PartsReading::from(reading))
+                golden::wire(scene_contract::PartsReading::from(reading))
             );
         }
     }
@@ -86,7 +81,7 @@ fn every_reading_but_undecided_is_reachable() {
         assert!(
             table.contains(&format!(
                 "| {}",
-                wire(scene_contract::PartsReading::from(reading))
+                golden::wire(scene_contract::PartsReading::from(reading))
             )),
             "{reading:?}"
         );

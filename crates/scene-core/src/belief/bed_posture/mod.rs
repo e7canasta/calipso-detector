@@ -97,16 +97,13 @@ pub(crate) fn bed_posture_seen_of(l0: InBed, sighting: Sighting) -> BedPostureSe
 #[cfg(test)]
 mod tests {
     use super::{BedPostureSeen, BedPostureState};
-
-    fn wire<T: serde::Serialize>(value: T) -> serde_json::Value {
-        serde_json::to_value(value).expect("serializes")
-    }
+    use crate::golden;
 
     #[test]
     fn the_names_of_a_cell_are_the_wire_names() {
         use BedPostureState::*;
         for state in [InBed, Lying, SittingUp, GettingOut] {
-            assert_eq!(wire(state), state.as_str());
+            assert_eq!(golden::wire(state), state.as_str());
         }
         use BedPostureSeen::*;
         for seen in [
@@ -119,7 +116,7 @@ mod tests {
             Unknown,
         ] {
             let on_the_wire = scene_contract::BedPostureSeen::from(seen);
-            assert_eq!(wire(on_the_wire), on_the_wire.as_str());
+            assert_eq!(golden::wire(on_the_wire), on_the_wire.as_str());
         }
     }
 }
