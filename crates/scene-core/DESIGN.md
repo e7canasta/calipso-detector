@@ -77,6 +77,34 @@ A published version is frozen (C1), so its types are deliberately **not**
 `#[non_exhaustive]`: a consumer may `match` them exhaustively, and the compiler
 tells them what a new version changed when they move to it.
 
+### Each level speaks its language
+
+The core has seven levels, from the transport to the wire. Each one has its own
+domain and its own language, and a name belongs to the level whose change would
+force renaming it. The question that places a name: **which change would oblige
+renaming it, one of the camera, the model or the transport, or one of the care
+rules?** A camera or a model changes the perception level; a transport changes
+the transport level; a care rule changes the domain. A name that a camera change
+would rename is in the wrong level.
+
+| Level | Domain | Its language | Smell: another level's language |
+|---|---|---|---|
+| transport | the frames and the bus: `ingest` defines the language (sessions, keyframes, the single-slot mailbox where the newest value wins); `detector` and NATS carry it | session, keyframe, mailbox, the newest sample wins | a word of the bed (`held`, `lying`, `resident`) in the decoder, or a `Probe` or a `Reading` that reaches the transport, or the core reads a clock |
+| perception | what a sense sees (`sense`, `scene-look`) | `Probe`, `Reading`, `Failure`, `Spent`, `Ticket`, `Verified` | a body named by its role in the bed (`subject`, `held`) |
+| geometry | points, boxes and quadrilaterals (`scene-geom`) | `Point`, `Rect`, `Quad` | a zone or a bed, which is space |
+| space | the room and the bed's planes (`map`, `room`) | the bed, the headboard, the floor, the zone, the plane | a count, or a layer's name in a room question (rule 23) |
+| belief in time | what holds through the source time, without knowing what counts: the stabilizer (`belief/stabilizer`), provenance (`provenance`), the source time (`time`, `Elapsed`), the attention ledger (`Decision`, `Consideration`) | holds, current or retained, "not known", asked or omitted with its reason | the name of a layer or of a care rule (`occupancy`, `posture`, `held`, `lying`): the stabilizer does not know what it stabilizes |
+| central domain | the room and the bed: `belief/occupancy`, `bed_posture`, `parts`, `subject`, `refine`, the questions of `attention`, the decisions of `verification`, `chronicle` | retained, adopted, without explanation, lay down, tries to get out, the resident | the generic words of rule 24 (`Layer`, `Step`, `Node`, `Context`, `State`), and a wire name that is not in the shared core |
+| wire | the published language (`scene-contract`, `project`) | `scene.v4`, `events.v4`, the envelope | a domain name that the wire does not publish under that name: `project` translates it |
+
+The two places where the line is thin are the good ones, and they stay for the
+same reason. `scene-look` names the perception language (`Probe`, `Reading`) and
+also holds the view a `Probe` gives each sense: it is the language of the sense
+and of the protocol, not of the wire, and no published field is named there.
+`Elapsed` is the source time's vocabulary (`time.rs`): a duration between two
+samples of one session, which the belief and the attention both ask. It names
+the time, not a care rule, and a change of camera or model does not rename it.
+
 ## 2. Invariants
 
 What no change may break. Each one has someone watching it.
@@ -588,6 +616,31 @@ kind (point 1), and the other matches on `LookKind` in the core, which
 `#[non_exhaustive]` leaves with a `_` (point 3). The first is the protocol's
 design (ADR el-protocolo-es-un-mensaje, point 2); the second is the wire's
 `#[non_exhaustive]`, not a gap of the protocol.
+
+### 8.2 How to add a layer
+
+A layer is a level of belief that reads the layers below it and that the
+published scene shows. Layer 1 (the bed posture) and the parts (the subject's
+parts against the bed) are the two that exist; each is read below. The places
+it touches, in the order a layer goes through them. The third column says what
+the compiler flags and what only a review does.
+
+| # | Place | Why | Who flags it |
+|---|---|---|---|
+| 1 | `belief/<layer>/rules.rs` (or `rules/`): a pure decider over the row `l(t−1) : below(t) + seen(t) : l(t)` | A layer is a function of its previous state, what the layer below believes now and what it sees. Layer 1's rules say so in their own `//!` (`belief/bed_posture/rules.rs`), and the parts' rules too | the review: a rule that reads something else is not a type error |
+| 2 | `contract/<layer>-table.txt` (for layer 1, `contract/bed-posture-table.txt`; for the parts, `contract/parts-table.txt`) and its test `rules/table.rs`: the golden table of every combination | The table is the rule's oracle: a change of rule is a diff of the table (`belief/bed_posture/rules/table.rs`, `layer_1_decides_as_the_golden_table`) | the golden test: a cell that changes fails it |
+| 3 | `belief/<layer>/machine.rs`: the machine that keeps the state in source time, over a `Stabilizer` | The state holds for a time, not for a sample. `Machine::step` takes the layer below and the sighting (`belief/bed_posture/machine.rs`) | the compiler: `step` takes the layer below as a typed argument (`Option<InBed>`, not a raw reading) |
+| 4 | `belief/mod.rs`: `observe_<layer>`, which reads the occupancy and never writes it | The layer below is an input, never an output (`observe_bed_posture` reads `self.occupancy.room()`) | the review: a write to the occupancy from the new layer is a borrow of `self.occupancy` that the compiler allows, so this is a review |
+| 5 | `refine/sighting.rs`: what the second level perceives, as the layer's typed sighting: `HeadPlace::sighting` maps each head state to a `Sighting` | The sighting is what the layer sees; the second level concludes it from the sample (`Sighting` in `belief/bed_posture/mod.rs`) | the compiler: `HeadPlace::sighting` matches on the head state without `_` |
+| 6 | `cycle/engine/belief.rs` (`follow`) and `cycle/engine/refinement.rs`: the engine calls `observe_<layer>` after the parts | The order of the layers is the order of the turn, one place (rule 11, G2) | the compiler when `follow` does not pass the new argument: its signature names every input |
+| 7 | `project/v4.rs`: the additive field of the scene and the change event (`bed_posture_change`) | The projection publishes what the layer concluded, and a change is a row of the chronicle, not a read of the wire (rule 3, C4) | the review, and `contract_schema` when the field enters the schema: a published field is a contract change |
+| 8 | `contract/` schema and snapshot (`contract_schema`), and the wire type in `scene-contract` | A published field is a versioned change of the wire (C1), and its snapshot says so | the compiler (`contract_schema` fails until the snapshot is regenerated) |
+| 9 | `features/<area>/<name>.feature` first, then the steps of `tests/bdd/` | The specification comes before the code (rule 14, rule 15) | the BDD run: an undefined step fails (`fail_on_skipped`) |
+
+Two things the compiler does not see, and the review must: that a rule reads
+only the layer below and its own state (point 1), and that the projection adds a
+field and does not change an existing one (point 7). Both are measured in the
+parts and in layer 1 by their golden tables and their rules' `//!`, not by a type.
 
 ## 9. How a module is written
 
