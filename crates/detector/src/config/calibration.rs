@@ -2,7 +2,7 @@
 //! section, its checks and its policy.
 
 use super::schema::defaults;
-use super::validate::not_negative;
+use super::validate::{not_negative, seconds};
 use anyhow::{Result, ensure};
 use scene_core::policy::CalibrationPolicy;
 use serde::{Deserialize, Serialize};
@@ -26,9 +26,9 @@ impl CalibrationConfig {
     }
 
     /// `Policy::calibration`.
-    pub(super) fn policy(&self) -> CalibrationPolicy {
-        CalibrationPolicy {
-            retry_secs: self.retry_secs,
-        }
+    pub(super) fn policy(&self) -> Result<CalibrationPolicy> {
+        Ok(CalibrationPolicy {
+            retry_secs: seconds("calibration", "calibration.retry_secs", self.retry_secs)?,
+        })
     }
 }

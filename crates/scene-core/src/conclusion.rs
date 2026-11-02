@@ -10,6 +10,7 @@ use crate::map::{FrameInfo, MapState};
 use crate::reception::SensorChanged;
 use crate::reception::SensorState;
 use crate::time::SampleRef;
+use crate::units::Seconds;
 
 /// What the engine concludes from a closed turn.
 #[derive(Debug)]
@@ -47,7 +48,7 @@ pub(crate) struct Observation {
     /// How long a new count must hold (`Persistence`): the projection publishes
     /// it as what remains of the pending count. It is policy, not layer-0
     /// state, so it does not travel with the pending count.
-    pub dwell_secs: f64,
+    pub dwell_secs: Seconds,
 }
 
 pub(crate) use scene_contract::RepublishReason;

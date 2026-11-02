@@ -7,6 +7,7 @@ use serde_json::Value;
 use crate::attention::scene;
 use crate::script::depth_at;
 use crate::ward::Ward;
+use scene_core::units::Seconds;
 
 /// The 17 COCO keypoints, in order.
 const COCO: [&str; 17] = [
@@ -59,7 +60,8 @@ fn the_good_ones_measured(ward: &mut Ward, n: u32) {
         ward.policy
             .enrich
             .expect("there is a pose model")
-            .min_keypoint_score,
+            .min_keypoint_score
+            .get(),
     );
     for (i, p) in keypoints(ward, n).iter().enumerate() {
         let good = p["score"].as_f64().expect("score") >= minimum;
@@ -211,7 +213,7 @@ fn expires(ward: &mut Ward, secs: u32) {
         .enrich
         .as_mut()
         .expect("\"there is a pose model\" first")
-        .max_pose_age_secs = Some(f64::from(secs));
+        .max_pose_age_secs = Some(Seconds::new(f64::from(secs)).expect("whole seconds"));
 }
 
 #[then(

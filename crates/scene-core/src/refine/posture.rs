@@ -41,7 +41,7 @@ pub(super) fn classify(body: &SubjectBody, policy: &EnrichPolicy) -> Option<Read
         .pose
         .keypoints
         .iter()
-        .filter(|p| point_is_seen(p, policy.min_keypoint_score))
+        .filter(|p| point_is_seen(p, policy.min_keypoint_score.get()))
         .collect();
     if !seen.iter().any(|p| p.depth.is_some()) {
         return None;
@@ -118,6 +118,7 @@ pub(crate) use scene_contract::{BodyGroup, BodyGroups, Disparities, PostureState
 mod tests {
     use super::*;
     use crate::body::HeadPlace;
+    use crate::units::Confidence;
 
     fn body(upper: Option<f32>, lower: Option<f32>) -> SubjectBody {
         let keypoints = (0..17)
@@ -144,14 +145,16 @@ mod tests {
         }
     }
 
-    const POLICY: EnrichPolicy = EnrichPolicy {
-        move_threshold: 0.1,
-        depth: true,
-        min_keypoint_score: 0.3,
-        posture_tolerance: 0.05,
-        max_pose_age_secs: None,
-        crop_pad: 0.0,
-    };
+    fn policy() -> EnrichPolicy {
+        EnrichPolicy {
+            move_threshold: 0.1,
+            depth: true,
+            min_keypoint_score: Confidence::new(0.3).expect("a score"),
+            posture_tolerance: 0.05,
+            max_pose_age_secs: None,
+            crop_pad: 0.0,
+        }
+    }
 
     #[test]
     fn the_relative_disparity_is_signed_and_without_scale() {
@@ -164,7 +167,7 @@ mod tests {
 
     #[test]
     fn lying_only_above_the_tolerance() {
-        let state = |a, b| classify(&body(Some(a), Some(b)), &POLICY).map(|r| r.state);
+        let state = |a, b| classify(&body(Some(a), Some(b)), &policy()).map(|r| r.state);
         assert_eq!(state(2.2, 2.0), Some(PostureState::Lying));
         assert_eq!(state(1.8, 2.0), Some(PostureState::Upright));
         assert_eq!(state(2.02, 2.0), Some(PostureState::Upright));
@@ -173,19 +176,19 @@ mod tests {
     #[test]
     fn the_disparity_does_not_depend_on_scale() {
         let d =
-            |a: f32, b: f32| classify(&body(Some(a), Some(b)), &POLICY).and_then(|r| r.disparity);
+            |a: f32, b: f32| classify(&body(Some(a), Some(b)), &policy()).and_then(|r| r.disparity);
         let (x, y) = (d(2.2, 2.0).unwrap(), d(22.0, 20.0).unwrap());
         assert!((x - y).abs() < 1e-6);
     }
 
     #[test]
     fn an_unmeasured_group_is_unknown_and_no_measure_gives_no_reading() {
-        let r = classify(&body(Some(2.0), None), &POLICY).unwrap();
+        let r = classify(&body(Some(2.0), None), &policy()).unwrap();
         assert_eq!(
             (r.state, r.lower, r.disparity),
             (PostureState::Unknown, None, None)
         );
-        assert_eq!(classify(&body(None, None), &POLICY), None);
+        assert_eq!(classify(&body(None, None), &policy()), None);
     }
 
     #[test]

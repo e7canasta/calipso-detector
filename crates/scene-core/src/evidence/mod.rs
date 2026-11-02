@@ -101,7 +101,7 @@ impl BodyEvidence {
     pub(crate) fn seen(&self) -> Option<&Bodies> {
         match self {
             BodyEvidence::Seen(b) => Some(b),
-            _ => None,
+            BodyEvidence::Unavailable(_) | BodyEvidence::Unzoned(_) => None,
         }
     }
 }

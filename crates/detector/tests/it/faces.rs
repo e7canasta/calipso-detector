@@ -1,6 +1,7 @@
 use crate::{models, support};
 use detector::driver::Driver;
 use models::Model;
+use scene_core::units::Confidence;
 use scene_core::{
     geom::{Quad, Rect},
     look::{Detection, Label},
@@ -25,7 +26,7 @@ fn faces_on_current_resident_are_published_in_frame_coordinates_on_subject() {
     }]);
     let policy = Policy {
         faces: Some(FacePolicy {
-            min_confidence: 0.3,
+            min_confidence: Confidence::new(0.3).expect("a score"),
             headboard_pad: 0.0,
         }),
         ..Policy::default()

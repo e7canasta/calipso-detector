@@ -200,7 +200,7 @@ async fn main() -> Result<()> {
     let mut depth = DepthEstimator::load(&depth_model)
         .with_context(|| format!("load depth: {}", depth_model.display()))?;
     let mut senses = Senses::new(detect);
-    let min_confidence = config.policy().admission.min_confidence;
+    let min_confidence = config.policy()?.admission.min_confidence.get();
 
     let mailbox = Arc::new(Mailbox::<Sample>::default());
     let (events_tx, events_rx) = mpsc::channel();

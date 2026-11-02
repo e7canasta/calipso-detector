@@ -65,7 +65,7 @@ fn main() -> Result<()> {
         .with_context(|| format!("create {}", args.out.display()))?;
     let senses = detector::senses::load(&config)?;
     let mut driver = Driver::new(
-        config.policy(),
+        config.policy()?,
         config.site_map(),
         senses,
         // No camera, nothing to stall: the watchdog runs on the wall clock,

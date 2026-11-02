@@ -61,7 +61,7 @@ impl Site {
         });
         let near_bed = match (zone, distance) {
             (Some(Zone::Floor), Some(d)) => Some(d <= self.policy.near_m),
-            _ => None,
+            (Some(Zone::Floor), None) | (Some(Zone::Bed), _) | (None, _) => None,
         };
         BodyShadow {
             centroid: point_on(&self.mattress, centroid),

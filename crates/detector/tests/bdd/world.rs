@@ -360,7 +360,15 @@ fn main_valid(w: &mut Shell) {
 
 #[then(expr = "the core policy reinforces the bed grown by {float}")]
 fn reinforce_policy(w: &mut Shell, padding: f32) {
-    assert_eq!(w.config().policy().reinforce.unwrap().bed_padding, padding);
+    assert_eq!(
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .reinforce
+            .unwrap()
+            .bed_padding,
+        padding
+    );
 }
 
 #[then(expr = "the profile is rejected with a reason that names {string}")]
@@ -437,10 +445,27 @@ fn invalid_faces(w: &mut Shell, section: String, backend: f32, minimum: f32) {
 
 #[then(expr = "the core policy accepts faces from {float}")]
 fn faces_policy(w: &mut Shell, minimum: f32) {
-    assert_eq!(w.config().policy().faces.unwrap().min_confidence, minimum);
+    assert_eq!(
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .faces
+            .unwrap()
+            .min_confidence
+            .get(),
+        minimum
+    );
 }
 
 #[then(expr = "the core policy looks for faces at the headboard grown by {float}")]
 fn faces_margin(w: &mut Shell, pad: f32) {
-    assert_eq!(w.config().policy().faces.unwrap().headboard_pad, pad);
+    assert_eq!(
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .faces
+            .unwrap()
+            .headboard_pad,
+        pad
+    );
 }

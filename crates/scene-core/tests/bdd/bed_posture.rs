@@ -8,6 +8,7 @@ use serde_json::Value;
 use crate::attention::scene;
 use crate::ward::Ward;
 use scene_core::policy::BedPosturePolicy;
+use scene_core::units::Seconds;
 
 #[given("the bed posture is followed")]
 fn followed(ward: &mut Ward) {
@@ -37,7 +38,7 @@ fn must_hold(ward: &mut Ward, state: String, secs: u32) {
         .bed_posture
         .as_mut()
         .expect("\"the bed posture is followed\" first");
-    let secs = f64::from(secs);
+    let secs = Seconds::new(f64::from(secs)).expect("a time in source seconds");
     match state.as_str() {
         "lying" => policy.dwell_lying_secs = secs,
         "sitting_up" => policy.dwell_sitting_up_secs = secs,

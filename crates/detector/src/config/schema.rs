@@ -110,10 +110,10 @@ impl Default for PolicyConfig {
             ..
         } = Policy::default();
         Self {
-            min_confidence: admission.min_confidence,
+            min_confidence: admission.min_confidence.get(),
             same_body_iou: admission.same_body_iou,
             near_bed_margin: admission.near_bed_margin,
-            dwell_secs: persistence.dwell_secs,
+            dwell_secs: persistence.dwell_secs.get(),
             bed_frame: admission.bed_frame,
         }
     }

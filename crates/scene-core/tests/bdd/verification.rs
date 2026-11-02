@@ -9,12 +9,13 @@ use scene_core::policy::{Band, Burst, HeldVerifyPolicy, SharpnessPolicy, VerifyP
 
 use crate::attention::scene;
 use crate::ward::Ward;
+use scene_core::units::Seconds;
 
 #[given(expr = "held occupants are verified after {int} seconds")]
 fn held_verified_after(ward: &mut Ward, secs: u32) {
     ward.policy.verify = Some(VerifyPolicy {
         held: Some(HeldVerifyPolicy {
-            after_secs: f64::from(secs),
+            after_secs: Seconds::new(f64::from(secs)).expect("whole seconds"),
             valid_secs: None,
         }),
         ..VerifyPolicy::default()
@@ -38,7 +39,10 @@ fn doubtful_feet(ward: &mut Ward, margin: f32) {
 }
 
 fn burst(frames: u8, every_secs: f64) -> Burst {
-    Burst { frames, every_secs }
+    Burst {
+        frames,
+        every_secs: Seconds::new(every_secs).expect("a time in source seconds"),
+    }
 }
 
 #[given(expr = "the disparity is asked with {int} frames {int} seconds apart")]
@@ -84,7 +88,7 @@ fn sharpness_policy(ward: &mut Ward, ratio: f32, window: u16, wait: u32) {
         .sharpness = Some(SharpnessPolicy {
         min_ratio: ratio,
         window,
-        max_wait_secs: f64::from(wait),
+        max_wait_secs: Seconds::new(f64::from(wait)).expect("whole seconds"),
     });
 }
 
@@ -165,7 +169,7 @@ fn verify(ward: &mut Ward) -> &mut VerifyPolicy {
 
 #[given(expr = "verification requests expire after {int} seconds")]
 fn requests_expire(ward: &mut Ward, secs: u32) {
-    verify(ward).timeout_secs = Some(f64::from(secs));
+    verify(ward).timeout_secs = Some(Seconds::new(f64::from(secs)).expect("whole seconds"));
 }
 
 #[given(expr = "the verifier may be asked {int} times per hour")]
@@ -176,7 +180,7 @@ fn budget(ward: &mut Ward, times: u32) {
 #[given(expr = "a held occupant's check holds {int} seconds")]
 fn check_holds(ward: &mut Ward, secs: u32) {
     if let Some(held) = verify(ward).held.as_mut() {
-        held.valid_secs = Some(f64::from(secs));
+        held.valid_secs = Some(Seconds::new(f64::from(secs)).expect("whole seconds"));
     }
 }
 

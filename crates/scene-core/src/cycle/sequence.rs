@@ -378,7 +378,11 @@ impl Course<'_> {
             body: observed.believed.body.as_ref(),
             faces: &observed.evidence.faces,
             room: room.as_ref(),
-            min_score: engine.policy.enrich.as_ref().map(|e| e.min_keypoint_score),
+            min_score: engine
+                .policy
+                .enrich
+                .as_ref()
+                .map(|e| e.min_keypoint_score.get()),
         });
         // Layer 1, on layer 0 and what the second level perceived.
         let (parts, bed_posture) = self

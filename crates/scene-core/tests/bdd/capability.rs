@@ -10,6 +10,7 @@ use serde_json::Value;
 use crate::attention::scene;
 use crate::script::{Script, came_in_alone};
 use crate::ward::Ward;
+use scene_core::units::Seconds;
 
 /// The resident came in alone and lay down in bed, samples 1 to 10, in a room
 /// with the bed delimited.
@@ -31,7 +32,7 @@ fn held_resident(ward: &mut Ward, lay_down_to: u32, unseen: u32, dwell: f64) {
     for (n, script) in came_in_alone(1, lay_down_to) {
         ward.turn_with(ward.sample(n), script);
     }
-    ward.policy.persistence.dwell_secs = dwell;
+    ward.policy.persistence.dwell_secs = Seconds::new(dwell).expect("a time in source seconds");
     for n in lay_down_to + 1..=lay_down_to + unseen {
         ward.turn_with(ward.sample(n), Script::default());
     }

@@ -5,6 +5,7 @@
 
 use super::{Facts, Headboard, PartsReading, dwell, read};
 use crate::golden;
+use crate::units::Seconds;
 use serde::Serialize;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/parts-reading-table.txt");
@@ -37,7 +38,7 @@ fn table() -> String {
                 boxes_in: on(3),
             };
             let reading = read(f);
-            let urgent = if dwell(reading, 2.0) < 2.0 {
+            let urgent = if dwell(reading, Seconds::TWO).get() < 2.0 {
                 " [urgent]"
             } else {
                 ""

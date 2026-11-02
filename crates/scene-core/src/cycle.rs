@@ -236,6 +236,7 @@ mod tests {
     use crate::look::{LookKind, Probe, Reading, Spent};
     use crate::map::SiteMap;
     use crate::time::SessionId;
+    use crate::units::Confidence;
     use scene_contract::SourceSecs;
 
     fn sample(secs: f64) -> Input {
@@ -262,7 +263,7 @@ mod tests {
                 enrich: Some(EnrichPolicy {
                     move_threshold: 0.1,
                     depth: false,
-                    min_keypoint_score: 0.3,
+                    min_keypoint_score: Confidence::new(0.3).expect("a score"),
                     posture_tolerance: 0.05,
                     max_pose_age_secs: None,
                     crop_pad: 0.0,
@@ -286,7 +287,12 @@ mod tests {
         for s in 1..=3 {
             m.handle(sample(f64::from(s))).drive(|r| match r {
                 Probe::Detect { .. } => (Ok(Reading::Bodies(vec![person(seen)])), Spent(1.0)),
-                _ => (Ok(pose.clone()), Spent(1.0)),
+                Probe::Faces { .. }
+                | Probe::Reinforce { .. }
+                | Probe::Pose { .. }
+                | Probe::Depth { .. }
+                | Probe::Keep { .. }
+                | Probe::Verify { .. } => (Ok(pose.clone()), Spent(1.0)),
             });
         }
         assert_eq!(m.engine.belief.pose_reference(), Some(seen));
@@ -294,7 +300,11 @@ mod tests {
         let out = m.handle(sample(4.0)).drive(|r| match r {
             Probe::Detect { .. } => (Ok(Reading::Bodies(vec![])), Spent(1.0)),
             Probe::Reinforce { .. } => (Ok(Reading::Bodies(vec![person(moved)])), Spent(1.0)),
-            _ => (Ok(pose.clone()), Spent(1.0)),
+            Probe::Faces { .. }
+            | Probe::Pose { .. }
+            | Probe::Depth { .. }
+            | Probe::Keep { .. }
+            | Probe::Verify { .. } => (Ok(pose.clone()), Spent(1.0)),
         });
         let kinds: Vec<_> = out.scene.attention.looks.iter().map(|l| l.kind).collect();
         assert_eq!(

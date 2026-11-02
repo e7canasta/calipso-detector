@@ -19,6 +19,7 @@
 //! headboard reads lying), the depth decides: that is layer 1, not this.
 
 use super::{ByPart, Place};
+use crate::units::Seconds;
 use serde::Serialize;
 
 pub(crate) use scene_contract::PartsReading;
@@ -103,10 +104,14 @@ pub(crate) fn read(f: Facts) -> PartsReading {
 /// How long a reading must hold to count: the ones towards leaving, half of
 /// layer 0's dwell (a foot out and the torso leaving the headboard can be a
 /// single second); the rest, layer 0's.
-pub(crate) fn dwell(reading: PartsReading, layer_0: f64) -> f64 {
+pub(crate) fn dwell(reading: PartsReading, layer_0: Seconds) -> Seconds {
     match reading {
-        PartsReading::TryingToLeave | PartsReading::OnTheEdge => layer_0 / 2.0,
-        _ => layer_0,
+        PartsReading::TryingToLeave | PartsReading::OnTheEdge => layer_0.half(),
+        PartsReading::OutOfBed
+        | PartsReading::Lying
+        | PartsReading::SittingUp
+        | PartsReading::SittingInBed
+        | PartsReading::Undecided => layer_0,
     }
 }
 

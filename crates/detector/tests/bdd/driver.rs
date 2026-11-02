@@ -127,7 +127,7 @@ pub fn publish_samples(
     last: u64,
 ) -> Vec<(u64, serde_json::Value)> {
     let mut driver = Driver::new(
-        config.policy(),
+        config.policy().expect("a valid profile"),
         config.site_map(),
         w.senses(),
         Duration::from_secs(10),

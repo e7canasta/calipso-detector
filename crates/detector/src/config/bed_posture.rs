@@ -2,7 +2,7 @@
 //! count. Its section, its checks and its policy.
 
 use super::schema::defaults;
-use super::validate::not_negative;
+use super::validate::{not_negative, seconds};
 use anyhow::{Result, ensure};
 use scene_core::policy::BedPosturePolicy;
 use serde::{Deserialize, Serialize};
@@ -43,11 +43,23 @@ impl BedPostureConfig {
     }
 
     /// `Policy::bed_posture`.
-    pub(super) fn policy(&self) -> BedPosturePolicy {
-        BedPosturePolicy {
-            dwell_lying_secs: self.dwell_lying_secs,
-            dwell_sitting_up_secs: self.dwell_sitting_up_secs,
-            dwell_getting_out_secs: self.dwell_getting_out_secs,
-        }
+    pub(super) fn policy(&self) -> Result<BedPosturePolicy> {
+        Ok(BedPosturePolicy {
+            dwell_lying_secs: seconds(
+                "bed_posture",
+                "bed_posture.dwell_lying_secs",
+                self.dwell_lying_secs,
+            )?,
+            dwell_sitting_up_secs: seconds(
+                "bed_posture",
+                "bed_posture.dwell_sitting_up_secs",
+                self.dwell_sitting_up_secs,
+            )?,
+            dwell_getting_out_secs: seconds(
+                "bed_posture",
+                "bed_posture.dwell_getting_out_secs",
+                self.dwell_getting_out_secs,
+            )?,
+        })
     }
 }

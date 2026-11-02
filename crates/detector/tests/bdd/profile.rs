@@ -23,14 +23,24 @@ fn pose_margin_profile(w: &mut Shell, pad: f32) {
 #[then(expr = "the core policy looks for the pose with a margin of {float}")]
 fn pose_margin(w: &mut Shell, pad: f32) {
     assert_eq!(
-        w.config().policy().enrich.expect("pose policy").crop_pad,
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .enrich
+            .expect("pose policy")
+            .crop_pad,
         pad
     );
 }
 
 #[then(expr = "the core policy requests the pose when the subject moves {float} of their diagonal")]
 fn enrich_policy(w: &mut Shell, threshold: f32) {
-    let enrich = w.config().policy().enrich.expect("pose policy");
+    let enrich = w
+        .config()
+        .policy()
+        .expect("a valid profile")
+        .enrich
+        .expect("pose policy");
     assert_eq!(enrich.move_threshold, threshold);
 }
 
@@ -57,12 +67,19 @@ fn others_without_keypoint_score(w: &mut Shell) {
 
 #[then("the core policy does not measure the subject's depth")]
 fn no_subject_depth(w: &mut Shell) {
-    assert!(!w.config().policy().enrich.expect("pose policy").depth);
+    assert!(
+        !w.config()
+            .policy()
+            .expect("a valid profile")
+            .enrich
+            .expect("pose policy")
+            .depth
+    );
 }
 
 #[then("the core neither requests the pose nor calibrates the bed")]
 fn neither(w: &mut Shell) {
-    let policy = w.config().policy();
+    let policy = w.config().policy().expect("a valid profile");
     assert!(policy.enrich.is_none());
     assert!(policy.calibration.is_none());
 }
@@ -92,12 +109,18 @@ fn depth_crop_profile(w: &mut Shell, pad: f32) {
 
 #[then(expr = "the core measures depth over the bed grown by {float}")]
 fn depth_over_the_bed(w: &mut Shell, pad: f32) {
-    assert_eq!(w.config().policy().depth_pad, Some(pad));
+    assert_eq!(
+        w.config().policy().expect("a valid profile").depth_pad,
+        Some(pad)
+    );
 }
 
 #[then("the core measures depth over the whole frame")]
 fn depth_over_the_frame(w: &mut Shell) {
-    assert_eq!(w.config().policy().depth_pad, None);
+    assert_eq!(
+        w.config().policy().expect("a valid profile").depth_pad,
+        None
+    );
 }
 
 #[given(r#"a profile with "[calibration]" without "[senses.depth]""#)]
@@ -114,27 +137,49 @@ fn depth_alone(w: &mut Shell) {
     expr = "the core policy measures the subject's depth at keypoints with score {float} or more"
 )]
 fn subject_depth(w: &mut Shell, score: f32) {
-    let enrich = w.config().policy().enrich.expect("pose policy");
+    let enrich = w
+        .config()
+        .policy()
+        .expect("a valid profile")
+        .enrich
+        .expect("pose policy");
     assert!(enrich.depth);
-    assert_eq!(enrich.min_keypoint_score, score);
+    assert_eq!(enrich.min_keypoint_score.get(), score);
 }
 
 #[then("the core does not calibrate the bed")]
 fn no_calibration(w: &mut Shell) {
-    assert!(w.config().policy().calibration.is_none());
+    assert!(
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .calibration
+            .is_none()
+    );
 }
 
 #[then("the core does not request the pose")]
 fn no_pose(w: &mut Shell) {
-    assert!(w.config().policy().enrich.is_none());
+    assert!(
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .enrich
+            .is_none()
+    );
 }
 
 #[then(
     expr = "the core policy calibrates the bed and retries after {float} seconds of source time"
 )]
 fn calibration(w: &mut Shell, retry: f64) {
-    let calibration = w.config().policy().calibration.expect("calibration");
-    assert_eq!(calibration.retry_secs, retry);
+    let calibration = w
+        .config()
+        .policy()
+        .expect("a valid profile")
+        .calibration
+        .expect("calibration");
+    assert_eq!(calibration.retry_secs.get(), retry);
 }
 
 // --- The focus (spec 1511): the main detector's own section and the map's box.
@@ -167,16 +212,27 @@ fn map_focus(w: &mut Shell, x0: u32, y0: u32, x1: u32, y1: u32) {
 
 #[then("the core policy does not focus")]
 fn no_focus(w: &mut Shell) {
-    assert!(w.config().policy().focus.is_none());
+    assert!(
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .focus
+            .is_none()
+    );
 }
 
 #[then(
     expr = "the core policy focuses on the bed grown by {float} and looks at the whole frame every {int} seconds"
 )]
 fn focus_policy(w: &mut Shell, pad: f32, wide_every_secs: u32) {
-    let focus = w.config().policy().focus.expect("focus policy");
+    let focus = w
+        .config()
+        .policy()
+        .expect("a valid profile")
+        .focus
+        .expect("focus policy");
     assert_eq!(focus.pad, pad);
-    assert_eq!(focus.wide_every_secs, f64::from(wide_every_secs));
+    assert_eq!(focus.wide_every_secs.get(), f64::from(wide_every_secs));
 }
 
 #[then(regex = r"^the core's site map focuses on (\d+),(\d+) to (\d+),(\d+)$")]
@@ -234,12 +290,17 @@ fn bed_posture_without_pose(w: &mut Shell) {
     expr = "the core policy follows the bed posture holding lying {float}, sitting up {float} and getting out {float} seconds"
 )]
 fn follows_bed_posture(w: &mut Shell, lying: f64, sitting_up: f64, getting_out: f64) {
-    let policy = w.config().policy().bed_posture.expect("bed posture policy");
+    let policy = w
+        .config()
+        .policy()
+        .expect("a valid profile")
+        .bed_posture
+        .expect("bed posture policy");
     assert_eq!(
         (
-            policy.dwell_lying_secs,
-            policy.dwell_sitting_up_secs,
-            policy.dwell_getting_out_secs
+            policy.dwell_lying_secs.get(),
+            policy.dwell_sitting_up_secs.get(),
+            policy.dwell_getting_out_secs.get()
         ),
         (lying, sitting_up, getting_out)
     );
@@ -247,5 +308,11 @@ fn follows_bed_posture(w: &mut Shell, lying: f64, sitting_up: f64, getting_out: 
 
 #[then("the core policy does not follow the bed posture")]
 fn does_not_follow_bed_posture(w: &mut Shell) {
-    assert!(w.config().policy().bed_posture.is_none());
+    assert!(
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .bed_posture
+            .is_none()
+    );
 }

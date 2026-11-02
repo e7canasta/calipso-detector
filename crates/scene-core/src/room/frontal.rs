@@ -149,9 +149,10 @@ fn corners(r: &Rect) -> [Point; 4] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::units::Confidence;
 
     const ADMISSION: AdmissionPolicy = AdmissionPolicy {
-        min_confidence: 0.5,
+        min_confidence: Confidence::HALF,
         same_body_iou: 0.5,
         near_bed_margin: 0.10,
         bed_frame: None,

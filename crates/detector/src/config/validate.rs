@@ -5,7 +5,8 @@
 //! error found is reported.
 
 use super::*;
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
+use scene_core::units::{Confidence, Seconds};
 use std::path::Path;
 
 /// A score or a ratio: finite and between 0 and 1.
@@ -15,6 +16,16 @@ pub(super) fn fraction(name: &str, value: f32) -> Result<()> {
         "{name} must be between 0 and 1"
     );
     Ok(())
+}
+
+/// A duration of the core: its section names the error, as the checks above.
+pub(super) fn seconds(section: &str, name: &str, value: f64) -> Result<Seconds> {
+    Seconds::new(value).map_err(|e| anyhow!("[{section}]: {name} {e}"))
+}
+
+/// A confidence or a threshold of the core, in `[0, 1]`.
+pub(super) fn confidence(section: &str, name: &str, value: f32) -> Result<Confidence> {
+    Confidence::new(value).map_err(|e| anyhow!("[{section}]: {name} {e}"))
 }
 
 /// A margin or a delay: finite and not negative.

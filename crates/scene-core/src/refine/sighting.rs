@@ -154,7 +154,7 @@ fn places(
         .iter()
         .filter(|k| {
             matches!(k.name, Some(Joint::LeftAnkle | Joint::RightAnkle))
-                && point_is_seen(k, enrich.min_keypoint_score)
+                && point_is_seen(k, enrich.min_keypoint_score.get())
         })
         .map(|k| Point { x: k.x, y: k.y })
         .collect();

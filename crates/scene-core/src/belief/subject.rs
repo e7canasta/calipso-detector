@@ -137,7 +137,9 @@ impl SubjectMemory {
             } => {
                 let reference = match (&self.enriched, reference) {
                     (Some(old), ReferenceUpdate::Preserve) => old.reference,
-                    _ => bbox,
+                    (None, ReferenceUpdate::Preserve)
+                    | (None, ReferenceUpdate::Refresh)
+                    | (Some(_), ReferenceUpdate::Refresh) => bbox,
                 };
                 let enriched = self.enriched.insert(Enriched {
                     pose,

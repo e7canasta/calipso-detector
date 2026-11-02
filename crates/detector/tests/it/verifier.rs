@@ -11,6 +11,7 @@ use scene_core::geom::{Quad, Rect};
 use scene_core::look::{Answer, Detection, Failure, Label, Question, Ticket, Verified};
 use scene_core::map::SiteMap;
 use scene_core::policy::{HeldVerifyPolicy, Policy, VerifyPolicy};
+use scene_core::units::Seconds;
 use std::time::Duration;
 use support::Script;
 
@@ -79,7 +80,7 @@ fn a_held_occupant_is_verified_through_the_port_and_confirmed() {
     let policy = Policy {
         verify: Some(VerifyPolicy {
             held: Some(HeldVerifyPolicy {
-                after_secs: 30.0,
+                after_secs: Seconds::new(30.0).expect("a time"),
                 valid_secs: None,
             }),
             ..VerifyPolicy::default()

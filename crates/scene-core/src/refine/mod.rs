@@ -56,7 +56,7 @@ pub(crate) fn refine(
     let pose = &body.pose;
     let provenance = pose.provenance;
     let lying = room.filter(|room| room.has_plane()).map(|room| Lying {
-        state: lying::classify(&pose.keypoints, room, enrich.min_keypoint_score),
+        state: lying::classify(&pose.keypoints, room, enrich.min_keypoint_score.get()),
         provenance,
     });
     let posture = posture::classify(body, enrich).map(|r| Posture {

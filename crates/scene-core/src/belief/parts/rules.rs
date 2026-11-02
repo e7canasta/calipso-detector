@@ -43,11 +43,11 @@ pub(super) fn place(before: Place, seen: Look) -> Place {
             outside,
             held: false,
         },
-        _ if before.known() => Place {
+        Look::Looked { .. } | Look::NotLooked if before.known() => Place {
             held: true,
             ..before
         },
-        _ => Place::default(),
+        Look::Looked { .. } | Look::NotLooked => Place::default(),
     }
 }
 

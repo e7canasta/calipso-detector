@@ -9,6 +9,7 @@ use scene_contract::{
 };
 use scene_core::geom::Rect;
 use scene_core::policy::{FacePolicy, FocusPolicy};
+use scene_core::units::{Confidence, Seconds};
 use scene_core::{Monitor, Output};
 
 use crate::ward::{BED, FRAME, Ward};
@@ -29,7 +30,7 @@ fn no_headboard(ward: &mut Ward) {
 #[given(expr = "there is a face detector with minimum confidence {float}")]
 fn faces(ward: &mut Ward, min_confidence: f32) {
     ward.policy.faces = Some(FacePolicy {
-        min_confidence,
+        min_confidence: Confidence::new(min_confidence).expect("a confidence between 0 and 1"),
         headboard_pad: 0.0,
     });
 }
@@ -54,7 +55,7 @@ fn no_reinforcement(ward: &mut Ward) {
 fn focus(ward: &mut Ward, pad: f32, wide_every_secs: u32) {
     ward.policy.focus = Some(FocusPolicy {
         pad,
-        wide_every_secs: f64::from(wide_every_secs),
+        wide_every_secs: Seconds::new(f64::from(wide_every_secs)).expect("whole seconds"),
     });
 }
 

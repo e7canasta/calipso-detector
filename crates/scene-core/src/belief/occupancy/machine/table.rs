@@ -16,10 +16,13 @@ use crate::evidence::{Body, FloorBody};
 use crate::geom::Rect;
 use crate::look::Label;
 use crate::time::SessionId;
+use crate::units::Seconds;
 use scene_contract::SourceSecs;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/layer-0-table.txt");
-const PERSISTENCE: Persistence = Persistence { dwell_secs: 1.0 };
+const PERSISTENCE: Persistence = Persistence {
+    dwell_secs: Seconds::ONE,
+};
 
 /// The context a cell is crossed with.
 #[derive(Clone, Copy)]
@@ -147,7 +150,7 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
     let mut transitions = Vec::new();
     let end = match context {
         Context::Far => bodies(f, f.min(1), v),
-        _ => bodies(f, 0, v),
+        Context::Base | Context::Passing | Context::Booting | Context::SideExit => bodies(f, 0, v),
     };
     let held_left = matches!(context, Context::SideExit);
     let mut t = 1.0;

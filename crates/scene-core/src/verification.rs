@@ -16,6 +16,7 @@ use crate::policy::{Burst, Frames, SharpnessPolicy, VerifyPolicy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
 use crate::time::secs_since;
+use crate::units::Seconds;
 
 pub(crate) use scene_contract::HeldCheckState;
 pub(crate) use scene_contract::Verifier;
@@ -144,7 +145,7 @@ pub(crate) struct VerifyRules {
     /// The policy verifies held bodies (`held`).
     pub(crate) held: bool,
     /// Seconds a request may wait for its answer (`timeout_secs`).
-    pub(crate) timeout_secs: Option<f64>,
+    pub(crate) timeout_secs: Option<Seconds>,
     /// The sharpness a crop is judged by (`sharpness`); `None`: no judgement.
     pub(crate) sharpness: Option<SharpnessPolicy>,
     /// The burst of each question (`frames`); `None`: no `[verify]`.
@@ -356,7 +357,7 @@ impl Verification {
             .in_flight
             .filter(|t| match secs_since(at, sent.unwrap_or(t.looked)) {
                 None => true,
-                Some(age) => timeout.is_some_and(|max| age >= max),
+                Some(age) => timeout.is_some_and(|max| age >= max.get()),
             });
         let Some(ticket) = expired else {
             return;

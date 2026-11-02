@@ -5,7 +5,7 @@
 use super::depth::Depth;
 use super::profile::sense_profile;
 use super::schema::defaults;
-use super::validate::{fraction, model, not_negative};
+use super::validate::{confidence, fraction, model, not_negative, seconds};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
 use scene_core::policy::EnrichPolicy;
@@ -55,16 +55,23 @@ impl Pose {
 
     /// `Policy::enrich`. The depth is read from the same profile: with depth,
     /// the keypoints measure it, and the bed's posture tolerance is its own.
-    pub(super) fn policy(&self, depth: Option<&Depth>) -> EnrichPolicy {
-        EnrichPolicy {
+    pub(super) fn policy(&self, depth: Option<&Depth>) -> Result<EnrichPolicy> {
+        Ok(EnrichPolicy {
             move_threshold: self.move_threshold,
             depth: depth.is_some(),
-            min_keypoint_score: self.min_keypoint_score,
+            min_keypoint_score: confidence(
+                "pose",
+                "senses.pose.min_keypoint_score",
+                self.min_keypoint_score,
+            )?,
             posture_tolerance: depth
                 .map_or_else(defaults::posture_tolerance, |d| d.posture_tolerance),
-            max_pose_age_secs: self.max_age_secs,
+            max_pose_age_secs: self
+                .max_age_secs
+                .map(|s| seconds("pose", "senses.pose.max_age_secs", s))
+                .transpose()?,
             crop_pad: self.crop_pad.unwrap_or(0.0),
-        }
+        })
     }
 
     /// Its line in the published profile: the pose is not admitted by score,

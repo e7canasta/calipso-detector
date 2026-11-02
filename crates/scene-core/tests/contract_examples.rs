@@ -8,6 +8,7 @@ use scene_core::geom::{Quad, Rect};
 use scene_core::look::Spent;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
+use scene_core::units::{Confidence, Seconds};
 use scene_core::{Input, Monitor};
 use std::path::PathBuf;
 
@@ -106,7 +107,7 @@ fn examples_s1_to_s8_are_reproducible() {
     let events_schema = validator("calipso.events.v4");
     for n in 1..=8 {
         let mut policy = Policy::default();
-        policy.persistence.dwell_secs = 2.0;
+        policy.persistence.dwell_secs = Seconds::TWO;
         let mut monitor = Monitor::new(
             policy,
             SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))),
@@ -281,9 +282,9 @@ fn faces_say_whether_they_are_on_the_current_subject() {
     use scene_core::look::{Detection, Label};
     use scene_core::policy::FacePolicy;
     let mut policy = Policy::default();
-    policy.persistence.dwell_secs = 0.0;
+    policy.persistence.dwell_secs = Seconds::ZERO;
     policy.faces = Some(FacePolicy {
-        min_confidence: 0.5,
+        min_confidence: Confidence::HALF,
         headboard_pad: 0.0,
     });
     let mut monitor = Monitor::new(
@@ -313,7 +314,9 @@ fn faces_say_whether_they_are_on_the_current_subject() {
 fn calibration_publishes_its_sample_and_the_map_before_the_first_frame() {
     use scene_core::policy::CalibrationPolicy;
     let policy = Policy {
-        calibration: Some(CalibrationPolicy { retry_secs: 1.0 }),
+        calibration: Some(CalibrationPolicy {
+            retry_secs: Seconds::ONE,
+        }),
         ..Default::default()
     };
     let mut map = SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0)));
@@ -379,11 +382,11 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
     use scene_core::look::Failure;
     use scene_core::policy::EnrichPolicy;
     let mut policy = Policy::default();
-    policy.persistence.dwell_secs = 0.0;
+    policy.persistence.dwell_secs = Seconds::ZERO;
     policy.enrich = Some(EnrichPolicy {
         move_threshold: 0.1,
         depth: true,
-        min_keypoint_score: 0.3,
+        min_keypoint_score: Confidence::new(0.3).expect("a score"),
         posture_tolerance: 0.05,
         max_pose_age_secs: None,
         crop_pad: 0.0,
@@ -485,7 +488,9 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
 fn the_initial_map_keeps_the_reference_and_the_retry_delay() {
     use scene_core::policy::CalibrationPolicy;
     let policy = Policy {
-        calibration: Some(CalibrationPolicy { retry_secs: 2.0 }),
+        calibration: Some(CalibrationPolicy {
+            retry_secs: Seconds::TWO,
+        }),
         ..Default::default()
     };
     let at = SampleRef {

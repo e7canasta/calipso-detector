@@ -12,6 +12,7 @@ use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
 
 use crate::attention::{scene, skipped};
 use crate::ward::{BED, Ward, later};
+use scene_core::units::{Confidence, Seconds};
 
 // --- Background
 
@@ -20,7 +21,7 @@ fn pose_model(ward: &mut Ward) {
     ward.policy.enrich = Some(EnrichPolicy {
         move_threshold: 0.1,
         depth: false,
-        min_keypoint_score: 0.3,
+        min_keypoint_score: Confidence::new(0.3).expect("a score"),
         posture_tolerance: 0.05,
         max_pose_age_secs: None,
         crop_pad: 0.0,
@@ -74,7 +75,7 @@ fn keypoints(ward: &mut Ward, good: usize, total: usize) {
 #[given(expr = "the bed is calibrated with a retry of {int} seconds of source time")]
 fn calibrates(ward: &mut Ward, retry_secs: u32) {
     ward.policy.calibration = Some(CalibrationPolicy {
-        retry_secs: f64::from(retry_secs),
+        retry_secs: Seconds::new(f64::from(retry_secs)).expect("whole seconds"),
     });
 }
 

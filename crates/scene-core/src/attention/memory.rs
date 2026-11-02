@@ -3,6 +3,7 @@
 
 use crate::time::SampleRef;
 use crate::time::secs_since;
+use crate::units::Seconds;
 
 /// What attention remembers of what it already looked at, and nothing else:
 /// the main detector's lens, the reinforcement latch and the last time the
@@ -86,9 +87,9 @@ impl Lens {
 
     /// Is the whole frame due? Never looked, another session or the period
     /// passed (rule 9).
-    pub(super) fn wide_due(&self, now: SampleRef, every_secs: f64) -> bool {
+    pub(super) fn wide_due(&self, now: SampleRef, every_secs: Seconds) -> bool {
         self.last_wide
             .and_then(|last| secs_since(now, last))
-            .is_none_or(|age| age >= every_secs)
+            .is_none_or(|age| age >= every_secs.get())
     }
 }

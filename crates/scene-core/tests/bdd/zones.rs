@@ -18,7 +18,7 @@ fn room(ward: &mut Ward) {
 
 #[given(regex = r"^stabilization requires (\d+(?:\.\d+)?) seconds? of source time$")]
 fn stabilization(ward: &mut Ward, secs: f64) {
-    ward.policy.persistence.dwell_secs = secs;
+    ward.policy.persistence.dwell_secs = Seconds::new(secs).expect("a time in source seconds");
 }
 
 #[given(regex = r"^samples arrive every (\d+(?:\.\d+)?) seconds? of source time$")]
@@ -48,6 +48,7 @@ fn staff_put_them_to_bed(ward: &mut Ward) {
 // --- The sequence
 
 use golden::language::{Samples, spans_from_cells};
+use scene_core::units::Seconds;
 
 /// The sequence table: one span per row, in the golden scenes' language
 /// (`golden::language`). Each sample is driven with what the scene says the

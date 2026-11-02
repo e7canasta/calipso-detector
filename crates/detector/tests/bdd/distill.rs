@@ -6,6 +6,7 @@ use golden::{distill::distill, language::Sense, world};
 use scene_contract::{
     Build, Profile, ProfileHash, SampleRef, SessionId, Source, SourceSecs, Timing,
 };
+use scene_core::units::Confidence;
 use scene_core::{
     Input, Monitor,
     geom::Quad,
@@ -86,7 +87,7 @@ fn sense_fails(w: &mut Shell, sense: String) {
     let policy = if faces {
         Policy {
             faces: Some(FacePolicy {
-                min_confidence: 0.3,
+                min_confidence: Confidence::new(0.3).expect("a score"),
                 headboard_pad: 0.0,
             }),
             ..Policy::default()
@@ -124,7 +125,7 @@ fn empty_reinforcement(w: &mut Shell) {
 fn empty_faces(w: &mut Shell) {
     let policy = Policy {
         faces: Some(FacePolicy {
-            min_confidence: 0.3,
+            min_confidence: Confidence::new(0.3).expect("a score"),
             headboard_pad: 0.0,
         }),
         ..Policy::default()

@@ -67,7 +67,7 @@ impl<T: Copy + Eq> Stabilizer<T> {
                 first: at,
             },
         };
-        if candidate.elapsed(at) >= p.dwell_secs {
+        if candidate.elapsed(at) >= p.dwell_secs.get() {
             let from = std::mem::replace(&mut self.stable, raw);
             self.pending = None;
             Some(Change {
@@ -86,6 +86,7 @@ impl<T: Copy + Eq> Stabilizer<T> {
 mod tests {
     use super::*;
     use crate::time::SessionId;
+    use crate::units::Seconds;
     use scene_contract::SourceSecs;
 
     fn at(secs: f64) -> SampleRef {
@@ -96,7 +97,9 @@ mod tests {
         }
     }
 
-    const TWO: Persistence = Persistence { dwell_secs: 2.0 };
+    const TWO: Persistence = Persistence {
+        dwell_secs: Seconds::TWO,
+    };
 
     #[test]
     fn changes_when_it_held_for_the_required_time() {
@@ -138,7 +141,13 @@ mod tests {
     fn without_dwell_the_first_observation_counts() {
         let mut s = Stabilizer::new(0);
         assert_eq!(
-            s.observe(at(1.0), 1, &Persistence { dwell_secs: 0.0 }),
+            s.observe(
+                at(1.0),
+                1,
+                &Persistence {
+                    dwell_secs: Seconds::ZERO
+                }
+            ),
             Some(Change {
                 from: 0,
                 to: 1,

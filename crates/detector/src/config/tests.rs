@@ -20,7 +20,7 @@ fn every_profile_in_the_repository_loads() {
             .profile()
             .unwrap_or_else(|e| panic!("{}: {e:#}", path.display()));
         let _ = (
-            config.policy(),
+            config.policy().expect("a valid profile"),
             config.site_map(),
             config.ingest(),
             config.prefix(),
@@ -42,31 +42,41 @@ fn verify_section_becomes_the_policy_and_is_checked() {
     let verify = "\n[verify]\nmax_per_hour = 20\ntimeout_secs = 8\ndoubtful_disparity = [0.03, 0.12]\ndoubtful_feet_margin = 0.06\n[verify.held]\nafter_secs = 30\nvalid_secs = 3600\n[verify.frames]\nsitting_in_bed = { frames = 3, every_secs = 1.5 }\n[verify.sharpness]\nmin_ratio = 0.5\nmax_wait_secs = 4\n";
     let text = format!("{with_headboard}{sense}{posture}{verify}");
     let config = Config::parse(&text).unwrap_or_else(|e| panic!("{e}\n{text}"));
-    let policy = config.policy().verify.unwrap();
+    let policy = config.policy().expect("a valid profile").verify.unwrap();
     assert_eq!(policy.max_per_hour, Some(20));
-    assert_eq!(policy.timeout_secs, Some(8.0));
+    assert_eq!(policy.timeout_secs.map(|s| s.get()), Some(8.0));
     assert_eq!(policy.doubtful_disparity, Some(Band { lo: 0.03, hi: 0.12 }));
     assert_eq!(policy.doubtful_feet_margin, Some(0.06));
     assert_eq!(
         (
             policy.frames.sitting.frames,
-            policy.frames.sitting.every_secs
+            policy.frames.sitting.every_secs.get()
         ),
         (3, 1.5)
     );
     assert_eq!(policy.frames.held, Burst::ONE);
     let sharp = policy.sharpness.unwrap();
     assert_eq!(
-        (sharp.min_ratio, sharp.window, sharp.max_wait_secs),
+        (sharp.min_ratio, sharp.window, sharp.max_wait_secs.get()),
         (0.5, 20, 4.0)
     );
     let held = policy.held.unwrap();
-    assert_eq!((held.after_secs, held.valid_secs), (30.0, Some(3600.0)));
+    assert_eq!(
+        (held.after_secs.get(), held.valid_secs.map(|s| s.get())),
+        (30.0, Some(3600.0))
+    );
     assert_eq!(
         config.senses.verify.as_ref().unwrap().subject,
         "calipso.verify.v1"
     );
-    assert!(Config::parse(VALID).unwrap().policy().verify.is_none());
+    assert!(
+        Config::parse(VALID)
+            .unwrap()
+            .policy()
+            .expect("a valid profile")
+            .verify
+            .is_none()
+    );
     for (bad, field) in [
         (
             format!("{with_headboard}{posture}{verify}"),
@@ -114,8 +124,23 @@ fn verify_section_becomes_the_policy_and_is_checked() {
 fn reinforce_section_enables_policy_and_rejects_invalid_parameters() {
     let section = "\n[senses.reinforce]\nmodel = \"yolo26l.onnx\"\nbackend_confidence = 0.25\nbed_padding = 0.15\n";
     let config = Config::parse(&format!("{VALID}{section}")).unwrap();
-    assert_eq!(config.policy().reinforce.unwrap().bed_padding, 0.15);
-    assert!(Config::parse(VALID).unwrap().policy().reinforce.is_none());
+    assert_eq!(
+        config
+            .policy()
+            .expect("a valid profile")
+            .reinforce
+            .unwrap()
+            .bed_padding,
+        0.15
+    );
+    assert!(
+        Config::parse(VALID)
+            .unwrap()
+            .policy()
+            .expect("a valid profile")
+            .reinforce
+            .is_none()
+    );
     for (from, to, field) in [
         ("yolo26l.onnx", "", "model"),
         ("0.25", "-0.1", "backend_confidence"),
@@ -178,14 +203,23 @@ fn model_paths_resolve_relative_and_absolute_paths_for_every_role() {
 fn faces_section_enables_policy_names_roles_and_preserves_legacy_hash() {
     use scene_contract::LookKind;
     let baseline = Config::parse(VALID).unwrap();
-    assert!(baseline.policy().faces.is_none());
+    assert!(baseline.policy().expect("a valid profile").faces.is_none());
     assert_eq!(
         baseline.profile().unwrap().hash.0,
         "sha256:239a5803f0c15901"
     );
     let section = "\n[senses.faces]\nmodel = \"face/yolov12l-face.onnx\"\nbackend_confidence = 0.25\nmin_confidence = 0.30\n";
     let config = Config::parse(&format!("{VALID}{section}")).unwrap();
-    assert_eq!(config.policy().faces.unwrap().min_confidence, 0.30);
+    assert_eq!(
+        config
+            .policy()
+            .expect("a valid profile")
+            .faces
+            .unwrap()
+            .min_confidence
+            .get(),
+        0.30
+    );
     let profile = config.profile().unwrap();
     assert_ne!(profile.hash, baseline.profile().unwrap().hash);
     assert_eq!(
@@ -225,15 +259,15 @@ fn faces_section_enables_policy_names_roles_and_preserves_legacy_hash() {
 fn pose_section_enables_enrich_validates_and_preserves_legacy_hash() {
     use scene_contract::LookKind;
     let baseline = Config::parse(VALID).unwrap();
-    assert!(baseline.policy().enrich.is_none());
+    assert!(baseline.policy().expect("a valid profile").enrich.is_none());
     let section = "\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\nbackend_confidence = 0.25\nmove_threshold = 0.1\nmin_keypoint_score = 0.3\n";
     let config = Config::parse(&format!("{VALID}{section}")).unwrap();
-    let enrich = config.policy().enrich.unwrap();
+    let enrich = config.policy().expect("a valid profile").enrich.unwrap();
     assert_eq!(
         (
             enrich.move_threshold,
             enrich.depth,
-            enrich.min_keypoint_score
+            enrich.min_keypoint_score.get()
         ),
         (0.1, false, 0.3)
     );
@@ -241,7 +275,10 @@ fn pose_section_enables_enrich_validates_and_preserves_legacy_hash() {
         "{VALID}\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\n"
     ))
     .unwrap();
-    assert_eq!(defaults.policy().enrich, config.policy().enrich);
+    assert_eq!(
+        defaults.policy().expect("a valid profile").enrich,
+        config.policy().expect("a valid profile").enrich
+    );
     assert_eq!(
         defaults.profile().unwrap().hash,
         config.profile().unwrap().hash
@@ -269,7 +306,7 @@ fn pose_section_enables_enrich_validates_and_preserves_legacy_hash() {
 #[test]
 fn the_shadow_needs_the_bed_size_validates_and_leaves_the_hash_when_absent() {
     let baseline = Config::parse(VALID).unwrap();
-    assert!(baseline.policy().shadow.is_none());
+    assert!(baseline.policy().expect("a valid profile").shadow.is_none());
     assert!(baseline.site_map().bed_floor.is_none());
     let map =
         "bed_floor = [[110, 150], [490, 150], [490, 430], [110, 430]]\nbed_size_m = [0.9, 2.0]\n";
@@ -277,7 +314,7 @@ fn the_shadow_needs_the_bed_size_validates_and_leaves_the_hash_when_absent() {
     let shadow = "\n[shadow]\nnear_m = 0.6\n";
     let config = Config::parse(&format!("{with_map}{shadow}")).unwrap();
     assert_eq!(
-        config.policy().shadow,
+        config.policy().expect("a valid profile").shadow,
         Some(ShadowPolicy {
             near_m: 0.6,
             support_margin_m: 0.0
@@ -288,7 +325,7 @@ fn the_shadow_needs_the_bed_size_validates_and_leaves_the_hash_when_absent() {
     assert!(site.bed_floor.is_some());
     // The map's keys alone change no policy and keep their own hash.
     let map_only = Config::parse(&with_map).unwrap();
-    assert!(map_only.policy().shadow.is_none());
+    assert!(map_only.policy().expect("a valid profile").shadow.is_none());
     assert_ne!(
         map_only.profile().unwrap().hash,
         config.profile().unwrap().hash
@@ -310,14 +347,20 @@ fn the_shadow_needs_the_bed_size_validates_and_leaves_the_hash_when_absent() {
 #[test]
 fn two_planes_needs_its_geometry_validates_and_leaves_the_hash_when_absent() {
     let baseline = Config::parse(VALID).unwrap();
-    assert!(baseline.policy().two_planes.is_none());
+    assert!(
+        baseline
+            .policy()
+            .expect("a valid profile")
+            .two_planes
+            .is_none()
+    );
     let map =
         "bed_floor = [[110, 150], [490, 150], [490, 430], [110, 430]]\nbed_size_m = [0.9, 2.0]\n";
     let with_map = VALID.replacen("[map]\n", &format!("[map]\n{map}"), 1);
     let occupancy = "\n[occupancy]\ngeometry = \"two_planes\"\n\n[occupancy.two_planes]\nshare = 0.45\nsupport_m = 0.10\nnear_m = 0.60\n";
     let config = Config::parse(&format!("{with_map}{occupancy}")).unwrap();
     assert_eq!(
-        config.policy().two_planes,
+        config.policy().expect("a valid profile").two_planes,
         Some(TwoPlanesPolicy {
             share: 0.45,
             support_m: 0.10,
@@ -330,7 +373,13 @@ fn two_planes_needs_its_geometry_validates_and_leaves_the_hash_when_absent() {
         "{with_map}\n[occupancy]\ngeometry = \"frontal\"\n"
     ))
     .unwrap();
-    assert!(frontal.policy().two_planes.is_none());
+    assert!(
+        frontal
+            .policy()
+            .expect("a valid profile")
+            .two_planes
+            .is_none()
+    );
     let map_only = Config::parse(&with_map).unwrap();
     assert_ne!(
         map_only.profile().unwrap().hash,
@@ -383,11 +432,11 @@ fn two_planes_needs_its_geometry_validates_and_leaves_the_hash_when_absent() {
 #[test]
 fn the_side_exit_is_off_unless_asked_and_leaves_the_hash_when_absent() {
     let baseline = Config::parse(VALID).unwrap();
-    assert!(!baseline.policy().held_left);
+    assert!(!baseline.policy().expect("a valid profile").held_left);
     let off = Config::parse(&format!("{VALID}\n[occupancy]\nheld_left = false\n")).unwrap();
     let on = Config::parse(&format!("{VALID}\n[occupancy]\nheld_left = true\n")).unwrap();
-    assert!(!off.policy().held_left);
-    assert!(on.policy().held_left);
+    assert!(!off.policy().expect("a valid profile").held_left);
+    assert!(on.policy().expect("a valid profile").held_left);
     assert_ne!(off.profile().unwrap().hash, on.profile().unwrap().hash);
 }
 
@@ -396,11 +445,11 @@ fn near_first_is_off_unless_asked_and_leaves_the_hash_when_absent() {
     // An `[occupancy]` already in the profile: the key alone is measured.
     let occupancy = format!("{VALID}\n[occupancy]\nheld_left = true\n");
     let baseline = Config::parse(&occupancy).unwrap();
-    assert!(!baseline.policy().near_first);
+    assert!(!baseline.policy().expect("a valid profile").near_first);
     let off = Config::parse(&format!("{occupancy}near_first = false\n")).unwrap();
     let on = Config::parse(&format!("{occupancy}near_first = true\n")).unwrap();
-    assert!(!off.policy().near_first);
-    assert!(on.policy().near_first);
+    assert!(!off.policy().expect("a valid profile").near_first);
+    assert!(on.policy().expect("a valid profile").near_first);
     assert_eq!(
         baseline.profile().unwrap().hash,
         off.profile().unwrap().hash
@@ -418,8 +467,23 @@ fn the_knee_needs_two_planes_and_the_pose_validates_and_leaves_the_hash_when_abs
     let knee = "\n[occupancy.knee]\nbent_deg = 150\n";
     let without = Config::parse(&format!("{with_map}{pose}{occupancy}")).unwrap();
     let with = Config::parse(&format!("{with_map}{pose}{occupancy}{knee}")).unwrap();
-    assert_eq!(without.policy().two_planes.unwrap().knee_bent_deg, None);
-    assert_eq!(with.policy().two_planes.unwrap().knee_bent_deg, Some(150.0));
+    assert_eq!(
+        without
+            .policy()
+            .expect("a valid profile")
+            .two_planes
+            .unwrap()
+            .knee_bent_deg,
+        None
+    );
+    assert_eq!(
+        with.policy()
+            .expect("a valid profile")
+            .two_planes
+            .unwrap()
+            .knee_bent_deg,
+        Some(150.0)
+    );
     assert_ne!(
         without.profile().unwrap().hash,
         with.profile().unwrap().hash
@@ -458,7 +522,13 @@ fn depth_and_calibration_enable_policies_validate_together_and_keep_legacy_hash(
         baseline.profile().unwrap().hash.0,
         "sha256:239a5803f0c15901"
     );
-    assert!(baseline.policy().calibration.is_none());
+    assert!(
+        baseline
+            .policy()
+            .expect("a valid profile")
+            .calibration
+            .is_none()
+    );
     let pose = "\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\n";
     let depth = "\n[senses.depth]\nmodel = \"yolo26s-depth.onnx\"\n";
     let calibration = "\n[calibration]\nretry_secs = 30.0\n";
@@ -471,7 +541,7 @@ fn depth_and_calibration_enable_policies_validate_together_and_keep_legacy_hash(
                 .all(|s| s.min_confidence.is_none())
         );
         (
-            config.policy(),
+            config.policy().expect("a valid profile"),
             profile.hash,
             profile.senses.iter().map(|s| s.kind).collect::<Vec<_>>(),
         )
@@ -481,7 +551,7 @@ fn depth_and_calibration_enable_policies_validate_together_and_keep_legacy_hash(
     assert_eq!(roles, [LookKind::Detect, LookKind::Pose, LookKind::Depth]);
     let (policy, with_calibration, roles) = kinds(&format!("{depth}{calibration}"));
     assert!(policy.enrich.is_none());
-    assert_eq!(policy.calibration.unwrap().retry_secs, 30.0);
+    assert_eq!(policy.calibration.unwrap().retry_secs.get(), 30.0);
     assert_eq!(roles, [LookKind::Detect, LookKind::Calibrate]);
     let (_, all, roles) = kinds(&format!("{pose}{depth}{calibration}"));
     assert_eq!(
@@ -576,7 +646,14 @@ fn the_hash_covers_only_the_scene_and_normalizes_defaults() {
 fn config_validates_and_translates_without_io() {
     let c = Config::parse(VALID).unwrap();
     assert_eq!(c.site_map().resolution.unwrap().width, 800);
-    assert_eq!(c.policy().persistence.dwell_secs, 2.0);
+    assert_eq!(
+        c.policy()
+            .expect("a valid profile")
+            .persistence
+            .dwell_secs
+            .get(),
+        2.0
+    );
     assert_eq!(c.prefix(), "vision.test.room-1");
     assert!(c.ingest().keyframe_only);
 }

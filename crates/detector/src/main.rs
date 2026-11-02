@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
         move || -> Result<()> {
             let senses = detector::senses::load(&config)?;
             let driver = Driver::new(
-                config.policy(),
+                config.policy()?,
                 config.site_map(),
                 senses,
                 Duration::from_secs(config.stream.stall_timeout_secs),

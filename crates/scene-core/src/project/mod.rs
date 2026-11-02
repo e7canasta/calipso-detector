@@ -19,6 +19,7 @@ use crate::conclusion::RepublishReason;
 use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
 use crate::look::Detection;
 use crate::refine::{Refinement, Verdict};
+use crate::units::Seconds;
 use scene_contract::{
     Bed, BedState, BodiesEvidence, BodiesStatus, BodySeen, Evidence, FaceSeen, FacesEvidence,
     FacesStatus, Held, LookKind, LookOutcome, Pending, Progress, Provenance, Republished,
@@ -52,12 +53,12 @@ fn bed(
 }
 
 /// The count being stabilized, against the dwell it needs.
-fn pending(occupancy: &Occupancy, dwell_secs: f64) -> Option<Pending> {
+fn pending(occupancy: &Occupancy, dwell_secs: Seconds) -> Option<Pending> {
     occupancy.pending.map(|pending| Pending {
         counts: pending.counts,
         duration: Progress {
             have: pending.source_secs,
-            need: dwell_secs,
+            need: dwell_secs.get(),
         },
     })
 }
@@ -143,7 +144,7 @@ fn publish_subject(
     body_parts: Option<crate::belief::parts::Concluded>,
     chronicled: &Chronicled,
     at: SampleRef,
-    dwell_secs: f64,
+    dwell_secs: Seconds,
 ) -> Option<Subject> {
     let s = believed.subject?;
     let (pose, depth) = believed

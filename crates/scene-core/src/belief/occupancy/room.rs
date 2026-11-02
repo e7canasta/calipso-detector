@@ -60,6 +60,11 @@ impl Room {
             (1, 0, 0) => Self::Alone(Alone::Out),
             (0, 1, 0) => Self::Alone(Alone::InBed(InBed::Seen)),
             (0, 0, 1) => Self::Alone(Alone::InBed(InBed::Held)),
+            // The default is not a technical fallback: it is the business rule that a room
+            // with two or more people counted is accompanied. The four arms above are
+            // every count with fewer than two, so this arm is only reached with two or
+            // more, whatever the zones. Counts are numbers, not variants: there is no
+            // enum to make exhaustive here.
             _ => Self::Accompanied(Crowd(c)),
         }
     }

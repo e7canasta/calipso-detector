@@ -1,11 +1,14 @@
 //! The policies the core believes with. They come from the profiles; the core
-//! reads them from nowhere (rule 8).
+//! reads them from nowhere (rule 8). Durations are [`Seconds`] and scores that
+//! are confidences or thresholds are [`Confidence`] (ADR unidades-en-el-tipo).
+
+use crate::units::{Confidence, Seconds};
 
 /// Which body counts as evidence, and in which zone.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AdmissionPolicy {
     /// Minimum confidence of a person detection.
-    pub min_confidence: f32,
+    pub min_confidence: Confidence,
     /// Two boxes with an IoU from this value up are the same body.
     pub same_body_iou: f32,
     /// A body on the floor is "near the bed" if its box touches the bed grown
@@ -41,7 +44,7 @@ pub struct FocusPolicy {
     /// this late (rule 9). It must be no longer than staff take to walk from
     /// the door to the bed: then they are always seen on the floor first and
     /// layer 0 knows where they came from (rule 6).
-    pub wide_every_secs: f64,
+    pub wide_every_secs: Seconds,
 }
 
 /// How long a new count must hold for the zones to change: the stabilization
@@ -51,14 +54,14 @@ pub struct FocusPolicy {
 pub struct Persistence {
     /// Source seconds the new count must hold, from the first observation that
     /// saw it. Zero: a single observation is enough.
-    pub dwell_secs: f64,
+    pub dwell_secs: Seconds,
 }
 
 /// Which face counts as evidence.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FacePolicy {
     /// Below this score a face does not count.
-    pub min_confidence: f32,
+    pub min_confidence: Confidence,
     /// With nobody in sight, the headboard is grown by this fraction of its
     /// width and height on each side to look for faces: a head that left it
     /// is still found. Where the head is is decided against the exact one.
@@ -74,13 +77,13 @@ pub struct EnrichPolicy {
     /// Is there a depth model?
     pub depth: bool,
     /// Minimum score of a pose keypoint to measure depth at it.
-    pub min_keypoint_score: f32,
+    pub min_keypoint_score: Confidence,
     /// Relative disparity between top and bottom within which the posture is
     /// "sitting".
     pub posture_tolerance: f32,
     /// Age from which a still pose is requested again, in source seconds.
     /// `None`: while still, it holds forever.
-    pub max_pose_age_secs: Option<f64>,
+    pub max_pose_age_secs: Option<Seconds>,
     /// Margin around the subject's box where the pose is looked for, as a
     /// fraction of its width and height on each side: the pose model needs
     /// the head, hands and feet the detector's box cuts. `0`: the box itself.
@@ -91,7 +94,7 @@ pub struct EnrichPolicy {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CalibrationPolicy {
     /// Delay between failed attempts, in source seconds (rule 9).
-    pub retry_secs: f64,
+    pub retry_secs: Seconds,
 }
 
 /// Follow the resident they left lying: layer 1, the bed posture (R18, 1806).
@@ -100,11 +103,11 @@ pub struct CalibrationPolicy {
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct BedPosturePolicy {
     /// Source seconds lying must hold, to arm it or to come back to it.
-    pub dwell_lying_secs: f64,
+    pub dwell_lying_secs: Seconds,
     /// Source seconds sitting up must hold.
-    pub dwell_sitting_up_secs: f64,
+    pub dwell_sitting_up_secs: Seconds,
     /// Source seconds getting out must hold: the one to report in time.
-    pub dwell_getting_out_secs: f64,
+    pub dwell_getting_out_secs: Seconds,
 }
 
 /// The policies of one camera. Optional senses start switched off.
@@ -194,7 +197,7 @@ pub struct VerifyPolicy {
     /// Source seconds a request waits for its answer before it expires and
     /// may be asked again; `None`: it waits as long as it takes. A new
     /// session expires it: source time is not compared across sessions.
-    pub timeout_secs: Option<f64>,
+    pub timeout_secs: Option<Seconds>,
     /// How many requests per hour of source time, per camera; `None`: no
     /// limit. The budget restarts with a new session.
     pub max_per_hour: Option<u32>,
@@ -225,7 +228,7 @@ pub struct SharpnessPolicy {
     pub window: u16,
     /// Source seconds from the burst's first crop: then it asks with the
     /// sharpest it has, rather than wait for sharp ones forever.
-    pub max_wait_secs: f64,
+    pub max_wait_secs: Seconds,
 }
 
 /// A burst: how many crops a question sends and the source seconds between
@@ -236,14 +239,14 @@ pub struct Burst {
     /// At least one: the sample that opened the doubt.
     pub frames: u8,
     /// Source seconds from one kept crop to the next.
-    pub every_secs: f64,
+    pub every_secs: Seconds,
 }
 
 impl Burst {
     /// One crop, the looked sample's: what a question sent before bursts.
     pub const ONE: Self = Self {
         frames: 1,
-        every_secs: 0.0,
+        every_secs: Seconds::ZERO,
     };
 }
 
@@ -297,22 +300,24 @@ impl Band {
 pub struct HeldVerifyPolicy {
     /// Source seconds from `held_in_bed` until it is asked about: the cheap
     /// senses (reinforcement, faces) go first.
-    pub after_secs: f64,
+    pub after_secs: Seconds,
     /// Source seconds a check holds, from the sample it looked at; then the
     /// held body is asked about again (D5). `None`: it is asked once.
-    pub valid_secs: Option<f64>,
+    pub valid_secs: Option<Seconds>,
 }
 
 impl Default for Policy {
     fn default() -> Self {
         Self {
             admission: AdmissionPolicy {
-                min_confidence: 0.5,
+                min_confidence: Confidence::HALF,
                 same_body_iou: 0.5,
                 near_bed_margin: 0.10,
                 bed_frame: None,
             },
-            persistence: Persistence { dwell_secs: 2.0 },
+            persistence: Persistence {
+                dwell_secs: Seconds::TWO,
+            },
             faces: None,
             reinforce: None,
             focus: None,

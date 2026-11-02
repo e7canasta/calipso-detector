@@ -2,7 +2,7 @@
 //! focuses on the bed while the resident is alone in it (`[senses.detect.focus]`).
 
 use super::profile::sense_profile;
-use super::validate::{fraction, model, not_negative, positive};
+use super::validate::{fraction, model, not_negative, positive, seconds};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
 use scene_core::policy::FocusPolicy;
@@ -75,10 +75,14 @@ impl Detect {
 
 impl Focus {
     /// `Policy::focus`.
-    pub(super) fn policy(&self) -> FocusPolicy {
-        FocusPolicy {
+    pub(super) fn policy(&self) -> Result<FocusPolicy> {
+        Ok(FocusPolicy {
             pad: self.pad,
-            wide_every_secs: self.wide_every_secs,
-        }
+            wide_every_secs: seconds(
+                "detect",
+                "senses.detect.focus.wide_every_secs",
+                self.wide_every_secs,
+            )?,
+        })
     }
 }

@@ -53,7 +53,7 @@ pub(crate) fn faces(
     let mut accepted = Vec::new();
     let mut rejected = Vec::new();
     for d in detections {
-        if d.confidence < policy.min_confidence {
+        if d.confidence < policy.min_confidence.get() {
             rejected.push(RejectReason::LowConfidence);
         } else if !inside(d) {
             rejected.push(RejectReason::OutsideRegion);

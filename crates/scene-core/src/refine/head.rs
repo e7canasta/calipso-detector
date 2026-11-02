@@ -43,7 +43,7 @@ pub(crate) fn of_turn(
     let min_score = policy
         .enrich
         .as_ref()
-        .map_or(f32::INFINITY, |p| p.min_keypoint_score);
+        .map_or(f32::INFINITY, |p| p.min_keypoint_score.get());
     place(faces, pose, room, min_score)
 }
 
@@ -62,7 +62,7 @@ pub(crate) fn place(
     };
     let faces: &[_] = match faces {
         FaceEvidence::Seen(faces) => faces,
-        _ => &[],
+        FaceEvidence::NotLooked | FaceEvidence::Unavailable(_) | FaceEvidence::None => &[],
     };
     if faces.iter().any(|f| room.in_headboard(f.bbox.centroid())) {
         return HeadPlace::of(HeadPlaceState::AtHeadboard, HeadEvidence::Face);
@@ -97,6 +97,7 @@ mod tests {
     use crate::geom::{Quad, Rect, Zone};
     use crate::look::{Detection, Label};
     use crate::policy::AdmissionPolicy;
+    use crate::units::Confidence;
 
     const HEADBOARD: Rect = Rect {
         x0: 100.0,
@@ -129,7 +130,7 @@ mod tests {
             &bed,
             Some(Zone::Box(HEADBOARD)),
             &AdmissionPolicy {
-                min_confidence: 0.5,
+                min_confidence: Confidence::HALF,
                 same_body_iou: 0.5,
                 near_bed_margin: 0.1,
                 bed_frame: None,

@@ -47,7 +47,7 @@ pub(crate) fn widen(g: &Glimpse<'_>, belief: &Belief) -> Consideration<()> {
         && match belief.room() {
             Room::Alone(Alone::InBed(InBed::Seen)) => counts.bed == 1,
             Room::Alone(Alone::InBed(InBed::Held)) => counts.bed <= 1,
-            _ => false,
+            Room::Empty | Room::Accompanied(_) | Room::Alone(Alone::Out) => false,
         };
     if confirms {
         Consideration::Inapplicable

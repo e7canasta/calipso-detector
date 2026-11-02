@@ -8,6 +8,7 @@ use crate::belief::InBed;
 use crate::belief::stabilizer::Stabilizer;
 use crate::policy::{BedPosturePolicy, Persistence};
 use crate::time::SampleRef;
+use crate::units::Seconds;
 
 /// The bed posture, while there is one to follow.
 #[derive(Debug, Clone, Default)]
@@ -42,7 +43,15 @@ impl Machine {
             .get_or_insert_with(|| Stabilizer::new(BedPostureState::InBed));
         let proposed = match (l0, sighting) {
             (InBed::Seen, Sighting::Unknown) => posture.pending().map_or(decided, |c| c.value),
-            _ => decided,
+            (
+                InBed::Seen,
+                Sighting::HeadboardLying
+                | Sighting::HeadboardUpright
+                | Sighting::LegsOut
+                | Sighting::HeadSide
+                | Sighting::HeadAway,
+            )
+            | (InBed::Held, _) => decided,
         };
         let dwell = Persistence {
             dwell_secs: dwell_secs(policy, proposed),
@@ -57,9 +66,9 @@ impl Machine {
 
 /// How long a state must hold to count. In bed is where it starts, never a
 /// change to hold.
-fn dwell_secs(policy: &BedPosturePolicy, state: BedPostureState) -> f64 {
+fn dwell_secs(policy: &BedPosturePolicy, state: BedPostureState) -> Seconds {
     match state {
-        BedPostureState::InBed => 0.0,
+        BedPostureState::InBed => Seconds::ZERO,
         BedPostureState::Lying => policy.dwell_lying_secs,
         BedPostureState::SittingUp => policy.dwell_sitting_up_secs,
         BedPostureState::GettingOut => policy.dwell_getting_out_secs,

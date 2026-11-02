@@ -145,7 +145,7 @@ fn same_body(a: &Detection, b: &Detection, iou: f32) -> bool {
 fn reject(detection: &Detection, policy: &AdmissionPolicy) -> Option<RejectReason> {
     if detection.label != Label::Person {
         Some(RejectReason::NotPerson)
-    } else if detection.confidence < policy.min_confidence {
+    } else if detection.confidence < policy.min_confidence.get() {
         Some(RejectReason::LowConfidence)
     } else {
         None
@@ -157,6 +157,7 @@ mod tests {
     use super::*;
     use crate::geom::{Point, Quad, Rect};
     use crate::look::Failure;
+    use crate::units::Confidence;
     use crate::zone::Counts;
 
     fn bed() -> Room {
@@ -173,7 +174,7 @@ mod tests {
     }
 
     const POLICY: AdmissionPolicy = AdmissionPolicy {
-        min_confidence: 0.5,
+        min_confidence: Confidence::HALF,
         same_body_iou: 0.5,
         near_bed_margin: 0.10,
         bed_frame: None,
@@ -295,11 +296,12 @@ mod tests {
 mod source_tests {
     use super::*;
     use crate::geom::{Quad, Rect};
+    use crate::units::Confidence;
     #[test]
     fn the_winning_box_keeps_its_source_detector() {
         let bed = Quad::from_rect(Rect::new(0.0, 0.0, 100.0, 100.0));
         let p = AdmissionPolicy {
-            min_confidence: 0.5,
+            min_confidence: Confidence::HALF,
             same_body_iou: 0.5,
             near_bed_margin: 0.1,
             bed_frame: None,

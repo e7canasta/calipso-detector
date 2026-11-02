@@ -3,7 +3,7 @@
 //! Each stream pays only for what matters to it (white book, volume III).
 
 use super::schema::defaults;
-use super::validate::{not_negative, positive};
+use super::validate::{not_negative, positive, seconds};
 use anyhow::{Result, ensure};
 use scene_core::policy::{Band, Burst, Frames, HeldVerifyPolicy, SharpnessPolicy, VerifyPolicy};
 use serde::{Deserialize, Serialize};
@@ -61,11 +61,11 @@ pub struct BurstConfig {
 }
 
 impl BurstConfig {
-    pub(super) fn burst(self) -> Burst {
-        Burst {
+    pub(super) fn burst(self) -> Result<Burst> {
+        Ok(Burst {
             frames: self.frames,
-            every_secs: self.every_secs,
-        }
+            every_secs: seconds("verify", "verify.frames.every_secs", self.every_secs)?,
+        })
     }
 }
 
@@ -177,30 +177,61 @@ pub(super) fn validate(
 
 impl VerifyConfig {
     /// `Policy::verify`.
-    pub(super) fn policy(&self) -> VerifyPolicy {
-        VerifyPolicy {
-            held: self.held.as_ref().map(|h| HeldVerifyPolicy {
-                after_secs: h.after_secs,
-                valid_secs: h.valid_secs,
-            }),
-            timeout_secs: self.timeout_secs,
+    pub(super) fn policy(&self) -> Result<VerifyPolicy> {
+        Ok(VerifyPolicy {
+            held: self
+                .held
+                .as_ref()
+                .map(HeldVerifyConfig::policy)
+                .transpose()?,
+            timeout_secs: self
+                .timeout_secs
+                .map(|s| seconds("verify", "verify.timeout_secs", s))
+                .transpose()?,
             max_per_hour: self.max_per_hour,
             doubtful_disparity: self.doubtful_disparity.map(|[lo, hi]| Band { lo, hi }),
             doubtful_feet_margin: self.doubtful_feet_margin,
-            frames: {
-                let f = self.frames.clone().unwrap_or_default();
-                let of = |b: Option<BurstConfig>| b.map(BurstConfig::burst).unwrap_or_default();
-                Frames {
-                    held: of(f.held_in_bed),
-                    sitting: of(f.sitting_in_bed),
-                    leaving: of(f.leaving_bed),
-                }
-            },
-            sharpness: self.sharpness.map(|s| SharpnessPolicy {
-                min_ratio: s.min_ratio,
-                window: s.window,
-                max_wait_secs: s.max_wait_secs,
-            }),
-        }
+            frames: self.frames_policy()?,
+            sharpness: self
+                .sharpness
+                .map(|s| -> Result<SharpnessPolicy> {
+                    Ok(SharpnessPolicy {
+                        min_ratio: s.min_ratio,
+                        window: s.window,
+                        max_wait_secs: seconds(
+                            "verify",
+                            "verify.sharpness.max_wait_secs",
+                            s.max_wait_secs,
+                        )?,
+                    })
+                })
+                .transpose()?,
+        })
+    }
+
+    /// The burst of each question: a missing one sends one crop.
+    fn frames_policy(&self) -> Result<Frames> {
+        let f = self.frames.clone().unwrap_or_default();
+        let of = |b: Option<BurstConfig>| -> Result<Burst> {
+            Ok(b.map(BurstConfig::burst).transpose()?.unwrap_or_default())
+        };
+        Ok(Frames {
+            held: of(f.held_in_bed)?,
+            sitting: of(f.sitting_in_bed)?,
+            leaving: of(f.leaving_bed)?,
+        })
+    }
+}
+
+impl HeldVerifyConfig {
+    /// `HeldVerifyPolicy`: both times are source seconds.
+    fn policy(&self) -> Result<HeldVerifyPolicy> {
+        Ok(HeldVerifyPolicy {
+            after_secs: seconds("verify", "verify.held.after_secs", self.after_secs)?,
+            valid_secs: self
+                .valid_secs
+                .map(|s| seconds("verify", "verify.held.valid_secs", s))
+                .transpose()?,
+        })
     }
 }

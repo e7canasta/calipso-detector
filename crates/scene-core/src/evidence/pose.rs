@@ -39,7 +39,7 @@ pub(crate) fn pose_body(
     let Some(body) = bodies.floor.get_mut(floor) else {
         return result;
     };
-    let posed = room.posed(&body.detection.bbox, &pose, enrich.min_keypoint_score);
+    let posed = room.posed(&body.detection.bbox, &pose, enrich.min_keypoint_score.get());
     perceived.posed = Some(PosedBody {
         bbox: body.detection.bbox,
         pose,

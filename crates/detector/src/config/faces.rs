@@ -3,7 +3,7 @@
 
 use super::profile::sense_profile;
 use super::schema::defaults;
-use super::validate::{fraction, model, not_negative};
+use super::validate::{confidence, fraction, model, not_negative};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
 use scene_core::policy::FacePolicy;
@@ -43,11 +43,15 @@ impl Faces {
     }
 
     /// `Policy::faces`.
-    pub(super) fn policy(&self) -> FacePolicy {
-        FacePolicy {
-            min_confidence: self.min_confidence,
+    pub(super) fn policy(&self) -> Result<FacePolicy> {
+        Ok(FacePolicy {
+            min_confidence: confidence(
+                "faces",
+                "senses.faces.min_confidence",
+                self.min_confidence,
+            )?,
             headboard_pad: self.headboard_pad.unwrap_or(0.0),
-        }
+        })
     }
 
     /// Its line in the published profile.

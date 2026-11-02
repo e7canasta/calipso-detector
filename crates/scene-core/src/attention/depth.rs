@@ -55,7 +55,7 @@ pub(crate) fn deepen(
         .unwrap_or_default()
         .iter()
         .enumerate()
-        .filter(|(_, k)| is_seen(k, policy.min_keypoint_score))
+        .filter(|(_, k)| is_seen(k, policy.min_keypoint_score.get()))
         .map(|(i, k)| (DepthTarget::Keypoint(i), Point { x: k.x, y: k.y }))
         .collect();
     if points.is_empty() {
@@ -117,7 +117,7 @@ pub(crate) fn calibrate(
     if memory
         .calibration_attempt
         .and_then(|last| secs_since(at, last))
-        .is_some_and(|age| age < policy.retry_secs)
+        .is_some_and(|age| age < policy.retry_secs.get())
     {
         return skip(SkipReason::RetryWait);
     }

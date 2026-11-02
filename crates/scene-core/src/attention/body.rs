@@ -98,7 +98,7 @@ pub(crate) fn enrich(
     let expired = policy.max_pose_age_secs.is_some_and(|max| {
         since
             .and_then(|s| secs_since(now, s))
-            .is_none_or(|age| age >= max)
+            .is_none_or(|age| age >= max.get())
     });
     if let Some(r) = reference
         && !estimation::moved(&r, &subject.bbox, policy.move_threshold)
