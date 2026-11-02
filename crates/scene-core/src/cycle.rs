@@ -26,10 +26,14 @@ use crate::evidence::Perceived;
 use crate::look::{Failure, Probe, Reading, Spent};
 use crate::map::{BedCalibrated, CalibrationMemory, FrameInfo, Geometry, Map};
 use crate::outcome::Outcome;
-use crate::policy::{BedPosturePolicy, Policy};
+use crate::policy::{
+    AdmissionPolicy, BedPosturePolicy, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
+    ReinforcePolicy, ShadowPolicy, TwoPlanesPolicy, VerifyPolicy,
+};
 use crate::reception::{self, SensorChanged, SensorState};
 use crate::room::Room;
 use crate::time::SampleRef;
+use crate::units::Extension;
 use crate::verification::{Verification, VerifyRules};
 use scene_contract::{Event, Scene};
 
@@ -97,7 +101,6 @@ pub struct Monitor {
 /// not remember what was published.
 #[derive(Debug)]
 struct Engine {
-    policy: Policy,
     map: Map,
     /// What was learned of the empty bed: the loop learns it, the map does not.
     calibration: CalibrationMemory,
@@ -109,9 +112,29 @@ struct Engine {
     /// What the slow verifier was asked and what it owes.
     verification: Verification,
     frame: Option<FrameInfo>,
-    /// The policy slices, resolved once when the monitor is built (ADR
-    /// 2026-11-02, politica-en-rebanadas): each decider receives its own, and
-    /// the whole policy stays above, in `policy`, for what is not sliced yet.
+    // The policy slices, each with its owner (ADR 2026-11-02,
+    // politica-en-rebanadas). `Engine::new` takes the whole `Policy` apart, so
+    // the engine never keeps it and a new field of `Policy` must find an owner.
+    /// Which body counts, and where (evidence, room, map).
+    admission: AdmissionPolicy,
+    /// The reinforcement detector (attention).
+    reinforce: Option<ReinforcePolicy>,
+    /// The face detector (attention).
+    faces: Option<FacePolicy>,
+    /// The pose model (attention, refine).
+    enrich: Option<EnrichPolicy>,
+    /// The empty-bed calibration (attention).
+    calibration_policy: Option<CalibrationPolicy>,
+    /// The depth pad of the bed and the subject (attention).
+    depth_pad: Option<Extension>,
+    /// The focus of the main detector (attention, map).
+    focus: Option<FocusPolicy>,
+    /// The shadow of the geometry (room, map).
+    shadow: Option<ShadowPolicy>,
+    /// The room in two planes (room).
+    two_planes: Option<TwoPlanesPolicy>,
+    /// The slow verifier's questions (attention, refine).
+    verify_policy: Option<VerifyPolicy>,
     occupancy_rules: OccupancyRules,
     verify_rules: VerifyRules,
     /// `None`: no `[bed_posture]`, so layer 1 does not decide.
@@ -252,6 +275,7 @@ mod tests {
     use crate::geom::{Quad, Rect};
     use crate::look::{LookKind, Probe, Reading, Spent};
     use crate::map::SiteMap;
+    use crate::policy::Policy;
     use crate::time::SessionId;
     use crate::units::Confidence;
     use crate::units::{DiagonalFraction, Extension, RelativeDepth};

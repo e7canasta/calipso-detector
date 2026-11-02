@@ -26,15 +26,41 @@ impl Engine {
     /// The monitor is built: the policy is sliced here, once, and each decider
     /// keeps only its slice (ADR 2026-11-02, politica-en-rebanadas).
     pub(super) fn new(policy: Policy, map: SiteMap) -> Self {
+        // Without `..`: a field added to `Policy` does not compile until
+        // someone decides which slice of the engine owns it.
+        let Policy {
+            admission,
+            persistence,
+            faces,
+            reinforce,
+            focus,
+            enrich,
+            calibration,
+            depth_pad,
+            bed_posture,
+            verify,
+            shadow,
+            two_planes,
+            held_left,
+            near_first,
+        } = policy;
         let occupancy_rules = OccupancyRules {
-            persistence: policy.persistence.clone(),
-            held_left: policy.held_left,
-            near_first: policy.near_first,
+            persistence,
+            held_left,
+            near_first,
         };
-        let verify_rules = VerifyRules::of(policy.verify.as_ref());
-        let bed_posture = policy.bed_posture;
+        let verify_rules = VerifyRules::of(verify.as_ref());
         Self {
-            policy,
+            admission,
+            reinforce,
+            faces,
+            enrich,
+            calibration_policy: calibration,
+            depth_pad,
+            focus,
+            shadow,
+            two_planes,
+            verify_policy: verify,
             calibration: CalibrationMemory::from(&map),
             attention_memory: attention::Memory::of(map.calibration_attempt),
             map: map.into(),
@@ -91,9 +117,9 @@ impl Engine {
         Room::of(
             &self.map,
             geometry,
-            &self.policy.admission,
-            self.policy.two_planes.as_ref(),
-            self.policy.shadow.as_ref(),
+            &self.admission,
+            self.two_planes.as_ref(),
+            self.shadow.as_ref(),
         )
     }
 
@@ -105,7 +131,7 @@ impl Engine {
             at,
             &self.map,
             geometry,
-            self.policy.focus.as_ref(),
+            self.focus.as_ref(),
         )
     }
 
@@ -138,13 +164,13 @@ impl Engine {
             g,
             self.belief.bed_seen(),
             self.attention_memory.latch(),
-            self.policy.reinforce.as_ref(),
+            self.reinforce.as_ref(),
         )
     }
 
     /// Where to look for faces, with the face policy the look will read with.
     pub(super) fn faces_look(&self, g: &Glimpse<'_>) -> Consideration<(FaceRegion, FacePolicy)> {
-        attention::faces(g, self.policy.faces.as_ref())
+        attention::faces(g, self.faces.as_ref())
     }
 
     /// A doubtful body to place with its pose, before believing.
@@ -153,7 +179,7 @@ impl Engine {
         g: &Glimpse<'_>,
         room: Option<&Room>,
     ) -> Consideration<BodyPoseLook> {
-        attention::pose_bodies(g, room, self.policy.enrich.as_ref())
+        attention::pose_bodies(g, room, self.enrich.as_ref())
     }
 
     /// Whether the empty bed is to be measured to learn it.
@@ -167,8 +193,8 @@ impl Engine {
             believed,
             &self.calibration,
             &self.attention_memory,
-            self.policy.depth_pad,
-            self.policy.calibration.as_ref(),
+            self.depth_pad,
+            self.calibration_policy.as_ref(),
         )
     }
 
@@ -185,7 +211,7 @@ impl Engine {
             self.pose_reference(),
             self.belief.pose_since(),
             at,
-            self.policy.enrich.as_ref(),
+            self.enrich.as_ref(),
         )
     }
 
@@ -201,7 +227,7 @@ impl Engine {
             &self.verification,
             layer_1,
             places,
-            self.policy.verify.as_ref(),
+            self.verify_policy.as_ref(),
         )
     }
 
@@ -212,7 +238,7 @@ impl Engine {
         pose: Option<&[Keypoint]>,
         room: Option<&Room>,
     ) -> HeadPlace {
-        crate::refine::head::of_turn(faces, pose, room, self.policy.enrich.as_ref())
+        crate::refine::head::of_turn(faces, pose, room, self.enrich.as_ref())
     }
 
     /// Whether the subject's depth is to be measured, and at which points.
@@ -222,20 +248,14 @@ impl Engine {
         pose: Option<&[Keypoint]>,
         head: HeadPlace,
     ) -> Consideration<SubjectDepthLook> {
-        attention::deepen(
-            g,
-            pose,
-            head,
-            self.policy.depth_pad,
-            self.policy.enrich.as_ref(),
-        )
+        attention::deepen(g, pose, head, self.depth_pad, self.enrich.as_ref())
     }
 
     // --- What the readings fill: the evidence, with the policy it reads with.
 
     /// The main detector's reading, admitted by the zones of the room.
     pub(super) fn admit(&self, reading: Sensed<&[Detection]>, room: Option<&Room>) -> Admission {
-        evidence::admit(reading, room, &self.policy.admission)
+        evidence::admit(reading, room, &self.admission)
     }
 
     /// Reinforcement's reading joined with the main detector's.
@@ -245,7 +265,7 @@ impl Engine {
         reinforcement: Sensed<&[Detection]>,
         room: Option<&Room>,
     ) -> (Admission, LookResult) {
-        evidence::consolidate(primary, reinforcement, room, &self.policy.admission)
+        evidence::consolidate(primary, reinforcement, room, &self.admission)
     }
 
     /// A doubtful body's pose, placed by the room: `perceived` changes if the
@@ -257,7 +277,7 @@ impl Engine {
         reading: Sensed<Option<Vec<Keypoint>>>,
         room: Option<&Room>,
     ) -> LookResult {
-        evidence::pose_body(perceived, floor, reading, room, self.policy.enrich.as_ref())
+        evidence::pose_body(perceived, floor, reading, room, self.enrich.as_ref())
     }
 
     /// The empty bed's depth, learned if the turn measured it.
@@ -335,8 +355,8 @@ impl Engine {
             observed.believed.subject.as_ref().map(|s| s.zone),
             observed.believed.body.as_ref(),
             room,
-            self.policy.enrich.as_ref(),
-            self.policy.verify.as_ref(),
+            self.enrich.as_ref(),
+            self.verify_policy.as_ref(),
             filled,
         );
         // The parts, at layer 0's compass: what the sample saw of them.
@@ -349,11 +369,7 @@ impl Engine {
             body: observed.believed.body.as_ref(),
             faces: &observed.evidence.faces,
             room,
-            min_score: self
-                .policy
-                .enrich
-                .as_ref()
-                .map(|e| e.min_keypoint_score.get()),
+            min_score: self.enrich.as_ref().map(|e| e.min_keypoint_score.get()),
         });
         // Layer 1, on layer 0 and what the second level perceived.
         let (parts, bed_posture) = self.follow(at, seen, refinement.sighting);
@@ -469,9 +485,9 @@ impl Engine {
     pub(super) fn map_state(&self, geometry: Geometry) -> MapState {
         self.map.state(
             geometry,
-            self.policy.focus.as_ref(),
-            self.policy.shadow.as_ref(),
-            &self.policy.admission,
+            self.focus.as_ref(),
+            self.shadow.as_ref(),
+            &self.admission,
             &self.calibration,
         )
     }
@@ -479,47 +495,5 @@ impl Engine {
     /// The box of the pose the belief follows, if any.
     pub(super) fn pose_reference(&self) -> Option<Rect> {
         self.belief.pose_reference()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::geom::{Quad, Rect};
-    use crate::policy::{Persistence, SharpnessPolicy, VerifyPolicy};
-    use crate::units::Ratio;
-    use crate::units::Seconds;
-
-    /// The slices are read once, from the same policy the engine keeps: a
-    /// decider that reads a slice and one that reads the policy see one value.
-    #[test]
-    fn each_slice_is_the_value_the_policy_holds() {
-        let policy = Policy {
-            persistence: Persistence {
-                dwell_secs: Seconds::ONE,
-            },
-            verify: Some(VerifyPolicy {
-                sharpness: Some(SharpnessPolicy {
-                    min_ratio: Ratio::new(0.8).expect("a constant ratio"),
-                    window: 4,
-                    max_wait_secs: Seconds::TWO,
-                }),
-                ..VerifyPolicy::default()
-            }),
-            ..Policy::default()
-        };
-        let engine = Engine::new(
-            policy,
-            SiteMap::new(Quad::from_rect(Rect::new(0.0, 0.0, 10.0, 10.0))),
-        );
-        assert_eq!(
-            engine.occupancy_rules.persistence.dwell_secs,
-            engine.policy.persistence.dwell_secs
-        );
-        assert_eq!(
-            engine.verify_rules.sharpness,
-            engine.policy.verify.as_ref().and_then(|v| v.sharpness)
-        );
-        assert!(engine.verify_rules.sharpness.is_some());
     }
 }
