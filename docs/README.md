@@ -36,6 +36,13 @@ Los repositorios hermanos están en `../..`:
 3. Antes de commit, `scripts/quick.sh`. Antes de versión, `scripts/check.sh`.
 4. Una decisión nueva que cambie una regla: un ADR nuevo en `calipso-docs/adr/`, no una edición silenciosa.
 
+## En curso
+
+- Proyecto 38, costuras del núcleo: [frentes](../../calipso-roadmap/en-curso/38-costuras-del-nucleo/frentes.md).
+  Regla 24 de [`RULES.md`](../RULES.md) («el negocio se escribe en el código»),
+  con su guardián en `crates/scene-core/tests/guardians.rs` y su
+  [ADR](../../calipso-docs/adr/2026-11-02-el-negocio-se-escribe-en-el-codigo.md).
+
 ## Pendientes de documentación
 
 - `RUN.md` depende de rutas de la máquina de desarrollo (`/home/visiona/...`). Hay que generalizarlo o moverlo a una plantilla por sitio.

@@ -10,7 +10,7 @@
 
 `scene-core` is the detector's core: **it believes on partial evidence, decides
 where to look and projects what it believes.** It is a deterministic function
-of `(Policy, SiteMap, Input*, Reading*)`: with the same inputs it gives the same
+of `(Policy, SiteMap, Input*, Reading*, Verified*)`: with the same inputs it gives the same
 scene and the same facts, always.
 
 It sees no pixels, calls no models, reads no clocks, touches no network, disk or
@@ -31,7 +31,7 @@ comes back.
 
 `scene-core` is **one bounded context**, "the occupancy of the room", with its
 aggregates (`Belief`, `Map`, `reception::Memory`, `Chronicle`). Outwards it speaks a
-versioned **published language** (`contract::v4`) and `project`
+versioned **published language** (the wire, `scene-contract`, projected by `project`) and `project`
 is its anti-corruption layer: the domain thinks in its own vocabulary and only
 `project` translates it.
 
@@ -39,17 +39,19 @@ is its anti-corruption layer: the domain thinks in its own vocabulary and only
  sense (perception, ONNX) ──ports──► detector (shell: Open Host Service)
  ingest (transport)       ─────────►      │  publishes
                                           ▼
-                scene-core ── published language: contract::v4
+                scene-core ── published language: scene-contract (project::v4)
                                           │
           other repositories: calipso-golden (scenes and replay),
                               calipso-rerun-bridge, calipso-shark
 ```
 
-The vocabulary the domain and the contract share is **owned by the domain**
-(`time`, `zone`, `body`, `provenance`, `look`, `evidence`, `attention`, `map`,
-`reception`, `refine`) and each contract version re-exports it. That way a new
-version shares it without depending on the previous one, and retiring one does
-not touch the core.
+The vocabulary the domain and the wire share is the **shared core**: the
+list in [the domain's ADR](../../../calipso-docs/adr/2026-11-02-el-dominio-es-dueno-de-lo-que-decide.md)
+(point 1). It lives in `scene-contract`; the domain imports those names and no
+others outside `project/` and `cycle/`, which a guardian reads
+(`tests/guardians.rs`). Everything else the domain decides with (`belief`,
+`refine`, `verification`, `HeldCheck` included) is the domain's own type, and
+`project` copies it to the wire (ADR, point 2).
 
 ### Principles
 
@@ -67,7 +69,7 @@ number.
 | P7 | **The engine does one thing well.** It computes inside only what it uses to decide where to look | Unix philosophy |
 | C1 | **Consumers are not broken.** A published version keeps going out unchanged, byte for byte, while someone reads it | The kernel's "we don't break userspace" |
 | C2 | **Expand, migrate, contract.** A new version goes out next to the old one; consumers migrate one at a time; the old one is retired | Fowler, *Parallel Change* |
-| C3 | **One version, one source.** Each version is defined once (`contract::v4`) and its JSON Schema comes from the types (rule 13) | |
+| C3 | **One version, one source.** Each version is defined once (its types in `scene-contract`, its projection in `project::v4`) and its JSON Schema comes from the types (rule 13) | |
 | C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same turn: they cannot tell different things | |
 | C5 | **A test proves it.** While two versions are published together, a test lowers the new one to the old one on every turn of the suites; it is retired with the old version | Metamorphic testing |
 
@@ -93,37 +95,61 @@ What no change may break. Each one has someone watching it.
 | The parts decide as their golden table does (`contract/parts-table.txt`) | P2 | `belief/parts/rules/table.rs` |
 | The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
 | V settles an answer, or its expiry, as its golden table does (`contract/verification-table.txt`) | P2 | `verification/table.rs` |
-| The domain does not import the contract: it decides with its own vocabulary, and only `project` and `cycle` (the `Output`) name `contract`. The chronicle remembers the domain. What no version changes is projected into `contract::common`, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract) |
+| The domain names from `scene_contract` only the shared core of §1; it has no `contract` module of its own, and only `project` and `cycle` (the `Output`) name the publication (`Scene`, `Event`, `Envelope`, `SchemaId`). The chronicle remembers the domain. What no version changes is projected by `project` itself, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract: no `contract` module); `tests/guardians.rs` (production code outside `project/` and `cycle/` names only the shared core, listed in the ADR; test code may name the wire) |
 | Space has one owner: the bed's plane lives only in `map` and `room` | 23 | `scripts/check.sh` (space has one owner), with its fixture |
 | The room does not depend on the layers above it: it answers with the site, the policy and the shared vocabulary, and whoever concludes something asks it | 23, ADP (Martin) | `scripts/check.sh` (the room asks nothing above it), with its fixture |
 | Determinism: a replay gives the same. Recording is always outside the detector, so a real night is replayed from what was published: its counts and layers come back, the verifier's answers do not (they are published as provenance, `held.check`, and the distilled scene leaves them out) | 8, 9 | golden scenes and the detector's replay |
 
 ## 3. The loop: one turn per sample
 
-The public API is the loop protocol: `Monitor::handle` opens a `Turn` per
-input and `Turn::drive` runs it to the end. For each `Probe` the shell looks
-and returns a `Reading` (or a `Failure`) and how long it took; the turn closes
-with the `Output` (`at`, `scene`, `events`). `Turn::cancel` closes it as a
-shutdown. There is no other way through: the shell has nothing to misuse.
+The public API is the loop protocol, and it has two doors into the engine.
+`Monitor::handle(Input)` opens a `Turn` per input (a sample, a frame that did
+not decode, or a sensor report) and `Turn::drive` runs it to the end: for each
+`Probe` the shell looks and returns a `Reading` (or a `Failure`) and how long it
+took; the turn closes with the `Output` (`at`, `scene`, `events`).
+`Turn::cancel` closes it as a shutdown. The second door is
+`Monitor::verified(Verified)`: a verifier's answer arrives between turns, opens
+no turn (rule 3), and is settled at the start of the next sample's turn. Nothing
+else reaches the engine. The signatures at `6773238`:
 
-`Monitor` composes three pieces that do not mix (P4, P5): the
-**engine** (`Engine`: policy, map, belief, reception), which decides with what it
-sees; the **chronicle** (`chronicle::Chronicle`), which remembers the
-domain; and the last scene, for republishing. Closing splits the turn in
-two phases: the engine returns a `Conclusion` (an `Observation` or what to
-republish) without reading the chronicle, and `Monitor::project` notes it in
-the chronicle and translates it to the contract.
+```text
+pub fn handle(&mut self, input: Input) -> Turn<'_>;
+pub fn verified(&mut self, verified: look::Verified);
+pub fn drive(self, look: impl FnMut(&Probe) -> (Result<Reading, Failure>, Spent)) -> Output;
+pub fn cancel(self) -> Output;
+```
+
+`Verified` is `{ ticket, answer }`: `answer: None` is the shell's wall-clock
+deadline passing, and the core reads it as the source-time expiry of the
+request, never as "not sure".
+
+`Monitor` (in `cycle.rs`) composes three pieces that do not mix (P4, P5): the
+**engine** (`Engine`: belief, map, reception, attention's memory, and one slice
+of the policy per decider), which decides with what it sees; the **chronicle**
+(`chronicle::Chronicle`), which remembers the domain; and the last scene, for
+republishing. The turn borrows the engine (`Course` holds `&mut Engine`), so the
+closing takes the chronicle and the last scene apart from it. Closing splits the
+turn in two phases: the engine returns a `Conclusion` (an `Observation` or what
+to republish) without reading the chronicle, and the free function
+`project(chronicle, last, at, conclusion)` (`cycle/monitor.rs`) notes it in the
+chronicle and translates it to the wire. The engine keeps no `Policy`:
+`Engine::new` takes it apart without `..`, so a new field does not compile until
+it has an owner. The decisions are the ADRs
+[the sequence orders, the engine answers](../../../calipso-docs/adr/2026-11-02-la-secuencia-ordena-el-motor-responde.md)
+(M1, integrated in `7e5b963`) and
+[policy in slices](../../../calipso-docs/adr/2026-11-02-politica-en-rebanadas.md)
+(M2, integrated in `1f022c2`).
 
 ```text
  Engine ──► Conclusion ──► Chronicle::record ──► Chronicled ─┐
-                │                                            ├──► project::v4::observed ──► Output
+                │                                            ├──► project() ──► v4::observed ──► Output
                 └────────────────────────────────────────────┘
 ```
 
 `project::v4::observed` translates the observation into the published
 version. What no version changes (the evidence, the bed, the subject, how
-republishing degrades) lives in `project` itself, as `contract::common` does
-for the types. `Output` carries the turn's `scene` and `events` in the
+republishing degrades) lives in `project` itself (`project/mod.rs`), not in
+any version. `Output` carries the turn's `scene` and `events` in the
 published version. A version published next to it (C2) adds its own module,
 and a test lowers one to the other (C5).
 
@@ -407,7 +433,7 @@ One concept, one name.
 | session | `SampleRef::session` | A continuous stretch of the source; time is not compared across sessions |
 | turn | `Turn` | The core's work on one sample |
 | loop | `cycle`, `Monitor` | The sequence of turns; `Monitor` composes engine, chronicle and last scene |
-| engine | `Engine` | What decides: policy, map, belief and reception; it does not remember what was published |
+| engine | `Engine` | What decides: belief, map, reception and attention's memory; it does not remember what was published. Each decider receives its own slice of the policy, and the engine keeps no whole `Policy` (ADR politica-en-rebanadas, M2, integrated in `1f022c2`) |
 | conclusion | `conclusion::Conclusion` | What the engine concludes from a closed turn, before the chronicle and the contract: an `Observation` or what to republish |
 | observation | `conclusion::Observation` | What a turn observed and believed, together: the input of the chronicle and the projection |
 | look, probe | `look`, `Probe` | What the core asks the shell to look at |
@@ -455,7 +481,11 @@ One concept, one name.
 | the subject's body, pose | `body::Pose`, `BodyPoint`, `Joint`, `SubjectBody` | The subject's COCO-17 keypoints and their relative depth: what level 2 looks at |
 | enrichment | `Enrichment`, `Belief::observe_body` | What a turn did with the subject's body: a fresh pose (and depth), kept, failed or nothing |
 | provenance | `provenance::Provenance` | Where a claim comes from: current, retained or stable (rule 2) |
-| published language | `contract::v4` (and `contract`) | What a version publishes; it re-exports the domain vocabulary |
+| published language | `scene-contract` (the wire: types only); `project::v4` translates the domain into it | What a version publishes (ADR crates-del-lenguaje-y-del-cable). The core imports the shared core from it; its re-exports are partial, and `Geometry` is the only public one (`map`). `Scene` and `Event` are named only by `project` and by `cycle` |
+| shared core | the list in ADR [el dominio es dueño de lo que decide](../../../calipso-docs/adr/2026-11-02-el-dominio-es-dueno-de-lo-que-decide.md) (§1) | The wire types the domain reads: the instant, zone and count, provenance, the body and bed points, what the shell reports, the attention record, the map state and the republishing reasons. Everything else the domain decides with is its own |
+| rule 24, the business in the code | `tests/guardians.rs` | What the engine decides is code that names the domain. A configured value never expresses a rule, a step or an order. The golden tables are oracles: the code decides and the table checks it. Guarded: no decision behind `dyn` (local `&dyn Fn` predicates allowed), no map keyed by text, no round read from data (ADR el-negocio-se-escribe-en-el-codigo) |
+| engine response | `Engine` methods named for the domain (`reinforcement`, `faces_look`, `observation`) | The sequence asks the engine by name what it needs; it only says which step comes next. No file of `cycle/` reads an engine field (`.engine.<campo>`): guardian G2 (ADR la-secuencia-ordena-el-motor-responde, M1, integrated in `7e5b963`) |
+| split borrows | `Course`, `Turn::drive`, `Turn::cancel` | The turn borrows the engine, and the closing takes the chronicle and the last scene separately: P4 is the compiler's job, not a convention (ADR la-secuencia-ordena-el-motor-responde, M1, integrated in `7e5b963`) |
 | second level | `refine` | How the resident is: lying, posture |
 | body group | `refine::BodyGroup`, `BodyGroups` | Head, shoulders or pelvis: the median depth of its seen keypoints and how many it saw (R16) |
 | disparity | `Posture::disparity`, `Disparities` | `(upper − pelvis) / mean`: head and shoulders together against the pelvis decide; the feet do not vote (R16) |
@@ -493,35 +523,70 @@ One concept, one name.
 ## 8. Module map
 
 Each module is a step of the loop or a piece without domain. The last column
-matters as much as the second.
+matters as much as the second. The wire, the perception language and the
+geometry are crates of their own (`scene-contract`, `scene-look`, `scene-geom`);
+`scene-core` depends on them and they depend on nothing of the core.
 
 | Module | Responsibility | Never |
 |---|---|---|
-| `lib.rs` | The public API and rule 21's `deny` | exposes how the core believes |
-| `cycle` (+ `monitor`, `engine`, `sequence`, `waiting`) | The loop protocol (`cycle`), what one camera is made of and what comes out of a turn (`monitor`), what the engine changes when the turn asks it (`engine`), the order of a turn and its ledger (`sequence`), each probe with its continuation (`waiting`) | decides anything |
-| `look` | The protocol's vocabulary: probes, readings, what was asked (`LookKind`) and how it failed | contains pixels |
+| `lib.rs` | The public API (`Monitor`, `Turn`, `Input`, `Output`, `project`, `look`, `policy`, `map`, `units`, `geom`) and rule 21's `deny` | exposes how the core believes |
+| `cycle.rs`, `cycle/monitor` | `Monitor` composes the engine, the chronicle and the last scene; `Turn` is the loop protocol; the free `project` closes a turn | decides anything |
+| `cycle/sequence` | The order of a turn, in one place (`Course::next`, rule 11): which step comes next and which look it asks for | asks a policy, or reads an engine field |
+| `cycle/questions`, `cycle/readings`, `cycle/waiting`, `cycle/conclude` | The turn's questions to the engine, how each reading moves the turn on, each probe with its continuation, and the close (the second level and layer 1 read what was believed) | decides what is believed |
+| `cycle/engine/` (`mod`, `arrival`, `belief`, `conclusion`, `evidence`, `questions`, `refinement`, `verifier`) | What the engine does when the turn asks it, one file per topic. Each operation is a method named for the domain. `mod.rs` builds it from the policy slices, without `..` | is read through a field by `cycle/` (G2) |
+| `outcome` | What the turn records of a look: a probe's typed reading or failure. A reading of another kind is a failing sense (rule 1) | decides |
 | `evidence` (+ `bodies`, `faces`, `pose`, `depth`) | Admits readings, one file per sense: one body per person, its zone | decides what is believed or looked at |
-| `belief` | The belief: joins layer 0, the subject and layer 1 | sees a raw reading |
-| `belief/occupancy` | Layer 0: the occupancy machine | knows the second level or the contract |
-| `verification` | The verification plane: what the slow verifier was asked (one ticket in flight), the answers owed, and the held body's provenance (`HeldCheck`). Answers arrive between turns (`Monitor::verified`) and are settled at the next sample's turn | moves a count, or is read by layer 0 or layer 1 |
-| `belief/bed_posture` | Layer 1: the bed posture machine, its rules (a golden table) and its vocabulary | changes a count, or reads a raw reading |
-| `belief/stabilizer` | Source-time stabilizing, for both layers | knows what it counts |
-| `belief/subject` | The subject's enrichment: pose, depth, reference | decides occupancy |
-| `belief/parts` | The occupancy of the subject's parts: where each part is and what is held | changes a count or reads the posture |
-| `refine` | The second level: where the head is (`head`, from the faces and the pose, asking the room), lying, posture by body groups, the arbiter's verdict (a golden table) and what layer 1 saw (`seen`) | writes the belief or changes a count |
-| `attention` (+ `primary`, `faces`, `body`, `depth`, `verify`, `memory`, `ledger`) | What to look at, where and why not, one file per question; its ledger (`Attention`, `Look`, `SkipReason`); its memory (`Memory`: the lens, the reinforcement latch and the last calibration attempt) | mutates the belief |
-| `body` | Body vocabulary: the COCO-17 pose and its depth, the bed's sites and where the head is (`HeadPlace`, concluded by `refine::head`) | interprets the pose (that is `refine`) |
+| `attention` (+ `primary`, `faces`, `body`, `depth`, `verify`, `memory`, `ledger`) | What to look at, where and why not, one file per question; its ledger (`Attention`, `Look`, `SkipReason`); its memory (the lens, the reinforcement latch, the last calibration attempt) | mutates the belief |
+| `belief` (+ `subject`, `stabilizer`) | The belief: joins layer 0, the subject and layer 1 | sees a raw reading |
+| `belief/occupancy` | Layer 0: the occupancy machine and its golden table | knows the second level or the wire |
+| `belief/bed_posture` | Layer 1: the bed posture machine, its rules and its table | changes a count, or reads a raw reading |
+| `belief/parts` | The occupancy of the subject's parts: where each part is against the bed, what is held | changes a count or reads the posture |
+| `belief/subject`, `belief/stabilizer` | The subject's enrichment (pose, depth, box); stabilizing in source time, for both layers | decides occupancy |
+| `refine` (+ `head`, `lying`, `posture`, `verdict`, `sighting`, `parts`) | The second level: where the head is, lying, posture by body groups, the arbiter's verdict (a golden table), what layer 1 saw | writes the belief or changes a count |
+| `verification` (+ `burst`, `table`, `burst_table`) | The verification plane: the ticket in flight, the answers owed, the held body's provenance (`HeldCheck`), the burst machine. Answers arrive between turns (`Monitor::verified`) and are settled at the next sample's turn | moves a count, or is read by layer 0 or layer 1 |
+| `body` | Body vocabulary: the COCO-17 pose and its depth, the bed's sites, where the head is (`HeadPlace`, concluded by `refine::head`) | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
-| `chronicle` | The memory of what was concluded, in the domain: folds the turns | is read by the engine to decide, or imports the contract |
-| `project` (+ `v4`) | Translates the domain into the contract, one version per module, from the same conclusion and the same chronicle; the shared part is projected once | decides, mutates the chronicle or is read back |
-| `contract` | The published language, per version. `common`: what no version changes (the envelope without its `SchemaId`, the bed, the subject, the evidence, the causes) and the re-export of the domain vocabulary. `v4` defines its own `SchemaId` and schema; a next version would not depend on it. `contract` re-exports the published version | changes without a major version and an ADR, or is imported by the domain |
-| `policy` | The policies that come from the profiles | is read from a file |
-| `map` | The site's static world | is inferred from the subject |
-| `room` (+ `frontal`, `two_planes`, `shadow`) | The questions of space, with named facts: the piece the profile chose (`frontal`, `two_planes`) and the shadow of a geometry that does not decide yet (`shadow`) | remembers, counts, or hands a plane to a layer |
-| `reception` | The reception state the shell reports (`SensorState`, the published `sensor`) and its memory (`Memory`) | is inferred |
-| `time`, `zone` | Shared vocabulary: the sample and its source time; the zones and the count per zone. `contract` re-exports them | knows the published format |
-| `geom`, `estimation` | Maths without domain | knows a rule |
+| `chronicle` | The memory of what was concluded, in the domain: folds the turns | is read by the engine to decide, or imports the wire |
+| `project` (+ `v4`, `parts`) | Translates the domain into the wire, one version per module (`v4`, `pub(crate)`); the shared part is projected once | decides, mutates the chronicle or is read back |
+| `policy` | The policies that come from the profiles, one slice per decider | is read from a file |
+| `map` (+ `plane`) | The site's static world; the bed's plane, which only `map` and `room` know | is inferred from the subject |
+| `room` (+ `frontal`, `two_planes`, `shadow`) | The questions of space, with named facts: the piece the profile chose and the shadow of a geometry that does not decide yet | remembers, counts, or hands a plane to a layer |
+| `reception` | The reception state the shell reports (`SensorState`, the published `sensor`) and its memory | is inferred |
+| `time`, `zone`, `provenance` | Shared vocabulary: the sample and its source time; the zones and the count per zone | knows the published format |
+| `units` | Units in the type: `Seconds`, `Confidence`. `serde` on purpose: the profile reads them with `try_from` (ADR unidades-en-el-tipo) | a geometry fraction |
+| `estimation` | Estimates over the subject's motion and depth | knows a rule |
+| `scene-look` (crate) | The perception language: `Probe` and its views `SenseProbe` and `VerifierProbe`, `Reading`, `Failure`, `Spent`, `Ticket`, `Verified` | contains pixels |
+| `scene-contract` (crate) | The wire: the published types of `scene.v4` and `events.v4`, types only | has logic or decisions |
+| `scene-geom` (crate) | Pure geometry (`Point`, `Rect`, `Quad`) | knows a rule |
+
+### 8.1 How to add a look
+
+A look is a question the core asks the shell, and its answer enters the turn.
+The places it touches, in the order a look goes through them. The third column
+says what the compiler flags and what only a review does, as measured on
+`aea707a`.
+
+| # | Place | Why | Who flags it |
+|---|---|---|---|
+| 1 | `scene-look`: a variant of `SenseProbe` (or `VerifierProbe`), and of `Reading` or `Failure` if the answer is new | The protocol's vocabulary (ADR quien-responde-cada-probe) | the compiler: `sense/src/lib.rs` `look` matches `SenseProbe` without `_`; the test world `tests/script.rs` `respond` does too; `detector/src/router.rs` denies wildcard arms (`clippy::wildcard_enum_match_arm`). `Reading` and `Failure` are not `non_exhaustive`, but `outcome.rs` answers any other reading with `Ok(_) => Failure::Model` (rule 1), so a new reading kind is silently a failing sense there |
+| 2 | `scene-look`: the `Probe` variant and its `sense()`/`verifier()` view | One `Probe` the core emits; each variant is in exactly one view | the compiler: matches on `Probe` in `cycle/` (`waiting`, `sequence`) have no `_` |
+| 3 | `scene-contract`: the `LookKind` variant, only if the look is published in the ledger | The ledger publishes the kind by name, and `Probe::kind()` names it for each probe | the compiler flags `Probe::kind()` (`scene-look` `lib.rs`, a match on every `Probe` without `_`): a new `Probe` does not compile until it has its kind, so the `LookKind` variant comes first. It does not flag the other matches on `LookKind` in the core, because the enum is `#[non_exhaustive]` (for example the `_ => None` in `project/mod.rs`). A new `LookKind` value is an additive change of the wire and goes with its own ADR, as the additive values of v4 did (C1) |
+| 4 | `attention/<question>.rs`: a pure decision, with a `SkipReason` for every no | Attention decides where to look and why not (rule 12) | the review: a missing reason is not a type error |
+| 5 | `policy.rs`: the slice of the policy this look needs; `detector/src/config/<capability>.rs` to read it | Configuration by capability (ADR cascara-por-capacidad-y-nombres) | the compiler: `Engine::new`'s `let Policy { … }` has no `..`, so a new field of `Policy` does not compile until a slice owns it |
+| 6 | `cycle/engine/<tema>.rs`: a method named for the domain (`faces_look`, `observation`, …) | The engine answers by name; `cycle/` never reads its fields (rule 11, G2) | the compiler when `cycle/` calls a method that does not exist; a method nobody calls is not flagged |
+| 7 | `cycle/sequence.rs`: one line in `Course::next` with `self.wanted(LookKind::X, considered)` and the `Waiting` for it | The order of a turn lives in one place (rule 11) | the review: `Course::next` matches on the phase, and a missing line is only a missing look |
+| 8 | `cycle/waiting.rs`: the constructor of the `Waiting` that continues the turn after the answer | Each probe comes with its continuation; `Waiting` is a struct with constructors, and `Turn::drive` resumes it without matching its kind (`cycle.rs`) | the review: a missing constructor is only a missing look |
+| 9 | `evidence/<sense>.rs`: how the reading counts (admits it, or discards it with a reason) | One file per sense (ADR el-protocolo-es-un-mensaje, point 3, citing the 2026-11-01 table, F-6 and F-7) | the review |
+| 10 | `project/v4.rs`: only if the look is published as its own field | The projection is the only translation to the wire (rule 3, C4) | the review; a new published field is a contract change |
+| 11 | `features/<area>/<name>.feature` first, then its step in `tests/bdd/` and its scripted answer in `tests/script.rs` | The specification comes before the code (rule 14, rule 15) | the BDD run: an undefined step fails (`fail_on_skipped`) |
+| 12 | `calipso-golden/crates/golden/src/world.rs`: the sense of the test world, if the scenes need it | The golden world answers each probe (its `respond` has no `_`) | the compiler |
+
+Two things the compiler does not see, and the review must: a new `Reading`
+kind (point 1), and the other matches on `LookKind` in the core, which
+`#[non_exhaustive]` leaves with a `_` (point 3). The first is the protocol's
+design (ADR el-protocolo-es-un-mensaje, point 2); the second is the wire's
+`#[non_exhaustive]`, not a gap of the protocol.
 
 ## 9. How a module is written
 
@@ -554,17 +619,18 @@ are for local scope.
 
 ## 11. Design debt
 
-What we know must move, with the round that moves it. A row is deleted when its
-round is integrated.
+What we know must move, and what decides it. A row is deleted when its change
+is integrated. `State` says whether the decision exists and whether its work is
+done; a row with no decision says so.
 
-| Debt | Why | Round |
-|---|---|---|
-| The burst's phases (collect, keep, dispatch in `verification.rs`) are imperative. What an answer or an expiry does is already a decider with its golden table (`verification::decide`) | The burst (white book III, ch. 12) adds a phase to V; its rows belong in a table, each with its scenario and mutation, not in loose logic | V's phases as a pure machine, with the burst |
-| The domain vocabulary carries the serde and schemars derives | Like `time` and `zone`: the value knows how to serialize and each version decides what it publishes. A change meant for one version in a shared type changes every version: `contract_schema` catches it | accepted |
-| `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Their descriptions say so; renaming them changes the wire, so it waits for the next contract version (C2), together with the positional `rbh` and `fv` | next contract version |
-| The scene's `last_event_seq` is written by the NATS actor (the last event delivered), not where the stream is numbered | The transport writes into the published body: the in-memory sink and NATS agree only while no event is dropped. Moving it changes what the field means to its consumers (C1) | next contract version |
-| `Input::Sensor` carries a `SampleRef`, and the shell makes one up from the last sample (`Driver::sensor_at`) | The turn's `at` is published as the envelope's `observed_at`, which is not optional: a reception change with no sample needs it to be optional | next contract version |
-| The second level's verdict (R16: `lying_in_bed`, `sitting_up_in_bed`, `in_bed`, a reading per pose) and layer 1's bed posture (R18: a belief with memory) both say how the resident is in bed | The verdict is published (C1) and its consumers read it; layer 1 says more and better (only at the headboard, held is lying, leaving lying). Two answers to one question confuse a consumer | next contract version: retire `subject.verdict` once the consumers read `bed_posture` |
+| Debt | Why | Decision | State |
+|---|---|---|---|
+| The domain vocabulary carries the serde and schemars derives | A value knows how to serialize; each version decides what it publishes. A change for one version in a shared type changes every version | [The domain owns what it decides](../../../calipso-docs/adr/2026-11-02-el-dominio-es-dueno-de-lo-que-decide.md) (§1, §2): the types the domain computes go without `serde`; the shared core keeps them, since it is the wire | Closed (T, `beee0ca`). `units.rs` keeps `serde` on purpose: it is the configuration the profile reads (ADR unidades-en-el-tipo, `try_from`), not a type the domain decides with |
+| `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Renaming them changes the wire | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 4: they take names of relative scale | Decidida; espera el corte de v5 (publicación del dueño) |
+| `rbh` and `fv` are positional arrays | A consumer reads them by index; a change of order breaks it silently | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 5: named fields | Decidida; espera el corte de v5 (publicación del dueño) |
+| The scene's `last_event_seq` is written by the NATS actor, not by the stream's numbering | The transport writes into the published body; moving it changes what the field means to its consumers (C1) | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 1: the numbering writes it; the actor does not touch the body | Decidida; espera el corte de v5 (publicación del dueño) |
+| `Input::Sensor` carries a `SampleRef` that the shell makes up from the last sample (`Driver::sensor_at`), and `observed_at` is not optional | A reception change observes nothing, so its turn has no `at` | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 2: `observed_at` optional, `Driver::sensor_at` retired | Decidida; espera el corte de v5 (publicación del dueño) |
+| The second level's verdict (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) and layer 1's bed posture both say how the resident is in bed | Two answers to one question confuse a consumer; the verdict is published (C1) | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 3: `subject.verdict` retired; the arbiter leaves with its table if no layer uses it at the cut | Decidida; espera el corte de v5 (publicación del dueño) |
 
 ## Sources
 

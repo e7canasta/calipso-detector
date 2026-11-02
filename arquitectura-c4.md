@@ -1,7 +1,7 @@
 # Arquitectura: 4+1 vistas, con C4 y UML
 
 Revisión por ingeniería inversa del código al **2026-11-01**, `main` en
-`7e7f443`: contrato v4, protocolo `drive`/`cancel`, verificador lento, geometría
+`7e7f443` (paquetes, dependencias, API y tamaños, medidos de nuevo el **2026-11-02** en `main` `6773238`): contrato v4, protocolo `drive`/`cancel`, verificador lento, geometría
 `Frontal`/`TwoPlanes`. Describe lo implementado; lo previsto se marca como tal.
 Si este documento y el código no coinciden, uno de los dos tiene un error: la
 referencia del motor es [`crates/scene-core/DESIGN.md`](crates/scene-core/DESIGN.md),
@@ -107,9 +107,9 @@ flowchart TB
         sensor["sensor<br/>estado de recepción"]
         conclusion["conclusion"]
         chronicle["chronicle<br/>desde cuándo"]
-        project["project (+ v4, parts)"]
-        contract["contract<br/>common + v4"]
+        project["project (+ v4, parts)<br/>traduce al cable"]
     end
+    contract["scene-contract<br/>el cable (crate hoja)"]
 
     shell -->|"handle(Input)"| cycle
     shell -->|"verified(Verified)"| cycle
@@ -132,7 +132,7 @@ flowchart TB
     conclusion --> chronicle
     conclusion --> project
     chronicle -->|"Chronicled"| project
-    project --> contract
+    project -->|"tipos del cable"| contract
 ```
 
 Las flechas son las únicas conversaciones permitidas:
@@ -158,13 +158,16 @@ Las flechas son las únicas conversaciones permitidas:
   capa 1.
 - **La verificación es evidencia sobre la creencia, no creencia.** Nunca mueve
   una cuenta y ninguna capa la lee (white book III, frontera 2). Se publica.
-- **El dominio no importa el contrato.** Solo `project` traduce, y `cycle`
-  nombra el contrato porque `Output` lo lleva. `check.sh` lo vigila.
+- **El dominio nombra del cable solo su núcleo compartido** (lista en la
+  [ADR del dominio](../calipso-docs/adr/2026-11-02-el-dominio-es-dueno-de-lo-que-decide.md)).
+  Solo `project` traduce la publicación, y `cycle` la nombra porque `Output` la
+  lleva. `check.sh` vigila que no haya un módulo `contract` propio.
 - **El motor no lee lo publicado** (P4). `chronicle` recuerda el dominio.
 
 Lo público de la biblioteca es `Monitor`, `Turn`, `Input`, `NoFrame`, `Output`,
-`contract` (con `contract::v4`), `look` (`Probe`, `Reading`, `Failure`, `Spent`,
-`Question`, `Ticket`, `Verified`), `policy`, `map` y `geom`. Todo lo demás es
+`project` (la traducción; sus versiones son `pub(crate)`), `look` (`Probe`,
+`Reading`, `Failure`, `Spent`, `Question`, `Ticket`, `Verified`), `policy`, `map`,
+`units` y `geom`. El cable no sale de la biblioteca: está en `scene-contract`. Todo lo demás es
 `pub(crate)`, y `#![warn(unreachable_pub)]` lo vigila.
 
 ### Las clases que sostienen la vuelta (UML)
@@ -391,7 +394,10 @@ que falla, y el dominio ya sabe interpretarlo.
 ```mermaid
 flowchart BT
     subgraph detector_repo["calipso-detector"]
-        core["scene-core<br/>serde · schemars"]
+        geom["scene-geom<br/>serde · schemars (hoja)"]
+        contract["scene-contract<br/>el cable · serde · schemars"]
+        look["scene-look<br/>el lenguaje de percepción"]
+        core["scene-core<br/>dominio sin IO · serde · schemars"]
         sense["sense<br/>ONNX (ultralytics-inference) · image"]
         ingest["ingest<br/>retina · ffmpeg · tokio<br/>sin dominio"]
         detector["detector<br/>tokio · async-nats · clap · image"]
@@ -407,14 +413,24 @@ flowchart BT
         shark["calipso-shark"]
     end
 
-    sense --> core
+    contract --> geom
+    look --> contract
+    look --> geom
+    core --> contract
+    core --> geom
+    core --> look
+    sense --> look
+    sense --> contract
+    sense --> geom
     detector --> core
     detector --> sense
     detector --> ingest
+    detector --> contract
     golden --> core
     replay --> detector
     replay --> golden
-    bridge --> core
+    bridge --> contract
+    bridge --> geom
     shark --> core
     core -.->|"dev: escenas en las pruebas"| golden
     detector -.->|"dev"| golden
@@ -422,13 +438,14 @@ flowchart BT
     pbridge -.->|"solo el contrato en NATS"| core
 ```
 
-Tamaño al 2026-11-01 (líneas de `src`, con pruebas en línea): `scene-core` ≈ 12 550, `detector`
-≈ 3 600 (de ellas `config.rs` 1 750), `ingest` ≈ 750, `sense` ≈ 600. Los
-módulos más grandes del núcleo son `cycle/sequence` (634) y `chronicle` (441).
-`attention/` y `evidence/` son carpetas con un archivo por pregunta y por
+Tamaño medido el 2026-11-02 en `main` `6773238` (líneas de cada `src`, con
+pruebas en línea): `scene-core` 12 411, `detector` 4 806, `ingest` 820,
+`scene-contract` 1 818, `sense` 588, `scene-look` 495, `scene-geom` 275. Las
+cifras por módulo del 2026-11-01 (`cycle/sequence` 634, `chronicle` 441) no se
+volvieron a medir. `attention/` y `evidence/` son carpetas con un archivo por pregunta y por
 sentido (mesa de refactor, F-6 y F-7).
 
-- `scene-core` depende solo de `serde` y `schemars`. Clippy prohíbe relojes,
+- `scene-core` depende de `scene-contract`, `scene-geom` y `scene-look`, además de `serde` y `schemars`. `scene-geom` no depende de nadie del workspace; `scene-contract` depende de `scene-geom`; `scene-look`, de `scene-contract` y `scene-geom`; ninguna de esas tres depende de `scene-core`. Clippy prohíbe relojes,
   archivos, red e hilos (`clippy.toml`); `check.sh` verifica el árbol.
 - `ingest` no conoce el dominio, `sense` no conoce el transporte asíncrono ni
   recibe políticas (regla 6), y `detector` no depende de `golden` en su build
@@ -587,7 +604,7 @@ como procedencia (`held.check`), no como lectura: el destilado no la rearma.
 | Segunda puerta del núcleo | `Monitor::verified` fuera de `Input` | La grabación está fuera del detector y se rearma desde lo publicado; la respuesta solo se publica como `held.check` y `distill` la saltea. Una noche destilada da las mismas cuentas y capas (la verificación nunca mueve una cuenta), pero no el `held.check`. Aceptado; conviene escribirlo |
 | Píxeles en el bus | El recorte va por NATS request/reply a `calipso.verify.v1`, fuera del prefijo `vision.<site>.<camera>` | Como grabar es escuchar el bus, la regla 7 depende de que ningún grabador ni stream de JetStream escuche ese subject (por ejemplo, un `>`). Hoy no tiene guardián |
 | Perfil grande | `detector/src/config.rs` ≈ 1 780 líneas | Donde se arma la política. Cada perfil del repositorio ya se carga en una prueba; las combinaciones de capacidades todavía no tienen escena golden por perfil |
-| Consumidores atados al núcleo | rerun-bridge y shark dependen de `scene-core` | Deuda: crate de tipos del cable (DESIGN §11) |
+| Consumidores atados al núcleo | `calipso-rerun-bridge` depende de `scene-contract` y `scene-geom`, no de `scene-core` (medido en `6773238`). `calipso-shark` no está clonado: no se mide | El crate de tipos del cable existe (S7). Falta medir shark |
 | `Input::Sensor` | lleva un `SampleRef` inventado de la última muestra | Deuda: `observed_at` opcional en la próxima versión del contrato |
 | `last_event_seq` | lo escribe el actor NATS | Deuda de contrato (DESIGN §11) |
 | Profundidad | `meters` y `reference_m` llevan escala relativa | Se renombran en la próxima versión del contrato |
