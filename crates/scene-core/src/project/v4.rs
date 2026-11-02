@@ -220,12 +220,13 @@ fn bed_posture_change(
     let now = now?;
     let before = chronicled.bed_posture.changed_from.flatten()?;
     let since = chronicled.bed_posture_transition_since;
+    let seen = scene_contract::BedPostureSeen::from(now.seen);
     Some(BedPostureChange {
         at,
         cell: format!(
             "{} | {} | {}",
             before.as_str(),
-            now.seen.as_str(),
+            seen.as_str(),
             now.state.as_str()
         ),
         before: BedPostureBefore {
@@ -233,7 +234,7 @@ fn bed_posture_change(
             since,
             lasted_secs: since.and_then(|since| secs_since(at, since)),
         },
-        seen: now.seen,
+        seen,
         after: now.state,
     })
 }

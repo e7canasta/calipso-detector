@@ -15,11 +15,11 @@ use crate::belief::bed_posture::Sighting;
 use crate::policy::{EnrichPolicy, VerifyPolicy};
 use crate::room::Room;
 use crate::zone::Zone;
-pub(crate) use lying::Lying;
-pub(crate) use posture::{Posture, PostureState};
+pub(crate) use lying::{Lying, LyingState};
+pub(crate) use posture::{BodyGroup, BodyGroups, Disparities, Posture, PostureState};
 pub(crate) use sighting::{BodyPlaces, DisparitySide, FeetPlace};
 pub(crate) use verdict::Ruling;
-pub(crate) use verdict::{Verdict, VerdictState};
+pub(crate) use verdict::{Head, Verdict, VerdictState};
 
 /// What the second level derives from the subject's pose.
 #[derive(Debug, Clone, Default, PartialEq)]

@@ -16,9 +16,43 @@ mod machine;
 mod rules;
 
 pub(crate) use machine::Machine;
-pub(crate) use scene_contract::{BedPostureSeen, BedPostureState};
+pub(crate) use scene_contract::BedPostureState;
 
 use crate::belief::InBed;
+use crate::time::SampleRef;
+
+/// What was seen in a sample of layer 1, against the headboard and the sides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BedPostureSeen {
+    /// Held in bed, alone: unseen without leaving.
+    Held,
+    /// The head seen away from the headboard, but not past the bed's sides:
+    /// by definition, not lying.
+    HeadAway,
+    /// The head seen past the bed's sides.
+    HeadSide,
+    /// A foot seen past the bed's sides: getting up from below.
+    LegsOut,
+    /// The head at the headboard and the disparity of lying.
+    HeadboardLying,
+    /// The head at the headboard and the disparity of sitting up: against the
+    /// headboard.
+    HeadboardUpright,
+    /// Nothing that says how they are: the state holds.
+    Unknown,
+}
+
+/// The bed posture as layer 1 concludes it: the state, what was seen in this
+/// sample and since when the state holds (a fold of the chronicle, P4).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct BedPosture {
+    /// How the resident in bed is.
+    pub state: BedPostureState,
+    /// What was seen in this sample.
+    pub seen: BedPostureSeen,
+    /// The first sample of this state, without interruption.
+    pub since: SampleRef,
+}
 
 /// What layer 1 perceives by itself in a sample, from a fresh pose: the
 /// second level's half of the row's input; layer 0's state is the other.
@@ -46,7 +80,6 @@ pub(crate) struct Concluded {
     pub seen: BedPostureSeen,
 }
 
-pub(crate) use scene_contract::BedPosture;
 /// The row's input, as published: layer 0's state and what layer 1
 /// perceived.
 pub(crate) fn bed_posture_seen_of(l0: InBed, sighting: Sighting) -> BedPostureSeen {
@@ -85,7 +118,8 @@ mod tests {
             HeadboardUpright,
             Unknown,
         ] {
-            assert_eq!(wire(seen), seen.as_str());
+            let on_the_wire = scene_contract::BedPostureSeen::from(seen);
+            assert_eq!(wire(on_the_wire), on_the_wire.as_str());
         }
     }
 }

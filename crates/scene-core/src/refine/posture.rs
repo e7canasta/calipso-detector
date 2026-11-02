@@ -112,8 +112,84 @@ pub(super) fn relative_disparity(a: Option<f32>, b: Option<f32>) -> Option<f32> 
         .filter(|d| d.is_finite())
 }
 
-pub(crate) use scene_contract::Posture;
-pub(crate) use scene_contract::{BodyGroup, BodyGroups, Disparities, PostureState};
+/// The posture by how head, torso and hips are ordered in depth.
+/// Monocular depth separates lying from upright by the magnitude of the
+/// disparity, not by its sign (measured on real nights): sitting and standing are not
+/// distinguished and are published together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PostureState {
+    /// The hips clearly closer to the camera than the head and shoulders.
+    Lying,
+    /// Sitting, getting up or standing.
+    Upright,
+    /// One of the two groups has no measured keypoints.
+    Unknown,
+}
+
+/// A group of the body's keypoints: the median depth of those seen and
+/// measured, and how many of its keypoints were seen.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct BodyGroup {
+    /// Median depth of its seen, measured keypoints; `None` if none.
+    pub depth: Option<f32>,
+    /// How many of its keypoints were seen (score at least the minimum).
+    pub seen: u32,
+    /// How many keypoints the group has.
+    pub of: u32,
+}
+
+/// The groups the posture is measured with.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct BodyGroups {
+    /// Nose, eyes and ears.
+    pub head: BodyGroup,
+    /// Both shoulders.
+    pub shoulders: BodyGroup,
+    /// Both hips: the reference.
+    pub pelvis: BodyGroup,
+}
+
+/// Each disparity against the pelvis, `(a − pelvis) / mean`: relative,
+/// without scale. `upper_pelvis` (head and shoulders together) decides.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Disparities {
+    /// Head and shoulders against the pelvis: the one that decides.
+    pub upper_pelvis: Option<f32>,
+    /// The shoulders alone against the pelvis.
+    pub shoulders_pelvis: Option<f32>,
+    /// The head alone against the pelvis.
+    pub head_pelvis: Option<f32>,
+    /// Head and shoulders against the bed's centre: the stand-in for the
+    /// hips, the baseline when the blanket hides them (R17).
+    pub upper_bed_centre: Option<f32>,
+}
+
+/// The published posture, with its evidence on the depth model's (relative)
+/// scale and the pose's provenance.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Posture {
+    /// Lying, upright or unknown.
+    pub state: PostureState,
+    /// Median of the measured head and shoulders.
+    pub upper: Option<f32>,
+    /// Median of the measured hips: the feet do not vote.
+    pub lower: Option<f32>,
+    /// `(upper − lower) / mean`: relative, without scale.
+    pub disparity: Option<f32>,
+    /// That of the pose it was concluded from.
+    pub provenance: crate::provenance::Provenance,
+    /// Head, shoulders and pelvis apart.
+    pub groups: Option<BodyGroups>,
+    /// Each disparity against the pelvis; `upper_pelvis` is `disparity`.
+    pub disparities: Option<Disparities>,
+    /// Above it, lying: the profile's `posture_tolerance`.
+    pub tolerance: Option<f32>,
+    /// The bed's points, read in the same depth map as the keypoints.
+    pub bed_points: Vec<crate::body::BedPoint>,
+    /// Where the head was when the bed's points were decided.
+    pub head_place: Option<crate::body::HeadPlace>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,12 +270,14 @@ mod tests {
 
     #[test]
     fn nights_recorded_with_sitting_or_standing_read_as_upright() {
+        // The alias is the cable's: the reading of old nights is its concern.
+        use scene_contract::PostureState as Wire;
         for old in ["\"sitting\"", "\"standing\""] {
-            let state: PostureState = serde_json::from_str(old).unwrap();
-            assert_eq!(state, PostureState::Upright);
+            let state: Wire = serde_json::from_str(old).unwrap();
+            assert_eq!(state, Wire::Upright);
         }
         assert_eq!(
-            serde_json::to_string(&PostureState::Upright).unwrap(),
+            serde_json::to_string(&Wire::Upright).unwrap(),
             "\"upright\""
         );
     }

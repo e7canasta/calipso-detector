@@ -9,8 +9,38 @@
 use super::PostureState;
 use crate::zone::Zone;
 
-pub(crate) use scene_contract::Head;
-pub(crate) use scene_contract::{Verdict, VerdictState};
+/// A head of the second level: who supports a verdict.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Head {
+    /// The depth disparity of head and shoulders against the pelvis (904, 1604).
+    Disparity,
+}
+
+/// How the resident is, as the arbiter rules it.
+// The names are the contract's: the cell of the table is written with them.
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VerdictState {
+    /// In bed, the head and shoulders farther from the camera than the pelvis.
+    LyingInBed,
+    /// In bed, the head and shoulders closer to the camera than the pelvis.
+    SittingUpInBed,
+    /// In bed, but no head knows how.
+    InBed,
+}
+
+/// The published verdict: how the resident is, which heads support it and
+/// since when it holds (a fold of the chronicle, P4).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Verdict {
+    /// How the resident is.
+    pub state: VerdictState,
+    /// The heads that support it; empty when none knows.
+    pub by: Vec<Head>,
+    /// The first sample of this verdict, without interruption.
+    pub since: crate::time::SampleRef,
+}
+
 /// The arbiter's ruling: the verdict and the heads that support it.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Ruling {
@@ -60,15 +90,28 @@ mod tests {
                 PostureState::Upright,
                 PostureState::Unknown,
             ] {
+                // The table names the cable's values: their names are the contract's.
+                let on_the_wire = |r: &Ruling| {
+                    (
+                        wire(&scene_contract::VerdictState::from(r.state)),
+                        r.by.iter()
+                            .map(|h| wire(&scene_contract::Head::from(*h)))
+                            .collect::<Vec<_>>(),
+                    )
+                };
                 let (verdict, by) = match arbitrate(zone, Some(posture)) {
                     None => ("—".to_owned(), "—".to_owned()),
-                    Some(r) if r.by.is_empty() => (wire(&r.state), "—".to_owned()),
-                    Some(r) => (
-                        wire(&r.state),
-                        r.by.iter().map(wire).collect::<Vec<_>>().join(", "),
-                    ),
+                    Some(r) if r.by.is_empty() => (on_the_wire(&r).0, "—".to_owned()),
+                    Some(r) => {
+                        let (state, by) = on_the_wire(&r);
+                        (state, by.join(", "))
+                    }
                 };
-                out += &format!("{} | {} | {verdict} | {by}\n", wire(&zone), wire(&posture));
+                out += &format!(
+                    "{} | {} | {verdict} | {by}\n",
+                    wire(&zone),
+                    wire(&scene_contract::PostureState::from(posture))
+                );
             }
         }
         out

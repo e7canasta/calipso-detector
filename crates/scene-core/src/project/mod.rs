@@ -12,13 +12,21 @@ pub(crate) mod v4;
 
 use crate::attention::Attention;
 use crate::belief::BedPosture;
+use crate::belief::bed_posture::BedPostureSeen;
 use crate::belief::bed_posture::Concluded;
 use crate::belief::{Believed, Occupancy, Occupants, Subject as BelievedSubject};
+use crate::body::{
+    BedPoint, BodyPoint, HeadEvidence, HeadPlace, HeadPlaceState, Pose, SubjectDepth,
+};
 use crate::chronicle::{BedKind, Chronicled};
 use crate::conclusion::RepublishReason;
 use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
 use crate::look::Detection;
-use crate::refine::{Refinement, Verdict};
+use crate::refine::Refinement;
+use crate::refine::{
+    BodyGroup, BodyGroups, Disparities, Head, Lying, LyingState, Posture, PostureState, Verdict,
+    VerdictState,
+};
 use crate::units::Seconds;
 use scene_contract::{
     Bed, BedState, BodiesEvidence, BodiesStatus, BodySeen, Evidence, FaceSeen, FacesEvidence,
@@ -26,6 +34,207 @@ use scene_contract::{
     SampleRef, SkipReason, Subject, Zone,
 };
 use scene_contract::{Cell, Fv, Rbh};
+
+impl From<BedPostureSeen> for scene_contract::BedPostureSeen {
+    fn from(seen: BedPostureSeen) -> Self {
+        match seen {
+            BedPostureSeen::Held => Self::Held,
+            BedPostureSeen::HeadAway => Self::HeadAway,
+            BedPostureSeen::HeadSide => Self::HeadSide,
+            BedPostureSeen::LegsOut => Self::LegsOut,
+            BedPostureSeen::HeadboardLying => Self::HeadboardLying,
+            BedPostureSeen::HeadboardUpright => Self::HeadboardUpright,
+            BedPostureSeen::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<BedPosture> for scene_contract::BedPosture {
+    fn from(b: BedPosture) -> Self {
+        Self {
+            state: b.state,
+            seen: b.seen.into(),
+            since: b.since,
+        }
+    }
+}
+
+impl From<LyingState> for scene_contract::LyingState {
+    fn from(state: LyingState) -> Self {
+        match state {
+            LyingState::Confirmed => Self::Confirmed,
+            LyingState::Assumed => Self::Assumed,
+            LyingState::No => Self::No,
+            LyingState::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<Lying> for scene_contract::Lying {
+    fn from(l: Lying) -> Self {
+        Self {
+            state: l.state.into(),
+            provenance: l.provenance,
+        }
+    }
+}
+
+impl From<PostureState> for scene_contract::PostureState {
+    fn from(state: PostureState) -> Self {
+        match state {
+            PostureState::Lying => Self::Lying,
+            PostureState::Upright => Self::Upright,
+            PostureState::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<BodyGroup> for scene_contract::BodyGroup {
+    fn from(g: BodyGroup) -> Self {
+        Self {
+            depth: g.depth,
+            seen: g.seen,
+            of: g.of,
+        }
+    }
+}
+
+impl From<BodyGroups> for scene_contract::BodyGroups {
+    fn from(g: BodyGroups) -> Self {
+        Self {
+            head: g.head.into(),
+            shoulders: g.shoulders.into(),
+            pelvis: g.pelvis.into(),
+        }
+    }
+}
+
+impl From<Disparities> for scene_contract::Disparities {
+    fn from(d: Disparities) -> Self {
+        Self {
+            upper_pelvis: d.upper_pelvis,
+            shoulders_pelvis: d.shoulders_pelvis,
+            head_pelvis: d.head_pelvis,
+            upper_bed_centre: d.upper_bed_centre,
+        }
+    }
+}
+
+impl From<HeadEvidence> for scene_contract::HeadEvidence {
+    fn from(e: HeadEvidence) -> Self {
+        match e {
+            HeadEvidence::Face => Self::Face,
+            HeadEvidence::PoseHead => Self::PoseHead,
+        }
+    }
+}
+
+impl From<HeadPlaceState> for scene_contract::HeadPlaceState {
+    fn from(s: HeadPlaceState) -> Self {
+        match s {
+            HeadPlaceState::AtHeadboard => Self::AtHeadboard,
+            HeadPlaceState::BelowHeadboard => Self::BelowHeadboard,
+            HeadPlaceState::AtSide => Self::AtSide,
+            HeadPlaceState::Elsewhere => Self::Elsewhere,
+            HeadPlaceState::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<HeadPlace> for scene_contract::HeadPlace {
+    fn from(h: HeadPlace) -> Self {
+        Self {
+            state: h.state.into(),
+            by: h.by.map(Into::into),
+        }
+    }
+}
+
+impl From<BodyPoint> for scene_contract::BodyPoint {
+    fn from(p: BodyPoint) -> Self {
+        Self {
+            name: p.name,
+            x: p.x,
+            y: p.y,
+            score: p.score,
+            depth: p.depth,
+        }
+    }
+}
+
+impl From<Pose> for scene_contract::Pose {
+    fn from(p: Pose) -> Self {
+        Self {
+            keypoints: p.keypoints.into_iter().map(Into::into).collect(),
+            provenance: p.provenance,
+        }
+    }
+}
+
+impl From<SubjectDepth> for scene_contract::SubjectDepth {
+    fn from(d: SubjectDepth) -> Self {
+        Self {
+            meters: d.meters,
+            provenance: d.provenance,
+        }
+    }
+}
+
+impl From<BedPoint> for scene_contract::BedPoint {
+    fn from(b: BedPoint) -> Self {
+        Self {
+            name: b.name,
+            x: b.x,
+            y: b.y,
+            depth: b.depth,
+        }
+    }
+}
+
+impl From<Posture> for scene_contract::Posture {
+    fn from(p: Posture) -> Self {
+        Self {
+            state: p.state.into(),
+            upper: p.upper,
+            lower: p.lower,
+            disparity: p.disparity,
+            provenance: p.provenance,
+            groups: p.groups.map(Into::into),
+            disparities: p.disparities.map(Into::into),
+            tolerance: p.tolerance,
+            bed_points: p.bed_points.into_iter().map(Into::into).collect(),
+            head_place: p.head_place.map(Into::into),
+        }
+    }
+}
+
+impl From<Head> for scene_contract::Head {
+    fn from(h: Head) -> Self {
+        match h {
+            Head::Disparity => Self::Disparity,
+        }
+    }
+}
+
+impl From<VerdictState> for scene_contract::VerdictState {
+    fn from(state: VerdictState) -> Self {
+        match state {
+            VerdictState::LyingInBed => Self::LyingInBed,
+            VerdictState::SittingUpInBed => Self::SittingUpInBed,
+            VerdictState::InBed => Self::InBed,
+        }
+    }
+}
+
+impl From<Verdict> for scene_contract::Verdict {
+    fn from(v: Verdict) -> Self {
+        Self {
+            state: v.state.into(),
+            by: v.by.into_iter().map(Into::into).collect(),
+            since: v.since,
+        }
+    }
+}
 
 /// The bed as layer 0 believes it, dated by the chronicle.
 fn bed(
@@ -156,19 +365,25 @@ fn publish_subject(
         bbox: s.bbox,
         confidence: s.confidence,
         provenance: s.provenance,
-        pose,
-        depth,
-        lying: refined.lying,
-        posture: refined.posture,
-        verdict: refined.verdict.map(|r| Verdict {
-            state: r.state,
-            by: r.by,
-            since: chronicled.verdict.since,
+        pose: pose.map(Into::into),
+        depth: depth.map(Into::into),
+        lying: refined.lying.map(Into::into),
+        posture: refined.posture.map(Into::into),
+        verdict: refined.verdict.map(|r| {
+            Verdict {
+                state: r.state,
+                by: r.by,
+                since: chronicled.verdict.since,
+            }
+            .into()
         }),
-        bed_posture: bed_posture.map(|b| BedPosture {
-            state: b.state,
-            seen: b.seen,
-            since: chronicled.bed_posture.since,
+        bed_posture: bed_posture.map(|b| {
+            BedPosture {
+                state: b.state,
+                seen: b.seen,
+                since: chronicled.bed_posture.since,
+            }
+            .into()
         }),
         parts: body_parts.map(|p| parts::parts(&p, chronicled, at, dwell_secs)),
     })

@@ -3,12 +3,26 @@
 //! since when, what is pending and the last cell). It translates, it does not
 //! decide.
 
-use crate::belief::parts::{ByPart, Concluded, Look, PartsTransition, Place};
+use crate::belief::parts::{ByPart, Concluded, Look, PartsReading, PartsTransition, Place};
 use crate::chronicle::Chronicled;
 use crate::time::SampleRef;
 use crate::time::secs_since;
 use crate::units::Seconds;
 use scene_contract::{Parts, PartsPending, Progress};
+
+impl From<PartsReading> for scene_contract::PartsReading {
+    fn from(r: PartsReading) -> Self {
+        match r {
+            PartsReading::OutOfBed => Self::OutOfBed,
+            PartsReading::OnTheEdge => Self::OnTheEdge,
+            PartsReading::Lying => Self::Lying,
+            PartsReading::TryingToLeave => Self::TryingToLeave,
+            PartsReading::SittingUp => Self::SittingUp,
+            PartsReading::SittingInBed => Self::SittingInBed,
+            PartsReading::Undecided => Self::Undecided,
+        }
+    }
+}
 
 /// The scene's block of the parts, in this turn.
 pub(super) fn parts(
@@ -29,7 +43,7 @@ pub(super) fn parts(
             },
         }),
         last_cell: chronicled.last_parts.as_ref().map(cell),
-        reading: concluded.reading,
+        reading: concluded.reading.into(),
         reading_since: chronicled.parts_reading.since,
     }
 }

@@ -49,7 +49,29 @@ pub(super) fn classify(points: &[BodyPoint], room: &Room, min_score: f32) -> Lyi
     }
 }
 
-pub(crate) use scene_contract::{Lying, LyingState};
+/// Is the subject truly lying down? Second level: it changes no count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LyingState {
+    /// Torso, hips, most keypoints and the visible feet inside the bed.
+    Confirmed,
+    /// Torso, hips and most keypoints inside; the feet are not visible.
+    Assumed,
+    /// The torso, the hips, most keypoints or a visible foot outside the bed.
+    No,
+    /// The torso or the hips are not visible.
+    Unknown,
+}
+
+/// What the second level concludes from the pose over the bed plane, with that
+/// pose's provenance.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Lying {
+    /// Confirmed, assumed, no or unknown.
+    pub state: LyingState,
+    /// That of the pose it was concluded from.
+    pub provenance: crate::provenance::Provenance,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

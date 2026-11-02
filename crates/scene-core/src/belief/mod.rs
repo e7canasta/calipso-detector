@@ -26,7 +26,18 @@ pub(crate) use occupancy::{
 };
 pub(crate) use subject::{Enrichment, SubjectBody};
 
-pub(crate) use scene_contract::Occupants;
+/// The occupants layer 0 believes in, by where they are: off the bed, seen in
+/// bed and held in bed. The book's `RBH` is `(total, bed + held, held)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Occupants {
+    /// Off the bed.
+    pub floor: u32,
+    /// In bed, seen or retained.
+    pub bed: u32,
+    /// In bed, held.
+    pub held: u32,
+}
+
 /// Everyone the layer believes in the room: off the bed, in bed and held.
 pub(crate) fn total(occupants: Occupants) -> u32 {
     occupants.floor + occupants.bed + occupants.held

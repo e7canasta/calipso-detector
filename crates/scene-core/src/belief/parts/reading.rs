@@ -20,12 +20,29 @@
 
 use super::{ByPart, Place};
 use crate::units::Seconds;
-use serde::Serialize;
 
-pub(crate) use scene_contract::PartsReading;
+/// What we believe of the resident from the places of their parts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PartsReading {
+    /// Neither the box nor the groin in the bed.
+    OutOfBed,
+    /// The groin in the bed, the box out: getting in or out.
+    OnTheEdge,
+    /// The shoulders and the face or the head at the headboard, nothing out.
+    Lying,
+    /// Something out of the bed while some of the torso is still at the
+    /// headboard: leaving from lying.
+    TryingToLeave,
+    /// Everything in the bed, the whole boxes in it, nothing at the headboard.
+    SittingUp,
+    /// Not everything in the bed, nothing at the headboard.
+    SittingInBed,
+    /// The places match no rule.
+    Undecided,
+}
+
 /// What is at the headboard, of the face, the head and the shoulders.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Headboard {
     /// None of them was ever seen against it.
     Unseen,

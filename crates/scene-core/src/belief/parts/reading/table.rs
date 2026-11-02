@@ -14,6 +14,16 @@ fn wire<T: Serialize>(value: T) -> String {
     golden::name(value).unwrap_or_default()
 }
 
+/// The name the golden table writes the headboard with.
+fn headboard_name(headboard: Headboard) -> &'static str {
+    match headboard {
+        Headboard::Unseen => "unseen",
+        Headboard::Free => "free",
+        Headboard::Partly => "partly",
+        Headboard::Lying => "lying",
+    }
+}
+
 fn table() -> String {
     let mut out = String::from(
         "# The parts' reading. Facts: g groin in bed · b box in bed · headboard (unseen, free, partly,\n\
@@ -47,10 +57,10 @@ fn table() -> String {
                 "{} {} {:<7} {} {} | {}{urgent}\n",
                 bit(f.groin_in),
                 bit(f.box_in),
-                wire(headboard),
+                headboard_name(headboard),
                 bit(f.out),
                 bit(f.boxes_in),
-                wire(reading)
+                wire(scene_contract::PartsReading::from(reading))
             );
         }
     }
@@ -74,7 +84,10 @@ fn every_reading_but_undecided_is_reachable() {
         PartsReading::SittingInBed,
     ] {
         assert!(
-            table.contains(&format!("| {}", wire(reading))),
+            table.contains(&format!(
+                "| {}",
+                wire(scene_contract::PartsReading::from(reading))
+            )),
             "{reading:?}"
         );
     }
