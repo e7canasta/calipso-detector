@@ -33,7 +33,8 @@ fn grown(bed: &crate::geom::Quad, across: f64, along: f64) -> Option<crate::geom
 use crate::body::BedSite;
 use crate::body::bed_site_at;
 use crate::geom::{Point, Quad, Rect, Zone};
-use crate::policy::{AdmissionPolicy, FocusPolicy, ShadowPolicy};
+use crate::policy::{FocusPolicy, ShadowPolicy};
+use crate::room::SpaceRules;
 use crate::time::SampleRef;
 use crate::units::Extension;
 
@@ -288,13 +289,14 @@ impl Map {
         &self,
         geometry: Geometry,
         focus: Option<&FocusPolicy>,
-        shadow: Option<&ShadowPolicy>,
-        admission: &AdmissionPolicy,
+        space: &SpaceRules,
         calibration: &CalibrationMemory,
     ) -> MapState {
         MapState {
             focus: focus.and_then(|f| self.focus_region(geometry, f.pad)),
-            shadow: shadow.map(|shadow| self.shadow(*shadow, admission.near_bed_margin)),
+            shadow: space
+                .shadow
+                .map(|shadow| self.shadow(shadow, space.admission.near_bed_margin)),
             geometry,
             bed: self.site.bed,
             headboard: self.headboard().map(|headboard| headboard.bounds()),

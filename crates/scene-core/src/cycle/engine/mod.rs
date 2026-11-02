@@ -27,6 +27,7 @@ use crate::belief::{Belief, OccupancyRules};
 use crate::map::{CalibrationMemory, SiteMap};
 use crate::policy::Policy;
 use crate::reception;
+use crate::room::SpaceRules;
 use crate::verification::{Verification, VerifyRules};
 
 impl Engine {
@@ -58,15 +59,17 @@ impl Engine {
         };
         let verify_rules = VerifyRules::of(verify.as_ref());
         Self {
-            admission,
+            space: SpaceRules {
+                admission,
+                two_planes,
+                shadow,
+            },
             reinforce,
             faces,
             enrich,
             calibration_policy: calibration,
             depth_pad,
             focus,
-            shadow,
-            two_planes,
             verify_policy: verify,
             calibration: CalibrationMemory::from(&map),
             attention_memory: attention::Memory::of(map.calibration_attempt),

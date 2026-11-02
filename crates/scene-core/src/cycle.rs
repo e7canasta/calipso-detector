@@ -27,12 +27,13 @@ use crate::look::{Failure, Probe, Reading, Spent};
 use crate::map::{BedCalibrated, CalibrationMemory, FrameInfo, Geometry, Map};
 use crate::outcome::Outcome;
 use crate::policy::{
-    AdmissionPolicy, BedPosturePolicy, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy,
-    ReinforcePolicy, ShadowPolicy, TwoPlanesPolicy, VerifyPolicy,
+    BedPosturePolicy, CalibrationPolicy, EnrichPolicy, FacePolicy, FocusPolicy, ReinforcePolicy,
+    VerifyPolicy,
 };
 use crate::reception::{self, SensorChanged, SensorState};
 use crate::refine::BodyPlaces;
 use crate::room::Room;
+use crate::room::SpaceRules;
 use crate::time::SampleRef;
 use crate::units::Extension;
 use crate::verification::{Verification, VerifyRules};
@@ -116,8 +117,9 @@ struct Engine {
     // The policy slices, each with its owner (ADR 2026-11-02,
     // politica-en-rebanadas). `Engine::new` takes the whole `Policy` apart, so
     // the engine never keeps it and a new field of `Policy` must find an owner.
-    /// Which body counts, and where (evidence, room, map).
-    admission: AdmissionPolicy,
+    /// Which body counts and where, the room in two planes and the shadow
+    /// (evidence, room, map): one slice, `SpaceRules`.
+    space: SpaceRules,
     /// The reinforcement detector (attention).
     reinforce: Option<ReinforcePolicy>,
     /// The face detector (attention).
@@ -130,10 +132,6 @@ struct Engine {
     depth_pad: Option<Extension>,
     /// The focus of the main detector (attention, map).
     focus: Option<FocusPolicy>,
-    /// The shadow of the geometry (room, map).
-    shadow: Option<ShadowPolicy>,
-    /// The room in two planes (room).
-    two_planes: Option<TwoPlanesPolicy>,
     /// The slow verifier's questions (attention, refine).
     verify_policy: Option<VerifyPolicy>,
     occupancy_rules: OccupancyRules,

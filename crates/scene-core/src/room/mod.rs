@@ -75,23 +75,29 @@ pub(crate) struct Room {
     shadow: Option<shadow::Site>,
 }
 
+/// The space's rules of the policy, one slice (ADR 2026-11-02, politica-en-rebanadas,
+/// *Introduce Parameter Object*): which body counts and where, the room in two
+/// planes, and the shadow. The room and the map's state read it together.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SpaceRules {
+    pub(crate) admission: AdmissionPolicy,
+    pub(crate) two_planes: Option<TwoPlanesPolicy>,
+    pub(crate) shadow: Option<ShadowPolicy>,
+}
+
 impl Room {
     /// The room of this turn, if the bed's geometry applies to its frame: in
-    /// two planes if the profile asks for it and the planes can be built,
+    /// two planes if the space's rules ask for it and the planes can be built,
     /// frontal otherwise.
-    pub(crate) fn of(
-        map: &Map,
-        geometry: Geometry,
-        admission: &AdmissionPolicy,
-        two_planes: Option<&TwoPlanesPolicy>,
-        shadow: Option<&ShadowPolicy>,
-    ) -> Option<Self> {
-        let frontal = Frontal::of(map, geometry, admission)?;
-        let two_planes = two_planes.and_then(|two| TwoPlanes::of(&frontal, map, *two));
+    pub(crate) fn of(map: &Map, geometry: Geometry, space: &SpaceRules) -> Option<Self> {
+        let frontal = Frontal::of(map, geometry, &space.admission)?;
+        let two_planes = space
+            .two_planes
+            .and_then(|two| TwoPlanes::of(&frontal, map, two));
         Some(Self {
             frontal,
             two_planes,
-            shadow: shadow::Site::of(map, geometry, shadow),
+            shadow: shadow::Site::of(map, geometry, space.shadow.as_ref()),
         })
     }
 

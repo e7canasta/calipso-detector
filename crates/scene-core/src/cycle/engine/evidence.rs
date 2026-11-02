@@ -17,7 +17,7 @@ impl Engine {
         reading: Sensed<&[Detection]>,
         room: Option<&Room>,
     ) -> Admission {
-        evidence::admit(reading, room, &self.admission)
+        evidence::admit(reading, room, &self.space.admission)
     }
 
     /// Reinforcement's reading joined with the main detector's.
@@ -27,7 +27,7 @@ impl Engine {
         reinforcement: Sensed<&[Detection]>,
         room: Option<&Room>,
     ) -> (Admission, LookResult) {
-        evidence::consolidate(primary, reinforcement, room, &self.admission)
+        evidence::consolidate(primary, reinforcement, room, &self.space.admission)
     }
 
     /// A doubtful body's pose, placed by the room: `perceived` changes if the

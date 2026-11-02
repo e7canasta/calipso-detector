@@ -18,13 +18,7 @@ use crate::time::SampleRef;
 impl Engine {
     /// The room of this turn, built once when it opens.
     pub(in crate::cycle) fn room_of(&self, geometry: Geometry) -> Option<Room> {
-        Room::of(
-            &self.map,
-            geometry,
-            &self.admission,
-            self.two_planes.as_ref(),
-            self.shadow.as_ref(),
-        )
+        Room::of(&self.map, geometry, &self.space)
     }
 
     /// Where the main detector looks first: the focus, if the policy has one.

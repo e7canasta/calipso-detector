@@ -52,8 +52,7 @@ impl Engine {
         self.map.state(
             geometry,
             self.focus.as_ref(),
-            self.shadow.as_ref(),
-            &self.admission,
+            &self.space,
             &self.calibration,
         )
     }
