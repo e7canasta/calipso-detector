@@ -24,9 +24,10 @@ impl Course<'_> {
             Continuation::Primary => Reached::Primary(self.admit(probe, outcome)),
             Continuation::Focused => Reached::Focused(self.admit(probe, outcome)),
             Continuation::Reinforce { primary } => {
-                // The loss counts as checked only if reinforcement looked: a
-                // failing reinforcement is requested again on the next sample.
-                if outcome.result.is_ok() {
+                // The loss counts as checked only if reinforcement read bodies:
+                // a failing look, or a reading of another kind, is requested
+                // again on the next sample.
+                if outcome.bodies().is_ok() {
                     self.engine.reinforcement_looked();
                 }
                 let (bodies, result) =

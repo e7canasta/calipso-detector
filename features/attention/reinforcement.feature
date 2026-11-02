@@ -97,6 +97,16 @@ Feature: The reinforcement policy
       Given the resident came in alone and lay down in samples 1 to 10
       Then reinforcement was not requested
 
+    Scenario: A reading of another kind from reinforcement is a failing look: the loss is requested again
+      Given the resident came in alone and lay down in samples 1 to 10
+      And reinforcement answers another kind of reading
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | occupants | bed            |
+        | 11-12   | 0        |       | 0      | 1         | occupied, seen |
+      Then in sample 11 the reinforcement look failed
+      And reinforcement was requested in samples 11 and 12
+      And the room is "One"
+
     Scenario: If reinforcement fails, it is requested again on the next sample
       Given the resident came in alone and lay down in samples 1 to 10
       And reinforcement fails

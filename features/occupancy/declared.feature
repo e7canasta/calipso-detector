@@ -40,3 +40,11 @@ Feature: The scene declares when it did not observe
     Given the detector fails in samples 1 to 1
     When sample 2 cannot be decoded
     Then the republished scene declares there were no observations yet
+
+  Scenario: A reading of another kind from the detector is a failing sense: the scene declares it did not observe
+    Given the resident came in alone and lay down in samples 1 to 10
+    And the detector answers another kind of reading in samples 11 to 15
+    Then in sample 11 the detector look failed
+    And the room is "One"
+    And the scene declares no new observation since sample 10
+    And no occupancy event was emitted after sample 10

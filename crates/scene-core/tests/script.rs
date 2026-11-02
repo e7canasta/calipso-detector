@@ -33,6 +33,11 @@ pub struct Script {
     pub bed: Option<f32>,
     /// Whether the verifier takes a request; its answer is the ward's.
     pub verify: Result<(), Failure>,
+    /// The main detector answers with a reading of another kind than its probe
+    /// (a failing sense, rule 1, not a panic).
+    pub detect_other_kind: bool,
+    /// Reinforcement answers with a reading of another kind than its probe.
+    pub reinforce_other_kind: bool,
 }
 
 impl Default for Script {
@@ -48,6 +53,8 @@ impl Default for Script {
             depth: Ok(2.0),
             bed: Some(2.0),
             verify: Ok(()),
+            detect_other_kind: false,
+            reinforce_other_kind: false,
         }
     }
 }
@@ -72,6 +79,15 @@ impl Script {
 
     /// The scripted senses: the reading the scenario dictates for a probe.
     pub fn respond(&self, probe: &Probe) -> Result<Reading, Failure> {
+        let other_kind = match probe {
+            Probe::Detect { .. } => self.detect_other_kind,
+            Probe::Reinforce { .. } => self.reinforce_other_kind,
+            _ => false,
+        };
+        if other_kind {
+            // The verifier's reading: neither the detector's nor reinforcement's.
+            return Ok(Reading::Dispatched);
+        }
         match probe {
             Probe::Detect { .. } | Probe::Reinforce { .. } | Probe::Faces { .. } => {
                 if let Probe::Detect { region: None } = probe {

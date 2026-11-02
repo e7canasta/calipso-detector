@@ -4,7 +4,7 @@
 
 use crate::published::Body;
 use cucumber::{given, then, when};
-use scene_contract::{Cause, LookKind, LookOutcome, RepublishReason, SampleRef};
+use scene_contract::{Cause, LookKind, LookOutcome, LookResult, RepublishReason, SampleRef};
 use scene_core::look::Failure;
 use scene_core::policy::ReinforcePolicy;
 
@@ -94,6 +94,32 @@ fn reinforcement_fails(ward: &mut Ward) {
     ward.reinforcement_fails = true;
 }
 
+#[given("reinforcement answers another kind of reading")]
+fn reinforcement_other_kind(ward: &mut Ward) {
+    ward.reinforcement_other_kind = true;
+}
+
+/// A reading of another kind than its probe is a failing sense (rule 1): the
+/// look is recorded as failed, and nothing it would have read is believed.
+#[then(expr = "in sample {int} the {word} look failed")]
+fn look_failed(ward: &mut Ward, n: u32, sense: String) {
+    let kind = match sense.as_str() {
+        "detector" => LookKind::Detect,
+        "reinforcement" => LookKind::Reinforce,
+        other => panic!("no sense named {other}"),
+    };
+    let scene = crate::attention::scene(ward, n);
+    assert!(
+        scene
+            .attention
+            .looks
+            .iter()
+            .any(|l| l.kind == kind && matches!(l.result(), Some(LookResult::Failed { .. }))),
+        "sample {n} has no failed {kind:?}: {:?}",
+        scene.attention.looks
+    );
+}
+
 /// The samples in which reinforcement was requested.
 fn reinforcements(ward: &Ward) -> Vec<SampleRef> {
     ward.turns
@@ -136,6 +162,18 @@ fn detector_fails(ward: &mut Ward, from: u32, to: u32) {
         let at = ward.sample(n);
         let script = Script {
             detect: Err(Failure::Model),
+            ..Script::default()
+        };
+        ward.turn_with(at, script);
+    }
+}
+
+#[given(expr = "the detector answers another kind of reading in samples {int} to {int}")]
+fn detector_other_kind(ward: &mut Ward, from: u32, to: u32) {
+    for n in from..=to {
+        let at = ward.sample(n);
+        let script = Script {
+            detect_other_kind: true,
             ..Script::default()
         };
         ward.turn_with(at, script);

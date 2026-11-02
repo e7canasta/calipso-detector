@@ -42,6 +42,9 @@ pub struct Ward {
     pub reconnections: Vec<u32>,
     /// The reinforcement detector fails on every probe.
     pub reinforcement_fails: bool,
+    /// The reinforcement detector answers every probe with a reading of
+    /// another kind.
+    pub reinforcement_other_kind: bool,
     /// The samples in which the main detector fails over the whole frame.
     pub wide_fails: Vec<u32>,
     /// The resident moved in bed and ended up elsewhere: their boxes in
@@ -119,6 +122,9 @@ impl Ward {
     pub fn turn_with(&mut self, at: SampleRef, mut script: Script) {
         if self.reinforcement_fails {
             script.reinforce = Err(scene_core::look::Failure::Model);
+        }
+        if self.reinforcement_other_kind {
+            script.reinforce_other_kind = true;
         }
         if self.wide_fails.iter().any(|&n| u64::from(n) == at.sequence) {
             script.wide = Err(scene_core::look::Failure::Model);
