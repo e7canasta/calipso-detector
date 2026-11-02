@@ -39,6 +39,44 @@ fn envelope<T>(
     }
 }
 
+/// The v5 envelope of the same example: as v4's, with v5's `observed_at` (none
+/// for a reception change) and v5's schema.
+fn envelope_v5<T>(
+    schema: v5::SchemaId,
+    seq: u64,
+    observed_at: Option<SampleRef>,
+    body: T,
+    last_event_seq: Option<u64>,
+) -> v5::Envelope<T> {
+    v5::Envelope {
+        schema,
+        seq,
+        observed_at,
+        body,
+        last_event_seq,
+        source: source(),
+        profile: profile(),
+        published_at_ms: 0,
+        timing: matches!(schema, v5::SchemaId::Scene).then_some(Timing {
+            wait_ms: 0.0,
+            processing_ms: 0.0,
+        }),
+        event_id: matches!(schema, v5::SchemaId::Events).then(|| format!("example-v5-{seq}")),
+    }
+}
+
+/// v5's `observed_at` of an event: its sample, or none for a reception change.
+fn v5_event_at(event: &v5::Event) -> Option<SampleRef> {
+    match event {
+        v5::Event::Sensor(e) => e.at,
+        v5::Event::Transition(e) => Some(e.at),
+        v5::Event::Parts(e) => Some(e.at),
+        v5::Event::Derived(e) => Some(e.at),
+        v5::Event::Map(e) => Some(e.at),
+        v5::Event::BedPosture(e) => Some(e.at),
+    }
+}
+
 fn source() -> Source {
     Source {
         site: "example".into(),
@@ -106,6 +144,8 @@ fn snapshot(name: &str, content: &str) {
 fn examples_s1_to_s8_are_reproducible() {
     let scene_schema = validator("calipso.scene.v4");
     let events_schema = validator("calipso.events.v4");
+    let scene5_schema = validator("calipso.scene.v5");
+    let events5_schema = validator("calipso.events.v5");
     for n in 1..=8 {
         let mut policy = Policy::default();
         policy.persistence.dwell_secs = Seconds::TWO;
@@ -114,6 +154,8 @@ fn examples_s1_to_s8_are_reproducible() {
             SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))),
         );
         let (mut scenes, mut events, mut event_seq) = (String::new(), String::new(), 0);
+        // v5 of the same nights, from the same turns (C4), numbered on its own.
+        let (mut scenes5, mut events5, mut event_seq5) = (String::new(), String::new(), 0);
         let mut transitions = 0;
         let mut final_scene = None;
         for (seq, (sequence, script)) in script::episode(n).into_iter().enumerate() {
@@ -140,6 +182,39 @@ fn examples_s1_to_s8_are_reproducible() {
                 events.push_str(&line);
                 events.push('\n');
             }
+            for event in &out.v5.events {
+                event_seq5 += 1;
+                let message = envelope_v5(
+                    v5::SchemaId::Events,
+                    event_seq5,
+                    v5_event_at(event),
+                    event.clone(),
+                    None,
+                );
+                let line = serde_json::to_string(&message).unwrap();
+                assert_valid(&events5_schema, &line);
+                assert_eq!(
+                    serde_json::from_str::<v5::Envelope<v5::Event>>(&line).unwrap(),
+                    message
+                );
+                events5.push_str(&line);
+                events5.push('\n');
+            }
+            let message = envelope_v5(
+                v5::SchemaId::Scene,
+                seq as u64 + 1,
+                out.v5.observed_at,
+                out.v5.scene.as_ref().clone(),
+                Some(event_seq5),
+            );
+            let line = serde_json::to_string(&message).unwrap();
+            assert_valid(&scene5_schema, &line);
+            assert_eq!(
+                serde_json::from_str::<v5::Envelope<v5::Scene>>(&line).unwrap(),
+                message
+            );
+            scenes5.push_str(&line);
+            scenes5.push('\n');
             let message = envelope(
                 SchemaId::SceneV4,
                 seq as u64 + 1,
@@ -189,6 +264,8 @@ fn examples_s1_to_s8_are_reproducible() {
         }
         snapshot(&format!("s{n}.scene.v4.jsonl"), &scenes);
         snapshot(&format!("s{n}.events.v4.jsonl"), &events);
+        snapshot(&format!("s{n}.scene.v5.jsonl"), &scenes5);
+        snapshot(&format!("s{n}.events.v5.jsonl"), &events5);
     }
 }
 
