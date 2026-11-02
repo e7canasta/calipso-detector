@@ -80,7 +80,7 @@ impl Course<'_> {
             self.at,
             map,
             self.geometry,
-            policy,
+            policy.focus.as_ref(),
         );
         Phase::Waiting(Waiting::primary(region))
     }
@@ -472,17 +472,26 @@ impl Course<'_> {
             attention_memory,
             ..
         } = &self.monitor.engine;
-        attention::reinforce(&g, belief.bed_seen(), attention_memory.latch(), policy)
+        attention::reinforce(
+            &g,
+            belief.bed_seen(),
+            attention_memory.latch(),
+            policy.reinforce.as_ref(),
+        )
     }
 
     fn faces(&self, bodies: &Admission) -> Consideration<(FaceRegion, FacePolicy)> {
         let g = self.glimpse(bodies, &FaceEvidence::NotLooked);
-        attention::faces(&g, &self.monitor.engine.policy)
+        attention::faces(&g, self.monitor.engine.policy.faces.as_ref())
     }
 
     fn pose_bodies(&self, perceived: &Perceived) -> Consideration<BodyPoseLook> {
         let g = self.glimpse(&perceived.bodies, &perceived.faces);
-        attention::pose_bodies(&g, self.room.as_ref(), &self.monitor.engine.policy)
+        attention::pose_bodies(
+            &g,
+            self.room.as_ref(),
+            self.monitor.engine.policy.enrich.as_ref(),
+        )
     }
 
     fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
@@ -494,7 +503,8 @@ impl Course<'_> {
             &observed.believed,
             &engine.calibration,
             &engine.attention_memory,
-            &engine.policy,
+            engine.policy.depth_pad,
+            engine.policy.calibration.as_ref(),
         )
     }
 
@@ -502,7 +512,14 @@ impl Course<'_> {
         let Engine { policy, belief, .. } = &self.monitor.engine;
         let (reference, since) = (belief.pose_reference(), belief.pose_since());
         let posed = evidence.posed.as_ref().map(|p| p.bbox);
-        attention::enrich(believed, posed, reference, since, self.at, policy)
+        attention::enrich(
+            believed,
+            posed,
+            reference,
+            since,
+            self.at,
+            policy.enrich.as_ref(),
+        )
     }
 
     /// A question to the slow verifier, if a doubt is worth one. With a burst
@@ -562,7 +579,13 @@ impl Course<'_> {
             ..
         } = &self.monitor.engine;
         let layer_1 = refined.bed_posture.map(|b| b.state);
-        attention::verify(&g, verification, layer_1, refined.refinement.places, policy)
+        attention::verify(
+            &g,
+            verification,
+            layer_1,
+            refined.refinement.places,
+            policy.verify.as_ref(),
+        )
     }
 
     fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
@@ -582,7 +605,8 @@ impl Course<'_> {
     ) -> Consideration<SubjectDepthLook> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
-        attention::deepen(&g, pose, head, &self.monitor.engine.policy)
+        let policy = &self.monitor.engine.policy;
+        attention::deepen(&g, pose, head, policy.depth_pad, policy.enrich.as_ref())
     }
 
     /// What attention wants looked at, if anything. A no with its reason goes

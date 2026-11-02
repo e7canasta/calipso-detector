@@ -2,14 +2,17 @@
 
 use super::{Consideration, Decision, Glimpse, SkipReason};
 use crate::look::FaceRegion;
-use crate::policy::{FacePolicy, Policy};
+use crate::policy::FacePolicy;
 
 /// Where to look for faces: in the subject's box if seen; otherwise at the
 /// headboard grown by the policy's margin (also when the detector failed).
 /// With neither, nothing is searched.
 /// The face policy goes with the look: evidence admits the faces with it.
-pub(crate) fn faces(g: &Glimpse<'_>, policy: &Policy) -> Consideration<(FaceRegion, FacePolicy)> {
-    let Some(policy) = policy.faces else {
+pub(crate) fn faces(
+    g: &Glimpse<'_>,
+    faces: Option<&FacePolicy>,
+) -> Consideration<(FaceRegion, FacePolicy)> {
+    let Some(policy) = faces.copied() else {
         return Consideration::Disabled;
     };
     Consideration::Decided(

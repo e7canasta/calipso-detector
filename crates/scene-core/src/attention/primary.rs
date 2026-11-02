@@ -6,7 +6,7 @@ use super::{Consideration, Decision, Glimpse, LatchState, Memory, SkipReason};
 use crate::belief::{Alone, Belief, InBed, Room};
 use crate::geom::Rect;
 use crate::map::{Geometry, Map};
-use crate::policy::Policy;
+use crate::policy::{FocusPolicy, ReinforcePolicy};
 use crate::time::SampleRef;
 
 /// Where the main detector runs, which always runs. While the resident is
@@ -22,9 +22,9 @@ pub(crate) fn primary_region(
     at: SampleRef,
     map: &Map,
     geometry: Geometry,
-    policy: &Policy,
+    focus: Option<&FocusPolicy>,
 ) -> Option<Rect> {
-    let focus = policy.focus.as_ref()?;
+    let focus = focus?;
     let region = map.focus_region(geometry, focus.pad)?;
     let alone_in_bed = matches!(belief.room(), Room::Alone(Alone::InBed(_)));
     let sentinel = memory.lens.wide_due(at, focus.wide_every_secs);
@@ -64,9 +64,9 @@ pub(crate) fn reinforce(
     g: &Glimpse<'_>,
     bed_seen: u32,
     latch: LatchState,
-    policy: &Policy,
+    reinforce: Option<&ReinforcePolicy>,
 ) -> Consideration<Rect> {
-    let Some(policy) = &policy.reinforce else {
+    let Some(policy) = reinforce else {
         return Consideration::Disabled;
     };
     let now = g.bodies.seen().map_or(0, |b| b.counts().bed);

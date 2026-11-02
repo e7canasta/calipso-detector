@@ -5,7 +5,7 @@ use super::{Consideration, Decision, Glimpse, SkipReason};
 use crate::belief::Believed;
 use crate::estimation;
 use crate::geom::Rect;
-use crate::policy::Policy;
+use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
 use crate::time::secs_since;
@@ -47,9 +47,9 @@ pub(crate) struct BodyPoseLook {
 pub(crate) fn pose_bodies(
     g: &Glimpse<'_>,
     room: Option<&crate::room::Room>,
-    policy: &Policy,
+    enrich: Option<&EnrichPolicy>,
 ) -> Consideration<BodyPoseLook> {
-    let Some(enrich) = &policy.enrich else {
+    let Some(enrich) = enrich else {
         return Consideration::Disabled;
     };
     let (Some(room), Some(bodies)) = (room, g.bodies.seen()) else {
@@ -80,9 +80,9 @@ pub(crate) fn enrich(
     reference: Option<Rect>,
     since: Option<SampleRef>,
     now: SampleRef,
-    policy: &Policy,
+    enrich: Option<&EnrichPolicy>,
 ) -> EnrichPlan {
-    let Some(policy) = &policy.enrich else {
+    let Some(policy) = enrich else {
         return EnrichPlan::Disabled;
     };
     let subject = match &believed.subject {

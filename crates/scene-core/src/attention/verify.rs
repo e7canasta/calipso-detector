@@ -6,7 +6,6 @@ use crate::belief::bed_posture::BedPostureState;
 use crate::body::HeadPlaceState;
 use crate::geom::Rect;
 use crate::look::{Question, Target};
-use crate::policy::Policy;
 use crate::policy::VerifyPolicy;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
@@ -42,9 +41,9 @@ pub(crate) fn verify(
     verification: &Verification,
     layer_1: Option<BedPostureState>,
     places: Option<BodyPlaces>,
-    policy: &Policy,
+    verify: Option<&VerifyPolicy>,
 ) -> Consideration<VerifyLook> {
-    let Some(verify) = policy.verify else {
+    let Some(verify) = verify.copied() else {
         return Consideration::Disabled;
     };
     // The feet first (v = 4): getting out is the call that matters most.

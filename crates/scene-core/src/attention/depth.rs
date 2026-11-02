@@ -10,7 +10,7 @@ use crate::geom::Point;
 use crate::geom::Rect;
 use crate::map::CalibrationMemory;
 use crate::outcome::DepthTarget;
-use crate::policy::Policy;
+use crate::policy::{CalibrationPolicy, EnrichPolicy};
 use crate::time::secs_since;
 
 /// A depth look: through the lens (`region`; `None`, the whole frame), at
@@ -25,8 +25,8 @@ pub(crate) struct DepthLook<P> {
 /// Where depth is measured: the whole frame (`None`) or, with the policy's
 /// pad, the bed's box grown by it. The subject and the empty bed measure
 /// through the same lens; without the bed's geometry there is no crop to use.
-fn depth_lens(g: &Glimpse<'_>, policy: &Policy) -> Result<Option<Rect>, SkipReason> {
-    match policy.depth_pad {
+fn depth_lens(g: &Glimpse<'_>, depth_pad: Option<f32>) -> Result<Option<Rect>, SkipReason> {
+    match depth_pad {
         None => Ok(None),
         Some(pad) => g
             .map
@@ -45,10 +45,11 @@ pub(crate) fn deepen(
     g: &Glimpse<'_>,
     pose: Option<&[Keypoint]>,
     head: HeadPlace,
-    policy: &Policy,
+    depth_pad: Option<f32>,
+    enrich: Option<&EnrichPolicy>,
 ) -> Consideration<SubjectDepthLook> {
-    let lens = depth_lens(g, policy);
-    let Some(policy) = policy.enrich.as_ref().filter(|p| p.depth) else {
+    let lens = depth_lens(g, depth_pad);
+    let Some(policy) = enrich.filter(|p| p.depth) else {
         return Consideration::Disabled;
     };
     let mut points: Vec<(DepthTarget, Point)> = pose
@@ -91,10 +92,11 @@ pub(crate) fn calibrate(
     believed: &Believed,
     calibration: &CalibrationMemory,
     memory: &Memory,
-    policy: &Policy,
+    depth_pad: Option<f32>,
+    calibration_policy: Option<&CalibrationPolicy>,
 ) -> Consideration<DepthLook<Point>> {
-    let lens = depth_lens(g, policy);
-    let Some(policy) = &policy.calibration else {
+    let lens = depth_lens(g, depth_pad);
+    let Some(policy) = calibration_policy else {
         return Consideration::Disabled;
     };
     let (map, at) = (g.map, g.at);
