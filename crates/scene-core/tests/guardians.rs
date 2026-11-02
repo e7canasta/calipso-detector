@@ -256,3 +256,57 @@ fn the_guardian_tells_a_predicate_from_a_decision() {
         "fn next(&mut self, reached: Reached) -> Phase {"
     ));
 }
+
+/// Whether `line` reads a field of the engine (`.engine.field`, not a method
+/// call `.engine.method(…)`) or destructures it (`let Engine { … }`). Rule 11,
+/// by Demeter: the sequence asks the engine by name, it does not look inside.
+fn reads_an_engine_field(line: &str) -> bool {
+    const FIELD: &str = ".engine.";
+    let field_read = line.match_indices(FIELD).any(|(at, _)| {
+        let after = &line[at + FIELD.len()..];
+        let name_len = after
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(after.len());
+        name_len > 0 && after[name_len..].chars().next().is_some_and(|c| c != '(')
+    });
+    let destructured = line
+        .match_indices("let Engine")
+        .any(|(at, m)| line[at + m.len()..].trim_start().starts_with('{'));
+    field_read || destructured
+}
+
+#[test]
+fn the_round_asks_the_engine_by_name_and_does_not_look_inside() {
+    let offenders: Vec<String> = core_sources()
+        .iter()
+        .filter(|(relative, _)| {
+            (relative.starts_with("cycle/") || relative == "cycle.rs")
+                && relative != "cycle/engine.rs"
+        })
+        .flat_map(|(relative, text)| {
+            text.lines()
+                .filter(|line| reads_an_engine_field(line))
+                .map(move |line| format!("{relative}: {}", line.trim()))
+        })
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "outside cycle/engine.rs the round reads a field of the engine; the engine answers by a named method (rule 11, by Demeter):\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+#[test]
+fn the_guardian_tells_a_field_read_from_a_method_call() {
+    assert!(reads_an_engine_field(
+        "let f = self.engine.frame.is_some();"
+    ));
+    assert!(reads_an_engine_field("let f = course.engine.frame;"));
+    assert!(reads_an_engine_field("let Engine { belief, .. } = engine;"));
+    assert!(reads_an_engine_field("let Engine{ belief, .. } = engine;"));
+    assert!(!reads_an_engine_field(
+        "let r = self.engine.reinforcement(&primary);"
+    ));
+    assert!(!reads_an_engine_field("fn new(policy: Policy) -> Engine {"));
+    assert!(!reads_an_engine_field("let x = self.engine;"));
+}
