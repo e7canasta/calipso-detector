@@ -105,7 +105,7 @@ pub struct Monitor {
 struct Engine {
     map: Map,
     /// What was learned of the empty bed: the loop learns it, the map does not.
-    calibration: CalibrationMemory,
+    calibration_memory: CalibrationMemory,
     belief: Belief,
     reception: reception::Memory,
     /// What attention remembers of what it looked at: the lens and the last
@@ -123,7 +123,7 @@ struct Engine {
     /// The reinforcement detector (attention).
     reinforce: Option<ReinforcePolicy>,
     /// The face detector (attention).
-    faces: Option<FacePolicy>,
+    face_policy: Option<FacePolicy>,
     /// The pose model (attention, refine).
     enrich: Option<EnrichPolicy>,
     /// The empty-bed calibration (attention).

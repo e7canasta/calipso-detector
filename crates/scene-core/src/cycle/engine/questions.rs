@@ -74,15 +74,15 @@ impl Engine {
     }
 
     /// Where to look for faces, with the face policy the look will read with.
-    pub(in crate::cycle) fn faces_look(
-        &self,
-        g: &Glimpse<'_>,
-    ) -> Considered<(FaceRegion, FacePolicy)> {
-        Considered::of(LookKind::Faces, attention::faces(g, self.faces.as_ref()))
+    pub(in crate::cycle) fn faces(&self, g: &Glimpse<'_>) -> Considered<(FaceRegion, FacePolicy)> {
+        Considered::of(
+            LookKind::Faces,
+            attention::faces(g, self.face_policy.as_ref()),
+        )
     }
 
     /// A doubtful body to place with its pose, before believing.
-    pub(in crate::cycle) fn pose_look(
+    pub(in crate::cycle) fn pose(
         &self,
         g: &Glimpse<'_>,
         room: Option<&Room>,
@@ -94,7 +94,7 @@ impl Engine {
     }
 
     /// Whether the empty bed is to be measured to learn it.
-    pub(in crate::cycle) fn calibration_look(
+    pub(in crate::cycle) fn calibration(
         &self,
         g: &Glimpse<'_>,
         believed: &Believed,
@@ -104,7 +104,7 @@ impl Engine {
             attention::calibrate(
                 g,
                 believed,
-                &self.calibration,
+                &self.calibration_memory,
                 &self.attention_memory,
                 self.depth_pad,
                 self.calibration_policy.as_ref(),
@@ -140,7 +140,7 @@ impl Engine {
     }
 
     /// Whether the subject's depth is to be measured, and at which points.
-    pub(in crate::cycle) fn depth_look(
+    pub(in crate::cycle) fn depth(
         &self,
         g: &Glimpse<'_>,
         pose: Option<&[Keypoint]>,
@@ -153,7 +153,7 @@ impl Engine {
     }
 
     /// A reinforcement look that answered: the loss counts as checked.
-    pub(in crate::cycle) fn reinforcement_looked(&mut self) {
+    pub(in crate::cycle) fn reinforced(&mut self) {
         self.attention_memory.reinforced();
     }
 

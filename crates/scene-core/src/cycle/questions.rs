@@ -44,18 +44,18 @@ impl Course<'_> {
 
     pub(super) fn faces(&self, bodies: &Admission) -> Considered<(FaceRegion, FacePolicy)> {
         let g = self.glimpse(bodies, &FaceEvidence::NotLooked);
-        self.engine.faces_look(&g)
+        self.engine.faces(&g)
     }
 
     pub(super) fn pose_bodies(&self, perceived: &Perceived) -> Considered<BodyPoseLook> {
         let g = self.glimpse(&perceived.bodies, &perceived.faces);
-        self.engine.pose_look(&g, self.room.as_ref())
+        self.engine.pose(&g, self.room.as_ref())
     }
 
     pub(super) fn calibrate(&self, observed: &Observed) -> Considered<DepthLook<Point>> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
-        self.engine.calibration_look(&g, &observed.believed)
+        self.engine.calibration(&g, &observed.believed)
     }
 
     pub(super) fn enrich(&self, believed: &Believed, evidence: &Perceived) -> EnrichPlan {
@@ -106,7 +106,7 @@ impl Course<'_> {
     pub(super) fn verify(&self, refined: &Refined) -> Considered<VerifyLook> {
         let Perceived { bodies, faces, .. } = &refined.observed.evidence;
         let g = self.glimpse(bodies, faces);
-        self.engine.verify_look(
+        self.engine.verify(
             &g,
             refined.bed_posture.map(|b| b.state),
             refined.refinement.places,
@@ -126,7 +126,7 @@ impl Course<'_> {
     ) -> Considered<SubjectDepthLook> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
-        self.engine.depth_look(&g, pose, head)
+        self.engine.depth(&g, pose, head)
     }
 
     /// What attention wants looked at, if anything. A no with its reason goes

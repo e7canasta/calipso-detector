@@ -24,7 +24,7 @@ impl Course<'_> {
                 // a failing look, or a reading of another kind, is requested
                 // again on the next sample.
                 if outcome.bodies().is_ok() {
-                    self.engine.reinforcement_looked();
+                    self.engine.reinforced();
                 }
                 let (bodies, result) =
                     self.engine

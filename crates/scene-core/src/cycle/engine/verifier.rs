@@ -13,7 +13,7 @@ use crate::verification::{AskOut, Event, KeptOut, TurnOut};
 
 impl Engine {
     /// Whether a doubt is worth the slow verifier, over what the turn observed.
-    pub(in crate::cycle) fn verify_look(
+    pub(in crate::cycle) fn verify(
         &self,
         g: &attention::Glimpse<'_>,
         layer_1: Option<bed_posture::BedPostureState>,

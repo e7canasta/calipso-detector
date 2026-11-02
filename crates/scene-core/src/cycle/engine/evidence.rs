@@ -48,6 +48,6 @@ impl Engine {
         at: SampleRef,
         depth: Option<f32>,
     ) -> Option<BedCalibrated> {
-        self.calibration.learn(at, depth)
+        self.calibration_memory.learn(at, depth)
     }
 }
