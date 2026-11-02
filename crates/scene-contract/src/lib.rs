@@ -681,7 +681,8 @@ pub struct Keypoint {
 /// name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-// The COCO-17 names document themselves.
+// Las descripciones de estos items serían parte del schema publicado; cambiarlo
+// es un cambio de contrato (regla 13), no una doc.
 #[allow(missing_docs)]
 #[non_exhaustive]
 pub enum Joint {

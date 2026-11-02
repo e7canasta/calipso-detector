@@ -4,7 +4,6 @@
 //! nats::`.
 
 #[path = "../support/models.rs"]
-#[allow(dead_code)]
 mod models;
 #[path = "../support/mod.rs"]
 mod support;

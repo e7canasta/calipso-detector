@@ -4,6 +4,8 @@
 //! the other, this turns red.
 #![allow(clippy::disallowed_methods)]
 
+// The three binaries that compile this module (here, contract_examples and the
+// BDD harness) use different subsets of it, so some items look dead in each.
 #[allow(dead_code)]
 mod script;
 

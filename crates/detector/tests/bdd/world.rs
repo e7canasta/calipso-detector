@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 #[path = "../support/models.rs"]
 pub mod models;
 use cucumber::{World, given, then, when};

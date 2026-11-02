@@ -161,7 +161,7 @@ impl Script {
 /// A body figure: the 17 COCO keypoints around the centre of the subject's box.
 /// The box in bed is 100×200 and its centre is 50 px from the bed's edges
 /// across and 100 along.
-// Only the BDD harness builds figures; the other tests share this file.
+// The three binaries that compile this module use different subsets of it.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Figure {
