@@ -2,6 +2,7 @@
 // What is `pub` is reachable from outside; the rest says `pub(crate)`.
 #![warn(unreachable_pub)]
 pub mod build;
+pub mod clock;
 pub mod config;
 mod decoder;
 pub mod driver;

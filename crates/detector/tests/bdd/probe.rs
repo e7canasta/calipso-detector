@@ -5,6 +5,7 @@
 use crate::driver::publish_samples;
 use crate::world::{Shell, models::Model};
 use cucumber::{given, then, when};
+use detector::clock::SystemClock;
 use detector::router;
 use image::DynamicImage;
 use scene_contract::{SampleRef, SessionId, SourceSecs};
@@ -105,7 +106,10 @@ fn routes(w: &mut Shell) {
     let frame = w.image.clone().expect("an image");
     let mut senses = w.senses();
     let mut verifier = std::mem::take(&mut w.verifier);
-    let answer = router::answer(&mut senses, &mut verifier, &frame, &probe);
+    // The one test that measures real time: "the time is measured by the
+    // router" sleeps inside the answerer and needs the system's clock. Every
+    // other driver test uses FixedClock (ADR 2026-11-02-reloj-inyectado).
+    let answer = router::answer(&SystemClock, &mut senses, &mut verifier, &frame, &probe);
     w.verifier = verifier;
     w.answer = Some(answer);
 }

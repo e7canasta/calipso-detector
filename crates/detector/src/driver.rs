@@ -1,6 +1,7 @@
 //! Translates and delivers: every scene decision belongs to Monitor. The
 //! driver does not know where samples come from or who looks: a
 //! [`SampleSource`] and a [`SensesPort`] are injected into it.
+use crate::clock::{Clock, SystemClock};
 use crate::router;
 use crate::senses::{Frame, SensesPort};
 use crate::source::{Arrival, SampleSource};
@@ -26,21 +27,13 @@ pub(crate) fn stamp_to_ref(stamp: Stamp) -> SampleRef {
         source_secs: SourceSecs(stamp.source_secs),
     }
 }
-/// The timing of one sample: its wait in the source, and the time its turn
-/// took. The only clock read of a sample's path is here.
-fn timing(received: Instant, started: Instant) -> Timing {
-    let now = Instant::now();
-    Timing {
-        wait_ms: started.saturating_duration_since(received).as_secs_f64() * 1000.0,
-        processing_ms: now.saturating_duration_since(started).as_secs_f64() * 1000.0,
-    }
-}
-/// The driver of one camera. By default, with the live senses and no
-/// verifier.
+/// The driver of one camera. By default, with the live senses, no verifier and
+/// the system's clock.
 #[derive(Debug)]
 pub struct Driver<
     S: SensesPort = sense::Senses,
     V: VerifierPort<Frame = <S as SensesPort>::Frame> = NoVerifier<<S as SensesPort>::Frame>,
+    C: Clock = SystemClock,
 > {
     monitor: Monitor,
     senses: S,
@@ -49,24 +42,26 @@ pub struct Driver<
     last_at: Option<SampleRef>,
     session: u64,
     stall_timeout: Duration,
+    clock: C,
 }
-impl<S: SensesPort> Driver<S> {
-    pub fn new(policy: Policy, map: SiteMap, senses: S, stall_timeout: Duration) -> Self {
+impl<S: SensesPort, C: Clock> Driver<S, NoVerifier<S::Frame>, C> {
+    pub fn new(policy: Policy, map: SiteMap, senses: S, stall_timeout: Duration, clock: C) -> Self {
         Self {
             monitor: Monitor::new(policy, map),
             senses,
             verifier: NoVerifier::default(),
-            watch: StreamWatch::new(Instant::now()),
+            watch: StreamWatch::new(clock.now()),
             last_at: None,
             session: 0,
             stall_timeout,
+            clock,
         }
     }
 }
 
-impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
+impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>, C: Clock> Driver<S, V, C> {
     /// The same driver, with a slow verifier behind its own port.
-    pub fn with_verifier<W: VerifierPort<Frame = S::Frame>>(self, verifier: W) -> Driver<S, W> {
+    pub fn with_verifier<W: VerifierPort<Frame = S::Frame>>(self, verifier: W) -> Driver<S, W, C> {
         Driver {
             monitor: self.monitor,
             senses: self.senses,
@@ -75,6 +70,16 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
             last_at: self.last_at,
             session: self.session,
             stall_timeout: self.stall_timeout,
+            clock: self.clock,
+        }
+    }
+    /// The timing of one sample: its wait in the source, and the time its turn
+    /// took. Its turn is read on the driver's clock.
+    fn timing(&self, received: Instant, started: Instant) -> Timing {
+        let now = self.clock.now();
+        Timing {
+            wait_ms: started.saturating_duration_since(received).as_secs_f64() * 1000.0,
+            processing_ms: now.saturating_duration_since(started).as_secs_f64() * 1000.0,
         }
     }
     fn sensor_at(&self) -> SampleRef {
@@ -85,13 +90,14 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
         })
     }
     fn report(&mut self, at: SampleRef, state: SensorState) -> Processed {
-        let started = Instant::now();
+        let started = self.clock.now();
         let output = self.monitor.handle(Input::Sensor { at, state }).cancel();
+        let now = self.clock.now();
         Processed {
             output,
             timing: Timing {
                 wait_ms: 0.0,
-                processing_ms: started.elapsed().as_secs_f64() * 1000.0,
+                processing_ms: now.saturating_duration_since(started).as_secs_f64() * 1000.0,
             },
         }
     }
@@ -119,7 +125,8 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
                 frame,
             } => self.frame(at, frame, received, started),
             Arrival::Transport(event) => {
-                self.on_stream(event, Instant::now()).into_iter().collect()
+                let now = self.clock.now();
+                self.on_stream(event, now).into_iter().collect()
             }
             Arrival::Nothing | Arrival::End => Vec::new(),
         }
@@ -143,7 +150,7 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
         self.session = at.session.0;
         outputs.push(Processed {
             output,
-            timing: timing(received, started),
+            timing: self.timing(received, started),
         });
         outputs
     }
@@ -166,7 +173,13 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
                 })
                 .drive(|probe| {
                     let _look = tracing::debug_span!("look", kind=?probe.kind()).entered();
-                    router::answer(&mut self.senses, &mut self.verifier, &frame, probe)
+                    router::answer(
+                        &self.clock,
+                        &mut self.senses,
+                        &mut self.verifier,
+                        &frame,
+                        probe,
+                    )
                 }),
             Ok(None) => self.no_frame(at, NoFrame::Empty),
             Err(error) => {
@@ -188,7 +201,8 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
     ) {
         let poll = Duration::from_millis(50);
         while !token.is_cancelled() {
-            if let Some(output) = self.poll_stall(Instant::now()) {
+            let now = self.clock.now();
+            if let Some(output) = self.poll_stall(now) {
                 emit(output);
             }
             match source.next(poll) {
@@ -202,6 +216,7 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::clock::FixedClock;
     use crate::source::rtsp::SampleDecoder;
     use image::DynamicImage;
     use ingest::{Payload, Sample};
@@ -218,12 +233,13 @@ mod tests {
             Ok(vec![])
         }
     }
-    fn driver() -> Driver {
+    fn driver() -> Driver<Senses, NoVerifier<DynamicImage>, FixedClock> {
         Driver::new(
             Policy::default(),
             SiteMap::new(Quad::from_rect(Rect::new(10.0, 10.0, 50.0, 50.0))),
             Senses::new(Empty),
             Duration::from_secs(3),
+            FixedClock::new(),
         )
     }
     fn stamp() -> Stamp {
@@ -290,7 +306,8 @@ mod tests {
             })
         );
         assert!(output.scene.republished.is_none());
-        assert!(outputs.last().unwrap().timing.processing_ms >= 0.0);
+        // The driver's clock is fixed: its turn measures zero.
+        assert_eq!(outputs.last().unwrap().timing.processing_ms, 0.0);
     }
     #[test]
     fn the_sensor_republishes_and_the_core_deduplicates() {

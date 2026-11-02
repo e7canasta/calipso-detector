@@ -6,7 +6,9 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use detector::source::frames::FramesSource;
-use detector::{build, config::Config, driver::Driver, publish::PublisherHandle};
+use detector::{
+    build, clock::SystemClock, config::Config, driver::Driver, publish::PublisherHandle,
+};
 use scene_contract::Source;
 use std::{io::Write, path::PathBuf, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -71,6 +73,7 @@ fn main() -> Result<()> {
         // No camera, nothing to stall: the watchdog runs on the wall clock,
         // and a slow turn on a loaded machine must not change the scenes.
         NEVER_STALLS,
+        SystemClock,
     );
     let mut error = None;
     driver.run(&mut source, &CancellationToken::new(), |processed| {

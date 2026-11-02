@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use detector::{
     build,
+    clock::SystemClock,
     config::Config,
     driver::Driver,
     publish::{PublisherHandle, nats},
@@ -99,6 +100,7 @@ async fn main() -> Result<()> {
                 config.site_map(),
                 senses,
                 Duration::from_secs(config.stream.stall_timeout_secs),
+                SystemClock,
             );
             let mut source = RtspSource::new(
                 mailbox,

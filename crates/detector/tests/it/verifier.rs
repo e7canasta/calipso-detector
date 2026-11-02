@@ -4,6 +4,7 @@
 //! the held occupant in that sample's scene.
 use crate::support;
 
+use detector::clock::FixedClock;
 use detector::driver::Driver;
 use detector::verifier::{VerifierPort, jpeg_crop};
 use image::DynamicImage;
@@ -92,6 +93,7 @@ fn a_held_occupant_is_verified_through_the_port_and_confirmed() {
         SiteMap::new(Quad::from_rect(Rect::new(20.0, 20.0, 100.0, 80.0))),
         sense::Senses::new(Script(script)),
         Duration::from_secs(10),
+        FixedClock::new(),
     )
     .with_verifier(Scripted {
         after: 3,

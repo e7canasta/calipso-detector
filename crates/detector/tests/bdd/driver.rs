@@ -1,6 +1,6 @@
 use crate::world::Shell;
 use cucumber::{given, then, when};
-use detector::{config::Config, driver::Driver, publish::PublisherHandle};
+use detector::{clock::FixedClock, config::Config, driver::Driver, publish::PublisherHandle};
 use scene_contract::Source;
 use scene_core::{
     geom::Rect,
@@ -131,6 +131,7 @@ pub fn publish_samples(
         config.site_map(),
         w.senses(),
         Duration::from_secs(10),
+        FixedClock::new(),
     );
     let source = Source {
         site: config.camera.site.clone(),

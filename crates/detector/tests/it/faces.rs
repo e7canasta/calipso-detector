@@ -1,4 +1,5 @@
 use crate::{models, support};
+use detector::clock::FixedClock;
 use detector::driver::Driver;
 use models::Model;
 use scene_core::units::Confidence;
@@ -37,6 +38,7 @@ fn faces_on_current_resident_are_published_in_frame_coordinates_on_subject() {
         map,
         sense::Senses::new(principal).with_faces(faces.clone()),
         Duration::from_secs(10),
+        FixedClock::new(),
     );
     for n in 1..=5 {
         faces.at(n);

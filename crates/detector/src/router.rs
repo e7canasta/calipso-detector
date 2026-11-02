@@ -4,14 +4,15 @@
 //! other code in the shell reads the clock for a probe.
 #![deny(clippy::wildcard_enum_match_arm)]
 
+use crate::clock::Clock;
 use crate::senses::SensesPort;
 use crate::verifier::VerifierPort;
 use scene_core::look::{Failure, Probe, Reading, Route, Spent, VerifierProbe};
-use std::time::Instant;
 
-/// Answers `probe` over the sample's `frame`, and measures the answer in wall
-/// milliseconds. The answerers return no time: this is the only one.
-pub fn answer<S, V>(
+/// Answers `probe` over the sample's `frame`, and measures the answer in
+/// milliseconds of `clock`. The answerers return no time: this is the only one.
+pub fn answer<S, V, C>(
+    clock: &C,
     senses: &mut S,
     verifier: &mut V,
     frame: &S::Frame,
@@ -20,8 +21,9 @@ pub fn answer<S, V>(
 where
     S: SensesPort,
     V: VerifierPort<Frame = S::Frame>,
+    C: Clock,
 {
-    let started = Instant::now();
+    let started = clock.now();
     let result = match probe.route() {
         Route::Sense(sense) => senses.look(frame, &sense),
         Route::Verifier(verified) => match verified {
@@ -39,5 +41,6 @@ where
                 .map(|sharpness| Reading::Kept { sharpness }),
         },
     };
-    (result, Spent(started.elapsed().as_secs_f64() * 1000.0))
+    let spent = clock.now().saturating_duration_since(started);
+    (result, Spent(spent.as_secs_f64() * 1000.0))
 }

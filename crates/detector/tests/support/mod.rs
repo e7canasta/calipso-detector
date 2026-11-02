@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use detector::clock::FixedClock;
 use detector::driver::Driver;
 use detector::source::{Arrival, rtsp::SampleDecoder};
 use image::DynamicImage;
@@ -20,7 +21,7 @@ impl sense::DetectorPort for Script {
         Ok(self.0.pop_front().expect("one reading per sample"))
     }
 }
-pub fn driver() -> Driver {
+pub fn driver() -> Driver<sense::Senses, detector::verifier::NoVerifier<DynamicImage>, FixedClock> {
     const S1: &str = include_str!("../../../../../calipso-golden/scenes/s1-staff-put-to-bed.md");
     let script = golden::language::Scene::parse(S1)
         .unwrap()
@@ -42,6 +43,7 @@ pub fn driver() -> Driver {
         SiteMap::new(Quad::from_rect(Rect::new(20.0, 20.0, 100.0, 80.0))),
         sense::Senses::new(Script(script)),
         Duration::from_secs(3),
+        FixedClock::new(),
     )
 }
 /// A real video sample (testsrc keyframe), already decoded as it arrives from
