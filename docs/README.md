@@ -38,7 +38,7 @@ Los repositorios hermanos están en `../..`:
 
 ## En curso
 
-- Proyecto 38, costuras del núcleo: [frentes](../../calipso-roadmap/en-curso/38-costuras-del-nucleo/frentes.md).
+- Proyecto 38, costuras del núcleo: [frentes](../../calipso-roadmap/archivo/proyectos/38-costuras-del-nucleo/frentes.md).
   Regla 24 de [`RULES.md`](../RULES.md) («el negocio se escribe en el código»),
   con su guardián en `crates/scene-core/tests/guardians.rs` y su
   [ADR](../../calipso-docs/adr/2026-11-02-el-negocio-se-escribe-en-el-codigo.md).
