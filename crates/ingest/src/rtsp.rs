@@ -27,13 +27,15 @@ struct IngestStats {
 }
 
 impl IngestStats {
-    fn report_if_due(&mut self, overwritten: u64) {
-        let now = Instant::now();
+    /// Logs the counters if a stats interval has passed since the last report;
+    /// whether it did.
+    fn report_if_due<C: Clock>(&mut self, clock: &C, overwritten: u64) -> bool {
+        let now = clock.now();
         if self
             .last_report
             .is_some_and(|last| now.duration_since(last) < STATS_INTERVAL)
         {
-            return;
+            return false;
         }
         self.last_report = Some(now);
         info!(
@@ -45,6 +47,7 @@ impl IngestStats {
             self.decode_errors,
             self.packet_errors,
         );
+        true
     }
 }
 
@@ -172,7 +175,7 @@ async fn stream_session<C: Clock>(
             // packet costs its access unit, not the session. Joining mid-NAL
             // yields one error per remaining fragment; only errors without
             // any good item for a while mean the connection is gone.
-            Err(error) if errors.tolerate(Instant::now()) => {
+            Err(error) if errors.tolerate(clock) => {
                 stats.packet_errors += 1;
                 let summary = error.to_string();
                 warn!(
@@ -246,7 +249,7 @@ async fn stream_session<C: Clock>(
                 }
             }
         }
-        stats.report_if_due(mailbox.overwritten());
+        stats.report_if_due(clock, mailbox.overwritten());
     }
     Ok(())
 }
@@ -285,8 +288,9 @@ struct ErrorBudget {
 }
 
 impl ErrorBudget {
-    /// Records an error at `now`; whether the session may go on.
-    fn tolerate(&mut self, now: Instant) -> bool {
+    /// Records an error at the clock's instant; whether the session may go on.
+    fn tolerate<C: Clock>(&mut self, clock: &C) -> bool {
+        let now = clock.now();
         self.in_a_row += 1;
         let since = *self.since.get_or_insert(now);
         self.in_a_row < MAX_ERRORS_IN_A_ROW && now.duration_since(since) < ERROR_WINDOW
@@ -319,35 +323,82 @@ fn publish<C: Clock>(
 
 #[cfg(test)]
 mod tests {
-    use super::{ERROR_WINDOW, ErrorBudget, KeyframeSync, MAX_ERRORS_IN_A_ROW};
+    use super::{
+        ERROR_WINDOW, ErrorBudget, IngestStats, KeyframeSync, MAX_ERRORS_IN_A_ROW, STATS_INTERVAL,
+    };
+    use std::cell::Cell;
     use std::time::{Duration, Instant};
+
+    /// A clock that moves only when a test says so: no sleeps, no system time.
+    /// The origin is only a starting point; every measured time is `elapsed`.
+    struct ManualClock {
+        origin: Instant,
+        elapsed: Cell<Duration>,
+    }
+
+    impl ManualClock {
+        fn new() -> Self {
+            Self {
+                origin: Instant::now(),
+                elapsed: Cell::new(Duration::ZERO),
+            }
+        }
+
+        fn at(&self, elapsed: Duration) {
+            self.elapsed.set(elapsed);
+        }
+    }
+
+    impl super::Clock for ManualClock {
+        fn now(&self) -> Instant {
+            self.origin + self.elapsed.get()
+        }
+    }
 
     #[test]
     fn a_burst_of_fragment_errors_is_tolerated() {
         // Joining mid-NAL: one error per remaining fragment, all at once.
+        let clock = ManualClock::new();
         let mut budget = ErrorBudget::default();
-        let now = Instant::now();
-        assert!((0..200).all(|_| budget.tolerate(now)));
+        assert!((0..200).all(|_| budget.tolerate(&clock)));
         budget.reset();
-        assert!(
-            budget.tolerate(now + ERROR_WINDOW * 10),
-            "a good item resets the window"
-        );
+        clock.at(ERROR_WINDOW * 10);
+        assert!(budget.tolerate(&clock), "a good item resets the window");
     }
 
     #[test]
     fn errors_without_good_items_end_the_session() {
+        let clock = ManualClock::new();
         let mut budget = ErrorBudget::default();
-        let start = Instant::now();
-        assert!(budget.tolerate(start));
-        assert!(budget.tolerate(start + Duration::from_millis(1900)));
-        assert!(!budget.tolerate(start + ERROR_WINDOW));
+        assert!(budget.tolerate(&clock));
+        clock.at(Duration::from_millis(1900));
+        assert!(budget.tolerate(&clock));
+        clock.at(ERROR_WINDOW);
+        assert!(!budget.tolerate(&clock));
 
         let mut spinning = ErrorBudget::default();
         let tolerated = (0..MAX_ERRORS_IN_A_ROW * 2)
-            .take_while(|_| spinning.tolerate(start))
+            .take_while(|_| spinning.tolerate(&clock))
             .count();
         assert_eq!(tolerated as u32, MAX_ERRORS_IN_A_ROW - 1);
+    }
+
+    #[test]
+    fn stats_report_at_most_once_per_interval() {
+        let clock = ManualClock::new();
+        let mut stats = IngestStats::default();
+        assert!(stats.report_if_due(&clock, 0), "the first report is due");
+        clock.at(STATS_INTERVAL - Duration::from_millis(1));
+        assert!(!stats.report_if_due(&clock, 0), "not a whole interval yet");
+        clock.at(STATS_INTERVAL);
+        assert!(
+            stats.report_if_due(&clock, 0),
+            "an interval after the last report"
+        );
+        clock.at(STATS_INTERVAL * 2 - Duration::from_millis(1));
+        assert!(!stats.report_if_due(&clock, 0));
+        clock.at(STATS_INTERVAL * 2);
+        assert!(stats.report_if_due(&clock, 0));
     }
 
     #[test]

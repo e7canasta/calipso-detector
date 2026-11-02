@@ -72,6 +72,13 @@ fn src() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
 }
 
+/// The stream stage (`ingest`) reads no system clock in production: the instant
+/// of a measurement comes from its `Clock`, and the system's one is `SystemClock`
+/// in the shell. Its list of exceptions is therefore empty.
+fn ingest_src() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../ingest/src")
+}
+
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(dir).expect("the source directory is readable") {
         let path = entry.expect("a directory entry").path();
@@ -90,15 +97,15 @@ fn relative(root: &Path, file: &Path) -> String {
         .replace('\\', "/")
 }
 
-#[test]
-fn no_production_code_reads_the_system_clock_outside_the_allowed_files() {
-    let root = src();
+/// The production lines under `root` that read the system clock, in files that
+/// `allowed` does not list.
+fn offenders(root: &Path, allowed: &[(&str, &str)]) -> Vec<String> {
     let mut files = Vec::new();
-    rust_files(&root, &mut files);
+    rust_files(root, &mut files);
     let mut offenders = Vec::new();
     for file in files {
-        let name = relative(&root, &file);
-        if ALLOWED.iter().any(|(allowed, _)| *allowed == name) {
+        let name = relative(root, &file);
+        if allowed.iter().any(|(listed, _)| *listed == name) {
             continue;
         }
         let text = fs::read_to_string(&file).expect("a readable source file");
@@ -108,11 +115,27 @@ fn no_production_code_reads_the_system_clock_outside_the_allowed_files() {
             }
         }
     }
+    offenders
+}
+
+#[test]
+fn no_production_code_reads_the_system_clock_outside_the_allowed_files() {
+    let found = offenders(&src(), ALLOWED);
     assert!(
-        offenders.is_empty(),
+        found.is_empty(),
         "production code reads the system clock outside the allowed list; measure through the \
          injected Clock, or justify the file in ALLOWED and in the ADR:\n  {}",
-        offenders.join("\n  ")
+        found.join("\n  ")
+    );
+}
+
+#[test]
+fn ingest_reads_no_system_clock_in_production() {
+    let found = offenders(&ingest_src(), &[]);
+    assert!(
+        found.is_empty(),
+        "ingest reads the system clock in production; take the instant from its Clock:\n  {}",
+        found.join("\n  ")
     );
 }
 
