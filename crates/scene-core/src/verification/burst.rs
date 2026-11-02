@@ -9,7 +9,7 @@
 //! wall-clock deadline of a request, which is not a source-time expiry.
 
 use super::{Asked, HeldCheck, Settled, Verification, Verifier, decide, holds};
-use crate::attention::VerifyLook;
+use crate::attention::{SkipReason, VerifyLook};
 use crate::belief::bed_posture::BedPostureState;
 use crate::geom::Rect;
 use crate::look::{Target, Ticket, Verified};
@@ -119,6 +119,8 @@ pub(crate) enum Effect {
     Kept { counted: bool },
     /// An answer changed what it asked about.
     Settled(Settled),
+    /// A new doubt could not be asked: one question at a time per camera (P4).
+    Skipped(SkipReason),
 }
 
 /// What a burst being collected does at this sample (white book, volume III,
@@ -262,6 +264,18 @@ impl Verification {
     /// A question is decided: sent now when one frame is enough and nothing
     /// judges the crops, collected otherwise.
     fn ask(&mut self, at: SampleRef, look: VerifyLook, burst: Burst, judged: bool) -> Vec<Effect> {
+        // A new doubt does not replace the question being collected or in flight:
+        // it waits, and the ledger says so. Attention asks first (the same guard);
+        // the machine repeats it, so no path can lose a ticket or a count.
+        if let Phase::Collecting(collecting) = &self.phase
+            && collecting.ticket.target == look.target
+        {
+            // The question being collected is not a new doubt: nothing to note.
+            return Vec::new();
+        }
+        if !matches!(self.phase, Phase::Idle) {
+            return vec![Effect::Skipped(SkipReason::VerifyBusy)];
+        }
         let ticket = self.issue(look.target, at, look.places);
         if burst.frames <= 1 && !judged {
             self.phase = Phase::InFlight { ticket, sent: at };
@@ -577,6 +591,100 @@ mod tests {
         });
         assert_eq!(fx, vec![Effect::Dropped(BurstStep::Resolved)]);
         assert_eq!(v.asked, before, "as before the burst opened");
+    }
+
+    fn ticket_of(v: &Verification) -> Option<Ticket> {
+        match &v.phase {
+            Phase::Collecting(c) => Some(c.ticket),
+            Phase::InFlight { ticket, .. } => Some(*ticket),
+            Phase::Idle => None,
+        }
+    }
+
+    fn disparity_look(places: Option<BodyPlaces>) -> VerifyLook {
+        let rect = Rect::new(0.0, 0.0, 10.0, 10.0);
+        VerifyLook {
+            target: Target::Disparity {
+                stable: BedPostureState::Lying,
+            },
+            region: rect,
+            bed: Quad::from_rect(rect),
+            question: Question::SittingInBed,
+            places,
+        }
+    }
+
+    #[test]
+    fn another_target_while_a_burst_is_collected_is_skipped_and_the_burst_stays() {
+        let mut v = Verification::default();
+        v.step(Event::Ask {
+            at: at(2, 2.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: burst(3),
+            judged: true,
+        });
+        let (before, counted) = (v.phase.clone(), v.asked.clone());
+        let fx = v.step(Event::Ask {
+            at: at(3, 3.0),
+            look: disparity_look(places(FeetPlace::Unseen)),
+            burst: Burst::ONE,
+            judged: false,
+        });
+        assert_eq!(fx, vec![Effect::Skipped(SkipReason::VerifyBusy)]);
+        assert_eq!(
+            v.phase, before,
+            "the burst is not replaced: same ticket, same look"
+        );
+        assert_eq!(v.asked, counted, "a skipped doubt is not counted");
+    }
+
+    #[test]
+    fn the_same_question_while_its_burst_is_collected_is_not_a_new_doubt() {
+        let mut v = Verification::default();
+        v.step(Event::Ask {
+            at: at(2, 2.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: burst(3),
+            judged: true,
+        });
+        let (before, counted) = (v.phase.clone(), v.asked.clone());
+        let fx = v.step(Event::Ask {
+            at: at(3, 3.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: Burst::ONE,
+            judged: false,
+        });
+        assert!(fx.is_empty(), "the ledger already has this burst: {fx:?}");
+        assert_eq!(v.phase, before, "the burst goes on, the same ticket");
+        assert_eq!(
+            v.asked, counted,
+            "a question already counted is not counted again"
+        );
+    }
+
+    #[test]
+    fn a_new_doubt_while_a_question_is_in_flight_is_skipped_and_the_ticket_stays() {
+        let mut v = Verification::default();
+        v.step(Event::Ask {
+            at: at(2, 2.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: Burst::ONE,
+            judged: false,
+        });
+        let ticket = ticket_of(&v);
+        let fx = v.step(Event::Ask {
+            at: at(3, 3.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: Burst::ONE,
+            judged: false,
+        });
+        assert_eq!(fx, vec![Effect::Skipped(SkipReason::VerifyBusy)]);
+        assert!(matches!(v.phase, Phase::InFlight { .. }));
+        assert_eq!(
+            ticket_of(&v),
+            ticket,
+            "the request in flight keeps its ticket"
+        );
     }
 
     #[test]

@@ -22,9 +22,12 @@ Collecting | keep failed |  | Idle asked=1 win=[] held=— | —
 Collecting | answer | for a burst not sent | Collecting asked=1 win=[] held=— | —
 Collecting | settle | no answers | Collecting asked=1 win=[] held=— | —
 Collecting | expire | no request | Collecting asked=1 win=[] held=— | —
+Collecting | ask | a new doubt while collected | Collecting asked=1 win=[] held=— | skipped VerifyBusy
+Collecting | ask | the same question while collected | Collecting asked=1 win=[] held=— | —
 InFlight | dispatch failed | feet | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | dispatch ok | feet | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | turn | feet | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | ask | a new doubt while in flight | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | skipped VerifyBusy
 InFlight | answer | feet · answer yes · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | feet PastTheSides
 InFlight | answer | feet · answer yes · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | feet · answer no · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | feet Seen

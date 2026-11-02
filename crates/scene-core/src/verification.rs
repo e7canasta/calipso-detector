@@ -207,6 +207,12 @@ impl Verification {
         !matches!(self.phase, Phase::Idle)
     }
 
+    /// Is the burst being collected a question about this same `target`? Then a
+    /// doubt about it is not new: the ledger already has the burst.
+    pub(crate) fn collecting_for(&self, target: Target) -> bool {
+        matches!(&self.phase, Phase::Collecting(c) if c.ticket.target == target)
+    }
+
     /// How many requests went out in the last `secs` of source time, in this
     /// session.
     pub(crate) fn asked_within(&self, at: SampleRef, secs: f64) -> usize {

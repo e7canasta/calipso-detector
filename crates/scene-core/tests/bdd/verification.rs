@@ -247,6 +247,28 @@ fn busy(ward: &mut Ward, n: u32) {
     skipped(ward, n, SkipReason::VerifyBusy);
 }
 
+/// The same question while its burst is collected is not a new doubt: the
+/// ledger has no busy skip in that sample.
+#[then(expr = "in sample {int} the verifier is not busy")]
+fn not_busy(ward: &mut Ward, n: u32) {
+    let scene = scene(ward, n);
+    assert!(
+        !scene
+            .attention
+            .looks
+            .iter()
+            .any(|l| l.kind == LookKind::Verify
+                && matches!(
+                    l.outcome,
+                    LookOutcome::Skipped {
+                        reason: SkipReason::VerifyBusy
+                    }
+                )),
+        "sample {n} noted the verifier busy for the question it is already collecting: {:?}",
+        scene.attention.looks
+    );
+}
+
 #[then(expr = "in sample {int} the verifier's budget is spent")]
 fn budget_spent(ward: &mut Ward, n: u32) {
     skipped(ward, n, SkipReason::BudgetSpent);

@@ -147,6 +147,7 @@ fn effect(e: &Effect) -> String {
             }
         ),
         Effect::Kept { counted } => format!("kept counted={counted}"),
+        Effect::Skipped(reason) => format!("skipped {reason:?}"),
         Effect::Settled(settled) => match settled {
             crate::verification::Settled::Nothing => "nothing".to_owned(),
             crate::verification::Settled::Feet(feet) => format!("feet {feet:?}"),
@@ -429,6 +430,42 @@ fn collecting_rows(out: &mut Vec<String>) {
     let mut v = base();
     let fx = expire(&mut v, &rj, at(9, 9.0), None);
     out.push(row("Collecting", "expire", "no request", &v, &fx));
+    let mut v = base();
+    let fx = v.step(Event::Ask {
+        at: at(2, 2.5),
+        look: look(
+            disparity_target(),
+            Question::SittingInBed,
+            Some(places(FeetPlace::Unseen, DisparitySide::Unknown)),
+        ),
+        burst: Burst::ONE,
+        judged: false,
+    });
+    out.push(row(
+        "Collecting",
+        "ask",
+        "a new doubt while collected",
+        &v,
+        &fx,
+    ));
+    let mut v = base();
+    let fx = v.step(Event::Ask {
+        at: at(2, 2.5),
+        look: look(
+            feet_target(),
+            Question::LeavingBed,
+            Some(places(FeetPlace::Unseen, DisparitySide::Unknown)),
+        ),
+        burst: Burst::ONE,
+        judged: false,
+    });
+    out.push(row(
+        "Collecting",
+        "ask",
+        "the same question while collected",
+        &v,
+        &fx,
+    ));
 }
 
 fn in_flight_rows(out: &mut Vec<String>) {
@@ -442,6 +479,20 @@ fn in_flight_rows(out: &mut Vec<String>) {
     let (mut v, _) = in_flight(feet_target(), p);
     let fx = turn(&mut v, at(6, 6.0), Some(BedPostureState::Lying), None);
     out.push(row("InFlight", "turn", "feet", &v, &fx));
+    let (mut v, _) = in_flight(feet_target(), p);
+    let fx = v.step(Event::Ask {
+        at: at(6, 6.0),
+        look: look(disparity_target(), Question::SittingInBed, p),
+        burst: Burst::ONE,
+        judged: false,
+    });
+    out.push(row(
+        "InFlight",
+        "ask",
+        "a new doubt while in flight",
+        &v,
+        &fx,
+    ));
 }
 
 fn settle_rows(out: &mut Vec<String>) {

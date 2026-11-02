@@ -112,6 +112,10 @@ fn ask(
     question: Question,
     places: Option<BodyPlaces>,
 ) -> Consideration<VerifyLook> {
+    // The question being collected is not a new doubt: the ledger has its burst.
+    if verification.collecting_for(target) {
+        return Consideration::Inapplicable;
+    }
     if verification.busy() {
         return Consideration::Decided(Decision::Skip(SkipReason::VerifyBusy));
     }

@@ -227,8 +227,12 @@ impl Course<'_> {
                     match effects.first() {
                         // No burst being collected: a doubt may ask now.
                         None => return self.ask_verifier(refined),
-                        Some(Effect::Waited) => Reached::Final(refined),
+                        Some(Effect::Waited) => {
+                            self.note_busy_doubt(&refined);
+                            Reached::Final(refined)
+                        }
                         Some(Effect::ProbeKeep { ticket, region }) => {
+                            self.note_busy_doubt(&refined);
                             return Phase::Waiting(Waiting::keep(refined, *ticket, *region));
                         }
                         Some(Effect::Dropped(step)) => {
@@ -242,7 +246,10 @@ impl Course<'_> {
                         }
                         // A turn emits none of these: they are not what a burst's step is.
                         Some(
-                            Effect::ProbeVerify { .. } | Effect::Kept { .. } | Effect::Settled(_),
+                            Effect::ProbeVerify { .. }
+                            | Effect::Kept { .. }
+                            | Effect::Settled(_)
+                            | Effect::Skipped(_),
                         ) => {
                             return self.ask_verifier(refined);
                         }
@@ -567,8 +574,20 @@ impl Course<'_> {
             Some(Effect::ProbeKeep { ticket, region }) => {
                 Phase::Waiting(Waiting::keep(refined, *ticket, *region))
             }
+            Some(Effect::Skipped(reason)) => {
+                self.skipped(LookKind::Verify, *reason);
+                Phase::Concluded { refined }
+            }
             _ => Phase::Concluded { refined },
         }
+    }
+
+    /// A doubt that comes while a burst is being collected cannot be asked yet:
+    /// the ledger says so (P4). Attention refuses it as busy, and the refusal is
+    /// what gets noted; a doubt that is not there notes nothing.
+    fn note_busy_doubt(&mut self, refined: &Refined) {
+        let considered = self.verify(refined);
+        let _ = self.wanted(LookKind::Verify, considered);
     }
 
     fn verify(&self, refined: &Refined) -> Consideration<VerifyLook> {
