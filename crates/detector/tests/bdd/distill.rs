@@ -142,7 +142,15 @@ fn empty_faces(w: &mut Shell) {
 
 #[when("the night is distilled")]
 fn distill_night(w: &mut Shell) {
-    let (mut publisher, _rx) = PublisherHandle::channel(
+    // El destilado lee solo v5 (ADR 2026-11-02-retirar-v4): la noche se publica
+    // en v5 y se le pasan solo sus escenas. El perfil lista v4 y v5 porque hoy
+    // una lista solo-v5 no se acepta (`publish.versions must list "v4"`).
+    let config = detector::Config::parse(&format!(
+        "{}[publish]\nversions = [\"v4\", \"v5\"]\n",
+        include_str!("../support/profile.toml")
+    ))
+    .expect("a valid profile");
+    let (mut publisher, _rx) = PublisherHandle::channel_with(
         Source {
             site: "test".into(),
             camera: "bed".into(),
@@ -158,6 +166,7 @@ fn distill_night(w: &mut Shell) {
             hash: ProfileHash("test".into()),
             senses: vec![],
         },
+        &config.publish.versions(),
     );
     let mut jsonl = String::new();
     for out in &w.night {
@@ -172,7 +181,7 @@ fn distill_night(w: &mut Shell) {
             .messages()
             .unwrap()
         {
-            if m.kind == Kind::Scene {
+            if m.kind == Kind::Scene && m.version.token() == "v5" {
                 jsonl.push_str(std::str::from_utf8(&m.bytes).unwrap());
                 jsonl.push('\n');
             }
