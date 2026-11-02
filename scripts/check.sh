@@ -96,7 +96,7 @@ check_no_retired_v4() {
   local found
   # The names the retired contract had: its schema ids, its module path, its
   # type names and the file names it was published under.
-  found=$(grep -rnE 'calipso\.(scene|events)\.v4|\.(scene|events)\.v4|project::v4|scene_contract::v4|\bv4::|\b(Scene|Events)V4\b|SchemaId::(SceneV4|EventsV4)' \
+  found=$(grep -rnE 'calipso\.(scene|events)\.v4|\b(scene|events)\.v4\b|project::v4|scene_contract::v4|\bv4::|\b(Scene|Events|Version|SchemaId)::V4\b|\b(Scene|Events)V4\b|SchemaId::(SceneV4|EventsV4)' \
             crates --include='*.rs' || true)
   [ -z "$found" ] || fail "ADR 2026-11-02-retirar-v4: v4 reappears in the detector: $found"
   # The retired schemas and their examples are not files of the contract either.
