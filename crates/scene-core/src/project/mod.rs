@@ -28,6 +28,7 @@ use crate::refine::{
     VerdictState,
 };
 use crate::units::Seconds;
+use crate::verification::{HeldCheck, HeldCheckState, Verifier};
 use scene_contract::{
     Bed, BedState, BodiesEvidence, BodiesStatus, BodySeen, Evidence, FaceSeen, FacesEvidence,
     FacesStatus, Held, LookKind, LookOutcome, Pending, Progress, Provenance, Republished,
@@ -116,6 +117,34 @@ impl From<Disparities> for scene_contract::Disparities {
             shoulders_pelvis: d.shoulders_pelvis,
             head_pelvis: d.head_pelvis,
             upper_bed_centre: d.upper_bed_centre,
+        }
+    }
+}
+
+impl From<HeldCheckState> for scene_contract::HeldCheckState {
+    fn from(state: HeldCheckState) -> Self {
+        match state {
+            HeldCheckState::Unverified => Self::Unverified,
+            HeldCheckState::Confirmed => Self::Confirmed,
+            HeldCheckState::NotConfirmed => Self::NotConfirmed,
+        }
+    }
+}
+
+impl From<Verifier> for scene_contract::Verifier {
+    fn from(v: Verifier) -> Self {
+        match v {
+            Verifier::Vlm => Self::Vlm,
+        }
+    }
+}
+
+impl From<HeldCheck> for scene_contract::HeldCheck {
+    fn from(c: HeldCheck) -> Self {
+        Self {
+            state: c.state.into(),
+            by: c.by.map(Into::into),
+            looked: c.looked,
         }
     }
 }
@@ -254,7 +283,7 @@ fn bed(
                 last_seen: held.since,
                 check: held_check
                     .filter(|entry| entry.since == held.since)
-                    .map(|entry| entry.check),
+                    .map(|entry| entry.check.into()),
             })
             .collect(),
         unexplained: occupancy.unexplained,

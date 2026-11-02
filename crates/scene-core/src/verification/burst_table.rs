@@ -111,7 +111,7 @@ fn held_str(v: &Verification) -> String {
             h.since.sequence,
             h.held_at.session.0,
             h.held_at.sequence,
-            golden::name(h.check.state).unwrap_or_default()
+            golden::name(scene_contract::HeldCheckState::from(h.check.state)).unwrap_or_default()
         ),
     }
 }
@@ -154,7 +154,10 @@ fn effect(e: &Effect) -> String {
             crate::verification::Settled::Feet(feet) => format!("feet {feet:?}"),
             crate::verification::Settled::Disparity(side) => format!("disparity {side:?}"),
             crate::verification::Settled::Held(state) => {
-                format!("held {}", golden::name(*state).unwrap_or_default())
+                format!(
+                    "held {}",
+                    golden::name(scene_contract::HeldCheckState::from(*state)).unwrap_or_default()
+                )
             }
         },
     }

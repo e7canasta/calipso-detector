@@ -19,12 +19,39 @@ use crate::units::Seconds;
 mod burst;
 pub(crate) use burst::{BurstStep, Effect, Event, Phase};
 
-pub(crate) use scene_contract::HeldCheckState;
-pub(crate) use scene_contract::Verifier;
 /// An hour of source time: the budget's window.
 pub(crate) const HOUR_SECS: f64 = 3600.0;
 
-pub(crate) use scene_contract::HeldCheck;
+/// How much observation backs a body held in bed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HeldCheckState {
+    /// Nobody looked since it stopped being seen.
+    Unverified,
+    /// A verifier saw it: the belief has an observation behind it.
+    Confirmed,
+    /// A verifier looked and did not see it. It is not released: the blanket
+    /// hides it from every verifier (book 4, frontier 3).
+    NotConfirmed,
+}
+
+/// Who looked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Verifier {
+    /// The slow verifier: a vision-language model over a crop of the bed.
+    Vlm,
+}
+
+/// The provenance of a held body: whether a verifier looked, and when.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct HeldCheck {
+    /// Unverified, confirmed or not confirmed.
+    pub state: HeldCheckState,
+    /// Who looked; `None` while unverified.
+    pub by: Option<Verifier>,
+    /// The sample it looked at; `None` while unverified.
+    pub looked: Option<SampleRef>,
+}
+
 /// The check of a body held in bed that nobody has looked at yet: the domain's
 /// starting state, not a property of the wire.
 const UNVERIFIED_HELD_CHECK: HeldCheck = HeldCheck {

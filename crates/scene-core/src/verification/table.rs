@@ -14,7 +14,10 @@ fn settled(s: Settled) -> String {
         Settled::Nothing => "—".to_owned(),
         Settled::Feet(feet) => format!("feet {feet:?}"),
         Settled::Disparity(side) => format!("disparity {side:?}"),
-        Settled::Held(state) => format!("held {}", golden::name(state).unwrap_or_default()),
+        Settled::Held(state) => format!(
+            "held {}",
+            golden::name(scene_contract::HeldCheckState::from(state)).unwrap_or_default()
+        ),
     }
 }
 
