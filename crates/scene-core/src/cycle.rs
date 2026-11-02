@@ -8,6 +8,10 @@
 //!   out of it;
 //! - `engine`: what the engine changes when the turn asks it;
 //! - `sequence`: the order of a turn, in a single place (`Course::next`);
+//! - `readings`: how each reading moves the turn on;
+//! - `questions`: the questions to attention, each with the whole policy;
+//! - `conclude`: what the turn leaves behind (the second level, the observation,
+//!   the ledger);
 //! - `waiting`: each probe with its continuation.
 
 use std::sync::Arc;
@@ -27,8 +31,11 @@ use crate::time::SampleRef;
 use crate::verification::{Verification, VerifyRules};
 use scene_contract::{Event, Scene};
 
+mod conclude;
 mod engine;
 mod monitor;
+mod questions;
+mod readings;
 mod sequence;
 mod waiting;
 use waiting::Waiting;

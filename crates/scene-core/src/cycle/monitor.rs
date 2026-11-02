@@ -4,14 +4,16 @@
 
 use std::sync::Arc;
 
+use super::waiting::Waiting;
 use super::{Course, Engine, Input, Monitor, NoFrame, Open, Output, Phase, Turn};
-use crate::attention::Attention;
+use crate::attention::{self, Attention};
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
 use crate::look::Verified;
-use crate::map::{Geometry, SiteMap};
+use crate::map::{FrameInfo, Geometry, SiteMap};
 use crate::policy::Policy;
 use crate::project::v4;
+use crate::room::Room;
 use crate::time::SampleRef;
 
 impl Input {
@@ -97,5 +99,39 @@ impl Monitor {
                 }
             }
         }
+    }
+}
+
+impl Course<'_> {
+    /// Opens a turn over a sample: the geometry and the main detector, which
+    /// always runs. Neither a reconnection nor another image size releases
+    /// anyone: the belief starts from scratch only with the process.
+    pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
+        self.monitor.engine.settle(self.at);
+        self.monitor.engine.frame = Some(frame);
+        self.geometry = self.monitor.engine.map.gate(frame);
+        let Engine {
+            policy,
+            map,
+            belief,
+            attention_memory,
+            ..
+        } = &self.monitor.engine;
+        self.room = Room::of(
+            map,
+            self.geometry,
+            &policy.admission,
+            policy.two_planes.as_ref(),
+            policy.shadow.as_ref(),
+        );
+        let region = attention::primary_region(
+            belief,
+            attention_memory,
+            self.at,
+            map,
+            self.geometry,
+            policy.focus.as_ref(),
+        );
+        Phase::Waiting(Waiting::primary(region))
     }
 }
