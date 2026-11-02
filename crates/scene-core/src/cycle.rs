@@ -6,10 +6,12 @@
 //!   state a turn carries;
 //! - `monitor`: what one camera is made of, how a turn opens and what comes
 //!   out of it;
-//! - `engine`: what the engine changes when the turn asks it;
+//! - `engine`: what the engine answers and changes when the turn asks it, with
+//!   its own parts of the policy; nothing else reads the engine's fields;
 //! - `sequence`: the order of a turn, in a single place (`Course::next`);
 //! - `readings`: how each reading moves the turn on;
-//! - `questions`: the questions to attention, each with the whole policy;
+//! - `questions`: the turn's questions to the engine, each with its own
+//!   attention look;
 //! - `conclude`: what the turn leaves behind (the second level, the observation,
 //!   the ledger);
 //! - `waiting`: each probe with its continuation.
@@ -165,18 +167,24 @@ pub struct Output {
 /// opening another while it lives. It is driven to the end with [`Turn::drive`]
 /// or [`Turn::cancel`]; there is no other way through, and none is abandoned
 /// (rule 10).
+///
+/// The turn borrows the chronicle and the last scene apart from the course, and
+/// only the close reads them: the course, which is all the decisions see, has
+/// the engine and nothing else (P4, by the borrow checker).
 #[derive(Debug)]
 #[must_use = "a turn is closed with drive or cancel (rule 10)"]
 pub struct Turn<'m> {
     course: Course<'m>,
+    chronicle: &'m mut Chronicle,
+    last: &'m mut Option<(SampleRef, Arc<Scene>)>,
     phase: Phase,
     open: Open,
 }
 
-/// What a turn works on while it runs: the camera, the sample and the ledger.
+/// What a turn works on while it runs: the engine, the sample and the ledger.
 #[derive(Debug)]
 struct Course<'m> {
-    monitor: &'m mut Monitor,
+    engine: &'m mut Engine,
     at: SampleRef,
     geometry: Geometry,
     /// The room of this turn, built once when it opens: every question of
@@ -210,6 +218,8 @@ impl Turn<'_> {
     ) -> Output {
         let Turn {
             mut course,
+            chronicle,
+            last,
             mut phase,
             open,
         } = self;
@@ -225,7 +235,7 @@ impl Turn<'_> {
             };
         };
         std::mem::forget(open);
-        course.monitor.project(course.at, conclusion)
+        monitor::project(chronicle, last, course.at, conclusion)
     }
 
     /// The shell cannot complete (shutdown): `Cancelled` for what is pending,
@@ -305,7 +315,7 @@ mod tests {
                 | Probe::Verify { .. } => (Ok(pose.clone()), Spent(1.0)),
             });
         }
-        assert_eq!(m.engine.belief.pose_reference(), Some(seen));
+        assert_eq!(m.engine.pose_reference(), Some(seen));
         // The main detector loses it; reinforcement sees it moved and a new pose is taken.
         let out = m.handle(sample(4.0)).drive(|r| match r {
             Probe::Detect { .. } => (Ok(Reading::Bodies(vec![])), Spent(1.0)),
@@ -321,6 +331,6 @@ mod tests {
             kinds,
             [LookKind::Detect, LookKind::Reinforce, LookKind::Pose]
         );
-        assert_eq!(m.engine.belief.pose_reference(), Some(seen));
+        assert_eq!(m.engine.pose_reference(), Some(seen));
     }
 }

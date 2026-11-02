@@ -6,15 +6,15 @@ use std::sync::Arc;
 
 use super::waiting::Waiting;
 use super::{Course, Engine, Input, Monitor, NoFrame, Open, Output, Phase, Turn};
-use crate::attention::{self, Attention};
+use crate::attention::Attention;
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
 use crate::look::Verified;
 use crate::map::{FrameInfo, Geometry, SiteMap};
 use crate::policy::Policy;
 use crate::project::v4;
-use crate::room::Room;
 use crate::time::SampleRef;
+use scene_contract::Scene;
 
 impl Input {
     fn at(&self) -> SampleRef {
@@ -38,16 +38,21 @@ impl Monitor {
     /// turn (rule 3): it is noted, and settled at the start of the next
     /// sample's turn as evidence of the sample it looked at.
     pub fn verified(&mut self, verified: Verified) {
-        self.engine
-            .verification
-            .step(crate::verification::Event::Answer(verified));
+        self.engine.answered(verified);
     }
 
-    /// Opens a turn. It is the only way in.
+    /// Opens a turn. It is the only way in. The monitor is taken apart here so
+    /// that the course gets the engine alone, and the turn keeps the chronicle
+    /// and the last scene for its close.
     pub fn handle(&mut self, input: Input) -> Turn<'_> {
         let at = input.at();
+        let Monitor {
+            engine,
+            chronicle,
+            last,
+        } = self;
         let mut course = Course {
-            monitor: self,
+            engine,
             at,
             geometry: Geometry::Valid,
             room: None,
@@ -64,39 +69,48 @@ impl Monitor {
             },
             Input::Sensor { state, .. } => Phase::Republish {
                 reason: RepublishReason::Sensor,
-                changed: course.monitor.engine.reception.report(at, state),
+                changed: course.engine.sensor_reported(at, state),
             },
         };
         Turn {
             course,
+            chronicle,
+            last,
             phase,
             open: Open,
         }
     }
+}
 
-    /// What was concluded, outwards: the chronicle notes the turn and the
-    /// projection builds the scene and events with what the chronicle remembers.
-    pub(super) fn project(&mut self, at: SampleRef, conclusion: Conclusion) -> Output {
-        match conclusion {
-            Conclusion::Observed(observation) => {
-                let chronicled = self.chronicle.record(Entry::of(&observation));
-                let (scene, events) = v4::observed(*observation, &chronicled);
-                let scene = Arc::new(scene);
-                self.last = Some((at, Arc::clone(&scene)));
-                Output { at, scene, events }
-            }
-            Conclusion::Republish {
-                reason,
-                changed,
-                sensor,
-                map,
-            } => {
-                let last = self.last.as_ref().map(|(at, scene)| (scene.as_ref(), *at));
-                Output {
-                    at,
-                    scene: Arc::new(v4::republish(last, reason, sensor, *map)),
-                    events: v4::sensor_events(changed, last.map(|(scene, _)| scene)),
-                }
+/// What was concluded, outwards: the chronicle notes the turn and the
+/// projection builds the scene and events with what the chronicle remembers.
+/// Only the close of a turn calls it, with the chronicle and the last scene it
+/// borrowed apart from the course.
+pub(super) fn project(
+    chronicle: &mut Chronicle,
+    last: &mut Option<(SampleRef, Arc<Scene>)>,
+    at: SampleRef,
+    conclusion: Conclusion,
+) -> Output {
+    match conclusion {
+        Conclusion::Observed(observation) => {
+            let chronicled = chronicle.record(Entry::of(&observation));
+            let (scene, events) = v4::observed(*observation, &chronicled);
+            let scene = Arc::new(scene);
+            *last = Some((at, Arc::clone(&scene)));
+            Output { at, scene, events }
+        }
+        Conclusion::Republish {
+            reason,
+            changed,
+            sensor,
+            map,
+        } => {
+            let previous = last.as_ref().map(|(at, scene)| (scene.as_ref(), *at));
+            Output {
+                at,
+                scene: Arc::new(v4::republish(previous, reason, sensor, *map)),
+                events: v4::sensor_events(changed, previous.map(|(scene, _)| scene)),
             }
         }
     }
@@ -107,31 +121,10 @@ impl Course<'_> {
     /// always runs. Neither a reconnection nor another image size releases
     /// anyone: the belief starts from scratch only with the process.
     pub(super) fn open(&mut self, frame: FrameInfo) -> Phase {
-        self.monitor.engine.settle(self.at);
-        self.monitor.engine.frame = Some(frame);
-        self.geometry = self.monitor.engine.map.gate(frame);
-        let Engine {
-            policy,
-            map,
-            belief,
-            attention_memory,
-            ..
-        } = &self.monitor.engine;
-        self.room = Room::of(
-            map,
-            self.geometry,
-            &policy.admission,
-            policy.two_planes.as_ref(),
-            policy.shadow.as_ref(),
-        );
-        let region = attention::primary_region(
-            belief,
-            attention_memory,
-            self.at,
-            map,
-            self.geometry,
-            policy.focus.as_ref(),
-        );
+        self.engine.settle(self.at);
+        self.geometry = self.engine.open_frame(frame);
+        self.room = self.engine.room_of(self.geometry);
+        let region = self.engine.primary_region(self.at, self.geometry);
         Phase::Waiting(Waiting::primary(region))
     }
 }

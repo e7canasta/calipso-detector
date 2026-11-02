@@ -9,7 +9,7 @@ use crate::belief::Enrichment;
 use crate::evidence::{self, Admission, Perceived};
 use crate::look::Probe;
 use crate::outcome::Outcome;
-use crate::verification::{Effect, Event};
+use crate::verification::Effect;
 
 impl Course<'_> {
     /// The reading arrived: it is interpreted and the turn continues where it was.
@@ -27,14 +27,11 @@ impl Course<'_> {
                 // The loss counts as checked only if reinforcement looked: a
                 // failing reinforcement is requested again on the next sample.
                 if outcome.result.is_ok() {
-                    self.monitor.engine.attention_memory.reinforced();
+                    self.engine.reinforcement_looked();
                 }
-                let (bodies, result) = evidence::consolidate(
-                    primary,
-                    outcome.bodies(),
-                    self.room.as_ref(),
-                    &self.monitor.engine.policy.admission,
-                );
+                let (bodies, result) =
+                    self.engine
+                        .consolidate(primary, outcome.bodies(), self.room.as_ref());
                 self.asked(probe, spent, result);
                 Reached::Bodies(bodies)
             }
@@ -55,12 +52,11 @@ impl Course<'_> {
                 mut perceived,
                 floor,
             } => {
-                let result = evidence::pose_body(
+                let result = self.engine.read_pose_body(
                     &mut perceived,
                     floor,
                     outcome.into_pose(),
                     self.room.as_ref(),
-                    self.monitor.engine.policy.enrich.as_ref(),
                 );
                 self.asked(probe, spent, result);
                 Reached::Evidence(perceived)
@@ -68,7 +64,7 @@ impl Course<'_> {
             Continuation::Calibrate { mut observed } => {
                 let (depth, result) = evidence::depth(outcome.depths());
                 self.asked(probe, spent, result);
-                observed.calibrated = self.monitor.engine.calibration.learn(self.at, depth);
+                observed.calibrated = self.engine.learn_bed(self.at, depth);
                 Reached::Calibrated(observed)
             }
             Continuation::Pose { observed, bbox } => {
@@ -94,7 +90,7 @@ impl Course<'_> {
                 Reached::Enriched(observed, enrichment)
             }
             Continuation::Keep { refined } => {
-                let (result, effects) = self.monitor.engine.kept(self.at, outcome.kept());
+                let (result, effects) = self.engine.kept(self.at, outcome.kept());
                 self.asked(probe, spent, result);
                 // The burst is ready: the question goes out now, with the chosen crops.
                 let ready = effects.into_iter().find_map(|effect| match effect {
@@ -113,17 +109,11 @@ impl Course<'_> {
             Continuation::Verify { refined } => {
                 let result = match outcome.dispatched() {
                     Ok(()) => {
-                        self.monitor
-                            .engine
-                            .verification
-                            .step(Event::Dispatched { ok: true });
+                        self.engine.dispatched(true);
                         LookResult::Dispatched
                     }
                     Err(failure) => {
-                        self.monitor
-                            .engine
-                            .verification
-                            .step(Event::Dispatched { ok: false });
+                        self.engine.dispatched(false);
                         LookResult::failed(failure)
                     }
                 };
@@ -136,14 +126,10 @@ impl Course<'_> {
 
     /// The main detector's reading, admitted by zones and noted in the ledger.
     fn admit(&mut self, probe: &Probe, outcome: Outcome) -> Admission {
-        let admission = evidence::admit(
-            outcome.bodies(),
-            self.room.as_ref(),
-            &self.monitor.engine.policy.admission,
-        );
+        let admission = self.engine.admit(outcome.bodies(), self.room.as_ref());
         self.asked(probe, outcome.spent, admission.result.clone());
         if probe.region().is_none() && matches!(admission.result, LookResult::Read { .. }) {
-            self.monitor.engine.attention_memory.looked_wide(self.at);
+            self.engine.looked_wide(self.at);
         }
         admission
     }

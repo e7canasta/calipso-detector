@@ -12,7 +12,7 @@ use crate::evidence::{Admission, FaceEvidence, Perceived};
 use crate::geom::Rect;
 use crate::look::LookKind;
 use crate::room::Room;
-use crate::verification::{BurstStep, Effect, Event};
+use crate::verification::{BurstStep, Effect};
 
 /// How far the turn got, with what it gathered: the point from which
 /// [`Course::next`] continues.
@@ -107,10 +107,7 @@ impl Course<'_> {
                 Reached::Belief(observed) => {
                     let considered = self.calibrate(&observed);
                     if let Some(look) = self.wanted(LookKind::Calibrate, considered) {
-                        self.monitor
-                            .engine
-                            .attention_memory
-                            .calibration_attempted(self.at);
+                        self.engine.calibration_attempted(self.at);
                         return Phase::Waiting(Waiting::calibrate(observed, look));
                     }
                     Reached::Calibrated(observed)
@@ -165,11 +162,9 @@ impl Course<'_> {
                 }
                 // Conclude.
                 Reached::Enriched(mut observed, enrichment) => {
-                    observed.believed = self.monitor.engine.belief.observe_body(
-                        self.at,
-                        observed.believed,
-                        enrichment,
-                    );
+                    observed.believed =
+                        self.engine
+                            .observe_body(self.at, observed.believed, enrichment);
                     Reached::Body(observed)
                 }
                 // The second level and layer 1, on what was believed.
@@ -177,11 +172,11 @@ impl Course<'_> {
                 // Last attention point: a burst being collected goes on; or
                 // a doubt worth the slow verifier?
                 Reached::Refined(refined) => {
-                    let effects = self.monitor.engine.verification.step(Event::Turn {
-                        at: self.at,
-                        layer_1: refined.bed_posture.map(|b| b.state),
-                        places: refined.refinement.places,
-                    });
+                    let effects = self.engine.verifier_turn(
+                        self.at,
+                        refined.bed_posture.map(|b| b.state),
+                        refined.refinement.places,
+                    );
                     match effects.first() {
                         // No burst being collected: a doubt may ask now.
                         None => return self.ask_verifier(refined),

@@ -1,12 +1,13 @@
-//! The questions to attention: each one gets the whole policy, and the sequencer
-//! never asks which senses are configured (rule 11). Each answer comes back as a
-//! consideration: a look is asked, or the turn goes on.
+//! The turn's questions to the engine: the turn sees what it observed, the engine
+//! answers with its own policy, and the sequencer never asks which senses are
+//! configured (rule 11). Each answer comes back as a consideration: a look is
+//! asked, or the turn goes on.
 
 use super::waiting::Waiting;
-use super::{Course, Engine, Observed, Phase, Refined};
+use super::{Course, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
-    self, BodyPoseLook, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, SubjectDepthLook,
+    BodyPoseLook, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, SubjectDepthLook,
     VerifyLook,
 };
 use crate::belief::Believed;
@@ -19,8 +20,8 @@ use crate::policy::FacePolicy;
 use crate::verification::Effect;
 
 impl Course<'_> {
-    // --- The questions to attention: each one gets the whole policy and the
-    // sequencer never asks which senses are configured (rule 11).
+    // --- The questions to the engine: each one gets the turn's glimpse and the
+    // engine answers with the part of the policy it keeps.
 
     /// What attention sees of this turn.
     pub(super) fn glimpse<'g>(
@@ -28,76 +29,37 @@ impl Course<'_> {
         bodies: &'g Admission,
         faces: &'g FaceEvidence,
     ) -> Glimpse<'g> {
-        Glimpse {
-            at: self.at,
-            geometry: self.geometry,
-            map: &self.monitor.engine.map,
-            bodies: &bodies.bodies,
-            faces,
-        }
+        self.engine.glimpse(self.at, self.geometry, bodies, faces)
     }
 
     pub(super) fn widen(&self, focused: &Admission) -> Consideration<()> {
         let g = self.glimpse(focused, &FaceEvidence::NotLooked);
-        attention::widen(&g, &self.monitor.engine.belief)
+        self.engine.widening(&g)
     }
 
     pub(super) fn reinforce(&self, primary: &Admission) -> Consideration<Rect> {
         let g = self.glimpse(primary, &FaceEvidence::NotLooked);
-        let Engine {
-            policy,
-            belief,
-            attention_memory,
-            ..
-        } = &self.monitor.engine;
-        attention::reinforce(
-            &g,
-            belief.bed_seen(),
-            attention_memory.latch(),
-            policy.reinforce.as_ref(),
-        )
+        self.engine.reinforcement(&g)
     }
 
     pub(super) fn faces(&self, bodies: &Admission) -> Consideration<(FaceRegion, FacePolicy)> {
         let g = self.glimpse(bodies, &FaceEvidence::NotLooked);
-        attention::faces(&g, self.monitor.engine.policy.faces.as_ref())
+        self.engine.faces_look(&g)
     }
 
     pub(super) fn pose_bodies(&self, perceived: &Perceived) -> Consideration<BodyPoseLook> {
         let g = self.glimpse(&perceived.bodies, &perceived.faces);
-        attention::pose_bodies(
-            &g,
-            self.room.as_ref(),
-            self.monitor.engine.policy.enrich.as_ref(),
-        )
+        self.engine.pose_look(&g, self.room.as_ref())
     }
 
     pub(super) fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
-        let engine = &self.monitor.engine;
-        attention::calibrate(
-            &g,
-            &observed.believed,
-            &engine.calibration,
-            &engine.attention_memory,
-            engine.policy.depth_pad,
-            engine.policy.calibration.as_ref(),
-        )
+        self.engine.calibration_look(&g, &observed.believed)
     }
 
     pub(super) fn enrich(&self, believed: &Believed, evidence: &Perceived) -> EnrichPlan {
-        let Engine { policy, belief, .. } = &self.monitor.engine;
-        let (reference, since) = (belief.pose_reference(), belief.pose_since());
-        let posed = evidence.posed.as_ref().map(|p| p.bbox);
-        attention::enrich(
-            believed,
-            posed,
-            reference,
-            since,
-            self.at,
-            policy.enrich.as_ref(),
-        )
+        self.engine.enrichment(self.at, believed, evidence)
     }
 
     /// A question to the slow verifier, if a doubt is worth one. With a burst
@@ -109,7 +71,7 @@ impl Course<'_> {
             return Phase::Concluded { refined };
         };
         // An ask emits exactly one probe: the request, or the first crop of its burst.
-        match self.monitor.engine.issue(self.at, &look).first() {
+        match self.engine.issue(self.at, &look).first() {
             Some(Effect::ProbeVerify {
                 ticket,
                 look,
@@ -137,28 +99,16 @@ impl Course<'_> {
     pub(super) fn verify(&self, refined: &Refined) -> Consideration<VerifyLook> {
         let Perceived { bodies, faces, .. } = &refined.observed.evidence;
         let g = self.glimpse(bodies, faces);
-        let Engine {
-            policy,
-            verification,
-            ..
-        } = &self.monitor.engine;
-        let layer_1 = refined.bed_posture.map(|b| b.state);
-        attention::verify(
+        self.engine.verify_look(
             &g,
-            verification,
-            layer_1,
+            refined.bed_posture.map(|b| b.state),
             refined.refinement.places,
-            policy.verify.as_ref(),
         )
     }
 
     pub(super) fn head_place(&self, observed: &Observed, pose: Option<&[Keypoint]>) -> HeadPlace {
-        crate::refine::head::of_turn(
-            &observed.evidence.faces,
-            pose,
-            self.room.as_ref(),
-            self.monitor.engine.policy.enrich.as_ref(),
-        )
+        self.engine
+            .head_place(&observed.evidence.faces, pose, self.room.as_ref())
     }
 
     pub(super) fn deepen(
@@ -169,8 +119,7 @@ impl Course<'_> {
     ) -> Consideration<SubjectDepthLook> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
-        let policy = &self.monitor.engine.policy;
-        attention::deepen(&g, pose, head, policy.depth_pad, policy.enrich.as_ref())
+        self.engine.depth_look(&g, pose, head)
     }
 
     /// What attention wants looked at, if anything. A no with its reason goes
