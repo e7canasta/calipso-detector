@@ -51,6 +51,8 @@ pub struct Publication {
     pub events: Vec<EventPublication>,
     pub scene: ScenePublication,
     pub v5: Option<Publication5>,
+    /// Whether the profile lists v4: only then do its messages go out.
+    pub publish_v4: bool,
 }
 
 /// The same turn in v5: its events, then its scene.
@@ -167,10 +169,12 @@ impl Publication {
     /// its events before its scene; v4 first.
     pub fn messages(&self) -> serde_json::Result<Vec<WireMessage>> {
         let mut messages = Vec::with_capacity(self.events.len() + 1);
-        for event in &self.events {
-            messages.push(event.wire()?);
+        if self.publish_v4 {
+            for event in &self.events {
+                messages.push(event.wire()?);
+            }
+            messages.push(self.scene.wire()?);
         }
-        messages.push(self.scene.wire()?);
         if let Some(v5) = &self.v5 {
             for event in &v5.events {
                 messages.push(event.wire()?);
@@ -225,6 +229,7 @@ pub struct PublisherHandle {
     profile: Profile,
     numbering: Numbering,
     numbering5: Numbering,
+    publish_v4: bool,
     publish_v5: bool,
     tx: mpsc::Sender<Publication>,
     dropped_events: u64,
@@ -249,6 +254,7 @@ impl PublisherHandle {
                 profile,
                 numbering: Numbering::default(),
                 numbering5: Numbering::default(),
+                publish_v4: versions.contains(&Version::V4),
                 publish_v5: versions.contains(&Version::V5),
                 tx,
                 dropped_events: 0,
@@ -267,6 +273,7 @@ impl PublisherHandle {
             profile,
             numbering,
             numbering5,
+            publish_v4,
             publish_v5,
             ..
         } = self;
@@ -345,6 +352,7 @@ impl PublisherHandle {
             events: v4_events,
             scene: v4_scene,
             v5,
+            publish_v4: *publish_v4,
         }
     }
 

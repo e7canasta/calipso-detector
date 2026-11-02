@@ -217,8 +217,15 @@ pub async fn run(
 
 /// Hands a publication to each version's queue.
 fn ingest(pending4: &mut PendingV4, pending5: &mut PendingV5, publication: Publication) {
-    let Publication { events, scene, v5 } = publication;
-    pending4.ingest(events, scene);
+    let Publication {
+        events,
+        scene,
+        v5,
+        publish_v4,
+    } = publication;
+    if publish_v4 {
+        pending4.ingest(events, scene);
+    }
     if let Some(v5) = v5 {
         pending5.ingest(v5.events, v5.scene);
     }

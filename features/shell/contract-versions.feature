@@ -13,6 +13,14 @@ Feature: The shell publishes the contract versions its profile chooses
     Then every published message is of contract v4
     And every published message validates against its schema
 
+  Scenario: A profile that lists v5 alone publishes v5 only
+    Given a detector with reinforcement and scripted models and publish version "v5"
+    And a scripted main model
+    And the main model sees the resident in bed in samples 1 to 4 and nobody after
+    When samples 1 to 4 arrive
+    Then every published message is of contract v5
+    And every published message validates against its schema
+
   Scenario: A profile that lists v5 publishes both versions, each with its own numbering
     Given a detector with reinforcement and scripted models and publish versions "v4" and "v5"
     And a scripted main model
@@ -55,3 +63,19 @@ Feature: The shell publishes the contract versions its profile chooses
     Then the reception change of v5 has no observed_at
     And the reception change event of v5 has no at
     And the reception change of v4 says observed_at of sample 0
+
+  # Retirar v4 (ADR 2026-11-02-retirar-v4): v5 solo, sin v4 al lado.
+  Scenario: The v5 events are numbered from 1 with no v4 beside them
+    Given a detector with reinforcement and scripted models and publish version "v5"
+    And a scripted main model
+    And the main model sees the resident in bed in samples 1 to 4 and nobody after
+    When samples 1 to 4 arrive
+    Then the event numbers of v5 start at 1 and are contiguous
+
+  Scenario: A reception change in v5 has no observed_at, with no v4 beside it
+    Given a detector with reinforcement and scripted models and publish version "v5"
+    And a scripted main model
+    And the main model sees the resident in bed in samples 1 to 4 and nobody after
+    When samples 1 to 4 arrive and then the stream disconnects
+    Then the reception change of v5 has no observed_at
+    And the reception change event of v5 says at of sample 4

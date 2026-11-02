@@ -7,7 +7,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PublishConfig {
-    /// `["v4"]` by default; `["v4", "v5"]` publishes both, each with its own
+    /// `["v4"]` by default; `["v5"]` alone publishes v5 only; `["v4", "v5"]` publishes both, each with its own
     /// numbering and its own subjects.
     #[serde(default = "default_versions")]
     pub versions: Vec<String>,

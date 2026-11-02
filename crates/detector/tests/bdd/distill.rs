@@ -142,11 +142,10 @@ fn empty_faces(w: &mut Shell) {
 
 #[when("the night is distilled")]
 fn distill_night(w: &mut Shell) {
-    // El destilado lee solo v5 (ADR 2026-11-02-retirar-v4): la noche se publica
-    // en v5 y se le pasan solo sus escenas. El perfil lista v4 y v5 porque hoy
-    // una lista solo-v5 no se acepta (`publish.versions must list "v4"`).
+    // El destilado lee solo v5 (ADR 2026-11-02-retirar-v4): el perfil lista solo
+    // v5, y el publicador saca lo que lista.
     let config = detector::Config::parse(&format!(
-        "{}[publish]\nversions = [\"v4\", \"v5\"]\n",
+        "{}[publish]\nversions = [\"v5\"]\n",
         include_str!("../support/profile.toml")
     ))
     .expect("a valid profile");

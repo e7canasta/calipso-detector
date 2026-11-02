@@ -168,6 +168,16 @@ fn reinforce_driver_with_versions(w: &mut Shell, first: String, second: String) 
     );
 }
 
+#[given(expr = "a detector with reinforcement and scripted models and publish version {string}")]
+fn reinforce_driver_with_version(w: &mut Shell, version: String) {
+    detector_profile(
+        w,
+        &format!(
+            "[senses.reinforce]\nmodel = \"yolo26l.onnx\"\nbed_padding = 0.15\n[publish]\nversions = [\"{version}\"]\n"
+        ),
+    );
+}
+
 #[given(expr = "a profile with publish versions {string}")]
 fn publish_versions(w: &mut Shell, version: String) {
     w.parse_config(&format!("[publish]\nversions = [\"{version}\"]\n"));
@@ -188,6 +198,21 @@ fn only_v4(w: &mut Shell) {
     for message in &w.messages {
         let schema = message["schema"].as_str().expect("schema");
         assert!(schema.ends_with(".v4"), "{message}");
+    }
+}
+
+/// Retirar v4 (ADR 2026-11-02-retirar-v4): sin sección `[publish]` el detector
+/// publica solo v5. Estos pasos se escriben antes del corte; el corte cambia
+/// el default, no la especificación.
+#[then("every published message is of contract v5")]
+fn only_v5(w: &mut Shell) {
+    assert!(!w.messages.is_empty(), "no se publico nada");
+    for message in &w.messages {
+        let schema = message["schema"].as_str().expect("schema");
+        assert!(
+            schema.ends_with(".v5"),
+            "se publico {schema} sin pedirlo: {message}"
+        );
     }
 }
 
@@ -310,7 +335,11 @@ fn bed(w: &mut Shell, sample: u64, expected: String) {
 /// Each message validates against the schema it names.
 #[then("every published message validates against its schema")]
 fn valid_publications(w: &mut Shell) {
-    assert!(w.messages.iter().any(|m| m["schema"] == "calipso.scene.v4"));
+    assert!(
+        w.messages
+            .iter()
+            .any(|m| { m["schema"] == "calipso.scene.v4" || m["schema"] == "calipso.scene.v5" })
+    );
     let validator = |name: &str| {
         let path = format!(
             "{}/../../contract/schema/{name}.json",
