@@ -8,8 +8,6 @@ use crate::geom::Rect;
 use crate::look::{Detection, Failure};
 use crate::room::shadow::BodyShadow;
 use crate::zone::Counts;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 mod bodies;
 mod depth;
@@ -160,28 +158,7 @@ impl Admission {
     }
 }
 
-/// Which detector the admitted body came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum BodySource {
-    /// The main detector, over the whole frame.
-    Primary,
-    /// The finer detector, over the bed.
-    Reinforcement,
-}
-
-/// Why a candidate did not count as evidence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RejectReason {
-    /// Another class than a person.
-    NotPerson,
-    /// Below the policy's minimum confidence.
-    LowConfidence,
-    /// Outside the region where the look was requested.
-    OutsideRegion,
-}
-
+pub use scene_contract::{BodySource, RejectReason};
 /// Ledger quantities are `u32`; no sense returns that many.
 fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)

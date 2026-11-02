@@ -5,7 +5,7 @@ use crate::config::Config;
 use anyhow::{Context, Result};
 use image::DynamicImage;
 use scene_core::{
-    look::{Failure, Probe, Reading, Spent},
+    look::{Failure, Reading, SenseProbe},
     map::FrameInfo,
 };
 
@@ -24,16 +24,17 @@ impl Frame for DynamicImage {
     }
 }
 
-/// Who looks: it answers each probe over the sample's frame.
+/// Who looks: it answers each sense probe over the sample's frame. It does not
+/// measure time: the router does (`crate::router`).
 pub trait SensesPort {
     type Frame: Frame;
-    fn look(&mut self, frame: &Self::Frame, probe: &Probe) -> (Result<Reading, Failure>, Spent);
+    fn look(&mut self, frame: &Self::Frame, probe: &SenseProbe<'_>) -> Result<Reading, Failure>;
 }
 
 /// Live: the models over the image.
 impl SensesPort for sense::Senses {
     type Frame = DynamicImage;
-    fn look(&mut self, frame: &DynamicImage, probe: &Probe) -> (Result<Reading, Failure>, Spent) {
+    fn look(&mut self, frame: &DynamicImage, probe: &SenseProbe<'_>) -> Result<Reading, Failure> {
         sense::Senses::look(self, frame, probe)
     }
 }

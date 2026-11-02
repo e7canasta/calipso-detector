@@ -39,7 +39,7 @@ fn events_v4() {
 /// A v4 transition, as is: it reads and writes back the same.
 #[test]
 fn the_v4_transition_is_the_specs() {
-    use scene_core::contract::v4::{Cell, Event};
+    use scene_core::contract::v4::Event;
     let at = |sequence: u64, secs: f64| serde_json::json!({ "session": 1, "sequence": sequence, "source_secs": secs });
     let json = serde_json::json!({
         "kind": "transition",
@@ -64,7 +64,7 @@ fn the_v4_transition_is_the_specs() {
     };
     assert_eq!(
         transition.cell,
-        Cell::new(
+        scene_core::contract::v4::cell_of(
             transition.before.occupancy.rbh,
             transition.seen.fv,
             transition.after.rbh

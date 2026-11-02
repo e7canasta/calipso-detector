@@ -44,9 +44,10 @@
 //   look at: it reads the belief and never writes it.
 // `cycle` sequences the turn and `Monitor` composes engine, chronicle and
 // projection; `policy` and `map` configure; `geom` and `estimation` are
-// domain-free maths; `sensor` remembers the reception. The vocabulary that the
-// domain and the contract share (`time`, `zone`, `body`, `provenance` and the
-// types of `look`, `evidence`, `attention`, `map`, `sensor`, `refine`) is owned
+// domain-free maths; `reception` remembers what the shell reports of the source.
+// The vocabulary that the domain and the contract share (`time`, `zone`, `body`,
+// `provenance` and the types of `look`, `evidence`, `attention`, `map`,
+// `reception`, `refine`) is owned
 // by the domain and re-exported by each contract version.
 mod attention;
 mod belief;
@@ -57,17 +58,22 @@ pub mod contract;
 mod cycle;
 mod estimation;
 mod evidence;
-pub mod geom;
+// Geometry is a crate of its own (ADR 2026-11-02, crates-del-lenguaje): the
+// core re-exports it under its old path, so `scene_core::geom::Rect` is the same.
+pub use scene_geom as geom;
 #[cfg(test)]
 mod golden;
-pub mod look;
+// The perception language is a crate of its own (ADR 2026-11-02, crates-del-lenguaje):
+// the core re-exports it under its old path, `scene_core::look`.
+pub use scene_look as look;
 pub mod map;
+mod outcome;
 pub mod policy;
 mod project;
 mod provenance;
+mod reception;
 mod refine;
 mod room;
-mod sensor;
 mod time;
 mod verification;
 mod zone;

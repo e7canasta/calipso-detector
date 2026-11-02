@@ -1,0 +1,16 @@
+[package]
+name = "scene-contract"
+description = "The wire: the published vocabulary of scene.v4 and events.v4, with no logic and no domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+scene-geom = { path = "../scene-geom" }
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }

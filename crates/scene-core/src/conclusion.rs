@@ -7,11 +7,9 @@ use crate::attention::Attention;
 use crate::belief::Believed;
 use crate::evidence::Perceived;
 use crate::map::{FrameInfo, MapState};
-use crate::sensor::SensorChanged;
-use crate::sensor::SensorState;
+use crate::reception::SensorChanged;
+use crate::reception::SensorState;
 use crate::time::SampleRef;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// What the engine concludes from a closed turn.
 #[derive(Debug)]
@@ -52,16 +50,4 @@ pub(crate) struct Observation {
     pub dwell_secs: f64,
 }
 
-/// Why the scene is republished without a new observation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RepublishReason {
-    /// The sample did not decode.
-    DecodeFailed,
-    /// The decoder produced no image.
-    DecodeEmpty,
-    /// The sensor state changed.
-    Sensor,
-    /// The main detector failed: the belief is that of the last observation.
-    DetectFailed,
-}
+pub use scene_contract::RepublishReason;

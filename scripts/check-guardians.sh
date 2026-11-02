@@ -20,7 +20,26 @@ golden=$(cd "$root/../calipso-golden" && pwd)
 # incremental cache, from before it was off.
 rm -rf "$guardians/debug" "$guardians/tmp" "$guardians/build/debug/incremental"
 status=0
-for fixture in scripts/fixtures/*.sh; do
+# Each fixture is named here: check.sh fails if a file in scripts/fixtures/ is
+# not named, or a name has no file, so a guardian cannot lose its fixture in silence.
+fixtures=(
+  scripts/fixtures/common-projection-names-a-version.sh
+  scripts/fixtures/contract-changes-without-snapshot.sh
+  scripts/fixtures/core-depends-on-tokio.sh
+  scripts/fixtures/core-panics.sh
+  scripts/fixtures/core-reads-the-clock.sh
+  scripts/fixtures/core-undocumented.sh
+  scripts/fixtures/cycle-consults-a-policy.sh
+  scripts/fixtures/geom-depends-on-tokio.sh
+  scripts/fixtures/occupancy-reads-verify.sh
+  scripts/fixtures/room-reads-a-layer.sh
+  scripts/fixtures/sense-depends-on-core.sh
+  scripts/fixtures/space-outside-room.sh
+  scripts/fixtures/undefined-step-shell.sh
+  scripts/fixtures/undefined-step.sh
+  scripts/fixtures/unlisted-fixture.sh
+)
+for fixture in "${fixtures[@]}"; do
   name=$(basename "$fixture" .sh)
   # The copy keeps its name next to calipso-golden: the path dependencies
   # between both repositories resolve to the copy.

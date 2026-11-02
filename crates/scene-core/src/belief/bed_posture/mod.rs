@@ -16,41 +16,9 @@ mod machine;
 mod rules;
 
 pub(crate) use machine::Machine;
+pub use scene_contract::{BedPostureSeen, BedPostureState};
 
 use crate::belief::InBed;
-use crate::time::SampleRef;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
-/// How the resident in bed is, as layer 1 believes it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum BedPostureState {
-    /// In bed, not yet believed lying: they just came in, or were there at
-    /// startup. From here only lying is reported.
-    InBed,
-    /// Lying: held in bed, where upright would be seen; or seen with the head
-    /// at the headboard and the disparity of lying.
-    Lying,
-    /// Sat up, after lying: the head seen away from the headboard. Sliding
-    /// down the bed is sitting up too, on purpose: it deserves a look (G-13).
-    SittingUp,
-    /// Getting out, after lying: the head or the feet seen past the bed's
-    /// sides.
-    GettingOut,
-}
-
-impl BedPostureState {
-    /// The state as the contract names it: a cell is written with it.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::InBed => "in_bed",
-            Self::Lying => "lying",
-            Self::SittingUp => "sitting_up",
-            Self::GettingOut => "getting_out",
-        }
-    }
-}
 
 /// What layer 1 perceives by itself in a sample, from a fresh pose: the
 /// second level's half of the row's input; layer 0's state is the other.
@@ -71,59 +39,6 @@ pub(crate) enum Sighting {
     Unknown,
 }
 
-/// What a sample brought to layer 1, as published: held in bed when layer 0
-/// holds the resident (there is nothing of theirs to see), otherwise what
-/// layer 1 perceived.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum BedPostureSeen {
-    /// Held in bed, alone: unseen without leaving.
-    Held,
-    /// The head seen away from the headboard, but not past the bed's sides:
-    /// by definition, not lying.
-    HeadAway,
-    /// The head seen past the bed's sides.
-    HeadSide,
-    /// A foot seen past the bed's sides: getting up from below.
-    LegsOut,
-    /// The head at the headboard and the disparity of lying.
-    HeadboardLying,
-    /// The head at the headboard and the disparity of sitting up: against the
-    /// headboard.
-    HeadboardUpright,
-    /// Nothing that says how they are: the state holds.
-    Unknown,
-}
-
-impl BedPostureSeen {
-    /// What was seen as the contract names it: a cell is written with it.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Held => "held",
-            Self::HeadAway => "head_away",
-            Self::HeadSide => "head_side",
-            Self::LegsOut => "legs_out",
-            Self::HeadboardLying => "headboard_lying",
-            Self::HeadboardUpright => "headboard_upright",
-            Self::Unknown => "unknown",
-        }
-    }
-
-    /// The row's input, as published: layer 0's state and what layer 1
-    /// perceived.
-    pub(crate) fn of(l0: InBed, sighting: Sighting) -> Self {
-        match (l0, sighting) {
-            (InBed::Held, _) => Self::Held,
-            (InBed::Seen, Sighting::HeadboardLying) => Self::HeadboardLying,
-            (InBed::Seen, Sighting::HeadboardUpright) => Self::HeadboardUpright,
-            (InBed::Seen, Sighting::LegsOut) => Self::LegsOut,
-            (InBed::Seen, Sighting::HeadSide) => Self::HeadSide,
-            (InBed::Seen, Sighting::HeadAway) => Self::HeadAway,
-            (InBed::Seen, Sighting::Unknown) => Self::Unknown,
-        }
-    }
-}
-
 /// What layer 1 concluded in a turn: the state and what was seen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Concluded {
@@ -131,16 +46,19 @@ pub(crate) struct Concluded {
     pub seen: BedPostureSeen,
 }
 
-/// The published bed posture: the state, what was seen in this sample and
-/// since when the state holds (a fold of the chronicle, P4).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct BedPosture {
-    /// How the resident in bed is.
-    pub state: BedPostureState,
-    /// What was seen in this sample.
-    pub seen: BedPostureSeen,
-    /// The first sample of this state, without interruption.
-    pub since: SampleRef,
+pub use scene_contract::BedPosture;
+/// The row's input, as published: layer 0's state and what layer 1
+/// perceived.
+pub(crate) fn bed_posture_seen_of(l0: InBed, sighting: Sighting) -> BedPostureSeen {
+    match (l0, sighting) {
+        (InBed::Held, _) => BedPostureSeen::Held,
+        (InBed::Seen, Sighting::HeadboardLying) => BedPostureSeen::HeadboardLying,
+        (InBed::Seen, Sighting::HeadboardUpright) => BedPostureSeen::HeadboardUpright,
+        (InBed::Seen, Sighting::LegsOut) => BedPostureSeen::LegsOut,
+        (InBed::Seen, Sighting::HeadSide) => BedPostureSeen::HeadSide,
+        (InBed::Seen, Sighting::HeadAway) => BedPostureSeen::HeadAway,
+        (InBed::Seen, Sighting::Unknown) => BedPostureSeen::Unknown,
+    }
 }
 
 #[cfg(test)]

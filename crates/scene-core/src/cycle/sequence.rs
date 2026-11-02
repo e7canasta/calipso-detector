@@ -17,11 +17,12 @@ use crate::body::Keypoint;
 use crate::conclusion::{Conclusion, Observation, RepublishReason};
 use crate::evidence::{self, Admission, FaceEvidence, Perceived};
 use crate::geom::{Point, Rect};
-use crate::look::{FaceRegion, LookKind, Outcome, Probe, Spent};
+use crate::look::{FaceRegion, LookKind, Probe, Spent};
 use crate::map::{FrameInfo, Geometry};
+use crate::outcome::Outcome;
 use crate::policy::FacePolicy;
+use crate::reception::SensorChanged;
 use crate::room::Room;
-use crate::sensor::SensorChanged;
 use crate::verification::Collecting;
 
 /// How far the turn got, with what it gathered: the point from which
@@ -416,7 +417,7 @@ impl Course<'_> {
             map: engine
                 .map
                 .state(self.geometry, &engine.policy, &engine.calibration),
-            sensor: engine.sensor.state(),
+            sensor: engine.reception.state(),
             dwell_secs: engine.policy.persistence.dwell_secs,
         }))
     }
@@ -431,7 +432,7 @@ impl Course<'_> {
         Conclusion::Republish {
             reason,
             changed,
-            sensor: engine.sensor.state(),
+            sensor: engine.reception.state(),
             map: Box::new(
                 engine
                     .map

@@ -1,5 +1,6 @@
-//! The missing-samples timer, extracted from v2's main.rs @4c74723.
-//! It neither decides sensor changes nor emits domain facts.
+//! The health of the stream, with a clock: the missing-samples timer, extracted
+//! from v2's main.rs @4c74723. It neither decides reception changes nor emits
+//! domain facts.
 use std::time::{Duration, Instant};
 
 #[derive(Debug)]
@@ -21,7 +22,7 @@ impl Stall {
     }
 }
 
-/// Translates transport states; the core decides whether the sensor changed.
+/// Translates transport states; the core decides whether the reception changed.
 pub(crate) fn translate(event: &ingest::StreamEvent) -> Option<scene_core::contract::SensorState> {
     use scene_core::contract::SensorState;
     match event {
@@ -35,14 +36,14 @@ pub(crate) fn translate(event: &ingest::StreamEvent) -> Option<scene_core::contr
     }
 }
 
-/// One reception deadline per session; armed on streaming and fired once.
+/// One stall deadline per session; armed on streaming and fired once.
 #[derive(Debug)]
-pub(crate) struct Sensor {
+pub(crate) struct StreamWatch {
     stall: Stall,
     armed: bool,
     fired: bool,
 }
-impl Sensor {
+impl StreamWatch {
     pub(crate) fn new(now: Instant) -> Self {
         Self {
             stall: Stall::new(now),
@@ -79,22 +80,22 @@ mod tests {
     fn stall_only_while_streaming_and_a_sample_recovers() {
         let t = Instant::now();
         let limit = Duration::from_secs(3);
-        let mut sensor = Sensor::new(t);
-        assert!(!sensor.poll(t + limit, limit));
-        sensor.on_stream(&ingest::StreamEvent::Streaming { session: 1 }, t);
-        assert!(!sensor.poll(t + limit - Duration::from_nanos(1), limit));
-        assert!(sensor.poll(t + limit, limit));
-        assert!(!sensor.poll(t + limit, limit));
-        assert!(sensor.on_sample(t + limit));
-        assert!(!sensor.on_sample(t + limit));
-        sensor.on_stream(
+        let mut watch = StreamWatch::new(t);
+        assert!(!watch.poll(t + limit, limit));
+        watch.on_stream(&ingest::StreamEvent::Streaming { session: 1 }, t);
+        assert!(!watch.poll(t + limit - Duration::from_nanos(1), limit));
+        assert!(watch.poll(t + limit, limit));
+        assert!(!watch.poll(t + limit, limit));
+        assert!(watch.on_sample(t + limit));
+        assert!(!watch.on_sample(t + limit));
+        watch.on_stream(
             &ingest::StreamEvent::Disconnected {
                 session: 1,
                 reason: ingest::IngestError::Protocol("test".into()),
             },
             t,
         );
-        assert!(!sensor.poll(t + limit, limit));
+        assert!(!watch.poll(t + limit, limit));
     }
     #[test]
     fn stream_is_translated_without_deduplicating() {

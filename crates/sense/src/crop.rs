@@ -1,9 +1,7 @@
 use image::DynamicImage;
-use scene_core::{
-    contract::Keypoint,
-    geom::{Point, Rect},
-    look::Detection,
-};
+use scene_contract::Keypoint;
+use scene_geom::{Point, Rect};
+use scene_look::Detection;
 use std::borrow::Cow;
 
 /// A crop and its pixel origin inside the frame. Without a region, the original is borrowed.
@@ -79,7 +77,8 @@ impl<'a> Crop<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scene_core::{geom::Rect, look::Label};
+    use scene_geom::Rect;
+    use scene_look::Label;
     use std::borrow::Cow;
 
     #[test]

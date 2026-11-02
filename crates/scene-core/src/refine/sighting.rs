@@ -12,6 +12,7 @@ use crate::belief::SubjectBody;
 use crate::belief::bed_posture::Sighting;
 use crate::body::HeadPlaceState;
 use crate::body::Joint;
+use crate::body::point_is_seen;
 use crate::geom::Point;
 use crate::policy::EnrichPolicy;
 use crate::policy::{Band, VerifyPolicy};
@@ -153,7 +154,7 @@ fn places(
         .iter()
         .filter(|k| {
             matches!(k.name, Some(Joint::LeftAnkle | Joint::RightAnkle))
-                && k.is_seen(enrich.min_keypoint_score)
+                && point_is_seen(k, enrich.min_keypoint_score)
         })
         .map(|k| Point { x: k.x, y: k.y })
         .collect();

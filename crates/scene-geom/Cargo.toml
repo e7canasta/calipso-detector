@@ -1,0 +1,15 @@
+[package]
+name = "scene-geom"
+description = "Geometry in whole-frame coordinates (points, boxes, quadrilaterals): the leaf of the language, with no domain and no IO"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }

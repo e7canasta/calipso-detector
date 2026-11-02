@@ -5,14 +5,14 @@
 
 use super::Engine;
 use crate::attention::{self, LookResult, VerifyLook};
-use crate::belief::{Belief, Believed, bed_posture, parts};
+use crate::belief::{Belief, Believed, OccupancyRules, bed_posture, parts};
 use crate::evidence::Admission;
 use crate::look::{Failure, Ticket};
 use crate::map::{CalibrationMemory, SiteMap};
 use crate::policy::Policy;
-use crate::sensor::SensorMemory;
+use crate::reception;
 use crate::time::SampleRef;
-use crate::verification::Verification;
+use crate::verification::{Verification, VerifyRules};
 
 /// How a question to the verifier was issued.
 pub(super) enum Issued {
@@ -23,16 +23,28 @@ pub(super) enum Issued {
 }
 
 impl Engine {
+    /// The monitor is built: the policy is sliced here, once, and each decider
+    /// keeps only its slice (ADR 2026-11-02, politica-en-rebanadas).
     pub(super) fn new(policy: Policy, map: SiteMap) -> Self {
+        let occupancy_rules = OccupancyRules {
+            persistence: policy.persistence.clone(),
+            held_left: policy.held_left,
+            near_first: policy.near_first,
+        };
+        let verify_rules = VerifyRules::of(policy.verify.as_ref());
+        let bed_posture = policy.bed_posture;
         Self {
             policy,
             calibration: CalibrationMemory::from(&map),
             attention_memory: attention::Memory::of(map.calibration_attempt),
             map: map.into(),
             belief: Belief::default(),
-            sensor: SensorMemory::default(),
+            reception: reception::Memory::default(),
             verification: Verification::default(),
             frame: None,
+            occupancy_rules,
+            verify_rules,
+            bed_posture,
         }
     }
 
@@ -40,17 +52,18 @@ impl Engine {
     /// what it owes for too long expires, before anything is looked at.
     pub(super) fn settle(&mut self, at: SampleRef) {
         self.verification.settle(at, &self.belief);
-        self.verification.expire(at, &self.policy, &self.belief);
+        self.verification
+            .expire(at, &self.verify_rules, &self.belief);
     }
 
     /// With all the evidence: the belief is updated, the reinforcement latch
     /// rearmed with what was seen in bed, and the held occupant followed.
     pub(super) fn believe(&mut self, at: SampleRef, bodies: &Admission) -> Believed {
-        let believed = self.belief.observe(at, bodies, &self.policy);
+        let believed = self.belief.observe(at, bodies, &self.occupancy_rules);
         self.attention_memory
             .rearm(bodies.primary.bed, self.belief.bed_seen());
         self.verification
-            .observe_held(self.belief.held_since(), at, &self.policy);
+            .observe_held(self.belief.held_since(), at, &self.verify_rules);
         believed
     }
 
@@ -61,14 +74,18 @@ impl Engine {
         seen: Option<parts::ByPart<parts::Look>>,
         sighting: bed_posture::Sighting,
     ) -> (Option<parts::Concluded>, Option<bed_posture::Concluded>) {
-        let parts = self.belief.observe_parts(at, seen, &self.policy);
-        let bed_posture = self.belief.observe_bed_posture(at, sighting, &self.policy);
+        let parts = self
+            .belief
+            .observe_parts(at, seen, &self.occupancy_rules.persistence);
+        let bed_posture = self
+            .belief
+            .observe_bed_posture(at, sighting, self.bed_posture.as_ref());
         (parts, bed_posture)
     }
 
     /// The shell kept the burst's crop, this sharp, or could not.
     pub(super) fn kept(&mut self, at: SampleRef, kept: Result<f32, Failure>) -> LookResult {
-        let sharpness_policy = self.policy.verify.as_ref().and_then(|v| v.sharpness);
+        let sharpness_policy = self.verify_rules.sharpness;
         match kept {
             Ok(sharpness) => {
                 let counted = self
@@ -87,11 +104,11 @@ impl Engine {
     /// collected as a burst (white book, volume III, ch. 12).
     pub(super) fn issue(&mut self, at: SampleRef, look: &VerifyLook) -> Issued {
         let burst = self
-            .policy
-            .verify
-            .map(|v| v.frames.of(look.question))
+            .verify_rules
+            .frames
+            .map(|frames| frames.of(look.question))
             .unwrap_or_default();
-        let sharpness = self.policy.verify.and_then(|v| v.sharpness);
+        let sharpness = self.verify_rules.sharpness;
         let ticket = self.verification.issue(look.target, at, look.places);
         if burst.frames <= 1 && sharpness.is_none() {
             self.verification.dispatch(ticket, at);

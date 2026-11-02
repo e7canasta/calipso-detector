@@ -80,16 +80,10 @@ fn two_people(w: &mut Shell, first: f32, second: f32) {
 
 #[when(regex = r"^the core asks for the pose in the box (\d+),(\d+) to (\d+),(\d+)$")]
 fn look(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
-    let reading = w
-        .senses()
-        .look(
-            w.image.as_ref().unwrap(),
-            &Probe::Pose {
-                bbox: Rect::new(x0, y0, x1, y1),
-                purpose: PosePurpose::Subject,
-            },
-        )
-        .0;
+    let reading = w.look_sense(&Probe::Pose {
+        bbox: Rect::new(x0, y0, x1, y1),
+        purpose: PosePurpose::Subject,
+    });
     w.reading = Some(reading);
 }
 

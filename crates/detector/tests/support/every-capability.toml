@@ -1,0 +1,94 @@
+# A test profile with every capability the schema admits, with generic values:
+# no site data. It is a specification of the schema, not a camera's profile
+# (profile-by-capability.feature). Its hash is pinned by that scenario.
+[camera]
+site = "test"
+id = "room-every"
+
+[stream]
+url = "rtsp://127.0.0.1:18554/every"
+keyframe_only = true
+reconnect_delay_secs = 2
+sample_interval_ms = 1000
+stall_timeout_secs = 10
+
+[senses.detect]
+model = "yolo26s.onnx"
+backend_confidence = 0.25
+
+[senses.detect.focus]
+pad = 0.25
+walk_secs = 3
+wide_every_secs = 3
+
+[senses.reinforce]
+model = "yolo26l.onnx"
+backend_confidence = 0.25
+bed_padding = 0.15
+
+[senses.faces]
+model = "face/yolov12l-face.onnx"
+backend_confidence = 0.25
+min_confidence = 0.30
+headboard_pad = 0.5
+
+[senses.pose]
+model = "yolo26s-pose.onnx"
+backend_confidence = 0.25
+move_threshold = 0.1
+crop_pad = 0.2
+min_keypoint_score = 0.5
+max_age_secs = 30
+
+[senses.depth]
+model = "yolo26s-depth.onnx"
+posture_tolerance = 0.05
+crop_pad = 0.25
+
+[calibration]
+retry_secs = 2.0
+
+[bed_posture]
+dwell_lying_secs = 2.0
+dwell_sitting_up_secs = 3.0
+dwell_getting_out_secs = 1.0
+
+[verify]
+max_per_hour = 20
+timeout_secs = 70
+held = { after_secs = 30, valid_secs = 3600 }
+doubtful_disparity = [0.02, 0.10]
+doubtful_feet_margin = 0.06
+frames = { held_in_bed = { frames = 1 }, sitting_in_bed = { frames = 3, every_secs = 1.5 }, leaving_bed = { frames = 3, every_secs = 1.5 } }
+sharpness = { min_ratio = 0.5, window = 20, max_wait_secs = 4 }
+
+[senses.verify]
+wall_timeout_secs = 65
+
+[shadow]
+near_m = 0.6
+support_margin_m = 0.1
+
+[occupancy]
+geometry = "two_planes"
+held_left = true
+near_first = true
+two_planes = { share = 0.5, support_m = 0.1, near_m = 0.6 }
+knee = { bent_deg = 120 }
+
+[policy]
+min_confidence = 0.5
+same_body_iou = 0.5
+near_bed_margin = 0.10
+dwell_secs = 2.0
+
+[map]
+resolution = [800, 600]
+bed = [[100, 100], [500, 100], [500, 400], [100, 400]]
+headboard = [100, 60, 500, 100]
+focus = [60, 60, 540, 440]
+bed_floor = [[100, 420], [500, 420], [520, 560], [80, 560]]
+bed_size_m = [0.9, 2.0]
+
+[nats]
+url = "nats://127.0.0.1:4222"

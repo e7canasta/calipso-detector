@@ -1,7 +1,21 @@
 #![cfg(feature = "onnx")]
 
-use scene_core::look::{Label, PosePurpose, Probe, Reading};
+use image::DynamicImage;
+use scene_look::{Failure, Label, PosePurpose, Probe, Reading, Spent};
 use sense::{Senses, ultralytics::Detector};
+use std::time::Instant;
+
+/// The answer and its time, measured here the way the shell's router does: the
+/// answerer returns no time (ADR 2026-11-02, quien-responde-cada-probe).
+fn timed(
+    senses: &mut Senses,
+    image: &DynamicImage,
+    probe: &Probe,
+) -> (Result<Reading, Failure>, Spent) {
+    let started = Instant::now();
+    let result = senses.look(image, &probe.sense().expect("a sense probe"));
+    (result, Spent(started.elapsed().as_secs_f64() * 1000.0))
+}
 
 #[test]
 #[ignore = "requires CALIPSO_MODELS/yolo26s.onnx and ONNX Runtime"]
@@ -11,7 +25,7 @@ fn real_onnx_detects_a_person() {
         .expect("load yolo26s.onnx");
     let image = image::load_from_memory(include_bytes!("fixtures/astronaut.jpg")).unwrap();
     let request = Probe::Detect { region: None };
-    let (result, spent) = Senses::new(detector).look(&image, &request);
+    let (result, spent) = timed(&mut Senses::new(detector), &image, &request);
     let Ok(Reading::Bodies(boxes)) = result else {
         panic!("model failed: {result:?}")
     };
@@ -28,7 +42,7 @@ impl sense::DetectorPort for NeverCalled {
     fn detect(
         &mut self,
         _: &image::DynamicImage,
-    ) -> Result<Vec<scene_core::look::Detection>, sense::ModelError> {
+    ) -> Result<Vec<scene_look::Detection>, sense::ModelError> {
         panic!("primary must not run for reinforcement or faces")
     }
 }
@@ -36,7 +50,7 @@ impl sense::DetectorPort for NeverCalled {
 #[test]
 #[ignore = "requires CALIPSO_MODELS/yolo26l.onnx and ONNX Runtime"]
 fn real_onnx_reinforces_a_region() {
-    use scene_core::geom::Rect;
+    use scene_geom::Rect;
     let models =
         std::path::PathBuf::from(std::env::var_os("CALIPSO_MODELS").expect("set CALIPSO_MODELS"));
     let model = Detector::load(&models.join("yolo26l.onnx"), 0.25).expect("load reinforcement");
@@ -44,10 +58,10 @@ fn real_onnx_reinforces_a_region() {
     let region = Rect::new(20.0, 0.0, image.width() as f32, image.height() as f32);
     let request = Probe::Reinforce { region };
     let mut senses = Senses::new(NeverCalled).with_reinforce(model);
-    assert!(senses.look(&image, &request).0.is_ok()); // warm-up, outside the five measurements
+    assert!(timed(&mut senses, &image, &request).0.is_ok()); // warm-up, outside the five measurements
     let mut times = Vec::new();
     for _ in 0..5 {
-        let (reading, spent) = senses.look(&image, &request);
+        let (reading, spent) = timed(&mut senses, &image, &request);
         let Ok(Reading::Bodies(boxes)) = reading else {
             panic!("reinforcement failed: {reading:?}")
         };
@@ -69,7 +83,8 @@ fn real_onnx_reinforces_a_region() {
 #[test]
 #[ignore = "requires CALIPSO_MODELS/face/yolov12l-face.onnx and ONNX Runtime"]
 fn real_onnx_faces_on_full_image_and_upper_crop() {
-    use scene_core::{geom::Rect, look::FaceRegion};
+    use scene_geom::Rect;
+    use scene_look::FaceRegion;
     let models =
         std::path::PathBuf::from(std::env::var_os("CALIPSO_MODELS").expect("set CALIPSO_MODELS"));
     let name =
@@ -82,10 +97,10 @@ fn real_onnx_faces_on_full_image_and_upper_crop() {
         let request = Probe::Faces {
             region: FaceRegion::Headboard(rect),
         };
-        assert!(senses.look(&image, &request).0.is_ok());
+        assert!(timed(&mut senses, &image, &request).0.is_ok());
         let mut times = Vec::new();
         for _ in 0..5 {
-            let (reading, spent) = senses.look(&image, &request);
+            let (reading, spent) = timed(&mut senses, &image, &request);
             let Ok(Reading::Faces(boxes)) = reading else {
                 panic!("faces failed: {reading:?}")
             };
@@ -117,7 +132,7 @@ fn real_onnx_pose_on_the_person_box() {
     let pose = PoseEstimator::load(&models.join("yolo26s-pose.onnx"), 0.25).expect("load pose");
     let mut senses = Senses::new(detector).with_pose(pose);
     let detect = Probe::Detect { region: None };
-    let Ok(Reading::Bodies(boxes)) = senses.look(&image, &detect).0 else {
+    let Ok(Reading::Bodies(boxes)) = timed(&mut senses, &image, &detect).0 else {
         panic!("detector failed")
     };
     let bbox = boxes
@@ -130,10 +145,10 @@ fn real_onnx_pose_on_the_person_box() {
         bbox,
         purpose: PosePurpose::Subject,
     };
-    assert!(senses.look(&image, &request).0.is_ok()); // calentamiento
+    assert!(timed(&mut senses, &image, &request).0.is_ok()); // calentamiento
     let mut times = Vec::new();
     for _ in 0..5 {
-        let (reading, spent) = senses.look(&image, &request);
+        let (reading, spent) = timed(&mut senses, &image, &request);
         let Ok(Reading::Pose(Some(keypoints))) = reading else {
             panic!("pose failed: {reading:?}")
         };
@@ -159,7 +174,8 @@ fn real_onnx_pose_on_the_person_box() {
 #[test]
 #[ignore = "requires CALIPSO_MODELS/yolo26s-depth.onnx and ONNX Runtime"]
 fn real_onnx_depth_at_points_and_its_scale() {
-    use scene_core::{geom::Point, look::DepthPurpose};
+    use scene_geom::Point;
+    use scene_look::DepthPurpose;
     use sense::{DepthPort, ultralytics::DepthEstimator};
     let models =
         std::path::PathBuf::from(std::env::var_os("CALIPSO_MODELS").expect("set CALIPSO_MODELS"));
@@ -201,10 +217,10 @@ fn real_onnx_depth_at_points_and_its_scale() {
         region: None,
     };
     let mut senses = Senses::new(NeverCalled).with_depth(DepthEstimator::load(&path).unwrap());
-    assert!(senses.look(&image, &request).0.is_ok()); // calentamiento
+    assert!(timed(&mut senses, &image, &request).0.is_ok()); // calentamiento
     let mut times = Vec::new();
     for _ in 0..5 {
-        let (reading, spent) = senses.look(&image, &request);
+        let (reading, spent) = timed(&mut senses, &image, &request);
         let Ok(Reading::Depth(depths)) = reading else {
             panic!("depth failed: {reading:?}")
         };

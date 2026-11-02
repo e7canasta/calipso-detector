@@ -4,7 +4,8 @@
 
 use super::Subject;
 use crate::body::HeadPlace;
-use crate::body::{BedPoint, BodyPoint, Joint, Keypoint, Pose, SubjectDepth};
+use crate::body::coco_joint;
+use crate::body::{BedPoint, BodyPoint, Keypoint, Pose, SubjectDepth};
 use crate::estimation;
 use crate::evidence::SubjectDepths;
 use crate::geom::Rect;
@@ -165,7 +166,7 @@ fn body(enriched: &Enriched, provenance: Provenance) -> SubjectBody {
                 .iter()
                 .enumerate()
                 .map(|(i, k)| BodyPoint {
-                    name: Joint::coco(i),
+                    name: coco_joint(i),
                     x: k.x,
                     y: k.y,
                     score: k.score,

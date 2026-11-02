@@ -1,7 +1,7 @@
 use super::box_detector::BoxDetector;
 use crate::{ModelError, ports::DetectorPort};
 use image::DynamicImage;
-use scene_core::look::Detection;
+use scene_look::Detection;
 use std::path::Path;
 
 /// Body detector adapter: no acceptance policy.

@@ -1,0 +1,15 @@
+[package]
+name = "scene-look"
+description = "The perception language: what the core asks to look at and what the shell reads back. Pure data over the wire and the geometry; no domain and no IO"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+scene-contract = { path = "../scene-contract" }
+scene-geom = { path = "../scene-geom" }

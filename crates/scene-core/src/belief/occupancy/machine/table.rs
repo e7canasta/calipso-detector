@@ -10,6 +10,7 @@
 //! `cargo test -p scene-core table 2>&1 | sed -n '/^# The layer-0 table/,/^# end/p'`
 
 use super::*;
+use crate::belief::total;
 use crate::evidence::BodySource;
 use crate::evidence::{Body, FloorBody};
 use crate::geom::Rect;
@@ -130,7 +131,7 @@ fn name(h: &Happened) -> &'static str {
 /// `RBH`, plus the unexplained bodies if any: `110+u`.
 fn triple(z: &Machine) -> String {
     let t = z.occupants();
-    let (r, b, h) = (t.total(), t.bed + t.held, t.held);
+    let (r, b, h) = (total(t), t.bed + t.held, t.held);
     let unexplained = match z.unexplained {
         0 => String::new(),
         1 => "+u".into(),
@@ -200,7 +201,7 @@ fn table() -> String {
         for (context, label) in CONTEXTS {
             let (z, _) = cross(r, b, h, f, v, context);
             let t = z.occupants();
-            states.insert((t.total(), t.bed + t.held, t.held));
+            states.insert((total(t), t.bed + t.held, t.held));
             rows += &format!(" | {label}: {}", cell(r, b, h, f, v, context));
         }
         rows += "\n";
@@ -295,7 +296,7 @@ fn the_layer_0_invariants_hold_across_the_table() {
             // Only the door changes the total, except for the two named
             // exceptions: adoption at startup and lying down in passing.
             if matches!(context, Context::Base | Context::Far) {
-                let total = i64::from(after.total()) - i64::from(r);
+                let total = i64::from(total(after)) - i64::from(r);
                 let entered = how_many(&events, |e| e.fact == Fact::Entered);
                 let left_room = how_many(&events, |e| e.fact == Fact::LeftRoom);
                 assert_eq!(

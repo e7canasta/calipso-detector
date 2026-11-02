@@ -30,6 +30,9 @@ pub struct Turn {
 #[derive(Default, World)]
 pub struct Ward {
     pub policy: Policy,
+    /// The same run without the verifier's answer, when a scenario compares the
+    /// two: built from the same steps, answered by nothing.
+    pub control: Option<Box<Ward>>,
     pub map: Option<SiteMap>,
     pub cadence_secs: Option<f64>,
     /// The size of the frames the camera delivers; `FRAME` by default.

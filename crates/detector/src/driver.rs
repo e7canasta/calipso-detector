@@ -1,15 +1,15 @@
 //! Translates and delivers: every scene decision belongs to Monitor. The
 //! driver does not know where samples come from or who looks: a
 //! [`SampleSource`] and a [`SensesPort`] are injected into it.
+use crate::router;
 use crate::senses::{Frame, SensesPort};
-use crate::sensor::{self, Sensor};
 use crate::source::{Arrival, SampleSource};
+use crate::stream_watch::{self, StreamWatch};
 use crate::verifier::{NoVerifier, VerifierPort};
 use ingest::{IngestError, Stamp, StreamEvent};
 use scene_core::{
     Input, Monitor, NoFrame, Output,
     contract::{SampleRef, SensorState, SessionId, SourceSecs, Timing},
-    look::{Probe, Reading, Spent},
     map::SiteMap,
     policy::Policy,
 };
@@ -30,6 +30,15 @@ pub(crate) fn stamp_to_ref(stamp: Stamp) -> SampleRef {
         source_secs: SourceSecs(stamp.source_secs),
     }
 }
+/// The timing of one sample: its wait in the source, and the time its turn
+/// took. The only clock read of a sample's path is here.
+fn timing(received: Instant, started: Instant) -> Timing {
+    let now = Instant::now();
+    Timing {
+        wait_ms: started.saturating_duration_since(received).as_secs_f64() * 1000.0,
+        processing_ms: now.saturating_duration_since(started).as_secs_f64() * 1000.0,
+    }
+}
 /// The driver of one camera. By default, with the live senses and no
 /// verifier.
 #[derive(Debug)]
@@ -40,7 +49,7 @@ pub struct Driver<
     monitor: Monitor,
     senses: S,
     verifier: V,
-    sensor: Sensor,
+    watch: StreamWatch,
     last_at: Option<SampleRef>,
     session: u64,
     stall_timeout: Duration,
@@ -51,7 +60,7 @@ impl<S: SensesPort> Driver<S> {
             monitor: Monitor::new(policy, map),
             senses,
             verifier: NoVerifier::default(),
-            sensor: Sensor::new(Instant::now()),
+            watch: StreamWatch::new(Instant::now()),
             last_at: None,
             session: 0,
             stall_timeout,
@@ -66,7 +75,7 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
             monitor: self.monitor,
             senses: self.senses,
             verifier,
-            sensor: self.sensor,
+            watch: self.watch,
             last_at: self.last_at,
             session: self.session,
             stall_timeout: self.stall_timeout,
@@ -91,16 +100,16 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
         }
     }
     pub fn on_stream(&mut self, event: StreamEvent, now: Instant) -> Option<Processed> {
-        self.sensor.on_stream(&event, now);
+        self.watch.on_stream(&event, now);
         if let StreamEvent::Streaming { session } | StreamEvent::Disconnected { session, .. } =
             &event
         {
             self.session = *session;
         }
-        sensor::translate(&event).map(|state| self.report(self.sensor_at(), state))
+        stream_watch::translate(&event).map(|state| self.report(self.sensor_at(), state))
     }
     fn poll_stall(&mut self, now: Instant) -> Option<Processed> {
-        self.sensor
+        self.watch
             .poll(now, self.stall_timeout)
             .then(|| self.report(self.sensor_at(), SensorState::Stalled))
     }
@@ -129,16 +138,30 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
         let _span =
             tracing::info_span!("turn", session = at.session.0, sequence = at.sequence).entered();
         let mut outputs = Vec::with_capacity(2);
-        if self.sensor.on_sample(started) {
+        if self.watch.on_sample(started) {
             outputs.push(self.report(at, SensorState::Streaming));
         }
-        // The verifier's answers that arrived: evidence of the samples they
-        // looked at, settled by the core at this sample's turn.
+        self.settle_verified();
+        let output = self.turn_for(at, frame);
+        self.last_at = Some(at);
+        self.session = at.session.0;
+        outputs.push(Processed {
+            output,
+            timing: timing(received, started),
+        });
+        outputs
+    }
+    /// The verifier's answers that arrived: evidence of the samples they looked
+    /// at, settled by the core at this sample's turn.
+    fn settle_verified(&mut self) {
         for verified in self.verifier.answers() {
             self.monitor.verified(verified);
         }
-        let (senses, verifier) = (&mut self.senses, &mut self.verifier);
-        let output = match frame {
+    }
+    /// The turn of one sample: the frame is looked at through the router, or
+    /// the turn closes without one (empty or failed decode).
+    fn turn_for(&mut self, at: SampleRef, frame: Result<Option<S::Frame>, IngestError>) -> Output {
+        match frame {
             Ok(Some(frame)) => self
                 .monitor
                 .handle(Input::Sample {
@@ -147,56 +170,17 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>> Driver<S, V> {
                 })
                 .drive(|probe| {
                     let _look = tracing::debug_span!("look", kind=?probe.kind()).entered();
-                    match probe {
-                        Probe::Verify {
-                            ticket,
-                            region,
-                            bed,
-                            question,
-                            crops,
-                        } => {
-                            let started = Instant::now();
-                            let taken =
-                                verifier.ask(&frame, *ticket, *region, bed, *question, crops);
-                            let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
-                            (taken.map(|()| Reading::Dispatched), spent)
-                        }
-                        Probe::Keep { ticket, region } => {
-                            let started = Instant::now();
-                            let kept = verifier.keep(&frame, *ticket, *region);
-                            let spent = Spent(started.elapsed().as_secs_f64() * 1000.0);
-                            (kept.map(|sharpness| Reading::Kept { sharpness }), spent)
-                        }
-                        _ => senses.look(&frame, probe),
-                    }
+                    router::answer(&mut self.senses, &mut self.verifier, &frame, probe)
                 }),
-            Ok(None) => self
-                .monitor
-                .handle(Input::NoFrame {
-                    at,
-                    why: NoFrame::Empty,
-                })
-                .cancel(),
+            Ok(None) => self.no_frame(at, NoFrame::Empty),
             Err(error) => {
-                tracing::warn!(%error,"decode failed");
-                self.monitor
-                    .handle(Input::NoFrame {
-                        at,
-                        why: NoFrame::DecodeFailed,
-                    })
-                    .cancel()
+                tracing::warn!(%error, "decode failed");
+                self.no_frame(at, NoFrame::DecodeFailed)
             }
-        };
-        self.last_at = Some(at);
-        self.session = at.session.0;
-        outputs.push(Processed {
-            output,
-            timing: Timing {
-                wait_ms: started.saturating_duration_since(received).as_secs_f64() * 1000.0,
-                processing_ms: started.elapsed().as_secs_f64() * 1000.0,
-            },
-        });
-        outputs
+        }
+    }
+    fn no_frame(&mut self, at: SampleRef, why: NoFrame) -> Output {
+        self.monitor.handle(Input::NoFrame { at, why }).cancel()
     }
     /// Drives what arrives from the source until it ends or is cancelled. The
     /// wait is short: the no-sample deadline is checked between arrivals.

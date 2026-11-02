@@ -5,14 +5,38 @@ use std::{
     time::Duration,
 };
 
+// One module per capability: its section's struct, its checks and its
+// translation. `schema` is the common file and composes them.
+mod bed_posture;
+mod calibration;
+mod depth;
+mod detect;
+mod faces;
+mod occupancy;
 mod policy;
+mod pose;
 mod profile;
+mod reinforce;
 mod schema;
+mod shadow;
 #[cfg(test)]
 mod tests;
 mod validate;
+mod verify;
 
+pub use bed_posture::BedPostureConfig;
+pub use calibration::CalibrationConfig;
+pub use depth::Depth;
+pub use detect::{Detect, Focus};
+pub use faces::Faces;
+pub use occupancy::{KneeConfig, OccupancyConfig, RoomGeometry, TwoPlanesConfig};
+pub use pose::Pose;
+pub use reinforce::Reinforce;
 pub use schema::*;
+pub use shadow::ShadowConfig;
+pub use verify::{
+    BurstConfig, FramesConfig, HeldVerifyConfig, SharpnessConfig, VerifyConfig, VerifySense,
+};
 
 fn resolve_model_path(model: &Path, base: Option<&Path>) -> PathBuf {
     match base {

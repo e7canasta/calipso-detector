@@ -12,56 +12,24 @@ use crate::attention::VerifyLook;
 use crate::belief::Belief;
 use crate::belief::bed_posture::BedPostureState;
 use crate::look::{Answer, Target, Ticket, Verified};
-use crate::policy::{Burst, Policy};
+use crate::policy::{Burst, Frames, SharpnessPolicy, VerifyPolicy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use crate::time::secs_since;
 
-/// How much observation backs a body held in bed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HeldCheckState {
-    /// Nobody looked since it stopped being seen.
-    Unverified,
-    /// A verifier saw it: the belief has an observation behind it.
-    Confirmed,
-    /// A verifier looked and did not see it. It is not released: the blanket
-    /// hides it from every verifier (book 4, frontier 3).
-    NotConfirmed,
-}
-
-/// Who looked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Verifier {
-    /// The slow verifier: a vision-language model over a crop of the bed.
-    Vlm,
-}
-
+pub use scene_contract::HeldCheckState;
+pub use scene_contract::Verifier;
 /// An hour of source time: the budget's window.
 pub(crate) const HOUR_SECS: f64 = 3600.0;
 
-/// The provenance of a held body: whether a verifier looked, and when.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct HeldCheck {
-    /// Unverified, confirmed or not confirmed.
-    pub state: HeldCheckState,
-    /// Who looked; `None` while unverified.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub by: Option<Verifier>,
-    /// The sample it looked at; `None` while unverified.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub looked: Option<SampleRef>,
-}
-
-impl HeldCheck {
-    const UNVERIFIED: Self = Self {
-        state: HeldCheckState::Unverified,
-        by: None,
-        looked: None,
-    };
-}
+pub use scene_contract::HeldCheck;
+/// The check of a body held in bed that nobody has looked at yet: the domain's
+/// starting state, not a property of the wire.
+const UNVERIFIED_HELD_CHECK: HeldCheck = HeldCheck {
+    state: HeldCheckState::Unverified,
+    by: None,
+    looked: None,
+};
 
 /// The held body the plane follows: the oldest one, by its identity.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -166,6 +134,35 @@ pub(crate) fn holds(
     }
 }
 
+/// What the verification decides from its policy, resolved once when the
+/// monitor is built (ADR 2026-11-02, politica-en-rebanadas): whether held
+/// bodies are followed and verified, and how long a request may wait for its
+/// answer, and how sharp a crop must be to count. Without a `[verify]` section,
+/// nothing is followed, nothing expires and every crop counts as sharp enough.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct VerifyRules {
+    /// The policy verifies held bodies (`held`).
+    pub(crate) held: bool,
+    /// Seconds a request may wait for its answer (`timeout_secs`).
+    pub(crate) timeout_secs: Option<f64>,
+    /// The sharpness a crop is judged by (`sharpness`); `None`: no judgement.
+    pub(crate) sharpness: Option<SharpnessPolicy>,
+    /// The burst of each question (`frames`); `None`: no `[verify]`.
+    pub(crate) frames: Option<Frames>,
+}
+
+impl VerifyRules {
+    /// The rules of a profile's `[verify]` section, or of none.
+    pub(crate) fn of(verify: Option<&VerifyPolicy>) -> Self {
+        Self {
+            held: verify.and_then(|v| v.held).is_some(),
+            timeout_secs: verify.and_then(|v| v.timeout_secs),
+            sharpness: verify.and_then(|v| v.sharpness),
+            frames: verify.map(|v| v.frames),
+        }
+    }
+}
+
 /// What one camera has asked the verifier and what it owes.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Verification {
@@ -202,10 +199,9 @@ impl Verification {
         &mut self,
         oldest: Option<SampleRef>,
         at: SampleRef,
-        policy: &Policy,
+        rules: &VerifyRules,
     ) {
-        let followed = policy.verify.and_then(|v| v.held).is_some();
-        self.held = match (oldest.filter(|_| followed), self.held) {
+        self.held = match (oldest.filter(|_| rules.held), self.held) {
             (None, _) => None,
             // A new session: source time starts over, and so does the wait.
             (Some(since), Some(held)) if held.since == since => Some(HeldEntry {
@@ -219,7 +215,7 @@ impl Verification {
             (Some(since), _) => Some(HeldEntry {
                 since,
                 held_at: at,
-                check: HeldCheck::UNVERIFIED,
+                check: UNVERIFIED_HELD_CHECK,
             }),
         };
     }
@@ -245,7 +241,7 @@ impl Verification {
     pub(crate) fn asked_within(&self, at: SampleRef, secs: f64) -> usize {
         self.asked
             .iter()
-            .filter(|a| at.secs_since(**a).is_some_and(|age| age < secs))
+            .filter(|a| secs_since(at, **a).is_some_and(|age| age < secs))
             .count()
     }
 
@@ -265,7 +261,7 @@ impl Verification {
     ) -> Ticket {
         self.asked_places = places;
         self.asked
-            .retain(|a| at.secs_since(*a).is_some_and(|age| age < HOUR_SECS));
+            .retain(|a| secs_since(at, *a).is_some_and(|age| age < HOUR_SECS));
         self.asked.push(at);
         self.issued += 1;
         Ticket {
@@ -353,12 +349,12 @@ impl Verification {
     /// thing it asked about may be asked about again.
     /// Doubtful feet without an answer are taken as out, on the safe side: a
     /// call for getting out is not lost to a verifier that did not answer.
-    pub(crate) fn expire(&mut self, at: SampleRef, policy: &Policy, belief: &Belief) {
-        let timeout = policy.verify.and_then(|v| v.timeout_secs);
+    pub(crate) fn expire(&mut self, at: SampleRef, rules: &VerifyRules, belief: &Belief) {
+        let timeout = rules.timeout_secs;
         let sent = self.sent;
         let expired = self
             .in_flight
-            .filter(|t| match at.secs_since(sent.unwrap_or(t.looked)) {
+            .filter(|t| match secs_since(at, sent.unwrap_or(t.looked)) {
                 None => true,
                 Some(age) => timeout.is_some_and(|max| age >= max),
             });

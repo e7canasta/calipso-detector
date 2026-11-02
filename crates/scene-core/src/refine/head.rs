@@ -5,6 +5,7 @@
 //! 1807): below the headboard inside the bed, or past its sides.
 
 use crate::body::{HeadEvidence, HeadPlace, HeadPlaceState, Joint, Keypoint};
+use crate::body::{coco_joint, is_seen};
 use crate::evidence::FaceEvidence;
 use crate::geom::Point;
 use crate::policy::Policy;
@@ -70,7 +71,7 @@ pub(crate) fn place(
         .unwrap_or_default()
         .iter()
         .enumerate()
-        .filter(|&(i, k)| k.is_seen(min_score) && Joint::coco(i).is_some_and(|j| HEAD.contains(&j)))
+        .filter(|&(i, k)| is_seen(k, min_score) && coco_joint(i).is_some_and(|j| HEAD.contains(&j)))
         .map(|(_, k)| k)
         .collect();
     if !head.is_empty() {

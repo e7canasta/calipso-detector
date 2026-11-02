@@ -30,7 +30,7 @@ comes back.
 ### The context map
 
 `scene-core` is **one bounded context**, "the occupancy of the room", with its
-aggregates (`Belief`, `Map`, `SensorMemory`, `Chronicle`). Outwards it speaks a
+aggregates (`Belief`, `Map`, `reception::Memory`, `Chronicle`). Outwards it speaks a
 versioned **published language** (`contract::v4`) and `project`
 is its anti-corruption layer: the domain thinks in its own vocabulary and only
 `project` translates it.
@@ -47,7 +47,7 @@ is its anti-corruption layer: the domain thinks in its own vocabulary and only
 
 The vocabulary the domain and the contract share is **owned by the domain**
 (`time`, `zone`, `body`, `provenance`, `look`, `evidence`, `attention`, `map`,
-`sensor`, `refine`) and each contract version re-exports it. That way a new
+`reception`, `refine`) and each contract version re-exports it. That way a new
 version shares it without depending on the previous one, and retiring one does
 not touch the core.
 
@@ -107,7 +107,7 @@ with the `Output` (`at`, `scene`, `events`). `Turn::cancel` closes it as a
 shutdown. There is no other way through: the shell has nothing to misuse.
 
 `Monitor` composes three pieces that do not mix (P4, P5): the
-**engine** (`Engine`: policy, map, belief, sensor), which decides with what it
+**engine** (`Engine`: policy, map, belief, reception), which decides with what it
 sees; the **chronicle** (`chronicle::Chronicle`), which remembers the
 domain; and the last scene, for republishing. Closing splits the turn in
 two phases: the engine returns a `Conclusion` (an `Observation` or what to
@@ -407,7 +407,7 @@ One concept, one name.
 | session | `SampleRef::session` | A continuous stretch of the source; time is not compared across sessions |
 | turn | `Turn` | The core's work on one sample |
 | loop | `cycle`, `Monitor` | The sequence of turns; `Monitor` composes engine, chronicle and last scene |
-| engine | `Engine` | What decides: policy, map, belief and sensor; it does not remember what was published |
+| engine | `Engine` | What decides: policy, map, belief and reception; it does not remember what was published |
 | conclusion | `conclusion::Conclusion` | What the engine concludes from a closed turn, before the chronicle and the contract: an `Observation` or what to republish |
 | observation | `conclusion::Observation` | What a turn observed and believed, together: the input of the chronicle and the projection |
 | look, probe | `look`, `Probe` | What the core asks the shell to look at |
@@ -479,6 +479,8 @@ One concept, one name.
 | body places | `refine::BodyPlaces`, `FeetPlace` | Where each part layer 1 reads is in a sample: the head (`HeadPlaceState`), the feet as a set (unseen, seen, past the bed's sides: one out is out) and the disparity (`PostureState`). The trama's `hfd`; a kept pose places nothing |
 | sighting, seen (layer 1) | `bed_posture::Sighting`, `refine::sighting`; `BedPostureSeen` | What layer 1 perceives by itself in a sample (`headboard_lying`, `headboard_upright`, `legs_out`, `head_side`, `head_away`, `unknown`); published as `seen`, which says `held` when layer 0 holds the resident |
 | decide | `bed_posture::rules::decide` | Layer 1's pure decider, the row `l1(t−1) : l0(t) + seen(t) : l1(t)`; the golden table `contract/bed-posture-table.txt` |
+| reception | `reception::Memory`, `SensorState` (the published field `sensor`) | What the core sees of the source: the reception state the shell reports, remembered and announced when it changes. The core does not infer it. The field `sensor` and its values are the contract and keep their names (ADR 2026-11-02, cascara-por-capacidad-y-nombres) | is inferred, or is read from the stream's clock |
+| StreamWatch | `detector::stream_watch::StreamWatch` (shell) | The health of the stream, with a clock: it translates the transport's states, keeps the stall deadline and says when the reception changed to stalled. Lives in the shell, where the clock is; the core receives its reports as `reception` | decides what the core believes, or is imported by `scene-core` |
 
 ## 8. Module map
 
@@ -509,7 +511,7 @@ matters as much as the second.
 | `policy` | The policies that come from the profiles | is read from a file |
 | `map` | The site's static world | is inferred from the subject |
 | `room` (+ `frontal`, `two_planes`, `shadow`) | The questions of space, with named facts: the piece the profile chose (`frontal`, `two_planes`) and the shadow of a geometry that does not decide yet (`shadow`) | remembers, counts, or hands a plane to a layer |
-| `sensor` | The reception state the shell reports | is inferred |
+| `reception` | The reception state the shell reports (`SensorState`, the published `sensor`) and its memory (`Memory`) | is inferred |
 | `time`, `zone` | Shared vocabulary: the sample and its source time; the zones and the count per zone. `contract` re-exports them | knows the published format |
 | `geom`, `estimation` | Maths without domain | knows a rule |
 

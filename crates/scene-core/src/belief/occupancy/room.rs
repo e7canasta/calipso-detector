@@ -101,7 +101,7 @@ mod tests {
     fn there_is_one_occupant_exactly_when_the_mode_is_alone() {
         for c in all(4) {
             let alone = matches!(Room::of(c), Room::Alone(_));
-            assert_eq!(alone, c.total() == 1, "{c:?}");
+            assert_eq!(alone, crate::belief::total(c) == 1, "{c:?}");
         }
     }
 
@@ -109,7 +109,7 @@ mod tests {
     fn accompanied_is_two_or_more() {
         for c in all(4) {
             if let Room::Accompanied(crowd) = Room::of(c) {
-                assert!(crowd.counts().total() >= 2, "{c:?}");
+                assert!(crate::belief::total(crowd.counts()) >= 2, "{c:?}");
             }
         }
     }

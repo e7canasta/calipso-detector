@@ -6,7 +6,8 @@ use crate::body::HeadPlace;
 use crate::body::Keypoint;
 use crate::evidence::{Admission, Perceived};
 use crate::geom::{Point, Rect};
-use crate::look::{DepthPurpose, DepthTarget, FaceRegion, PosePurpose, Probe, Ticket};
+use crate::look::{DepthPurpose, FaceRegion, PosePurpose, Probe, Ticket};
+use crate::outcome::DepthTarget;
 use crate::policy::FacePolicy;
 
 /// Probe and continuation are created together; their fields cannot be

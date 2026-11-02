@@ -85,17 +85,11 @@ fn two_cells(w: &mut Shell, a: String, xa: u32, ya: u32, b: String, xb: u32, yb:
     regex = r"^the core asks for the subject's depth at points (.+) over (\d+),(\d+) to (\d+),(\d+)$"
 )]
 fn look_over(w: &mut Shell, list: String, x0: f32, y0: f32, x1: f32, y1: f32) {
-    let reading = w
-        .senses()
-        .look(
-            w.image.as_ref().unwrap(),
-            &Probe::Depth {
-                purpose: DepthPurpose::Subject,
-                points: points(&list),
-                region: Some(Rect::new(x0, y0, x1, y1)),
-            },
-        )
-        .0;
+    let reading = w.look_sense(&Probe::Depth {
+        purpose: DepthPurpose::Subject,
+        points: points(&list),
+        region: Some(Rect::new(x0, y0, x1, y1)),
+    });
     w.reading = Some(reading);
 }
 
@@ -106,17 +100,11 @@ fn look(w: &mut Shell, purpose: String, list: String) {
     } else {
         DepthPurpose::Bed
     };
-    let reading = w
-        .senses()
-        .look(
-            w.image.as_ref().unwrap(),
-            &Probe::Depth {
-                purpose,
-                points: points(&list),
-                region: None,
-            },
-        )
-        .0;
+    let reading = w.look_sense(&Probe::Depth {
+        purpose,
+        points: points(&list),
+        region: None,
+    });
     w.reading = Some(reading);
 }
 

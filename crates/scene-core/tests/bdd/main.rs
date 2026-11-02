@@ -14,12 +14,14 @@
 
 mod attention;
 mod bed_posture;
+mod capability;
 mod contract;
 mod occupancy;
 mod parts;
 mod posture;
 #[path = "../published.rs"]
 mod published;
+mod reception;
 #[path = "../script.rs"]
 mod script;
 mod shadow;

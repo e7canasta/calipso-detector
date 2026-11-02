@@ -7,6 +7,7 @@ use crate::belief::parts::{ByPart, Concluded, Look, PartsTransition, Place};
 use crate::chronicle::Chronicled;
 use crate::contract::common::{Parts, PartsPending, Progress};
 use crate::time::SampleRef;
+use crate::time::secs_since;
 
 /// The scene's block of the parts, in this turn.
 pub(super) fn parts(
@@ -22,7 +23,7 @@ pub(super) fn parts(
         pending: concluded.pending.map(|(places_now, first)| PartsPending {
             places: places(&places_now),
             duration: Progress {
-                have: at.secs_since(first).unwrap_or(0.0),
+                have: secs_since(at, first).unwrap_or(0.0),
                 need: dwell_secs,
             },
         }),

@@ -7,6 +7,7 @@ use super::{
     bed, bed_state, empty_bed, pending, project_evidence, publish_bed, publish_subject,
     republished_at, retained_subject, unobserved,
 };
+use crate::belief::total;
 use crate::belief::{self, Alone, BedPhase, Fact, InBed, Occupants, Tally};
 use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
@@ -18,7 +19,8 @@ use crate::contract::v4::{
 };
 pub(crate) use crate::contract::v4::{Event, Scene};
 use crate::map::BedCalibrated;
-use crate::sensor::SensorChanged;
+use crate::reception::SensorChanged;
+use crate::time::secs_since;
 
 /// The machine's mode, said in v4.
 pub(super) fn mode(occupants: Occupants) -> Mode {
@@ -45,7 +47,7 @@ fn phase(phase: BedPhase) -> Phase {
 /// The `[R, B, H]` triple.
 fn rbh(occupants: Occupants) -> Rbh {
     Rbh(
-        occupants.total(),
+        total(occupants),
         occupants.bed + occupants.held,
         occupants.held,
     )
@@ -76,7 +78,7 @@ fn cell(transition: &belief::Transition) -> Cell {
 }
 
 fn publish_cell(key: &TransitionKey) -> Cell {
-    Cell::new(
+    cell_of(
         rbh(key.before),
         Fv(key.seen.floor, key.seen.bed),
         rbh(key.after),
@@ -124,7 +126,7 @@ pub(crate) fn observed(observation: Observation, chronicled: &Chronicled) -> (Sc
         evidence,
         room: Room {
             mode: after.mode,
-            occupants: occupancy_now.occupants().total(),
+            occupants: total(occupancy_now.occupants()),
             since: Some(chronicled.room.since),
             pending: pending(&occupancy_now, dwell_secs),
             phase: phase(occupancy_now.phase),
@@ -229,7 +231,7 @@ fn bed_posture_change(
         before: BedPostureBefore {
             state: before,
             since,
-            lasted_secs: since.and_then(|since| at.secs_since(since)),
+            lasted_secs: since.and_then(|since| secs_since(at, since)),
         },
         seen: now.seen,
         after: now.state,
@@ -248,13 +250,13 @@ fn parts_change(
         before: PartsBefore {
             places: super::parts::places(&t.before),
             since,
-            lasted_secs: since.and_then(|since| t.at.secs_since(since)),
+            lasted_secs: since.and_then(|since| secs_since(t.at, since)),
         },
         seen: PartsSeen {
             parts: super::parts::seen(&t.seen),
             span: Span {
                 first: t.first_seen,
-                secs: t.at.secs_since(t.first_seen).unwrap_or(0.0),
+                secs: secs_since(t.at, t.first_seen).unwrap_or(0.0),
             },
         },
         after: PartsAfter {
@@ -273,13 +275,13 @@ fn transition(t: &belief::Transition, since: Option<SampleRef>) -> Transition {
         before: Before {
             occupancy: occupancy(t.before, true),
             since,
-            lasted_secs: since.and_then(|since| t.at.secs_since(since)),
+            lasted_secs: since.and_then(|since| secs_since(t.at, since)),
         },
         seen: Seen {
             fv: Fv(t.seen.counts.floor, t.seen.counts.bed),
             span: Span {
                 first: t.first_seen,
-                secs: t.at.secs_since(t.first_seen).unwrap_or(0.0),
+                secs: secs_since(t.at, t.first_seen).unwrap_or(0.0),
             },
             context: Context {
                 far: t.seen.from_door,
@@ -405,5 +407,28 @@ pub(crate) fn republish(
             reason,
             observed_at: republished_at(scene.republished, projected_at),
         }),
+    }
+}
+
+/// The cell of a change from `before`, seeing `seen`, to `after`: the natural
+/// key of the row, `before:seen:after`.
+pub fn cell_of(before: Rbh, seen: Fv, after: Rbh) -> Cell {
+    let Rbh(r0, b0, h0) = before;
+    let Fv(f, v) = seen;
+    let Rbh(r1, b1, h1) = after;
+    Cell(format!(
+        "{}:{}:{}",
+        part(&[r0, b0, h0]),
+        part(&[f, v]),
+        part(&[r1, b1, h1])
+    ))
+}
+
+fn part(counts: &[u32]) -> String {
+    let digits: Vec<String> = counts.iter().map(u32::to_string).collect();
+    if counts.iter().all(|&count| count < 10) {
+        digits.concat()
+    } else {
+        format!("({})", digits.join(","))
     }
 }

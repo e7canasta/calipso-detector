@@ -2,6 +2,7 @@
 //! detector's lens, the reinforcement latch and the last calibration attempt.
 
 use crate::time::SampleRef;
+use crate::time::secs_since;
 
 /// What attention remembers of what it already looked at, and nothing else:
 /// the main detector's lens, the reinforcement latch and the last time the
@@ -87,7 +88,7 @@ impl Lens {
     /// passed (rule 9).
     pub(super) fn wide_due(&self, now: SampleRef, every_secs: f64) -> bool {
         self.last_wide
-            .and_then(|last| now.secs_since(last))
+            .and_then(|last| secs_since(now, last))
             .is_none_or(|age| age >= every_secs)
     }
 }

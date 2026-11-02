@@ -2,6 +2,9 @@
 //! It returns everything it sees; it knows no policies (rule 6).
 // What is `pub` is reachable from outside; the rest says `pub(crate)`.
 #![warn(unreachable_pub)]
+// A `_` over the probes would hide a sense the compiler should point at (ADR
+// 2026-11-02, quien-responde-cada-probe): every match here names each variant.
+#![deny(clippy::wildcard_enum_match_arm)]
 
 mod crop;
 
@@ -16,12 +19,9 @@ pub mod ultralytics;
 mod detection;
 
 use image::DynamicImage;
-use scene_core::{
-    contract::Keypoint,
-    geom::{Point, Rect},
-    look::{Detection, Failure, Probe, Reading, Spent},
-};
-use std::time::Instant;
+use scene_contract::Keypoint;
+use scene_geom::{Point, Rect};
+use scene_look::{Detection, Failure, Reading, SenseProbe};
 
 /// Runs the probes with one detector per role; accepting and deciding belong to the core.
 pub struct Senses {
@@ -69,41 +69,34 @@ impl Senses {
         self
     }
 
-    /// Answers in whole-frame coordinates, with wall time in milliseconds.
-    pub fn look(
-        &mut self,
-        frame: &DynamicImage,
-        probe: &Probe,
-    ) -> (Result<Reading, Failure>, Spent) {
-        let started = Instant::now();
-        let result = match probe {
-            Probe::Detect { region } => {
-                boxes(self.detect.as_mut(), frame, *region).map(Reading::Bodies)
+    /// Answers in whole-frame coordinates. The time is not measured here: the
+    /// shell's router measures each answer once, whichever answers it.
+    pub fn look(&mut self, frame: &DynamicImage, probe: &SenseProbe) -> Result<Reading, Failure> {
+        let result = match *probe {
+            SenseProbe::Detect { region } => {
+                boxes(self.detect.as_mut(), frame, region).map(Reading::Bodies)
             }
-            Probe::Reinforce { region } => match self.reinforce.as_mut() {
-                Some(port) => boxes(port.as_mut(), frame, Some(*region)).map(Reading::Bodies),
+            SenseProbe::Reinforce { region } => match self.reinforce.as_mut() {
+                Some(port) => boxes(port.as_mut(), frame, Some(region)).map(Reading::Bodies),
                 None => Err(Failure::Model),
             },
-            Probe::Faces { region } => match self.faces.as_mut() {
+            SenseProbe::Faces { region } => match self.faces.as_mut() {
                 Some(port) => boxes(port.as_mut(), frame, Some(region.rect())).map(Reading::Faces),
                 None => Err(Failure::Model),
             },
-            Probe::Pose { bbox, .. } => match self.pose.as_mut() {
-                Some(port) => pose(port.as_mut(), frame, *bbox).map(Reading::Pose),
+            SenseProbe::Pose { bbox, .. } => match self.pose.as_mut() {
+                Some(port) => pose(port.as_mut(), frame, bbox).map(Reading::Pose),
                 None => Err(Failure::Model),
             },
-            Probe::Depth { points, region, .. } => match self.depth.as_mut() {
-                Some(port) => depth(port.as_mut(), frame, points, *region).map(Reading::Depth),
+            SenseProbe::Depth { points, region, .. } => match self.depth.as_mut() {
+                Some(port) => depth(port.as_mut(), frame, points, region).map(Reading::Depth),
                 None => Err(Failure::Model),
             },
-            // The verifier is not a sense of this process: it lives behind its
-            // own port in the shell (white book, volume III, I2).
-            Probe::Verify { .. } | Probe::Keep { .. } => Err(Failure::Model),
         };
         if result.is_err() {
             tracing::warn!(probe = ?probe.kind(), "sense failed or unavailable");
         }
-        (result, Spent(started.elapsed().as_secs_f64() * 1000.0))
+        result
     }
 }
 

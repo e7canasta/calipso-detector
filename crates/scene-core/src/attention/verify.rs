@@ -10,6 +10,7 @@ use crate::policy::Policy;
 use crate::policy::VerifyPolicy;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
+use crate::time::secs_since;
 use crate::verification::{self, Collecting, HOUR_SECS, HeldCheckState, Verification};
 
 /// The crop the verifier looks at: the bed grown by this fraction of its width
@@ -79,14 +80,13 @@ pub(crate) fn verify(
     };
     let due = match held.check.state {
         HeldCheckState::Unverified => {
-            g.at.secs_since(held.held_at)
-                .is_some_and(|age| age >= held_policy.after_secs)
+            secs_since(g.at, held.held_at).is_some_and(|age| age >= held_policy.after_secs)
         }
         HeldCheckState::Confirmed | HeldCheckState::NotConfirmed => {
             held_policy.valid_secs.is_some_and(|valid| {
                 held.check
                     .looked
-                    .and_then(|looked| g.at.secs_since(looked))
+                    .and_then(|looked| secs_since(g.at, looked))
                     .is_none_or(|age| age >= valid)
             })
         }
@@ -130,7 +130,7 @@ pub(crate) fn burst(
     places: Option<BodyPlaces>,
     held: Option<SampleRef>,
 ) -> BurstStep {
-    let Some(age) = at.secs_since(collecting.last) else {
+    let Some(age) = secs_since(at, collecting.last) else {
         return BurstStep::Stale;
     };
     if !verification::holds(collecting.ticket.target, layer_1, held) {
@@ -174,8 +174,7 @@ pub(crate) fn burst_ready(
         return Some(counted.into_iter().take(frames).collect());
     }
     let waited = policy.is_some_and(|p| {
-        at.secs_since(collecting.opened)
-            .is_none_or(|age| age >= p.max_wait_secs)
+        secs_since(at, collecting.opened).is_none_or(|age| age >= p.max_wait_secs)
     });
     if !waited || collecting.crops.is_empty() {
         return None;

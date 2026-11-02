@@ -2,6 +2,7 @@
 //! footprint answer where a body is.
 
 use super::{BodyZone, Doubt, Frontal, Posed, distance_m};
+use crate::body::is_seen;
 use crate::body::{Joint, Keypoint};
 use crate::geom::{Point, Rect};
 use crate::map::{BedPlane, Map};
@@ -104,7 +105,7 @@ fn knee_deg(pose: &[Keypoint], min_score: f32) -> Option<f32> {
             .iter()
             .filter_map(|&j| {
                 let i = Joint::COCO.iter().position(|&c| c == j)?;
-                pose.get(i).filter(|k| k.is_seen(min_score))
+                pose.get(i).filter(|k| is_seen(k, min_score))
             })
             .collect();
         let n = seen.len() as f32;

@@ -1,18 +1,19 @@
 //! Head 1 of the second level: is the subject truly lying down?
 
+use crate::body::point_is_seen;
 use crate::body::{BodyPoint, Joint};
 use crate::geom::Point;
-use crate::provenance::Provenance;
 use crate::room::Room;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// Torso and hips inside the bed plane, and more than half of the visible
 /// keypoints: lying. Visible feet confirm it if they are inside and deny it if
 /// any is outside; with no feet in sight, it is assumed. Without a visible
 /// torso or hips, it is unknown. The head is not required.
 pub(super) fn classify(points: &[BodyPoint], room: &Room, min_score: f32) -> LyingState {
-    let visible: Vec<&BodyPoint> = points.iter().filter(|p| p.is_seen(min_score)).collect();
+    let visible: Vec<&BodyPoint> = points
+        .iter()
+        .filter(|p| point_is_seen(p, min_score))
+        .collect();
     let part = |joints: [Joint; 2]| -> Option<Point> {
         let found: Vec<&&BodyPoint> = visible
             .iter()
@@ -48,30 +49,7 @@ pub(super) fn classify(points: &[BodyPoint], room: &Room, min_score: f32) -> Lyi
     }
 }
 
-/// Is the subject truly lying down? Second level: it changes no count.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum LyingState {
-    /// Torso, hips, most keypoints and the visible feet inside the bed.
-    Confirmed,
-    /// Torso, hips and most keypoints inside; the feet are not visible.
-    Assumed,
-    /// The torso, the hips, most keypoints or a visible foot outside the bed.
-    No,
-    /// The torso or the hips are not visible.
-    Unknown,
-}
-
-/// What the second level concludes from the pose over the bed plane, with that
-/// pose's provenance.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Lying {
-    /// Confirmed, assumed, no or unknown.
-    pub state: LyingState,
-    /// That of the pose it was concluded from.
-    pub provenance: Provenance,
-}
-
+pub use scene_contract::{Lying, LyingState};
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,7 +62,7 @@ mod tests {
 
     fn point(i: usize, x: f32, y: f32, score: f32) -> BodyPoint {
         BodyPoint {
-            name: Joint::coco(i),
+            name: crate::body::coco_joint(i),
             x,
             y,
             score,

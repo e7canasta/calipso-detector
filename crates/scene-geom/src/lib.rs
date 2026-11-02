@@ -1,4 +1,10 @@
-//! Geometry in whole-frame coordinates (pixels).
+//! Geometry in whole-frame coordinates (pixels): points, boxes and
+//! quadrilaterals. It is the leaf of the language (ADR 2026-11-02,
+//! crates-del-lenguaje): no domain, no IO, and nothing above it depends on
+//! the core for these shapes.
+// What is `pub` is reachable from outside; the rest says `pub(crate)`.
+#![warn(missing_docs)]
+#![warn(unreachable_pub)]
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -40,7 +46,7 @@ impl Rect {
     }
 
     /// Does it contain the point? The edges count as inside.
-    pub(crate) fn contains(&self, p: Point) -> bool {
+    pub fn contains(&self, p: Point) -> bool {
         p.x >= self.x0 && p.x <= self.x1 && p.y >= self.y0 && p.y <= self.y1
     }
 
@@ -50,12 +56,12 @@ impl Rect {
     }
 
     /// Does `other` fall entirely inside this box?
-    pub(crate) fn contains_rect(&self, other: &Rect) -> bool {
+    pub fn contains_rect(&self, other: &Rect) -> bool {
         other.x0 >= self.x0 && other.y0 >= self.y0 && other.x1 <= self.x1 && other.y1 <= self.y1
     }
 
     /// Intersection over union: how much two boxes overlap (0 to 1).
-    pub(crate) fn iou(&self, other: &Rect) -> f32 {
+    pub fn iou(&self, other: &Rect) -> f32 {
         let inter = Rect {
             x0: self.x0.max(other.x0),
             y0: self.y0.max(other.y0),
@@ -126,7 +132,7 @@ impl Quad {
 impl Quad {
     /// Does it overlap the box, with some area? The quadrilateral convex:
     /// a corner of one inside the other, or two edges that cross.
-    pub(crate) fn touches(&self, r: &Rect) -> bool {
+    pub fn touches(&self, r: &Rect) -> bool {
         let boxed = Quad::from_rect(*r).0;
         let edges = |v: [Point; 4]| v.into_iter().zip(v.into_iter().cycle().skip(1));
         boxed.iter().any(|&p| self.contains(p))
@@ -148,7 +154,8 @@ fn cross((p, q): (Point, Point), (r, s): (Point, Point)) -> bool {
 /// takes in mattress and floor). Only asked what falls inside it; what is
 /// cropped around it is its bounds.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum Zone {
+pub enum Zone {
+    /// An axis-aligned box.
     Box(Rect),
     /// Convex, in any order around it.
     Quad(Quad),
@@ -156,7 +163,7 @@ pub(crate) enum Zone {
 
 impl Zone {
     /// Does it contain the point? A box counts its edges as inside.
-    pub(crate) fn contains(&self, p: Point) -> bool {
+    pub fn contains(&self, p: Point) -> bool {
         match self {
             Zone::Box(r) => r.contains(p),
             Zone::Quad(q) => q.contains(p),
@@ -164,7 +171,7 @@ impl Zone {
     }
 
     /// Does `other` fall entirely inside it?
-    pub(crate) fn contains_rect(&self, other: &Rect) -> bool {
+    pub fn contains_rect(&self, other: &Rect) -> bool {
         match self {
             Zone::Box(r) => r.contains_rect(other),
             Zone::Quad(q) => Quad::from_rect(*other).0.iter().all(|&p| q.contains(p)),
@@ -172,7 +179,7 @@ impl Zone {
     }
 
     /// The smallest box that contains it.
-    pub(crate) fn bounds(&self) -> Rect {
+    pub fn bounds(&self) -> Rect {
         match self {
             Zone::Box(r) => *r,
             Zone::Quad(q) => q.bounds(),

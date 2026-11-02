@@ -5,7 +5,8 @@ use super::*;
 use anyhow::Result;
 use std::path::Path;
 
-fn sense_profile(
+/// One line of the published profile: the sense's model by its file name.
+pub(super) fn sense_profile(
     kind: scene_core::contract::LookKind,
     model: &Path,
     backend_confidence: f32,
@@ -54,34 +55,16 @@ impl Config {
             .take(8)
             .map(|byte| format!("{byte:02x}"))
             .collect();
-        let mut senses = vec![sense_profile(
-            LookKind::Detect,
-            &self.senses.detect.model,
-            self.senses.detect.backend_confidence,
-            Some(self.policy.min_confidence),
-        )];
+        let min_confidence = self.policy.min_confidence;
+        let mut senses = vec![self.senses.detect.sense(min_confidence)];
         if let Some(reinforce) = &self.senses.reinforce {
-            senses.push(sense_profile(
-                LookKind::Reinforce,
-                &reinforce.model,
-                reinforce.backend_confidence,
-                Some(self.policy.min_confidence),
-            ));
+            senses.push(reinforce.sense(min_confidence));
         }
         if let Some(faces) = &self.senses.faces {
-            senses.push(sense_profile(
-                LookKind::Faces,
-                &faces.model,
-                faces.backend_confidence,
-                Some(faces.min_confidence),
-            ));
+            senses.push(faces.sense());
         }
-        // The pose is not admitted by score: `min_keypoint_score` picks keypoints.
         if let Some(pose) = &self.senses.pose {
-            senses.push(scene_core::contract::SenseProfile {
-                min_keypoint_score: Some(pose.min_keypoint_score),
-                ..sense_profile(LookKind::Pose, &pose.model, pose.backend_confidence, None)
-            });
+            senses.push(pose.sense());
         }
         // One model, two looks: the subject's (with pose) and the bed's. The depth
         // backend discards nothing.

@@ -10,6 +10,7 @@
 use crate::belief::Subject;
 use crate::belief::SubjectBody;
 use crate::belief::parts::{ByPart, Look};
+use crate::body::point_is_seen;
 use crate::body::{BodyPoint, Joint};
 use crate::evidence::FaceEvidence;
 use crate::geom::{Point, Rect};
@@ -110,7 +111,7 @@ pub(crate) fn seen(s: &Sample<'_>) -> Option<ByPart<Look>> {
             body.pose
                 .keypoints
                 .iter()
-                .filter(|k| k.is_seen(min))
+                .filter(|k| point_is_seen(k, min))
                 .collect()
         });
     let part = |joints: &[Joint], inside: &dyn Fn(Point) -> bool| {

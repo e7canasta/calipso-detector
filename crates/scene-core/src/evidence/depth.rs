@@ -5,7 +5,7 @@ use crate::attention::LookResult;
 use crate::body::BedPoint;
 use crate::estimation;
 use crate::geom::Point;
-use crate::look::DepthTarget;
+use crate::outcome::DepthTarget;
 
 /// The depth over a set of points: the median of the valid readings.
 pub(crate) fn depth(reading: Sensed<&[Option<f32>]>) -> (Option<f32>, LookResult) {

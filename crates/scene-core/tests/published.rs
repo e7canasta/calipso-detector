@@ -10,8 +10,8 @@
 
 use scene_core::Output;
 use scene_core::contract::{
-    BedState, Cause, Cell, DerivedBody, Event, FactBody, MapBody, Mode, Occupancy, Rbh, SampleRef,
-    Scene, SensorBody, SensorState,
+    BedState, Cause, DerivedBody, Event, FactBody, MapBody, Mode, Occupancy, Rbh, SampleRef, Scene,
+    SensorBody, SensorState,
 };
 
 /// Which kind of row: a fact of the domain (layer 0 or the map), a change
@@ -173,7 +173,7 @@ pub fn check(output: &Output) {
         if let Event::Transition(t) = event {
             assert_eq!(
                 t.cell,
-                Cell::new(t.before.occupancy.rbh, t.seen.fv, t.after.rbh),
+                scene_core::contract::v4::cell_of(t.before.occupancy.rbh, t.seen.fv, t.after.rbh),
                 "{at:?}: the cell"
             );
             // The occupants are those of the last fact; the bodies that are

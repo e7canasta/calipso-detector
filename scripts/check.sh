@@ -63,6 +63,29 @@ check_sense_deps() {
 step "sense dependencies (with ONNX)"
 check_sense_deps
 
+# The language of perception (scene-look) is below the core and has no IO: the
+# core re-exports it, nothing imports the core back (ADR 2026-11-02, crates del
+# lenguaje y del cable). The sense is a client of the language: it does not
+# depend on the core either. Its IO (image, ONNX) is its job, so only the
+# transport is checked, in check_sense_deps above.
+check_language_deps() {
+  local tree found
+  tree=$(cargo tree -p scene-look -e normal --prefix none --format '{p}') \
+    || fail "could not read the scene-look tree"
+  found=$(printf '%s\n' "$tree" | awk '{print $1}' \
+    | grep -Ex "$FORBIDDEN_CORE_DEPS" | sort -u || true)
+  [ -z "$found" ] || fail "scene-look depends on IO: $found"
+  for crate in scene-look sense; do
+    tree=$(cargo tree -p "$crate" -e normal --prefix none --format '{p}') \
+      || fail "could not read the $crate tree"
+    if printf '%s\n' "$tree" | awk '{print $1}' | grep -qx scene-core; then
+      fail "$crate depends on scene-core: the language is below the core"
+    fi
+  done
+}
+step "language and sense do not depend on the core"
+check_language_deps
+
 # The domain does not speak contract (DESIGN.md §2): it decides with its own
 # vocabulary and `contract` re-exports it. Only `project` translates, and
 # `cycle` names the contract because `Output` carries it. The chronicle
@@ -119,6 +142,67 @@ check_room_asks_nothing_above() {
 }
 step "the room asks nothing above it"
 check_room_asks_nothing_above
+
+# Each decider receives its own policy slice (ADR 2026-11-02,
+# politica-en-rebanadas): the occupancy names no verification, bed posture or
+# face policy, so no setting of those layers can change a count.
+check_occupancy_names_its_slice() {
+  local found
+  found=$(grep -rnE 'VerifyPolicy|BedPosturePolicy|FacePolicy' \
+            crates/scene-core/src/belief/occupancy/ || true)
+  [ -z "$found" ] || fail "the occupancy names a policy of another layer: $found"
+}
+step "the occupancy names its own slice"
+check_occupancy_names_its_slice
+
+# The language's leaf (ADR 2026-11-02, crates-del-lenguaje): scene-geom is
+# points, boxes and quadrilaterals. It depends on no domain and on no IO, as
+# the core does not (rule 8), so every crate above it may use it.
+check_geom_is_a_leaf() {
+  local tree found
+  tree=$(cargo tree -p scene-geom -e normal --prefix none --format '{p}') \
+    || fail "could not read the scene-geom tree"
+  found=$(printf '%s\n' "$tree" | awk '{print $1}' \
+            | grep -Ex "scene-core|$FORBIDDEN_CORE_DEPS" | sort -u || true)
+  [ -z "$found" ] || fail "scene-geom is not a leaf: it depends on $found"
+}
+step "scene-geom is a leaf"
+check_geom_is_a_leaf
+
+# The language is apart from the core (ADR 2026-11-02, crates-del-lenguaje):
+# scene-look speaks no IO and reaches neither the domain nor a sibling that
+# does; sense (which runs the models, so it has IO) reaches the language and
+# the wire, never scene-core.
+check_language_apart_from_core() {
+  local tree found
+  tree=$(cargo tree -p scene-look -e normal --prefix none --format '{p}') \
+    || fail "could not read the scene-look tree"
+  found=$(printf '%s\n' "$tree" | awk '{print $1}' \
+          | grep -Ex "scene-core|$FORBIDDEN_CORE_DEPS" | sort -u || true)
+  [ -z "$found" ] || fail "scene-look is not apart from the core: it depends on $found"
+  tree=$(cargo tree -p sense --features onnx -e normal --prefix none --format '{p}') \
+    || fail "could not read the sense tree"
+  found=$(printf '%s\n' "$tree" | awk '{print $1}' | grep -Ex "scene-core" | sort -u || true)
+  [ -z "$found" ] || fail "sense depends on the domain: $found"
+}
+step "scene-look is apart from the core; sense does not depend on scene-core"
+check_language_apart_from_core
+
+# Every guardian's fixture is run: a file in scripts/fixtures/ that
+# check-guardians.sh does not name is never broken on purpose, and a name
+# without its file would let the guardian pass in silence (the two empty
+# fixtures found on 2026-11-02 were both of these).
+check_fixtures_are_all_run() {
+  local files named orphan missing
+  files=$(ls scripts/fixtures/*.sh | sort)
+  named=$(grep -oE 'scripts/fixtures/[a-z0-9-]+\.sh' scripts/check-guardians.sh | sort -u)
+  orphan=$(comm -23 <(printf '%s\n' "$files") <(printf '%s\n' "$named"))
+  missing=$(comm -13 <(printf '%s\n' "$files") <(printf '%s\n' "$named"))
+  [ -z "$orphan" ] || fail "a fixture check-guardians.sh does not run: $orphan"
+  [ -z "$missing" ] || fail "check-guardians.sh names a fixture with no file: $missing"
+}
+step "every fixture is run"
+check_fixtures_are_all_run
 
 step "tests"
 cargo test --workspace --quiet || fail "tests"

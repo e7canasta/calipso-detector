@@ -31,11 +31,10 @@ fn grown(bed: &crate::geom::Quad, across: f64, along: f64) -> Option<crate::geom
 }
 
 use crate::body::BedSite;
+use crate::body::bed_site_at;
 use crate::geom::{Point, Quad, Rect, Zone};
 use crate::policy::{Policy, ShadowPolicy};
 use crate::time::SampleRef;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// Internal fact: the projection adds the context of the published event.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -266,7 +265,7 @@ impl Map {
     ) -> Option<[(BedSite, Point); BedSite::ALL.len()]> {
         let plane = BedPlane::of(self.bed_for(geometry)?)?;
         Some(BedSite::ALL.map(|site| {
-            let (u, v) = site.at();
+            let (u, v) = bed_site_at(site);
             (site, plane.point(u, v))
         }))
     }
@@ -306,7 +305,7 @@ impl Map {
 /// centre" means one thing. Degenerate corners have no plane: the centre of
 /// their box.
 fn calibration_points(bed: &Quad) -> Vec<Point> {
-    let (u, v) = BedSite::Centre.at();
+    let (u, v) = bed_site_at(BedSite::Centre);
     let centre = BedPlane::of(bed).map_or_else(|| bed.bounds().centroid(), |p| p.point(u, v));
     let mut points = bed.0.to_vec();
     points.push(centre);
@@ -323,92 +322,9 @@ fn gate(resolution: Option<FrameInfo>, frame: FrameInfo) -> Geometry {
     }
 }
 
-/// Size of a decoded frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct FrameInfo {
-    /// In pixels.
-    pub width: u32,
-    /// In pixels.
-    pub height: u32,
-}
-
-/// Whether the delimited bed matches the incoming image.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Geometry {
-    /// The image has the resolution the bed was delimited for.
-    Valid,
-    /// The resolution is not the declared one: "in bed" cannot be claimed.
-    Invalid {
-        /// The resolution the bed was delimited for.
-        declared: FrameInfo,
-        /// The resolution of the incoming image.
-        actual: FrameInfo,
-    },
-}
-
-/// The geometry's shadow over the site (white book, volume VII, ch. 11): it
-/// decides nothing; it is published to choose with data. Temporary.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct MapShadow {
-    /// Where the bed stands on the floor, if delimited.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bed_floor: Option<Quad>,
-    /// The bed's width and length in metres, if known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bed_size_m: Option<[f32; 2]>,
-    /// Near the bed in metres: the footprint (the mattress, without one) grown
-    /// by the shadow's distance in its own coordinates. Absent without the
-    /// bed's size.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub near: Option<Quad>,
-    /// Near the bed as decided today: the bed's bounding box grown by the
-    /// admission's margin.
-    pub near_today: Rect,
-    /// The headboard as a quadrilateral, if it was drawn as one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub headboard_area: Option<Quad>,
-}
-
-/// What is published of the static world.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct MapState {
-    /// Whether the delimited bed applies to this image.
-    pub geometry: Geometry,
-    /// The bed's four corners on the image, clockwise.
-    pub bed: Quad,
-    /// Where faces are looked for when nobody is in sight.
-    pub headboard: Option<Rect>,
-    /// Where the main detector looks while the resident is alone in bed: the
-    /// delimited focus or the bed grown by the focus policy's pad. Absent, and
-    /// not published, when the main detector does not focus.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub focus: Option<Rect>,
-    /// The geometry's shadow: what a geometry that does not decide yet sees
-    /// of the site. Absent, and not published, unless the profile asks for it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shadow: Option<MapShadow>,
-    /// What the map learned about the empty bed.
-    pub calibration: Calibration,
-}
-
-/// The learned bed depth and the sample it came from.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "status", rename_all = "snake_case")]
-pub enum Calibration {
-    /// The empty bed has not been learned.
-    #[default]
-    Unavailable,
-    /// The empty bed was learned.
-    Complete {
-        /// Its depth, on the depth model's scale (the name says metres, the
-        /// value is relative: see `BodyPoint`).
-        reference_m: f32,
-        /// The sample it was learned in; `None` if the profile brought it.
-        since: Option<SampleRef>,
-    },
-}
-
+pub use scene_contract::FrameInfo;
+pub use scene_contract::Geometry;
+pub use scene_contract::{Calibration, MapShadow, MapState};
 #[cfg(test)]
 mod tests {
     #[test]

@@ -2,13 +2,10 @@
 //! Stateless: each pose gives its posture.
 
 use crate::belief::SubjectBody;
-use crate::body::HeadPlace;
-use crate::body::{BedPoint, BedSite, BodyPoint, Joint};
+use crate::body::point_is_seen;
+use crate::body::{BedSite, BodyPoint, Joint};
 use crate::estimation;
 use crate::policy::EnrichPolicy;
-use crate::provenance::Provenance;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// What depth says about the posture, without provenance.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -44,7 +41,7 @@ pub(super) fn classify(body: &SubjectBody, policy: &EnrichPolicy) -> Option<Read
         .pose
         .keypoints
         .iter()
-        .filter(|p| p.is_seen(policy.min_keypoint_score))
+        .filter(|p| point_is_seen(p, policy.min_keypoint_score))
         .collect();
     if !seen.iter().any(|p| p.depth.is_some()) {
         return None;
@@ -115,106 +112,17 @@ pub(super) fn relative_disparity(a: Option<f32>, b: Option<f32>) -> Option<f32> 
         .filter(|d| d.is_finite())
 }
 
-/// A group of the body's keypoints: the median depth of those seen and
-/// measured, and how many of its keypoints were seen.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct BodyGroup {
-    /// Median depth of its seen, measured keypoints; `None` if none.
-    pub depth: Option<f32>,
-    /// How many of its keypoints were seen (score at least the minimum).
-    pub seen: u32,
-    /// How many keypoints the group has.
-    pub of: u32,
-}
-
-/// The groups the posture is measured with.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct BodyGroups {
-    /// Nose, eyes and ears.
-    pub head: BodyGroup,
-    /// Both shoulders.
-    pub shoulders: BodyGroup,
-    /// Both hips: the reference.
-    pub pelvis: BodyGroup,
-}
-
-/// Each disparity against the pelvis, `(a − pelvis) / mean`: relative,
-/// without scale. `upper_pelvis` (head and shoulders together) decides.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Disparities {
-    /// Head and shoulders against the pelvis: the one that decides.
-    pub upper_pelvis: Option<f32>,
-    /// The shoulders alone against the pelvis.
-    pub shoulders_pelvis: Option<f32>,
-    /// The head alone against the pelvis.
-    pub head_pelvis: Option<f32>,
-    /// Head and shoulders against the bed's centre: the stand-in for the
-    /// hips, the baseline when the blanket hides them (R17). Absent in scenes
-    /// recorded before it, and without the bed's points.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub upper_bed_centre: Option<f32>,
-}
-
-/// The posture by how head, torso and hips are ordered in depth.
-/// Monocular depth separates lying from upright by the magnitude of the
-/// disparity, not by its sign (measured on real nights): sitting and standing are not
-/// distinguished and are published together.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum PostureState {
-    /// The hips clearly closer to the camera than the head and shoulders.
-    Lying,
-    /// Sitting, getting up or standing. Also reads `sitting` and `standing`,
-    /// the values published before 904-5, so nights recorded with them can be
-    /// replayed; publishes only `upright`.
-    #[serde(alias = "sitting", alias = "standing")]
-    Upright,
-    /// One of the two groups has no measured keypoints.
-    Unknown,
-}
-
-/// The published posture, with its evidence on the depth model's (relative)
-/// scale and the pose's provenance.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Posture {
-    /// Lying, upright or unknown.
-    pub state: PostureState,
-    /// Median of the measured head and shoulders.
-    pub upper: Option<f32>,
-    /// Median of the measured hips: the feet do not vote.
-    pub lower: Option<f32>,
-    /// `(upper − lower) / mean`: relative, without scale.
-    pub disparity: Option<f32>,
-    /// That of the pose it was concluded from.
-    pub provenance: Provenance,
-    /// Head, shoulders and pelvis apart. Absent in scenes recorded before R16.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub groups: Option<BodyGroups>,
-    /// Each disparity against the pelvis; `upper_pelvis` is `disparity`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disparities: Option<Disparities>,
-    /// Above it, lying: the profile's `posture_tolerance`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tolerance: Option<f32>,
-    /// The bed's points, read in the same depth map as the keypoints: covered,
-    /// the bed's centre is the blanket over the hips (R17). Absent in scenes
-    /// recorded before them, and without the bed's geometry.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub bed_points: Vec<BedPoint>,
-    /// Where the head was when the bed's points were decided: they are read
-    /// only with it at the headboard (1707). Absent in scenes recorded before.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub head_place: Option<HeadPlace>,
-}
-
+pub use scene_contract::Posture;
+pub use scene_contract::{BodyGroup, BodyGroups, Disparities, PostureState};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::body::HeadPlace;
 
     fn body(upper: Option<f32>, lower: Option<f32>) -> SubjectBody {
         let keypoints = (0..17)
             .map(|i| BodyPoint {
-                name: Joint::coco(i),
+                name: crate::body::coco_joint(i),
                 x: 0.0,
                 y: 0.0,
                 score: 0.9,

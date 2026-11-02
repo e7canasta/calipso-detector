@@ -2,13 +2,16 @@
 
 use super::{Consideration, Decision, Glimpse, Memory, SkipReason};
 use crate::belief::Believed;
+use crate::belief::total;
 use crate::body::HeadPlace;
 use crate::body::Keypoint;
+use crate::body::{at_headboard, is_seen};
 use crate::geom::Point;
 use crate::geom::Rect;
-use crate::look::DepthTarget;
 use crate::map::CalibrationMemory;
+use crate::outcome::DepthTarget;
 use crate::policy::Policy;
+use crate::time::secs_since;
 
 /// A depth look: through the lens (`region`; `None`, the whole frame), at
 /// these points. The subject's carry each keypoint's index; the bed's, just
@@ -52,7 +55,7 @@ pub(crate) fn deepen(
         .unwrap_or_default()
         .iter()
         .enumerate()
-        .filter(|(_, k)| k.is_seen(policy.min_keypoint_score))
+        .filter(|(_, k)| is_seen(k, policy.min_keypoint_score))
         .map(|(i, k)| (DepthTarget::Keypoint(i), Point { x: k.x, y: k.y }))
         .collect();
     if points.is_empty() {
@@ -60,7 +63,7 @@ pub(crate) fn deepen(
     }
     // The stand-in is situational: the bed's centre is the hips only with the
     // head at the headboard (1707). Away from it, the bed is not looked at.
-    if let Some(sites) = g.map.bed_sites(g.geometry).filter(|_| head.at_headboard()) {
+    if let Some(sites) = g.map.bed_sites(g.geometry).filter(|_| at_headboard(&head)) {
         points.extend(sites.map(|(site, p)| (DepthTarget::Bed(site), p)));
     }
     Consideration::Decided(match lens {
@@ -105,7 +108,7 @@ pub(crate) fn calibrate(
     if g.faces.seen() {
         return skip(SkipReason::FacesPresent);
     }
-    let occupied = believed.occupancy.occupants().total() > 0
+    let occupied = total(believed.occupancy.occupants()) > 0
         || believed.occupancy.pending.is_some()
         || !g.bodies.seen().is_some_and(|b| b.is_empty());
     if occupied {
@@ -113,7 +116,7 @@ pub(crate) fn calibrate(
     }
     if memory
         .calibration_attempt
-        .and_then(|last| at.secs_since(last))
+        .and_then(|last| secs_since(at, last))
         .is_some_and(|age| age < policy.retry_secs)
     {
         return skip(SkipReason::RetryWait);

@@ -5,7 +5,7 @@
 //! (the window). It delivers two columns of the table: what we believed we saw
 //! and what we saw.
 
-use super::conservation::Seen;
+use super::conservation::SeenMark;
 use crate::belief::stabilizer::{Candidate, Change, Stabilizer};
 use crate::evidence::Bodies;
 use crate::policy::Persistence;
@@ -17,7 +17,7 @@ use crate::zone::Counts;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct Settled {
     pub(super) from: Counts,
-    pub(super) seen: Seen,
+    pub(super) seen: SeenMark,
     pub(super) first: SampleRef,
 }
 /// What was seen raw while the count stabilized, relative to what was seen
@@ -120,7 +120,7 @@ impl Span {
             self.window.track(bodies, near_first);
         }
         let Change { from, to, first } = self.counts.observe(at, raw, p)?;
-        let seen = Seen {
+        let seen = SeenMark {
             counts: to,
             from_door: self.window.from_door,
             passing: self.window.passing,

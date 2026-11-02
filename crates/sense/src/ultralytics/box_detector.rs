@@ -3,7 +3,7 @@ use std::path::Path;
 use ultralytics_inference::{InferenceConfig, YOLOModel};
 
 use crate::{ModelError, detection::from_backend};
-use scene_core::look::Detection;
+use scene_look::Detection;
 
 /// Loads a model of any task with the backend confidence floor.
 pub(super) fn load(path: &Path, confidence: f32) -> Result<YOLOModel, ModelError> {

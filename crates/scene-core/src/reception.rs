@@ -2,8 +2,6 @@
 //! it remembers it, publishes it and announces when it changes (F-15).
 
 use crate::time::SampleRef;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct SensorChanged {
@@ -13,11 +11,11 @@ pub(crate) struct SensorChanged {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct SensorMemory {
+pub(crate) struct Memory {
     state: SensorState,
 }
 
-impl Default for SensorMemory {
+impl Default for Memory {
     fn default() -> Self {
         Self {
             state: SensorState::Connecting,
@@ -25,7 +23,7 @@ impl Default for SensorMemory {
     }
 }
 
-impl SensorMemory {
+impl Memory {
     pub(crate) fn state(&self) -> SensorState {
         self.state
     }
@@ -41,16 +39,4 @@ impl SensorMemory {
     }
 }
 
-/// The reception state, as the shell reports it. It says nothing about the bed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SensorState {
-    /// Opening the stream.
-    Connecting,
-    /// Samples are arriving.
-    Streaming,
-    /// Connected, but no sample within the stall timeout.
-    Stalled,
-    /// The stream dropped; trying again.
-    Reconnecting,
-}
+pub use scene_contract::SensorState;

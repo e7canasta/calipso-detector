@@ -1,12 +1,15 @@
-//! What a profile must hold before anything starts: each section checks
-//! itself, and the first error found is reported.
+//! What a profile must hold before anything starts. The common sections
+//! (identifiers, transport, policy, the site map) are checked here; each
+//! capability checks its own section in its module, and its error names the
+//! section first: `[faces]: senses.faces.min_confidence must be…`. The first
+//! error found is reported.
 
 use super::*;
 use anyhow::{Context, Result, ensure};
 use std::path::Path;
 
 /// A score or a ratio: finite and between 0 and 1.
-fn fraction(name: &str, value: f32) -> Result<()> {
+pub(super) fn fraction(name: &str, value: f32) -> Result<()> {
     ensure!(
         value.is_finite() && (0.0..=1.0).contains(&value),
         "{name} must be between 0 and 1"
@@ -15,7 +18,7 @@ fn fraction(name: &str, value: f32) -> Result<()> {
 }
 
 /// A margin or a delay: finite and not negative.
-fn not_negative(name: &str, value: f64) -> Result<()> {
+pub(super) fn not_negative(name: &str, value: f64) -> Result<()> {
     ensure!(
         value.is_finite() && value >= 0.0,
         "{name} must be finite and not negative"
@@ -24,7 +27,7 @@ fn not_negative(name: &str, value: f64) -> Result<()> {
 }
 
 /// A period: finite and positive.
-fn positive(name: &str, value: f64) -> Result<()> {
+pub(super) fn positive(name: &str, value: f64) -> Result<()> {
     ensure!(
         value.is_finite() && value > 0.0,
         "{name} must be finite and positive"
@@ -33,9 +36,14 @@ fn positive(name: &str, value: f64) -> Result<()> {
 }
 
 /// Every sense names its model.
-fn model(name: &str, path: &Path) -> Result<()> {
+pub(super) fn model(name: &str, path: &Path) -> Result<()> {
     ensure!(!path.as_os_str().is_empty(), "{name} is empty");
     Ok(())
+}
+
+/// The section's name leads the error, so the operator knows where to look.
+fn in_section(section: &str, checked: Result<()>) -> Result<()> {
+    checked.map_err(|error| anyhow::anyhow!("[{section}]: {error}"))
 }
 
 impl Config {
@@ -50,81 +58,18 @@ impl Config {
         self.validate_verify()
     }
 
-    /// The policy and the sense come together; bands are ordered and finite;
-    /// the doubtful digits need layer 1, and the disparity needs depth.
+    /// The verifier's two sections together: the sense and the policy come
+    /// together, and each rule names its own section.
     fn validate_verify(&self) -> Result<()> {
-        let Some(v) = &self.verify else {
-            ensure!(
-                self.senses.verify.is_none(),
-                "senses.verify without [verify]: nothing would be asked"
-            );
-            return Ok(());
-        };
-        let Some(sense) = &self.senses.verify else {
-            anyhow::bail!("verify needs senses.verify: where the verifier is");
-        };
-        ensure!(!sense.subject.is_empty(), "senses.verify.subject is empty");
-        positive("senses.verify.wall_timeout_secs", sense.wall_timeout_secs)?;
-        if let Some(max) = v.max_per_hour {
-            ensure!(max > 0, "verify.max_per_hour must be positive");
-        }
-        if let Some(t) = v.timeout_secs {
-            positive("verify.timeout_secs", t)?;
-        }
-        if let Some(held) = &v.held {
-            not_negative("verify.held.after_secs", held.after_secs)?;
-            if let Some(valid) = held.valid_secs {
-                positive("verify.held.valid_secs", valid)?;
-            }
-        }
-        if let Some([lo, hi]) = v.doubtful_disparity {
-            ensure!(
-                lo.is_finite() && hi.is_finite() && lo <= hi,
-                "verify.doubtful_disparity must be [lo, hi], finite, lo <= hi"
-            );
-            ensure!(
+        in_section(
+            "verify",
+            verify::validate(
+                self.verify.as_ref(),
+                self.senses.verify.as_ref(),
                 self.senses.depth.is_some(),
-                "verify.doubtful_disparity needs senses.depth: the disparity"
-            );
-        }
-        if let Some(m) = v.doubtful_feet_margin {
-            ensure!(
-                m.is_finite() && m > 0.0 && m < 0.5,
-                "verify.doubtful_feet_margin must be in (0, 0.5)"
-            );
-        }
-        let frames = v.frames.clone().unwrap_or_default();
-        for (name, burst) in [
-            ("held_in_bed", frames.held_in_bed),
-            ("sitting_in_bed", frames.sitting_in_bed),
-            ("leaving_bed", frames.leaving_bed),
-        ] {
-            if let Some(b) = burst {
-                ensure!(
-                    (1..=8).contains(&b.frames),
-                    "verify.frames.{name}.frames must be 1 to 8"
-                );
-                ensure!(
-                    b.every_secs.is_finite() && b.every_secs >= 0.0,
-                    "verify.frames.{name}.every_secs must be a source time, 0 or more"
-                );
-            }
-        }
-        if let Some(s) = v.sharpness {
-            ensure!(
-                s.min_ratio.is_finite() && s.min_ratio > 0.0 && s.min_ratio <= 1.0,
-                "verify.sharpness.min_ratio must be in (0, 1]"
-            );
-            ensure!(s.window > 0, "verify.sharpness.window must be positive");
-            positive("verify.sharpness.max_wait_secs", s.max_wait_secs)?;
-        }
-        if v.doubtful_disparity.is_some() || v.doubtful_feet_margin.is_some() {
-            ensure!(
                 self.bed_posture.is_some(),
-                "verify.doubtful_* needs [bed_posture]: layer 1 reads the digit"
-            );
-        }
-        Ok(())
+            ),
+        )
     }
 
     /// Times finite and not negative; it needs where the head is (the
@@ -133,21 +78,10 @@ impl Config {
         let Some(b) = &self.bed_posture else {
             return Ok(());
         };
-        not_negative("bed_posture.dwell_lying_secs", b.dwell_lying_secs)?;
-        not_negative("bed_posture.dwell_sitting_up_secs", b.dwell_sitting_up_secs)?;
-        not_negative(
-            "bed_posture.dwell_getting_out_secs",
-            b.dwell_getting_out_secs,
-        )?;
-        ensure!(
-            self.map.headboard.is_some(),
-            "bed_posture needs map.headboard: where the head is"
-        );
-        ensure!(
-            self.senses.pose.is_some(),
-            "bed_posture needs senses.pose: the body"
-        );
-        Ok(())
+        in_section(
+            "bed_posture",
+            b.validate(self.map.headboard.is_some(), self.senses.pose.is_some()),
+        )
     }
 
     /// `camera.site` and `camera.id` become subject tokens.
@@ -204,73 +138,25 @@ impl Config {
 
     /// Each sense section, and that depth and calibration ask for each other.
     fn validate_senses(&self) -> Result<()> {
-        model("senses.detect.model", &self.senses.detect.model)?;
-        if let Some(focus) = &self.senses.detect.focus {
-            not_negative("senses.detect.focus.pad", f64::from(focus.pad))?;
-            positive("senses.detect.focus.walk_secs", focus.walk_secs)?;
-            positive("senses.detect.focus.wide_every_secs", focus.wide_every_secs)?;
-            ensure!(
-                focus.wide_every_secs <= focus.walk_secs,
-                "senses.detect.focus.wide_every_secs cannot exceed senses.detect.focus.walk_secs: \
-                 whoever walks in would reach the bed unseen"
-            );
-        }
+        in_section("detect", self.senses.detect.validate_sense())?;
         if let Some(reinforce) = &self.senses.reinforce {
-            model("senses.reinforce.model", &reinforce.model)?;
-            fraction(
-                "senses.reinforce.backend_confidence",
-                reinforce.backend_confidence,
-            )?;
-            ensure!(
-                reinforce.backend_confidence <= self.policy.min_confidence,
-                "senses.reinforce.backend_confidence cannot exceed policy.min_confidence"
-            );
-            not_negative(
-                "senses.reinforce.bed_padding",
-                f64::from(reinforce.bed_padding),
-            )?;
+            in_section("reinforce", reinforce.validate(self.policy.min_confidence))?;
         }
         if let Some(faces) = &self.senses.faces {
-            model("senses.faces.model", &faces.model)?;
-            fraction("senses.faces.backend_confidence", faces.backend_confidence)?;
-            fraction("senses.faces.min_confidence", faces.min_confidence)?;
-            ensure!(
-                faces.backend_confidence <= faces.min_confidence,
-                "senses.faces.backend_confidence cannot exceed senses.faces.min_confidence"
-            );
-            if let Some(pad) = faces.headboard_pad {
-                not_negative("senses.faces.headboard_pad", f64::from(pad))?;
-            }
+            in_section("faces", faces.validate())?;
         }
         if let Some(pose) = &self.senses.pose {
-            model("senses.pose.model", &pose.model)?;
-            fraction("senses.pose.backend_confidence", pose.backend_confidence)?;
-            fraction("senses.pose.min_keypoint_score", pose.min_keypoint_score)?;
-            not_negative("senses.pose.move_threshold", f64::from(pose.move_threshold))?;
-            if let Some(pad) = pose.crop_pad {
-                not_negative("senses.pose.crop_pad", f64::from(pad))?;
-            }
-            ensure!(
-                pose.max_age_secs.is_none_or(|s| s.is_finite() && s > 0.0),
-                "senses.pose.max_age_secs must be finite and positive"
-            );
+            in_section("pose", pose.validate())?;
         }
         if let Some(depth) = &self.senses.depth {
-            model("senses.depth.model", &depth.model)?;
-            if let Some(pad) = depth.crop_pad {
-                not_negative("senses.depth.crop_pad", f64::from(pad))?;
-            }
-            ensure!(
-                self.senses.pose.is_some() || self.calibration.is_some(),
-                "senses.depth: nobody asks for depth; [senses.pose] or [calibration] is needed"
-            );
+            let asked = self.senses.pose.is_some() || self.calibration.is_some();
+            in_section("depth", depth.validate(asked))?;
         }
         if let Some(calibration) = &self.calibration {
-            ensure!(
-                self.senses.depth.is_some(),
-                "calibration: calibrating the bed requires [senses.depth]"
-            );
-            not_negative("calibration.retry_secs", calibration.retry_secs)?;
+            in_section(
+                "calibration",
+                calibration.validate(self.senses.depth.is_some()),
+            )?;
         }
         Ok(())
     }
@@ -279,14 +165,12 @@ impl Config {
     fn validate_policy(&self) -> Result<()> {
         fraction("policy.min_confidence", self.policy.min_confidence)?;
         fraction("policy.same_body_iou", self.policy.same_body_iou)?;
-        fraction(
-            "senses.detect.backend_confidence",
-            self.senses.detect.backend_confidence,
+        in_section(
+            "detect",
+            self.senses
+                .detect
+                .validate_confidence(self.policy.min_confidence),
         )?;
-        ensure!(
-            self.senses.detect.backend_confidence <= self.policy.min_confidence,
-            "senses.detect.backend_confidence cannot exceed policy.min_confidence"
-        );
         not_negative(
             "policy.near_bed_margin",
             f64::from(self.policy.near_bed_margin),
@@ -300,7 +184,8 @@ impl Config {
         not_negative("policy.dwell_secs", self.policy.dwell_secs)
     }
 
-    /// The bed inside the resolution and not degenerate; a valid headboard.
+    /// The bed inside the resolution and not degenerate; a valid headboard;
+    /// the shadow and the room's geometry, which need the map's measures.
     fn validate_map(&self) -> Result<()> {
         let [w, h] = self.map.resolution;
         ensure!(w > 0 && h > 0, "map.resolution must be positive");
@@ -342,65 +227,17 @@ impl Config {
             );
         }
         if let Some(shadow) = &self.shadow {
-            ensure!(
-                shadow.near_m.is_finite() && shadow.near_m > 0.0,
-                "shadow.near_m: a distance in metres, positive"
-            );
-            ensure!(
-                shadow.support_margin_m.is_finite() && shadow.support_margin_m >= 0.0,
-                "shadow.support_margin_m: a distance in metres, not negative"
-            );
-            ensure!(
-                self.map.bed_size_m.is_some(),
-                "shadow needs map.bed_size_m: near the bed is measured in metres"
-            );
+            in_section("shadow", shadow.validate(self.map.bed_size_m.is_some()))?;
         }
         if let Some(occupancy) = &self.occupancy {
-            match (occupancy.geometry, &occupancy.two_planes) {
-                (RoomGeometry::Frontal, Some(_)) => {
-                    anyhow::bail!("occupancy.two_planes needs occupancy.geometry = \"two_planes\"")
-                }
-                (RoomGeometry::TwoPlanes, None) => anyhow::bail!(
-                    "occupancy.geometry = \"two_planes\" needs [occupancy.two_planes]"
-                ),
-                (RoomGeometry::TwoPlanes, Some(two)) => {
-                    ensure!(
-                        two.share.is_finite() && two.share > 0.0 && two.share <= 1.0,
-                        "occupancy.two_planes.share: the share of the box in bed, in (0, 1]"
-                    );
-                    ensure!(
-                        two.support_m.is_finite() && two.support_m >= 0.0,
-                        "occupancy.two_planes.support_m: a distance in metres, not negative"
-                    );
-                    ensure!(
-                        two.near_m.is_finite() && two.near_m > 0.0,
-                        "occupancy.two_planes.near_m: a distance in metres, positive"
-                    );
-                    ensure!(
-                        self.map.bed_floor.is_some(),
-                        "occupancy in two planes needs map.bed_floor: the support rests on it"
-                    );
-                    ensure!(
-                        self.map.bed_size_m.is_some(),
-                        "occupancy in two planes needs map.bed_size_m: distances are in metres"
-                    );
-                }
-                (RoomGeometry::Frontal, None) => {}
-            }
-            if let Some(knee) = &occupancy.knee {
-                ensure!(
-                    occupancy.geometry == RoomGeometry::TwoPlanes,
-                    "occupancy.knee needs occupancy.geometry = \"two_planes\""
-                );
-                ensure!(
+            in_section(
+                "occupancy",
+                occupancy.validate(
+                    self.map.bed_floor.is_some(),
+                    self.map.bed_size_m.is_some(),
                     self.senses.pose.is_some(),
-                    "occupancy.knee needs [senses.pose]: the knee is read on the pose"
-                );
-                ensure!(
-                    knee.bent_deg.is_finite() && knee.bent_deg > 0.0 && knee.bent_deg < 180.0,
-                    "occupancy.knee.bent_deg: an angle in degrees, in (0, 180)"
-                );
-            }
+                ),
+            )?;
         }
         if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
             ensure!(within(points), "map.headboard: points outside resolution");

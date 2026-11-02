@@ -3,7 +3,7 @@
 //! state and the candidate that is holding, in source time (rule 9).
 
 use super::rules::decide;
-use super::{BedPostureSeen, BedPostureState, Concluded, Sighting};
+use super::{BedPostureState, Concluded, Sighting};
 use crate::belief::InBed;
 use crate::belief::stabilizer::Stabilizer;
 use crate::policy::{BedPosturePolicy, Persistence};
@@ -50,7 +50,7 @@ impl Machine {
         posture.observe(at, proposed, &dwell);
         Some(Concluded {
             state: posture.stable(),
-            seen: BedPostureSeen::of(l0, sighting),
+            seen: super::bed_posture_seen_of(l0, sighting),
         })
     }
 }

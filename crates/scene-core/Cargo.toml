@@ -16,6 +16,9 @@ path = "tests/bdd/main.rs"
 harness = false
 
 [dependencies]
+scene-contract = { path = "../scene-contract" }
+scene-geom = { path = "../scene-geom" }
+scene-look = { path = "../scene-look" }
 schemars = "1.2.2"
 serde = { version = "1.0.229", features = ["derive"] }
 

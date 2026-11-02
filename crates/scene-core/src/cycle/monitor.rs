@@ -60,7 +60,7 @@ impl Monitor {
             },
             Input::Sensor { state, .. } => Phase::Republish {
                 reason: RepublishReason::Sensor,
-                changed: course.monitor.engine.sensor.report(at, state),
+                changed: course.monitor.engine.reception.report(at, state),
             },
         };
         Turn {

@@ -2,12 +2,60 @@
 #[path = "../support/models.rs"]
 pub mod models;
 use cucumber::{World, given, then, when};
+use detector::verifier::VerifierPort;
 use image::DynamicImage;
 use models::{Call, DepthModel, Model, PoseModel};
 use scene_core::{
     geom::Rect,
-    look::{Detection, FaceRegion, Failure, Label, Probe, Reading},
+    look::{Detection, FaceRegion, Failure, Label, Probe, Reading, SenseProbe, Spent, Ticket},
 };
+use sense::{DetectorPort, ModelError};
+use std::time::Duration;
+
+/// The main detector, slowed down by `delay`: the router's clock encloses the
+/// answerer's work, so the measured time includes this delay.
+#[derive(Debug)]
+pub struct Slow {
+    pub model: Model,
+    pub delay: Duration,
+}
+
+impl DetectorPort for Slow {
+    fn detect(&mut self, image: &DynamicImage) -> Result<Vec<Detection>, ModelError> {
+        std::thread::sleep(self.delay);
+        self.model.detect(image)
+    }
+}
+
+/// The verifier, as a count: how many questions and how many kept crops it took.
+#[derive(Debug, Default)]
+pub struct Verifier {
+    pub asks: usize,
+    pub keeps: usize,
+}
+
+impl VerifierPort for Verifier {
+    type Frame = DynamicImage;
+    fn ask(
+        &mut self,
+        _: &DynamicImage,
+        _: Ticket,
+        _: Rect,
+        _: &scene_core::geom::Quad,
+        _: scene_core::look::Question,
+        _: &[u8],
+    ) -> Result<(), Failure> {
+        self.asks += 1;
+        Ok(())
+    }
+    fn answers(&mut self) -> Vec<scene_core::look::Verified> {
+        Vec::new()
+    }
+    fn keep(&mut self, _: &DynamicImage, _: Ticket, _: Rect) -> Result<f32, Failure> {
+        self.keeps += 1;
+        Ok(3.0)
+    }
+}
 
 #[derive(Debug, Default, World)]
 pub struct Shell {
@@ -17,6 +65,12 @@ pub struct Shell {
     pub faces: Option<Model>,
     pub pose: Option<PoseModel>,
     pub depth: Option<DepthModel>,
+    /// How long the main detector takes to answer, in milliseconds.
+    pub main_delay_ms: u64,
+    /// The probe the scenario's turn asks, and the router's answer to it.
+    pub probe: Option<Probe>,
+    pub answer: Option<(Result<Reading, Failure>, Spent)>,
+    pub verifier: Verifier,
     /// The map the depth model sees, while the scenario builds it.
     pub depth_map: sense::DepthMap,
     pub reading: Option<Result<Reading, Failure>>,
@@ -28,6 +82,8 @@ pub struct Shell {
     pub night: Vec<scene_core::Output>,
     pub distilled: Option<Result<golden::distill::Distilled, golden::language::Error>>,
     pub policy: Option<scene_core::policy::Policy>,
+    /// The repository profile a scenario loaded from `config/`, by its path.
+    pub loaded_from: Option<String>,
 }
 
 impl Shell {
@@ -64,9 +120,33 @@ impl Shell {
             _ => self.model(role).calls(),
         }
     }
+    /// Answers a sense probe with the scripted senses, as the router does.
+    pub fn look_sense(&self, probe: &Probe) -> Result<Reading, Failure> {
+        self.senses().look(
+            self.image.as_ref().unwrap(),
+            &probe.sense().expect("a sense probe"),
+        )
+    }
+    /// How many times the scripted models were called, in any role.
+    pub fn sense_calls(&self) -> usize {
+        [
+            self.main.as_ref().map(|m| m.calls().len()),
+            self.reinforce.as_ref().map(|m| m.calls().len()),
+            self.faces.as_ref().map(|m| m.calls().len()),
+            self.pose.as_ref().map(|m| m.calls().len()),
+            self.depth.as_ref().map(|m| m.calls().len()),
+        ]
+        .into_iter()
+        .flatten()
+        .sum()
+    }
     /// The shell's senses with the scripted models present.
     pub fn senses(&self) -> sense::Senses {
-        let mut senses = sense::Senses::new(self.model("main").clone());
+        let main = Slow {
+            model: self.model("main").clone(),
+            delay: Duration::from_millis(self.main_delay_ms),
+        };
+        let mut senses = sense::Senses::new(main);
         if let Some(model) = &self.reinforce {
             senses = senses.with_reinforce(model.clone());
         }
@@ -178,9 +258,7 @@ fn look_faces(w: &mut Shell, target: String, x0: f32, y0: f32, x1: f32, y1: f32)
     } else {
         FaceRegion::Subject(rect)
     };
-    let reading = senses
-        .look(w.image.as_ref().unwrap(), &Probe::Faces { region })
-        .0;
+    let reading = senses.look(w.image.as_ref().unwrap(), &SenseProbe::Faces { region });
     if let Ok(reading) = &reading {
         assert!(matches!(reading, Reading::Faces(_)));
     }
@@ -192,16 +270,12 @@ fn look_faces(w: &mut Shell, target: String, x0: f32, y0: f32, x1: f32, y1: f32)
 )]
 fn detect_region(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
     let mut senses = sense::Senses::new(w.model("main").clone());
-    w.reading = Some(
-        senses
-            .look(
-                w.image.as_ref().unwrap(),
-                &Probe::Detect {
-                    region: Some(Rect::new(x0, y0, x1, y1)),
-                },
-            )
-            .0,
-    );
+    w.reading = Some(senses.look(
+        w.image.as_ref().unwrap(),
+        &SenseProbe::Detect {
+            region: Some(Rect::new(x0, y0, x1, y1)),
+        },
+    ));
 }
 
 #[when(regex = r"^the core asks to reinforce the region (\d+),(\d+) to (\d+),(\d+)$")]
@@ -210,16 +284,12 @@ fn reinforce(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
     if let Some(port) = &w.reinforce {
         senses = senses.with_reinforce(port.clone());
     }
-    w.reading = Some(
-        senses
-            .look(
-                w.image.as_ref().unwrap(),
-                &Probe::Reinforce {
-                    region: Rect::new(x0, y0, x1, y1),
-                },
-            )
-            .0,
-    );
+    w.reading = Some(senses.look(
+        w.image.as_ref().unwrap(),
+        &SenseProbe::Reinforce {
+            region: Rect::new(x0, y0, x1, y1),
+        },
+    ));
 }
 
 #[then(

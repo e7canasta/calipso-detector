@@ -39,7 +39,7 @@ pub(crate) enum BedPhase {
 /// What we saw: the new count that stabilized, `input[t]`, with what is known
 /// of how it was reached.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Seen {
+pub(crate) struct SeenMark {
     pub(crate) counts: Counts,
     /// How many appeared on the floor far from the bed while it stabilized:
     /// they come from the door, not from the bed (rule 5).
@@ -80,7 +80,7 @@ pub(super) enum Movement {
 
 /// Which moves explain the change of the stable count, in publishing order
 /// (rule 4): the bed first, then the room.
-pub(super) fn settle(before: Before, seen: Seen) -> Vec<Movement> {
+pub(super) fn settle(before: Before, seen: SeenMark) -> Vec<Movement> {
     use Movement::*;
     let floor_up = seen.counts.floor.saturating_sub(before.stable.floor);
     let floor_down = before.stable.floor.saturating_sub(seen.counts.floor);
@@ -206,7 +206,7 @@ mod tests {
             },
             held_left: c.held_left,
         };
-        let seen = Seen {
+        let seen = SeenMark {
             counts: c.to,
             from_door: c.from_door,
             passing: c.passing,

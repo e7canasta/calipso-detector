@@ -1,7 +1,5 @@
-use scene_core::{
-    geom::Rect,
-    look::{Detection, Label},
-};
+use scene_geom::Rect;
+use scene_look::{Detection, Label};
 
 /// Translates backend coordinates and labels, with no acceptance policy.
 pub(crate) fn from_backend(xyxy: [f32; 4], confidence: f32, class: Option<&str>) -> Detection {
@@ -20,7 +18,8 @@ pub(crate) fn from_backend(xyxy: [f32; 4], confidence: f32, class: Option<&str>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scene_core::{geom::Rect, look::Label};
+    use scene_geom::Rect;
+    use scene_look::Label;
 
     #[test]
     fn chair_and_unknown_classes_are_kept_with_their_boxes_and_confidence() {

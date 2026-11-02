@@ -12,7 +12,9 @@ default = []
 onnx = ["dep:ultralytics-inference"]
 
 [dependencies]
-scene-core = { path = "../scene-core" }
+scene-contract = { path = "../scene-contract" }
+scene-geom = { path = "../scene-geom" }
+scene-look = { path = "../scene-look" }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 tracing = "0.1"
 thiserror = "2"

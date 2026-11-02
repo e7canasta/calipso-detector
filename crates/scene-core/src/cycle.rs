@@ -13,18 +13,19 @@
 use std::sync::Arc;
 
 use crate::attention::{self, Attention};
-use crate::belief::{Belief, Believed};
+use crate::belief::{Belief, Believed, OccupancyRules};
 use crate::chronicle::Chronicle;
 use crate::conclusion::RepublishReason;
 use crate::contract::v4::{Event, Scene};
 use crate::evidence::Perceived;
-use crate::look::{Failure, Outcome, Probe, Reading, Spent};
+use crate::look::{Failure, Probe, Reading, Spent};
 use crate::map::{BedCalibrated, CalibrationMemory, FrameInfo, Geometry, Map};
-use crate::policy::Policy;
+use crate::outcome::Outcome;
+use crate::policy::{BedPosturePolicy, Policy};
+use crate::reception::{self, SensorChanged, SensorState};
 use crate::room::Room;
-use crate::sensor::{SensorChanged, SensorMemory, SensorState};
 use crate::time::SampleRef;
-use crate::verification::Verification;
+use crate::verification::{Verification, VerifyRules};
 
 mod engine;
 mod monitor;
@@ -82,7 +83,7 @@ pub struct Monitor {
     last: Option<(SampleRef, Arc<Scene>)>,
 }
 
-/// The deterministic engine: the policy, the map, the belief and the sensor.
+/// The deterministic engine: the policy, the map, the belief and the reception.
 /// It decides what to look at and what to believe with what it sees; it does
 /// not remember what was published.
 #[derive(Debug)]
@@ -92,13 +93,20 @@ struct Engine {
     /// What was learned of the empty bed: the loop learns it, the map does not.
     calibration: CalibrationMemory,
     belief: Belief,
-    sensor: SensorMemory,
+    reception: reception::Memory,
     /// What attention remembers of what it looked at: the lens and the last
     /// calibration attempt.
     attention_memory: attention::Memory,
     /// What the slow verifier was asked and what it owes.
     verification: Verification,
     frame: Option<FrameInfo>,
+    /// The policy slices, resolved once when the monitor is built (ADR
+    /// 2026-11-02, politica-en-rebanadas): each decider receives its own, and
+    /// the whole policy stays above, in `policy`, for what is not sliced yet.
+    occupancy_rules: OccupancyRules,
+    verify_rules: VerifyRules,
+    /// `None`: no `[bed_posture]`, so layer 1 does not decide.
+    bed_posture: Option<BedPosturePolicy>,
 }
 
 /// What the turn is waiting for. Each waiting stage carries what the turn has

@@ -4,7 +4,9 @@ mod depth;
 mod distill;
 pub mod driver;
 mod pose;
+mod probe;
 mod profile;
+mod profile_capability;
 #[path = "../support/mod.rs"]
 mod support;
 mod world;

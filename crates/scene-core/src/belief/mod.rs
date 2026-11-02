@@ -11,7 +11,7 @@ mod subject;
 use crate::evidence::{Admission, Bodies, BodyEvidence};
 use crate::geom::Rect;
 use crate::look::Detection;
-use crate::policy::Policy;
+use crate::policy::{BedPosturePolicy, Persistence};
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
 use crate::zone::Zone;
@@ -21,22 +21,15 @@ use subject::SubjectMemory;
 pub use bed_posture::{BedPosture, BedPostureSeen, BedPostureState};
 pub use parts::PartsReading;
 
-pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, Room, Tally, Transition};
+pub(crate) use occupancy::{
+    Alone, BedPhase, InBed, Occupancy, OccupancyRules, Room, Tally, Transition,
+};
 pub(crate) use subject::{Enrichment, SubjectBody};
 
-/// The occupants layer 0 believes in, by where they are: off the bed, seen in
-/// bed and held in bed. The book's `RBH` is `(total, bed + held, held)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Occupants {
-    pub floor: u32,
-    pub bed: u32,
-    pub held: u32,
-}
-
-impl Occupants {
-    pub(crate) fn total(self) -> u32 {
-        self.floor + self.bed + self.held
-    }
+pub(crate) use scene_contract::Occupants;
+/// Everyone the layer believes in the room: off the bed, in bed and held.
+pub(crate) fn total(occupants: Occupants) -> u32 {
+    occupants.floor + occupants.bed + occupants.held
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -143,14 +136,14 @@ impl Belief {
     /// Layer 1, if its policy follows it: the wire from layer 0 to layer 1.
     /// Its input is layer 0's state now (the resident alone in bed, seen or
     /// held, or nothing) and what the second level perceived. It reads layer
-    /// 0 and never changes it.
+    /// 0 and never changes it. `None` (no `[bed_posture]`): nothing is decided.
     pub(crate) fn observe_bed_posture(
         &mut self,
         at: SampleRef,
         sighting: bed_posture::Sighting,
-        policy: &Policy,
+        policy: Option<&BedPosturePolicy>,
     ) -> Option<bed_posture::Concluded> {
-        let policy = policy.bed_posture.as_ref()?;
+        let policy = policy?;
         let l0 = match self.occupancy.room() {
             Room::Alone(Alone::InBed(in_bed)) => Some(in_bed),
             Room::Empty | Room::Alone(Alone::Out) | Room::Accompanied(_) => None,
@@ -166,11 +159,11 @@ impl Belief {
         &mut self,
         at: SampleRef,
         seen: Option<parts::ByPart<parts::Look>>,
-        policy: &Policy,
+        persistence: &Persistence,
     ) -> Option<parts::Concluded> {
         let subject = seen.is_some() && matches!(self.occupancy.room(), Room::Alone(_));
         self.parts
-            .step(at, subject, seen.unwrap_or_default(), &policy.persistence)
+            .step(at, subject, seen.unwrap_or_default(), persistence)
     }
 
     /// Updates the belief with the bodies of a sample. A failure or a sample
@@ -179,16 +172,16 @@ impl Belief {
         &mut self,
         at: SampleRef,
         admission: &Admission,
-        policy: &Policy,
+        rules: &OccupancyRules,
     ) -> Believed {
         let current = admission.bodies.seen();
         let transition = current.and_then(|bodies| {
             self.occupancy.step(
                 at,
                 bodies,
-                &policy.persistence,
-                policy.held_left,
-                policy.near_first,
+                &rules.persistence,
+                rules.held_left,
+                rules.near_first,
             )
         });
         let subject = self.subject_now(current);

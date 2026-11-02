@@ -1302,6 +1302,7 @@ dependencies = [
 name = "golden"
 version = "0.1.0"
 dependencies = [
+ "scene-contract",
  "scene-core",
  "serde_json",
 ]
@@ -3058,6 +3059,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scene-contract"
+version = "0.1.0"
+dependencies = [
+ "scene-geom",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "scene-core"
 version = "0.1.0"
 dependencies = [
@@ -3066,9 +3076,28 @@ dependencies = [
  "golden",
  "jsonschema",
  "proptest",
+ "scene-contract",
+ "scene-geom",
+ "scene-look",
  "schemars",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "scene-geom"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "scene-look"
+version = "0.1.0"
+dependencies = [
+ "scene-contract",
+ "scene-geom",
 ]
 
 [[package]]
@@ -3166,7 +3195,9 @@ name = "sense"
 version = "0.1.0"
 dependencies = [
  "image",
- "scene-core",
+ "scene-contract",
+ "scene-geom",
+ "scene-look",
  "thiserror 2.0.21",
  "tracing",
  "ultralytics-inference",

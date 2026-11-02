@@ -4,7 +4,7 @@ use crate::{
     ports::{PersonPose, PosePort},
 };
 use image::DynamicImage;
-use scene_core::contract::Keypoint;
+use scene_contract::Keypoint;
 use std::path::Path;
 use ultralytics_inference::YOLOModel;
 

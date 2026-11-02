@@ -24,9 +24,25 @@ pub(crate) use room::{Alone, InBed, Room};
 
 use crate::belief::{Fact, Occupants};
 use crate::look::Detection;
+use crate::policy::Persistence;
 use crate::time::SampleRef;
 use crate::zone::Counts;
-pub(crate) use conservation::{BedPhase, Seen};
+pub(crate) use conservation::{BedPhase, SeenMark};
+
+/// What layer 0 decides with, resolved once when the monitor is built (ADR
+/// 2026-11-02, politica-en-rebanadas): its own rules and nothing of the other
+/// layers. The occupancy names no verification, bed posture or face policy.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct OccupancyRules {
+    /// How long a new count must hold before it is believed.
+    pub(crate) persistence: Persistence,
+    /// Rule 4 bis: a held body that appears near the bed on the floor is the
+    /// one who got up.
+    pub(crate) held_left: bool,
+    /// Rule 5, refined: a body that appeared near the bed and walked away did
+    /// not come from the door.
+    pub(crate) near_first: bool,
+}
 
 /// A retained body (rule 1): it stopped being seen in bed without a step to
 /// the floor and we believe it is still there. `since` is the last sample it
@@ -50,7 +66,7 @@ pub(crate) struct Transition {
     /// What we believed.
     pub before: Tally,
     /// What we saw: the count that held and how it was reached.
-    pub seen: Seen,
+    pub seen: SeenMark,
     /// The first sample that saw the new count: the start of the span.
     pub first_seen: SampleRef,
     /// What we believe.

@@ -4,7 +4,9 @@
 
 use crate::ModelError;
 use image::DynamicImage;
-use scene_core::{contract::Keypoint, geom::Point, look::Detection};
+use scene_contract::Keypoint;
+use scene_geom::Point;
+use scene_look::Detection;
 
 pub trait DetectorPort {
     /// Every detection the backend returns, in `image` coordinates.

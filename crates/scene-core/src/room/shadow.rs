@@ -12,58 +12,9 @@ use crate::geom::{Point, Rect};
 use crate::map::{BedPlane, Geometry, Map};
 use crate::policy::{Policy, ShadowPolicy};
 use crate::zone::Zone;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
-/// A point of the image and where it falls in the bed's coordinates on a
-/// plane: `u` across, `v` from the foot (0) to the headboard (1).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct PlanePoint {
-    /// In image pixels.
-    pub x: f32,
-    /// In image pixels.
-    pub y: f32,
-    /// Across the bed: 0 and 1 are its sides.
-    pub u: f32,
-    /// Along the bed: 0 the foot, 1 the headboard.
-    pub v: f32,
-}
-
-/// The plane a point was measured on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ShadowPlane {
-    /// The bed's footprint on the floor.
-    Floor,
-    /// The mattress, when there is no footprint.
-    Mattress,
-}
-
-/// The shadow of one body. It decides nothing.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct BodyShadow {
-    /// The box's centre on the mattress: what decides the zone today.
-    pub centroid: PlanePoint,
-    /// The centre of the box's lower edge, where a standing body rests.
-    pub support: PlanePoint,
-    /// Where the support was measured.
-    pub support_plane: ShadowPlane,
-    /// How far the support is from the bed, in metres; zero inside. Absent
-    /// without the bed's size.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub support_distance_m: Option<f32>,
-    /// The share of the box over the mattress, on an 8 × 8 grid.
-    pub share: f32,
-    /// The zone the support says: in bed within the shadow's margin, on the
-    /// floor past it. Absent without the bed's size.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub zone: Option<Zone>,
-    /// On the floor for the shadow: whether the support is within the
-    /// shadow's distance of the bed. Absent in bed or without the bed's size.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub near_bed: Option<bool>,
-}
-
+pub use scene_contract::PlanePoint;
+pub use scene_contract::{BodyShadow, ShadowPlane};
 /// What the shadow measures bodies against: the mattress, the footprint if
 /// delimited, the bed's size if known, and the policy.
 #[derive(Debug, Clone, Copy)]

@@ -240,7 +240,8 @@ async fn main() -> Result<()> {
                 };
                 let t = at.source_secs.0 - *origin.get_or_insert(at.source_secs.0);
                 let request = Probe::Detect { region: None };
-                let Ok(Reading::Bodies(bodies)) = senses.look(&frame, &request).0 else {
+                let sense = request.sense().expect("a sense probe");
+                let Ok(Reading::Bodies(bodies)) = senses.look(&frame, &sense) else {
                     continue;
                 };
                 let in_bed: Vec<_> = bodies

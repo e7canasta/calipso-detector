@@ -7,43 +7,10 @@
 //! lying. Off the bed nothing is ruled yet (F-5).
 
 use super::PostureState;
-use crate::time::SampleRef;
 use crate::zone::Zone;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
-/// How the resident is, as the arbiter rules it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum VerdictState {
-    /// In bed, the head and shoulders farther from the camera than the pelvis.
-    LyingInBed,
-    /// In bed, the head and shoulders closer to the camera than the pelvis.
-    SittingUpInBed,
-    /// In bed, but no head knows how.
-    InBed,
-}
-
-/// A head of the second level: who supports a verdict.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Head {
-    /// The depth disparity of head and shoulders against the pelvis (904, 1604).
-    Disparity,
-}
-
-/// The published verdict: how the resident is, which heads support it and
-/// since when it holds (a fold of the chronicle, P4).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Verdict {
-    /// How the resident is.
-    pub state: VerdictState,
-    /// The heads that support it; empty when none knows.
-    pub by: Vec<Head>,
-    /// The first sample of this verdict, without interruption.
-    pub since: SampleRef,
-}
-
+pub use scene_contract::Head;
+pub use scene_contract::{Verdict, VerdictState};
 /// The arbiter's ruling: the verdict and the heads that support it.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Ruling {
@@ -75,6 +42,7 @@ pub(crate) fn arbitrate(zone: Zone, posture: Option<PostureState>) -> Option<Rul
 mod tests {
     use super::*;
     use crate::golden;
+    use serde::Serialize;
 
     const GOLDEN: &str = include_str!("../../../../contract/second-level-table.txt");
 
