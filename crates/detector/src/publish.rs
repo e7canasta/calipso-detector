@@ -1,7 +1,7 @@
-//! The handle numbers before sending; the network has its own owner. Each
-//! contract version the profile lists is numbered on its own (its events and
-//! its scenes, contiguous from 1), and goes out on its own subjects.
-use scene_contract::{Envelope, Event, Profile, Scene, SchemaId, Source, Timing, v5};
+//! The handle numbers before sending; the network has its own owner. The
+//! profile's turns go out as contract v5: its events, then its scene, numbered
+//! on their own from 1, on their own subjects.
+use scene_contract::{Profile, Source, Timing, v5};
 use scene_core::Output;
 use serde::Serialize;
 use std::{
@@ -13,53 +13,29 @@ use tokio::sync::mpsc;
 pub(crate) const EVENT_BUFFER: usize = 1024;
 /// The channel is bounded too; the actor's fact queue has 1024 slots.
 pub const CHANNEL_BUFFER: usize = 64;
-pub(crate) type ScenePublication = Envelope<Arc<Scene>>;
-pub(crate) type EventPublication = Envelope<Event>;
-pub(crate) type ScenePublicationV5 = v5::Envelope<Arc<v5::Scene>>;
-pub(crate) type EventPublicationV5 = v5::Envelope<v5::Event>;
+pub(crate) type ScenePublication = v5::Envelope<Arc<v5::Scene>>;
+pub(crate) type EventPublication = v5::Envelope<v5::Event>;
 
-/// A contract version the shell publishes.
+/// The contract version the shell publishes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Version {
-    V4,
     V5,
 }
 
 impl Version {
-    /// The name the profile gives it: `v4`, `v5`.
-    pub fn parse(name: &str) -> Option<Self> {
-        match name {
-            "v4" => Some(Self::V4),
-            "v5" => Some(Self::V5),
-            _ => None,
-        }
-    }
-
     /// The last token of each subject.
     pub fn token(self) -> &'static str {
         match self {
-            Self::V4 => "v4",
             Self::V5 => "v5",
         }
     }
 }
 
-/// A numbered turn in v4: its events and, after them, its scene; and in v5, when
-/// the profile lists it, the same turn in v5, numbered on its own.
+/// A numbered turn: its events and, after them, its scene.
 #[derive(Debug)]
 pub struct Publication {
     pub events: Vec<EventPublication>,
     pub scene: ScenePublication,
-    pub v5: Option<Publication5>,
-    /// Whether the profile lists v4: only then do its messages go out.
-    pub publish_v4: bool,
-}
-
-/// The same turn in v5: its events, then its scene.
-#[derive(Debug)]
-pub struct Publication5 {
-    pub events: Vec<EventPublicationV5>,
-    pub scene: ScenePublicationV5,
 }
 
 /// The class of a message: the scene (the last one counts) or an event (all of
@@ -78,14 +54,14 @@ impl Kind {
         }
     }
 
-    /// `{prefix}.scene.v4`, `{prefix}.events.v5`, and so on.
+    /// `{prefix}.scene.v5`, `{prefix}.events.v5`.
     pub fn subject(self, prefix: &str, version: Version) -> String {
         format!("{prefix}.{}.{}", self.as_str(), version.token())
     }
 }
 
-/// An envelope that knows which stream it goes to and in which version: the
-/// in-memory sink and the network actor convert it the same way.
+/// An envelope that knows which stream it goes to: the in-memory sink and the
+/// network actor convert it the same way.
 pub(crate) trait Wired: Serialize {
     const KIND: Kind;
     const VERSION: Version;
@@ -104,29 +80,13 @@ pub(crate) trait Wired: Serialize {
 
 impl Wired for EventPublication {
     const KIND: Kind = Kind::Events;
-    const VERSION: Version = Version::V4;
-    fn msg_id(&self) -> Option<&str> {
-        self.event_id.as_deref()
-    }
-}
-
-impl Wired for ScenePublication {
-    const KIND: Kind = Kind::Scene;
-    const VERSION: Version = Version::V4;
-    fn msg_id(&self) -> Option<&str> {
-        None
-    }
-}
-
-impl Wired for EventPublicationV5 {
-    const KIND: Kind = Kind::Events;
     const VERSION: Version = Version::V5;
     fn msg_id(&self) -> Option<&str> {
         self.event_id.as_deref()
     }
 }
 
-impl Wired for ScenePublicationV5 {
+impl Wired for ScenePublication {
     const KIND: Kind = Kind::Scene;
     const VERSION: Version = Version::V5;
     fn msg_id(&self) -> Option<&str> {
@@ -165,28 +125,20 @@ impl WireMessage {
 }
 
 impl Publication {
-    /// In-memory sink: exactly the bytes and headers NATS consumes, each version
-    /// its events before its scene; v4 first.
+    /// In-memory sink: exactly the bytes and headers NATS consumes, the events
+    /// before the scene.
     pub fn messages(&self) -> serde_json::Result<Vec<WireMessage>> {
         let mut messages = Vec::with_capacity(self.events.len() + 1);
-        if self.publish_v4 {
-            for event in &self.events {
-                messages.push(event.wire()?);
-            }
-            messages.push(self.scene.wire()?);
+        for event in &self.events {
+            messages.push(event.wire()?);
         }
-        if let Some(v5) = &self.v5 {
-            for event in &v5.events {
-                messages.push(event.wire()?);
-            }
-            messages.push(v5.scene.wire()?);
-        }
+        messages.push(self.scene.wire()?);
         Ok(messages)
     }
 }
 
-/// The numbering of one version's stream: its events and its scenes, each
-/// contiguous from 1.
+/// The numbering of the stream: its events and its scenes, each contiguous
+/// from 1.
 #[derive(Debug, Default)]
 struct Numbering {
     events: u64,
@@ -228,34 +180,20 @@ pub struct PublisherHandle {
     source: Source,
     profile: Profile,
     numbering: Numbering,
-    numbering5: Numbering,
-    publish_v4: bool,
-    publish_v5: bool,
     tx: mpsc::Sender<Publication>,
     dropped_events: u64,
 }
 
 impl PublisherHandle {
-    /// v4 only: what the profile publishes by default.
+    /// The channel to the network actor. The profile's identity goes in every
+    /// envelope; the turns are numbered here.
     pub fn channel(source: Source, profile: Profile) -> (Self, mpsc::Receiver<Publication>) {
-        Self::channel_with(source, profile, &[Version::V4])
-    }
-
-    /// The versions the profile lists; the caller says which.
-    pub fn channel_with(
-        source: Source,
-        profile: Profile,
-        versions: &[Version],
-    ) -> (Self, mpsc::Receiver<Publication>) {
         let (tx, rx) = mpsc::channel(CHANNEL_BUFFER);
         (
             Self {
                 source,
                 profile,
                 numbering: Numbering::default(),
-                numbering5: Numbering::default(),
-                publish_v4: versions.contains(&Version::V4),
-                publish_v5: versions.contains(&Version::V5),
                 tx,
                 dropped_events: 0,
             },
@@ -263,7 +201,7 @@ impl PublisherHandle {
         )
     }
 
-    /// Numbers a turn in each version it publishes, and wraps it in envelopes.
+    /// Numbers a turn and wraps it in v5 envelopes.
     pub fn prepare(&mut self, output: Output, timing: Timing) -> Publication {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -272,52 +210,16 @@ impl PublisherHandle {
             source,
             profile,
             numbering,
-            numbering5,
-            publish_v4,
-            publish_v5,
             ..
         } = self;
-        let Output {
-            at,
-            scene,
-            events,
-            v5: projected,
-        } = output;
+        let projected = output.v5;
         // The event_id names the version: if a stream captures several,
         // deduplication by Nats-Msg-Id does not confuse one event with another.
-        let v4_events = events
+        let events = projected
+            .events
             .into_iter()
             .map(|event| {
                 let seq = numbering.next_event();
-                Envelope {
-                    schema: SchemaId::EventsV4,
-                    source: source.clone(),
-                    profile: profile.clone(),
-                    seq,
-                    observed_at: event.at(),
-                    published_at_ms: now,
-                    event_id: Some(format!("{}-{}-{seq}", source.run_id, Version::V4.token())),
-                    timing: None,
-                    last_event_seq: None,
-                    body: event,
-                }
-            })
-            .collect();
-        let v4_scene = Envelope {
-            schema: SchemaId::SceneV4,
-            source: source.clone(),
-            profile: profile.clone(),
-            seq: numbering.next_scene(),
-            observed_at: at,
-            published_at_ms: now,
-            event_id: None,
-            timing: Some(timing),
-            last_event_seq: Some(numbering.last_event_seq()),
-            body: scene,
-        };
-        let v5 = (*publish_v5).then(|| {
-            let v5_events = projected.events.into_iter().map(|event| {
-                let seq = numbering5.next_event();
                 v5::Envelope {
                     schema: v5::SchemaId::Events,
                     source: source.clone(),
@@ -330,30 +232,23 @@ impl PublisherHandle {
                     last_event_seq: None,
                     body: event,
                 }
-            });
-            let events = v5_events.collect();
-            // The scene names the last v5 event numbered before it: the
-            // numbering's, not the transport's (change 1).
-            let scene = v5::Envelope {
-                schema: v5::SchemaId::Scene,
-                source: source.clone(),
-                profile: profile.clone(),
-                seq: numbering5.next_scene(),
-                observed_at: projected.observed_at,
-                published_at_ms: now,
-                event_id: None,
-                timing: Some(timing),
-                last_event_seq: Some(numbering5.last_event_seq()),
-                body: projected.scene,
-            };
-            Publication5 { events, scene }
-        });
-        Publication {
-            events: v4_events,
-            scene: v4_scene,
-            v5,
-            publish_v4: *publish_v4,
-        }
+            })
+            .collect();
+        // The scene names the last event numbered before it: the numbering's,
+        // not the transport's (change 1).
+        let scene = v5::Envelope {
+            schema: v5::SchemaId::Scene,
+            source: source.clone(),
+            profile: profile.clone(),
+            seq: numbering.next_scene(),
+            observed_at: projected.observed_at,
+            published_at_ms: now,
+            event_id: None,
+            timing: Some(timing),
+            last_event_seq: Some(numbering.last_event_seq()),
+            body: projected.scene,
+        };
+        Publication { events, scene }
     }
 
     pub fn send(&mut self, output: Output, timing: Timing) -> bool {

@@ -16,7 +16,6 @@ mod occupancy;
 mod policy;
 mod pose;
 mod profile;
-mod publish;
 mod reinforce;
 mod schema;
 mod shadow;

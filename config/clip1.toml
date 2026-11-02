@@ -114,5 +114,3 @@ headboard = [780, 110, 1090, 300]
 url = "nats://127.0.0.1:4222"
 # prefix = "vision.local.clip1"
 
-[publish]
-versions = ["v4", "v5"]

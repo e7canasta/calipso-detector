@@ -151,16 +151,16 @@ fn calibrated(w: &mut Shell, sample: u64, reference: f32) {
     assert_eq!(events.len(), 1, "one calibration: {events:?}");
     for event in &events {
         assert_eq!(event["observed_at"]["sequence"], sample);
-        assert_eq!(event["body"]["reference_m"], reference);
+        assert_eq!(event["body"]["reference"], reference);
     }
     let calibration = &scene(w, sample)["body"]["map"]["calibration"];
     assert_eq!(calibration["status"], "complete", "{calibration}");
-    assert_eq!(calibration["reference_m"], reference);
+    assert_eq!(calibration["reference"], reference);
 }
 
 #[then(regex = r"^the scene of sample (\d+) carries the subject at depth ([\d.]+)$")]
 fn subject_depth(w: &mut Shell, sample: u64, meters: f32) {
     let depth = &scene(w, sample)["body"]["subject"]["depth"];
-    assert_eq!(depth["meters"], meters, "{depth}");
+    assert_eq!(depth["relative"], meters, "{depth}");
     assert_eq!(depth["provenance"]["type"], "current", "{depth}");
 }

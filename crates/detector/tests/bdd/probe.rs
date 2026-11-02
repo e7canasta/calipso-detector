@@ -176,6 +176,6 @@ fn turn_concludes(w: &mut Shell) {
     let config = w.config().clone();
     let concluded = publish_samples(w, &config, 1, 1, false)
         .iter()
-        .any(|(_, json)| json["schema"] == "calipso.scene.v4");
+        .any(|(_, json)| json["schema"] == "calipso.scene.v5");
     assert!(concluded, "sample 1 published no scene");
 }

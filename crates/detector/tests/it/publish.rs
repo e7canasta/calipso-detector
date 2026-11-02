@@ -30,14 +30,14 @@ const TIMING: Timing = Timing {
 fn s1_valid_envelopes_events_first_and_contiguous_sequences() {
     let scene_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../../contract/schema/calipso.scene.v4.json"
+            "../../../../contract/schema/calipso.scene.v5.json"
         ))
         .unwrap(),
     )
     .unwrap();
     let event_schema = jsonschema::validator_for(
         &serde_json::from_str(include_str!(
-            "../../../../contract/schema/calipso.events.v4.json"
+            "../../../../contract/schema/calipso.events.v5.json"
         ))
         .unwrap(),
     )
@@ -47,7 +47,7 @@ fn s1_valid_envelopes_events_first_and_contiguous_sequences() {
     let mut event_seq = 0;
     for n in 1..=25 {
         let processed = driver.arrive(support::sample(n, 1)).pop().unwrap();
-        let scene_arc = std::sync::Arc::clone(&processed.output.scene);
+        let scene_arc = std::sync::Arc::clone(&processed.output.v5.scene);
         assert!(h.send(processed.output, processed.timing));
         let publication = rx.try_recv().unwrap();
         assert!(std::sync::Arc::ptr_eq(&scene_arc, &publication.scene.body));
@@ -59,7 +59,7 @@ fn s1_valid_envelopes_events_first_and_contiguous_sequences() {
                     event_seq += 1;
                     assert!(event_schema.is_valid(&v), "{v}");
                     assert_eq!(v["seq"], event_seq);
-                    assert_eq!(v["event_id"], format!("run-test-v4-{event_seq}"));
+                    assert_eq!(v["event_id"], format!("run-test-v5-{event_seq}"));
                     assert_eq!(m.msg_id.as_deref(), v["event_id"].as_str());
                     assert!(index + 1 < messages.len());
                 }

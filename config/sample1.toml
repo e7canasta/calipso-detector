@@ -118,5 +118,3 @@ focus = [570, 175, 1375, 1080]
 url = "nats://127.0.0.1:4222"
 # prefix = "vision.north-residence.room-12"
 
-[publish]
-versions = ["v4", "v5"]
