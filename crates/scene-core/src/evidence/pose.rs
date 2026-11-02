@@ -3,7 +3,7 @@
 use super::{Body, BodyEvidence, BodySource, Perceived, PosedBody, Sensed};
 use crate::attention::LookResult;
 use crate::body::Keypoint;
-use crate::policy::Policy;
+use crate::policy::EnrichPolicy;
 use crate::room::{BodyZone, Room};
 
 /// The pose the sense brought: `None` if it failed or brought no keypoints.
@@ -27,12 +27,12 @@ pub(crate) fn pose_body(
     floor: usize,
     reading: Sensed<Option<Vec<Keypoint>>>,
     room: Option<&Room>,
-    policy: &Policy,
+    enrich: Option<&EnrichPolicy>,
 ) -> LookResult {
     let (pose, result) = pose(reading);
     let admission = &mut perceived.bodies;
     let (Some(pose), Some(room), Some(enrich), BodyEvidence::Seen(bodies)) =
-        (pose, room, policy.enrich, &mut admission.bodies)
+        (pose, room, enrich, &mut admission.bodies)
     else {
         return result;
     };

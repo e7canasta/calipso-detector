@@ -288,7 +288,7 @@ impl Course<'_> {
                     floor,
                     outcome.into_pose(),
                     self.room.as_ref(),
-                    &self.monitor.engine.policy,
+                    self.monitor.engine.policy.enrich.as_ref(),
                 );
                 self.asked(probe, spent, result);
                 Reached::Evidence(perceived)
@@ -422,7 +422,7 @@ impl Course<'_> {
                 .map
                 .state(self.geometry, &engine.policy, &engine.calibration),
             sensor: engine.reception.state(),
-            dwell_secs: engine.policy.persistence.dwell_secs,
+            dwell_secs: engine.occupancy_rules.persistence.dwell_secs,
         }))
     }
 
@@ -544,11 +544,11 @@ impl Course<'_> {
     /// chosen.
     fn burst_ready(&self) -> Option<(Collecting, Vec<u8>)> {
         let Engine {
-            policy,
+            verify_rules,
             verification,
             ..
         } = &self.monitor.engine;
-        let sharpness = policy.verify.as_ref().and_then(|v| v.sharpness);
+        let sharpness = verify_rules.sharpness;
         let collecting = verification.collecting()?.clone();
         let crops = attention::burst_ready(self.at, &collecting, sharpness.as_ref())?;
         Some((collecting, crops))
@@ -593,7 +593,7 @@ impl Course<'_> {
             &observed.evidence.faces,
             pose,
             self.room.as_ref(),
-            &self.monitor.engine.policy,
+            self.monitor.engine.policy.enrich.as_ref(),
         )
     }
 

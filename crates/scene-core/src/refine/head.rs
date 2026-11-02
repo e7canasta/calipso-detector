@@ -8,7 +8,7 @@ use crate::body::{HeadEvidence, HeadPlace, HeadPlaceState, Joint, Keypoint};
 use crate::body::{coco_joint, is_seen};
 use crate::evidence::FaceEvidence;
 use crate::geom::Point;
-use crate::policy::Policy;
+use crate::policy::EnrichPolicy;
 use crate::room::{HeadArea, Room};
 
 impl From<HeadArea> for HeadPlaceState {
@@ -38,12 +38,9 @@ pub(crate) fn of_turn(
     faces: &FaceEvidence,
     pose: Option<&[Keypoint]>,
     room: Option<&Room>,
-    policy: &Policy,
+    enrich: Option<&EnrichPolicy>,
 ) -> HeadPlace {
-    let min_score = policy
-        .enrich
-        .as_ref()
-        .map_or(f32::INFINITY, |p| p.min_keypoint_score.get());
+    let min_score = enrich.map_or(f32::INFINITY, |p| p.min_keypoint_score.get());
     place(faces, pose, room, min_score)
 }
 

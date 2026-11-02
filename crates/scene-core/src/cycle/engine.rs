@@ -118,3 +118,44 @@ impl Engine {
         Issued::Collecting(ticket)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geom::{Quad, Rect};
+    use crate::policy::{Persistence, SharpnessPolicy, VerifyPolicy};
+    use crate::units::Seconds;
+
+    /// The slices are read once, from the same policy the engine keeps: a
+    /// decider that reads a slice and one that reads the policy see one value.
+    #[test]
+    fn each_slice_is_the_value_the_policy_holds() {
+        let policy = Policy {
+            persistence: Persistence {
+                dwell_secs: Seconds::ONE,
+            },
+            verify: Some(VerifyPolicy {
+                sharpness: Some(SharpnessPolicy {
+                    min_ratio: 0.8,
+                    window: 4,
+                    max_wait_secs: Seconds::TWO,
+                }),
+                ..VerifyPolicy::default()
+            }),
+            ..Policy::default()
+        };
+        let engine = Engine::new(
+            policy,
+            SiteMap::new(Quad::from_rect(Rect::new(0.0, 0.0, 10.0, 10.0))),
+        );
+        assert_eq!(
+            engine.occupancy_rules.persistence.dwell_secs,
+            engine.policy.persistence.dwell_secs
+        );
+        assert_eq!(
+            engine.verify_rules.sharpness,
+            engine.policy.verify.as_ref().and_then(|v| v.sharpness)
+        );
+        assert!(engine.verify_rules.sharpness.is_some());
+    }
+}
