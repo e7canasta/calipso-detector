@@ -1,0 +1,72 @@
+# state | event | condition | next | effects
+Idle | ask | one frame, not judged | InFlight asked=1 win=[] held=— | verify ticket=1 crops=[]
+Idle | ask | three frames | Collecting asked=1 win=[] held=— | keep ticket=1
+Idle | ask | one frame, judged | Collecting asked=1 win=[] held=— | keep ticket=1
+Idle | answer | arrives | Idle asked=0 win=[] held=— | —
+Idle | settle | no answers | Idle asked=0 win=[] held=— | —
+Idle | expire | no request | Idle asked=0 win=[] held=— | —
+Idle | turn | no burst | Idle asked=0 win=[] held=— | —
+Idle | kept crop | no burst | Idle asked=0 win=[0.9] held=— | kept counted=true
+Idle | keep failed | no burst | Idle asked=0 win=[] held=— | —
+Collecting | turn | younger than every_secs | Collecting asked=1 win=[] held=— | waited
+Collecting | turn | every_secs passed | Collecting asked=1 win=[] held=— | keep ticket=1
+Collecting | turn | layer 1 moved on | Idle asked=1 win=[] held=— | dropped stale
+Collecting | turn | another session | Idle asked=1 win=[] held=— | dropped stale
+Collecting | turn | doubt cleared | Idle asked=1 win=[] held=— | dropped resolved
+Collecting | turn | held body no longer held | Idle asked=1 win=[] held=— | dropped stale
+Collecting | kept crop | sharp, first | Collecting asked=1 win=[0.9] held=— | kept counted=true
+Collecting | kept crop | blurred, not the last | Collecting asked=1 win=[0.9, 0.2] held=— | kept counted=false
+Collecting | kept crop | third counted: ready | InFlight asked=1 win=[0.9, 0.85, 0.8] held=— | kept counted=true; verify ticket=1 crops=[0, 1, 2]
+Collecting | kept crop | blurred after the longest wait | InFlight asked=1 win=[0.9, 0.2] held=— | kept counted=false; verify ticket=1 crops=[0, 1]
+Collecting | keep failed |  | Idle asked=1 win=[] held=— | —
+Collecting | answer | for a burst not sent | Collecting asked=1 win=[] held=— | —
+Collecting | settle | no answers | Collecting asked=1 win=[] held=— | —
+Collecting | expire | no request | Collecting asked=1 win=[] held=— | —
+InFlight | dispatch failed | feet | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | dispatch ok | feet | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | turn | feet | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | feet · answer yes · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | feet PastTheSides
+InFlight | answer | feet · answer yes · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | feet · answer no · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | feet Seen
+InFlight | answer | feet · answer no · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | feet · answer unsure · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | feet · answer unsure · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | feet · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | feet · another ticket | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · answer yes · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | disparity Upright
+InFlight | answer | disparity · answer yes · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · answer no · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | disparity Lying
+InFlight | answer | disparity · answer no · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · answer unsure · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · answer unsure · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · another ticket | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | held · answer yes · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=confirmed | held confirmed
+InFlight | answer | held · answer yes · moved on | Idle asked=1 win=[] held=— | —
+InFlight | answer | held · answer no · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=not_confirmed | held not_confirmed
+InFlight | answer | held · answer no · moved on | Idle asked=1 win=[] held=— | —
+InFlight | answer | held · answer unsure · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=not_confirmed | held not_confirmed
+InFlight | answer | held · answer unsure · moved on | Idle asked=1 win=[] held=— | —
+InFlight | answer | held · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | held · another ticket | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | feet · timeout reached · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | feet PastTheSides
+InFlight | expire | feet · timeout reached · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | feet · timeout not reached | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | feet · no timeout | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | feet · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | disparity · timeout reached · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | disparity · timeout reached · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | disparity · timeout not reached | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | disparity · no timeout | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | disparity · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | held · timeout reached · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | held · timeout reached · moved on | Idle asked=1 win=[] held=— | —
+InFlight | expire | held · timeout not reached | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | held · no timeout | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | expire | held · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+Idle | held observe | not followed | Idle asked=0 win=[] held=— | —
+Idle | held observe | new body | Idle asked=0 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+Idle | held observe | same body, same session | Idle asked=0 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+Idle | held observe | same body, new session | Idle asked=0 win=[] held=since=s1n1 at=s2n3 check=unverified | —
+Idle | held observe | another body | Idle asked=0 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+Idle | held observe | no body held | Idle asked=0 win=[] held=— | —

@@ -33,7 +33,7 @@ fn grown(bed: &crate::geom::Quad, across: f64, along: f64) -> Option<crate::geom
 use crate::body::BedSite;
 use crate::body::bed_site_at;
 use crate::geom::{Point, Quad, Rect, Zone};
-use crate::policy::{Policy, ShadowPolicy};
+use crate::policy::{AdmissionPolicy, FocusPolicy, ShadowPolicy};
 use crate::time::SampleRef;
 
 /// Internal fact: the projection adds the context of the published event.
@@ -281,17 +281,14 @@ impl Map {
     pub(crate) fn state(
         &self,
         geometry: Geometry,
-        policy: &Policy,
+        focus: Option<&FocusPolicy>,
+        shadow: Option<&ShadowPolicy>,
+        admission: &AdmissionPolicy,
         calibration: &CalibrationMemory,
     ) -> MapState {
         MapState {
-            focus: policy
-                .focus
-                .as_ref()
-                .and_then(|f| self.focus_region(geometry, f.pad)),
-            shadow: policy
-                .shadow
-                .map(|shadow| self.shadow(shadow, policy.admission.near_bed_margin)),
+            focus: focus.and_then(|f| self.focus_region(geometry, f.pad)),
+            shadow: shadow.map(|shadow| self.shadow(*shadow, admission.near_bed_margin)),
             geometry,
             bed: self.site.bed,
             headboard: self.headboard().map(|headboard| headboard.bounds()),

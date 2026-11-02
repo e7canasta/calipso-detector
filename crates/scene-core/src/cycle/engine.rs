@@ -7,20 +7,12 @@ use super::Engine;
 use crate::attention::{self, LookResult, VerifyLook};
 use crate::belief::{Belief, Believed, OccupancyRules, bed_posture, parts};
 use crate::evidence::Admission;
-use crate::look::{Failure, Ticket};
+use crate::look::Failure;
 use crate::map::{CalibrationMemory, SiteMap};
 use crate::policy::Policy;
 use crate::reception;
 use crate::time::SampleRef;
-use crate::verification::{Verification, VerifyRules};
-
-/// How a question to the verifier was issued.
-pub(super) enum Issued {
-    /// One frame and no sharpness to choose by: this sample's crop goes out now.
-    Now(Ticket),
-    /// A burst: it starts by keeping this sample's crop.
-    Collecting(Ticket),
-}
+use crate::verification::{Effect, Event, Verification, VerifyRules};
 
 impl Engine {
     /// The monitor is built: the policy is sliced here, once, and each decider
@@ -51,9 +43,13 @@ impl Engine {
     /// A sample arrives: the verifier's answers are settled as evidence and
     /// what it owes for too long expires, before anything is looked at.
     pub(super) fn settle(&mut self, at: SampleRef) {
-        self.verification.settle(at, &self.belief);
-        self.verification
-            .expire(at, &self.verify_rules, &self.belief);
+        let layer_1 = self.belief.bed_posture_state();
+        self.verification.step(Event::Settle { at, layer_1 });
+        self.verification.step(Event::Expire {
+            at,
+            timeout: self.verify_rules.timeout_secs,
+            layer_1,
+        });
     }
 
     /// With all the evidence: the belief is updated, the reinforcement latch
@@ -62,8 +58,11 @@ impl Engine {
         let believed = self.belief.observe(at, bodies, &self.occupancy_rules);
         self.attention_memory
             .rearm(bodies.primary.bed, self.belief.bed_seen());
-        self.verification
-            .observe_held(self.belief.held_since(), at, &self.verify_rules);
+        self.verification.step(Event::ObserveHeld {
+            at,
+            oldest: self.belief.held_since(),
+            followed: self.verify_rules.held,
+        });
         believed
     }
 
@@ -83,39 +82,45 @@ impl Engine {
         (parts, bed_posture)
     }
 
-    /// The shell kept the burst's crop, this sharp, or could not.
-    pub(super) fn kept(&mut self, at: SampleRef, kept: Result<f32, Failure>) -> LookResult {
-        let sharpness_policy = self.verify_rules.sharpness;
+    /// The shell kept the burst's crop, this sharp, or could not. The effects say
+    /// whether the burst is now ready to go out, with its crops.
+    pub(super) fn kept(
+        &mut self,
+        at: SampleRef,
+        kept: Result<f32, Failure>,
+    ) -> (LookResult, Vec<Effect>) {
         match kept {
             Ok(sharpness) => {
-                let counted = self
-                    .verification
-                    .kept(at, sharpness, sharpness_policy.as_ref());
-                LookResult::Kept { sharpness, counted }
+                let effects = self.verification.step(Event::KeptCrop {
+                    at,
+                    sharpness,
+                    policy: self.verify_rules.sharpness,
+                });
+                // A kept crop's first effect is its verdict.
+                let counted = matches!(effects.first(), Some(Effect::Kept { counted: true }));
+                (LookResult::Kept { sharpness, counted }, effects)
             }
             Err(failure) => {
-                self.verification.failed();
-                LookResult::failed(failure)
+                self.verification.step(Event::KeepFailed);
+                (LookResult::failed(failure), Vec::new())
             }
         }
     }
 
-    /// A question to the verifier is decided: its ticket, sent now or
-    /// collected as a burst (white book, volume III, ch. 12).
-    pub(super) fn issue(&mut self, at: SampleRef, look: &VerifyLook) -> Issued {
+    /// A question to the verifier is decided: sent now, or collected as a burst
+    /// (white book, volume III, ch. 12). The effects say which.
+    pub(super) fn issue(&mut self, at: SampleRef, look: &VerifyLook) -> Vec<Effect> {
         let burst = self
             .verify_rules
             .frames
             .map(|frames| frames.of(look.question))
             .unwrap_or_default();
-        let sharpness = self.verify_rules.sharpness;
-        let ticket = self.verification.issue(look.target, at, look.places);
-        if burst.frames <= 1 && sharpness.is_none() {
-            self.verification.dispatch(ticket, at);
-            return Issued::Now(ticket);
-        }
-        self.verification.collect(ticket, *look, burst, at);
-        Issued::Collecting(ticket)
+        self.verification.step(Event::Ask {
+            at,
+            look: *look,
+            burst,
+            judged: self.verify_rules.sharpness.is_some(),
+        })
     }
 }
 

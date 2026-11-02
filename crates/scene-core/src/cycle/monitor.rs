@@ -36,7 +36,9 @@ impl Monitor {
     /// turn (rule 3): it is noted, and settled at the start of the next
     /// sample's turn as evidence of the sample it looked at.
     pub fn verified(&mut self, verified: Verified) {
-        self.engine.verification.answered(verified);
+        self.engine
+            .verification
+            .step(crate::verification::Event::Answer(verified));
     }
 
     /// Opens a turn. It is the only way in.

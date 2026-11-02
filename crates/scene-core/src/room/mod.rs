@@ -16,9 +16,7 @@ use crate::geom::{Point, Rect};
 #[cfg(test)]
 use crate::geom::{Quad, Zone};
 use crate::map::{Geometry, Map};
-#[cfg(test)]
-use crate::policy::AdmissionPolicy;
-use crate::policy::Policy;
+use crate::policy::{AdmissionPolicy, ShadowPolicy, TwoPlanesPolicy};
 
 mod frontal;
 pub(crate) mod shadow;
@@ -80,15 +78,19 @@ impl Room {
     /// The room of this turn, if the bed's geometry applies to its frame: in
     /// two planes if the profile asks for it and the planes can be built,
     /// frontal otherwise.
-    pub(crate) fn of(map: &Map, geometry: Geometry, policy: &Policy) -> Option<Self> {
-        let frontal = Frontal::of(map, geometry, &policy.admission)?;
-        let two_planes = policy
-            .two_planes
-            .and_then(|two| TwoPlanes::of(&frontal, map, two));
+    pub(crate) fn of(
+        map: &Map,
+        geometry: Geometry,
+        admission: &AdmissionPolicy,
+        two_planes: Option<&TwoPlanesPolicy>,
+        shadow: Option<&ShadowPolicy>,
+    ) -> Option<Self> {
+        let frontal = Frontal::of(map, geometry, admission)?;
+        let two_planes = two_planes.and_then(|two| TwoPlanes::of(&frontal, map, *two));
         Some(Self {
             frontal,
             two_planes,
-            shadow: shadow::Site::of(map, geometry, policy),
+            shadow: shadow::Site::of(map, geometry, shadow),
         })
     }
 

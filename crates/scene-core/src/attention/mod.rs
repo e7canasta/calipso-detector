@@ -22,7 +22,7 @@ pub(crate) use faces::faces;
 pub(crate) use ledger::{Attention, Look, LookOutcome, LookResult, SkipReason};
 pub(crate) use memory::{LatchState, Memory};
 pub(crate) use primary::{primary_region, reinforce, widen};
-pub(crate) use verify::{BurstStep, VerifyLook, burst, burst_ready, verify};
+pub(crate) use verify::{VerifyLook, verify};
 
 /// What attention can see of the current turn. Read-only: deciding what to
 /// look at never changes what is seen (rule 12).

@@ -10,7 +10,7 @@
 
 use crate::geom::{Point, Rect};
 use crate::map::{BedPlane, Geometry, Map};
-use crate::policy::{Policy, ShadowPolicy};
+use crate::policy::ShadowPolicy;
 use crate::zone::Zone;
 
 pub(crate) use scene_contract::PlanePoint;
@@ -28,8 +28,8 @@ pub(crate) struct Site {
 impl Site {
     /// The site's shadow, if the profile asks for it and the bed's geometry
     /// applies to this frame.
-    pub(crate) fn of(map: &Map, geometry: Geometry, policy: &Policy) -> Option<Self> {
-        let shadow = policy.shadow?;
+    pub(crate) fn of(map: &Map, geometry: Geometry, shadow: Option<&ShadowPolicy>) -> Option<Self> {
+        let shadow = *shadow?;
         let mattress = BedPlane::of(map.bed_for(geometry)?)?;
         Some(Self {
             mattress,

@@ -8,15 +8,16 @@
 //! sample's turn, only if what it asked about still holds: the same held body,
 //! in the same session (rule 9).
 
-use crate::attention::VerifyLook;
-use crate::belief::Belief;
 use crate::belief::bed_posture::BedPostureState;
 use crate::look::{Answer, Target, Ticket, Verified};
-use crate::policy::{Burst, Frames, SharpnessPolicy, VerifyPolicy};
+use crate::policy::{Frames, SharpnessPolicy, VerifyPolicy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
 use crate::time::secs_since;
 use crate::units::Seconds;
+
+mod burst;
+pub(crate) use burst::{BurstStep, Effect, Event, Phase};
 
 pub(crate) use scene_contract::HeldCheckState;
 pub(crate) use scene_contract::Verifier;
@@ -40,29 +41,6 @@ pub(crate) struct HeldEntry {
     /// The turn it started being followed: since when it is held unverified.
     pub held_at: SampleRef,
     pub check: HeldCheck,
-}
-
-/// A burst being collected (white book, volume III, ch. 12): V's phase 1.
-/// The question is decided and its ticket issued; the shell keeps one crop per
-/// `every_secs`, and the question goes out with the sharp ones.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Collecting {
-    pub(crate) ticket: Ticket,
-    pub(crate) look: VerifyLook,
-    pub(crate) burst: Burst,
-    /// The crops the shell kept, in order.
-    pub(crate) crops: Vec<KeptCrop>,
-    /// The sample the burst opened at: the longest wait counts from it.
-    pub(crate) opened: SampleRef,
-    /// The sample the last crop was kept at.
-    pub(crate) last: SampleRef,
-}
-
-/// A crop kept for a burst: how sharp, and whether it counts.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct KeptCrop {
-    pub(crate) sharpness: f32,
-    pub(crate) counted: bool,
 }
 
 /// What a question asked about, without its identity: a column of V's table.
@@ -164,18 +142,15 @@ impl VerifyRules {
     }
 }
 
-/// What one camera has asked the verifier and what it owes.
+/// What one camera has asked the verifier and what it owes: the phase of the
+/// burst machine (`burst.rs`), the budget, the crops' window, the answers still
+/// to settle, and the held body the plane follows.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Verification {
     /// How many tickets were issued: the next one's id.
     issued: u64,
-    /// One request at a time per camera: V's phase 2.
-    in_flight: Option<Ticket>,
-    /// The sample the request in flight went out at: its timeout counts from
-    /// there, not from the burst's first sample (V18).
-    sent: Option<SampleRef>,
-    /// A burst being collected: V's phase 1.
-    collecting: Option<Collecting>,
+    /// Where the question is: idle, a burst being collected, or in flight.
+    phase: Phase,
     /// The sharpness of the camera's last kept crops: the reference a crop is
     /// sharp against (bounded by the policy's window).
     sharpness: std::collections::VecDeque<f32>,
@@ -200,9 +175,9 @@ impl Verification {
         &mut self,
         oldest: Option<SampleRef>,
         at: SampleRef,
-        rules: &VerifyRules,
+        followed: bool,
     ) {
-        self.held = match (oldest.filter(|_| rules.held), self.held) {
+        self.held = match (oldest.filter(|_| followed), self.held) {
             (None, _) => None,
             // A new session: source time starts over, and so does the wait.
             (Some(since), Some(held)) if held.since == since => Some(HeldEntry {
@@ -229,12 +204,7 @@ impl Verification {
     /// Is a question open, being collected or waiting for its answer? One at
     /// a time per camera.
     pub(crate) fn busy(&self) -> bool {
-        self.in_flight.is_some() || self.collecting.is_some()
-    }
-
-    /// The burst being collected, if any.
-    pub(crate) fn collecting(&self) -> Option<&Collecting> {
-        self.collecting.as_ref()
+        !matches!(self.phase, Phase::Idle)
     }
 
     /// How many requests went out in the last `secs` of source time, in this
@@ -251,15 +221,10 @@ impl Verification {
         self.filled.take()
     }
 
-    /// A question is decided: its ticket, which the answer will carry, about
-    /// this sample. It counts for the budget now, once per burst. A doubtful
-    /// digit keeps the places it asks about: the answer fills them (V16).
-    pub(crate) fn issue(
-        &mut self,
-        target: Target,
-        at: SampleRef,
-        places: Option<BodyPlaces>,
-    ) -> Ticket {
+    /// A question is decided: its ticket, which the answer will carry, about this
+    /// sample. It counts for the budget now, once per burst. A doubtful digit keeps
+    /// the places it asks about: the answer fills them (V16).
+    fn issue(&mut self, target: Target, at: SampleRef, places: Option<BodyPlaces>) -> Ticket {
         self.asked_places = places;
         self.asked
             .retain(|a| secs_since(at, *a).is_some_and(|age| age < HOUR_SECS));
@@ -271,158 +236,9 @@ impl Verification {
             target,
         }
     }
-
-    /// The question goes out at `at`: it waits for its answer.
-    pub(crate) fn dispatch(&mut self, ticket: Ticket, at: SampleRef) {
-        self.collecting = None;
-        self.in_flight = Some(ticket);
-        self.sent = Some(at);
-    }
-
-    /// A burst starts collecting: the shell keeps this sample's crop first.
-    pub(crate) fn collect(
-        &mut self,
-        ticket: Ticket,
-        look: VerifyLook,
-        burst: Burst,
-        at: SampleRef,
-    ) {
-        self.collecting = Some(Collecting {
-            ticket,
-            look,
-            burst,
-            crops: Vec::new(),
-            opened: at,
-            last: at,
-        });
-    }
-
-    /// The shell kept a crop of the burst at `at`, this sharp. It counts if it
-    /// is at least `min_ratio` of the median of the camera's last crops (the
-    /// first ones always count); without a policy, every crop counts. Returns
-    /// whether it counted.
-    pub(crate) fn kept(
-        &mut self,
-        at: SampleRef,
-        sharpness: f32,
-        policy: Option<&crate::policy::SharpnessPolicy>,
-    ) -> bool {
-        let counted = match policy {
-            None => true,
-            Some(p) => {
-                let mut recent: Vec<f32> = self.sharpness.iter().copied().collect();
-                recent.sort_by(f32::total_cmp);
-                let median = recent.get(recent.len() / 2).copied();
-                let counted = median.is_none_or(|m| sharpness >= p.min_ratio * m);
-                self.sharpness.push_back(sharpness);
-                while self.sharpness.len() > usize::from(p.window.max(1)) {
-                    self.sharpness.pop_front();
-                }
-                counted
-            }
-        };
-        if let Some(collecting) = self.collecting.as_mut() {
-            collecting.crops.push(KeptCrop { sharpness, counted });
-            collecting.last = at;
-        }
-        counted
-    }
-
-    /// The burst is dropped unasked: stale or resolved. Nothing is owed.
-    pub(crate) fn drop_burst(&mut self) {
-        self.collecting = None;
-        self.asked_places = None;
-    }
-
-    /// The shell could not take the request or keep the crop: nothing is owed.
-    pub(crate) fn failed(&mut self) {
-        self.in_flight = None;
-        self.collecting = None;
-    }
-
-    /// An answer arrived between turns.
-    pub(crate) fn answered(&mut self, verified: Verified) {
-        self.answers.push(verified);
-    }
-
-    /// At the start of a sample's turn, after settling: a request without an
-    /// answer expires after the policy's timeout, or with a new session. The
-    /// thing it asked about may be asked about again.
-    /// Doubtful feet without an answer are taken as out, on the safe side: a
-    /// call for getting out is not lost to a verifier that did not answer.
-    pub(crate) fn expire(&mut self, at: SampleRef, rules: &VerifyRules, belief: &Belief) {
-        let timeout = rules.timeout_secs;
-        let sent = self.sent;
-        let expired = self
-            .in_flight
-            .filter(|t| match secs_since(at, sent.unwrap_or(t.looked)) {
-                None => true,
-                Some(age) => timeout.is_some_and(|max| age >= max.get()),
-            });
-        let Some(ticket) = expired else {
-            return;
-        };
-        self.in_flight = None;
-        let holds = ticket.looked.session == at.session && self.holds(ticket.target, belief);
-        if let Settled::Feet(feet) = decide(Asked::of(ticket.target), None, holds) {
-            self.filled = self
-                .asked_places
-                .map(|places| BodyPlaces { feet, ..places });
-        }
-    }
-
-    /// Whether what `target` asked about still holds, with the belief at the
-    /// start of the turn.
-    fn holds(&self, target: Target, belief: &Belief) -> bool {
-        holds(
-            target,
-            belief.bed_posture_state(),
-            self.held.map(|h| h.since),
-        )
-    }
-
-    /// At the start of a sample's turn: each answer that still applies changes
-    /// the provenance of what it asked about, or fills the doubtful digit it
-    /// asked about. One that answers another ticket, another session, a body
-    /// no longer held or a layer 1 that moved on changes nothing.
-    pub(crate) fn settle(&mut self, at: SampleRef, belief: &Belief) {
-        for Verified { ticket, answer } in std::mem::take(&mut self.answers) {
-            if self.in_flight.map(|t| t.id) != Some(ticket.id) {
-                continue;
-            }
-            self.in_flight = None;
-            if ticket.looked.session != at.session {
-                continue;
-            }
-            let holds = self.holds(ticket.target, belief);
-            match decide(Asked::of(ticket.target), Some(answer), holds) {
-                Settled::Nothing => {}
-                Settled::Feet(feet) => {
-                    if let Some(places) = self.asked_places {
-                        self.filled = Some(BodyPlaces { feet, ..places });
-                    }
-                }
-                Settled::Disparity(disparity) => {
-                    if let Some(places) = self.asked_places {
-                        self.filled = Some(BodyPlaces {
-                            disparity,
-                            ..places
-                        });
-                    }
-                }
-                Settled::Held(state) => {
-                    if let Some(held) = self.held.as_mut() {
-                        held.check = HeldCheck {
-                            state,
-                            by: Some(Verifier::Vlm),
-                            looked: Some(ticket.looked),
-                        };
-                    }
-                }
-            }
-        }
-    }
 }
 
+#[cfg(test)]
+mod burst_table;
 #[cfg(test)]
 mod table;

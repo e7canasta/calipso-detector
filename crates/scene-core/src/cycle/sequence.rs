@@ -3,13 +3,12 @@
 //! requested or the turn goes on, and every answer is interpreted by
 //! `evidence`, `belief` or `map`.
 
-use super::engine::Issued;
 use super::waiting::{Continuation, Waiting};
 use super::{Course, Engine, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
-    self, BodyPoseLook, BurstStep, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look,
-    LookOutcome, LookResult, SkipReason, SubjectDepthLook, VerifyLook,
+    self, BodyPoseLook, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, Look, LookOutcome,
+    LookResult, SkipReason, SubjectDepthLook, VerifyLook,
 };
 use crate::belief::{Believed, Enrichment};
 use crate::body::HeadPlace;
@@ -23,7 +22,7 @@ use crate::outcome::Outcome;
 use crate::policy::FacePolicy;
 use crate::reception::SensorChanged;
 use crate::room::Room;
-use crate::verification::Collecting;
+use crate::verification::{BurstStep, Effect, Event};
 
 /// How far the turn got, with what it gathered: the point from which
 /// [`Course::next`] continues.
@@ -73,7 +72,13 @@ impl Course<'_> {
             attention_memory,
             ..
         } = &self.monitor.engine;
-        self.room = Room::of(map, self.geometry, policy);
+        self.room = Room::of(
+            map,
+            self.geometry,
+            &policy.admission,
+            policy.two_planes.as_ref(),
+            policy.shadow.as_ref(),
+        );
         let region = attention::primary_region(
             belief,
             attention_memory,
@@ -214,23 +219,31 @@ impl Course<'_> {
                 // Last attention point: a burst being collected goes on; or
                 // a doubt worth the slow verifier?
                 Reached::Refined(refined) => {
-                    let Some((step, burst)) = self.burst(&refined) else {
-                        return self.ask_verifier(refined);
-                    };
-                    match step {
-                        BurstStep::Wait => Reached::Final(refined),
-                        BurstStep::Keep => {
-                            let (ticket, region) = (burst.ticket, burst.look.region);
-                            return Phase::Waiting(Waiting::keep(refined, ticket, region));
+                    let effects = self.monitor.engine.verification.step(Event::Turn {
+                        at: self.at,
+                        layer_1: refined.bed_posture.map(|b| b.state),
+                        places: refined.refinement.places,
+                    });
+                    match effects.first() {
+                        // No burst being collected: a doubt may ask now.
+                        None => return self.ask_verifier(refined),
+                        Some(Effect::Waited) => Reached::Final(refined),
+                        Some(Effect::ProbeKeep { ticket, region }) => {
+                            return Phase::Waiting(Waiting::keep(refined, *ticket, *region));
                         }
-                        BurstStep::Stale | BurstStep::Resolved => {
-                            self.monitor.engine.verification.drop_burst();
-                            let reason = if step == BurstStep::Stale {
+                        Some(Effect::Dropped(step)) => {
+                            let reason = if *step == BurstStep::Stale {
                                 SkipReason::BurstStale
                             } else {
                                 SkipReason::BurstResolved
                             };
                             self.skipped(LookKind::Verify, reason);
+                            return self.ask_verifier(refined);
+                        }
+                        // A turn emits none of these: they are not what a burst's step is.
+                        Some(
+                            Effect::ProbeVerify { .. } | Effect::Kept { .. } | Effect::Settled(_),
+                        ) => {
                             return self.ask_verifier(refined);
                         }
                     }
@@ -322,28 +335,36 @@ impl Course<'_> {
                 Reached::Enriched(observed, enrichment)
             }
             Continuation::Keep { refined } => {
-                let result = self.monitor.engine.kept(self.at, outcome.kept());
+                let (result, effects) = self.monitor.engine.kept(self.at, outcome.kept());
                 self.asked(probe, spent, result);
                 // The burst is ready: the question goes out now, with the chosen crops.
-                if let Some((burst, crops)) = self.burst_ready() {
-                    self.monitor
-                        .engine
-                        .verification
-                        .dispatch(burst.ticket, self.at);
-                    return Phase::Waiting(Waiting::verify(
-                        refined,
-                        burst.ticket,
-                        burst.look,
+                let ready = effects.into_iter().find_map(|effect| match effect {
+                    Effect::ProbeVerify {
+                        ticket,
+                        look,
                         crops,
-                    ));
+                    } => Some((ticket, look, crops)),
+                    _ => None,
+                });
+                if let Some((ticket, look, crops)) = ready {
+                    return Phase::Waiting(Waiting::verify(refined, ticket, look, crops));
                 }
                 Reached::Final(refined)
             }
             Continuation::Verify { refined } => {
                 let result = match outcome.dispatched() {
-                    Ok(()) => LookResult::Dispatched,
+                    Ok(()) => {
+                        self.monitor
+                            .engine
+                            .verification
+                            .step(Event::Dispatched { ok: true });
+                        LookResult::Dispatched
+                    }
                     Err(failure) => {
-                        self.monitor.engine.verification.failed();
+                        self.monitor
+                            .engine
+                            .verification
+                            .step(Event::Dispatched { ok: false });
                         LookResult::failed(failure)
                     }
                 };
@@ -418,9 +439,13 @@ impl Course<'_> {
             frame: engine.frame,
             calibrated: observed.calibrated,
             attention: std::mem::take(&mut self.attention),
-            map: engine
-                .map
-                .state(self.geometry, &engine.policy, &engine.calibration),
+            map: engine.map.state(
+                self.geometry,
+                engine.policy.focus.as_ref(),
+                engine.policy.shadow.as_ref(),
+                &engine.policy.admission,
+                &engine.calibration,
+            ),
             sensor: engine.reception.state(),
             dwell_secs: engine.occupancy_rules.persistence.dwell_secs,
         }))
@@ -437,11 +462,13 @@ impl Course<'_> {
             reason,
             changed,
             sensor: engine.reception.state(),
-            map: Box::new(
-                engine
-                    .map
-                    .state(Geometry::Valid, &engine.policy, &engine.calibration),
-            ),
+            map: Box::new(engine.map.state(
+                Geometry::Valid,
+                engine.policy.focus.as_ref(),
+                engine.policy.shadow.as_ref(),
+                &engine.policy.admission,
+                &engine.calibration,
+            )),
         }
     }
 
@@ -530,44 +557,18 @@ impl Course<'_> {
         let Some(look) = self.wanted(LookKind::Verify, considered) else {
             return Phase::Concluded { refined };
         };
-        match self.monitor.engine.issue(self.at, &look) {
-            Issued::Now(ticket) => {
-                Phase::Waiting(Waiting::verify(refined, ticket, look, Vec::new()))
+        // An ask emits exactly one probe: the request, or the first crop of its burst.
+        match self.monitor.engine.issue(self.at, &look).first() {
+            Some(Effect::ProbeVerify {
+                ticket,
+                look,
+                crops,
+            }) => Phase::Waiting(Waiting::verify(refined, *ticket, *look, crops.clone())),
+            Some(Effect::ProbeKeep { ticket, region }) => {
+                Phase::Waiting(Waiting::keep(refined, *ticket, *region))
             }
-            Issued::Collecting(ticket) => {
-                Phase::Waiting(Waiting::keep(refined, ticket, look.region))
-            }
+            _ => Phase::Concluded { refined },
         }
-    }
-
-    /// The burst being collected, if it is ready to go out, with the crops
-    /// chosen.
-    fn burst_ready(&self) -> Option<(Collecting, Vec<u8>)> {
-        let Engine {
-            verify_rules,
-            verification,
-            ..
-        } = &self.monitor.engine;
-        let sharpness = verify_rules.sharpness;
-        let collecting = verification.collecting()?.clone();
-        let crops = attention::burst_ready(self.at, &collecting, sharpness.as_ref())?;
-        Some((collecting, crops))
-    }
-
-    /// The step of the burst being collected, if any, with the burst.
-    fn burst(&self, refined: &Refined) -> Option<(BurstStep, Collecting)> {
-        let verification = &self.monitor.engine.verification;
-        let collecting = verification.collecting()?.clone();
-        let layer_1 = refined.bed_posture.map(|b| b.state);
-        let held = verification.held().map(|h| h.since);
-        let step = attention::burst(
-            self.at,
-            &collecting,
-            layer_1,
-            refined.refinement.places,
-            held,
-        );
-        Some((step, collecting))
     }
 
     fn verify(&self, refined: &Refined) -> Consideration<VerifyLook> {

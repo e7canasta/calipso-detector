@@ -8,9 +8,8 @@ use crate::geom::Rect;
 use crate::look::{Question, Target};
 use crate::policy::VerifyPolicy;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
-use crate::time::SampleRef;
 use crate::time::secs_since;
-use crate::verification::{self, Collecting, HOUR_SECS, HeldCheckState, Verification};
+use crate::verification::{HOUR_SECS, HeldCheckState, Verification};
 
 /// The crop the verifier looks at: the bed grown by this fraction of its width
 /// and height on each side (white book, volume III, ch. 05).
@@ -101,97 +100,6 @@ pub(crate) fn verify(
         Question::HeldInBed,
         None,
     )
-}
-
-/// What a burst being collected does at this sample (white book, volume III,
-/// ch. 12, V4), in this order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BurstStep {
-    /// What it asks about no longer holds: dropped unasked.
-    Stale,
-    /// The doubtful digit cleared by itself: dropped unasked (V17).
-    Resolved,
-    /// `every_secs` has not passed since the last kept crop.
-    Wait,
-    /// Keep this sample's crop: the turn sees how sharp it is and whether the
-    /// burst is ready ([`burst_ready`]).
-    Keep,
-}
-
-/// The next step of a burst being collected. It reads, never writes: the turn
-/// applies it to the verification plane. Stale: another session, layer 1 left
-/// the stable state it was asked under, or the held body is no longer held.
-/// Resolved: this sample saw the doubtful digit clearly (a fresh pose).
-pub(crate) fn burst(
-    at: SampleRef,
-    collecting: &Collecting,
-    layer_1: Option<BedPostureState>,
-    places: Option<BodyPlaces>,
-    held: Option<SampleRef>,
-) -> BurstStep {
-    let Some(age) = secs_since(at, collecting.last) else {
-        return BurstStep::Stale;
-    };
-    if !verification::holds(collecting.ticket.target, layer_1, held) {
-        return BurstStep::Stale;
-    }
-    let resolved = match collecting.ticket.target {
-        Target::Feet { .. } => {
-            places.is_some_and(|p| matches!(p.feet, FeetPlace::Seen | FeetPlace::PastTheSides))
-        }
-        Target::Disparity { .. } => places
-            .is_some_and(|p| matches!(p.disparity, DisparitySide::Lying | DisparitySide::Upright)),
-        Target::Held { .. } => false,
-    };
-    if resolved {
-        return BurstStep::Resolved;
-    }
-    if age < collecting.burst.every_secs.get() {
-        return BurstStep::Wait;
-    }
-    BurstStep::Keep
-}
-
-/// After a crop is kept: which kept crops go, if the burst is ready. Ready when
-/// `frames` crops counted (were sharp), and those go; or when the longest wait
-/// passed since the first crop, and then the sharpest it has go, in the order
-/// they were kept. `None`: keep collecting.
-pub(crate) fn burst_ready(
-    at: SampleRef,
-    collecting: &Collecting,
-    policy: Option<&crate::policy::SharpnessPolicy>,
-) -> Option<Vec<u8>> {
-    let frames = usize::from(collecting.burst.frames.max(1));
-    let counted: Vec<u8> = collecting
-        .crops
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| c.counted)
-        .filter_map(|(i, _)| u8::try_from(i).ok())
-        .collect();
-    if counted.len() >= frames {
-        return Some(counted.into_iter().take(frames).collect());
-    }
-    let waited = policy.is_some_and(|p| {
-        secs_since(at, collecting.opened).is_none_or(|age| age >= p.max_wait_secs.get())
-    });
-    if !waited || collecting.crops.is_empty() {
-        return None;
-    }
-    let mut sharpest: Vec<(usize, f32)> = collecting
-        .crops
-        .iter()
-        .enumerate()
-        .map(|(i, c)| (i, c.sharpness))
-        .collect();
-    sharpest.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let mut chosen: Vec<u8> = sharpest
-        .into_iter()
-        .take(frames)
-        .filter_map(|(i, _)| u8::try_from(i).ok())
-        .collect();
-    chosen.sort_unstable();
-    Some(chosen)
 }
 
 /// A doubt worth asking: unless a request is in flight, the hour's budget is
