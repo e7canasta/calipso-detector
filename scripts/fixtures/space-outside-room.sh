@@ -1,3 +1,5 @@
+# expect-step: space has one owner
+# expect-text: a question of space outside room
 # A layer answering a question of space with the bed's plane must fail.
 cat >> crates/scene-core/src/refine/sighting.rs <<'RS'
 

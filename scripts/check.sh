@@ -81,7 +81,9 @@ check_domain_contract() {
   [ -z "$found" ] || fail "C2: the common projection names a version: $found"
   # Only project and cycle name the published scene and its events: the rule is a
   # cargo test, which reads the sources without any tool of the system (F1).
-  cargo test -q -p scene-core --test guardians >/dev/null 2>&1 \
+  # Its output is shown when it fails: the name of the guardian that failed is
+  # what a fixture declares (check-guardians.sh).
+  cargo test -q -p scene-core --test guardians \
     || fail "the domain names the published scene or events (cargo test -p scene-core --test guardians)"
 }
 step "the domain without contract"
@@ -141,12 +143,17 @@ check_occupancy_names_its_slice
 # The language's leaf (ADR 2026-11-02, crates-del-lenguaje): scene-geom is
 # points, boxes and quadrilaterals. It depends on no domain and on no IO, as
 # the core does not (rule 8), so every crate above it may use it.
+# A leaf is what it says: scene-geom's direct dependencies are a closed list, the
+# one of its Cargo.toml today. Anything else, even a crate with no IO, fails
+# here; a new dependency is added to this list on purpose, with its reason.
+GEOM_DEPS='serde|schemars'
 check_geom_is_a_leaf() {
   local tree found
-  tree=$(cargo tree -p scene-geom -e normal --prefix none --format '{p}') \
+  # The first line is scene-geom itself; the rest are its direct dependencies.
+  tree=$(cargo tree -p scene-geom -e normal --depth 1 --prefix none --format '{p}') \
     || fail "could not read the scene-geom tree"
-  found=$(printf '%s\n' "$tree" | awk '{print $1}' \
-            | grep -Ex "scene-core|$FORBIDDEN_CORE_DEPS" | sort -u || true)
+  found=$(printf '%s\n' "$tree" | tail -n +2 | awk '{print $1}' \
+            | grep -vE "^($GEOM_DEPS)$" | sort -u || true)
   [ -z "$found" ] || fail "scene-geom is not a leaf: it depends on $found"
 }
 step "scene-geom is a leaf"

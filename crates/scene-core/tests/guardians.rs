@@ -13,8 +13,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// The shared core: the wire names the domain may name outside `project/` and
-/// `cycle/`. Point 1 of the ADR «el dominio es dueño de lo que decide»; the
-/// second test reads it there, so this list and the ADR cannot drift apart.
+/// `cycle/`. Point 1 of the ADR «el dominio es dueño de lo que decide» names
+/// this list as the one place it lives: the ADR points here, not the reverse.
 const SHARED_CORE: &[&str] = &[
     "SampleRef",
     "SessionId",
@@ -50,8 +50,6 @@ const SHARED_CORE: &[&str] = &[
 /// Where the wire may be named in full: the translation (`project`) and the
 /// sequencing (`cycle`, including `cycle/engine/` once M4 moves it there).
 const EXEMPT: &[&str] = &["project/", "cycle/", "cycle.rs"];
-
-const ADR: &str = "../../../calipso-docs/adr/2026-11-02-el-dominio-es-dueno-de-lo-que-decide.md";
 
 fn src() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
@@ -220,18 +218,6 @@ fn the_domain_names_from_the_wire_only_the_shared_core() {
         "production code of the domain names a wire type outside the shared core of the ADR (el dominio es dueño de lo que decide, point 1); move it to the domain or to project/:\n  {}",
         offenders.join("\n  ")
     );
-}
-
-#[test]
-fn the_shared_core_is_the_list_of_the_adr() {
-    let adr = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(ADR))
-        .expect("the domain's ADR is readable: calipso-docs is next to this repository");
-    for name in SHARED_CORE {
-        assert!(
-            adr.contains(&format!("`{name}`")),
-            "{name} is in the guardian's shared core but not in the ADR"
-        );
-    }
 }
 
 #[test]
