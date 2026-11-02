@@ -1,7 +1,7 @@
 # Per-camera detector
 
 One process reads RTSP, decodes the freshest sample, drives `scene-core` with
-the senses and publishes `scene.v4` and `events.v4`. The
+the senses and publishes `scene.v5` and `events.v5`. The
 core decides what to believe; the binary translates transport and clocks. It
 neither publishes nor records images.
 
@@ -49,7 +49,7 @@ SIGINT. `NATS_BIN` is optional if `nats` is on PATH.
 
 Copy `config/example.toml`, adjust the URL and credentials, identifiers and
 map, check it with `--check` and run it. Default subjects:
-`vision.<site>.<id>.{scene,events}.v4`; `[nats].prefix` sets another
+`vision.<site>.<id>.{scene,events}.v5`; `[nats].prefix` sets another
 prefix.
 SIGINT or SIGTERM cancel reception and engine, close the mailbox and give the
 publisher up to three seconds to deliver what is pending. A model load failure
@@ -58,8 +58,8 @@ process; restarting it is the supervisor's job.
 
 The handle assigns sequences before `try_send`, without waiting for the
 network. The channel holds up to 64 publications; the actor keeps up to 1024
-events and the last scene of each version. A full queue drops the newest event
-and logs the loss. A gap in `seq` reveals losses; `Nats-Msg-Id = run_id-seq`
+events and the last scene. A full queue drops the newest event
+and logs the loss. A gap in `seq` reveals losses; `Nats-Msg-Id = run_id-v5-seq`
 deduplicates retries. The actor confirms with `flush` before removing the front
 and publishes the events before the scene, whose `last_event_seq` reflects what
 was delivered. Core NATS confirms transport, not durable storage: JetStream for

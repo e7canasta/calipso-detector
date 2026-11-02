@@ -14,10 +14,10 @@ One directory per capability of the engine, one feature per behaviour:
 | --- | --- | --- |
 | [`occupancy/`](occupancy) | Layer 0: how many are in the room and in bed, what the bed retains, the staff who come and go, stabilization by source time, what the scene declares when it did not observe | `belief/occupancy` |
 | [`attention/`](attention) | What the core decides to look at, where, in what order and why not: the focus on the bed and its sentinel, reinforcement, faces, pose, depth, when to look again, calibrating the empty bed | `attention`, `belief/subject` |
-| [`posture/`](posture) | The second level: the depth of each keypoint, truly lying, posture by disparity and its body groups, the verdict in bed, the bed's points | `refine` |
+| [`posture/`](posture) | The second level: the depth of each keypoint, truly lying, posture by disparity and its body groups, the bed's points | `refine` |
 | [`parts/`](parts) | The occupancy of the parts: where each part of the subject is against the bed and the headboard, split parts, what is kept unseen, and its reading (lying, sitting, on the edge, trying to leave) | `belief/parts`, `refine::parts` |
 | [`bed-posture/`](bed-posture) | Layer 1: whether the resident left lying is still lying, sat up or is getting out; its table, its times, its replay | `belief/bed_posture`, `refine::sighting` |
-| [`contract/`](contract) | What `calipso.scene` and `calipso.events` publish: the scene, the mode and the layer-0 transition | `project`, `contract` |
+| [`contract/`](contract) | What `calipso.scene` and `calipso.events` publish: the scene, the mode and the layer-0 transition | `project`, `scene-contract` |
 | [`shell/`](shell) | The shell's side: each capability answered by a real model adapter, the profile, distilling a night | `sense`, `detector`, `calipso-golden` |
 
 The tables of `occupancy/` and `attention/` are the same language as the

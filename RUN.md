@@ -23,18 +23,18 @@ CALIPSO_MODELS=/home/visiona/mana/calipso/calipso-dist/models \
 
 Prefijo por defecto `vision.<site>.<id>` → con este toml (`site="local"`, `id="sample1"`):
 
-* `vision.local.sample1.scene.v4`
-* `vision.local.sample1.events.v4`
+* `vision.local.sample1.scene.v5`
+* `vision.local.sample1.events.v5`
 
 Una escena por muestra (~1/s, `sample_interval_ms = 1000`). Cierre con `Ctrl-C` / `SIGTERM`: termina la vuelta en curso y da hasta 3 s al publisher para vaciar (`crates/detector/README.md:48-56`).
 
-Nota: no tienes el CLI `nats` en PATH (`which nats` → no encontrado), así que para ver lo publicado usa `calipso-rerun-bridge` (ya lee v4) o `calipso-shark` desde NATS, no `nats sub`.
+Nota: no tienes el CLI `nats` en PATH (`which nats` → no encontrado), así que para ver lo publicado usa `calipso-rerun-bridge` (lee v5) o `calipso-shark` desde NATS, no `nats sub`.
 
 
 --- 
 
 
-Correcto, es `../calipso-rerun-bridge` (lee v4, probado el 2026-10-11 contra sample1 según su README).
+Correcto, es `../calipso-rerun-bridge` (lee v5 y convierte las grabaciones v4; probado el 2026-10-11 contra sample1 según su README).
 
 Para ver sample1 en vivo, 3 terminales:
 
@@ -53,7 +53,7 @@ CALIPSO_MODELS=/home/visiona/mana/calipso/calipso-dist/models \
 ```sh
 # T3 — bridge, desde ../calipso-rerun-bridge
 NATS_URL=nats://127.0.0.1:4222 \
-NATS_SUBJECT='vision.local.sample1.*.v4' \
+NATS_SUBJECT='vision.local.sample1.*.v5' \
 RERUN_ADDRESS=127.0.0.1:9876 \
 cargo run --locked
 ```
@@ -63,7 +63,7 @@ Alternativa sin visor en vivo (graba a disco y lo abres después):
 ```sh
 # en ../calipso-rerun-bridge
 NATS_URL=nats://127.0.0.1:4222 \
-NATS_SUBJECT='vision.local.sample1.*.v4' \
+NATS_SUBJECT='vision.local.sample1.*.v5' \
 RERUN_OUTPUT=/tmp/vivo.rrd \
 cargo run --locked
 ../rerun-cli-0.37.0-x86_64-unknown-linux-gnu /tmp/vivo.rrd

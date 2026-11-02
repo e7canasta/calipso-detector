@@ -25,17 +25,18 @@ RTSP de `sample1`. Antes de confiar en una salida, volver a correr el comando.
 
 ```text
  cámara RTSP ──► calipso-detector ─────────────────────────────► NATS ──► consumidores
- (go2rtc)        ingest → sense → scene-core (el motor) → project        rerun-bridge (v3)
-                 decodifica  YOLO    capa 0: la máquina      v3 y v4      trama → cinta
+ (go2rtc)        ingest → sense → scene-core (el motor) → project        rerun-bridge (v5)
+                 decodifica  YOLO    capa 0: la máquina      v5           trama → cinta
                                      de ocupación                         trama-resumen
 ```
 
 - **El motor** (`scene-core`) es puro: no hace IO, decide con lo que ve y
   devuelve la transición. Todo lo demás observa.
-- **El contrato** es lo que sale a NATS: `calipso.scene.v4`/`events.v4`, donde
+- **El contrato** es lo que sale a NATS: `calipso.scene.v5`/`events.v5`, donde
   cada cambio de la capa 0 es una **transición** con su celda
-  `antes:vimos:después`, y, al lado, `calipso.scene.v5`/`events.v5` cuando el
-  perfil lo lista en `[publish] versions`. `v3` está retirado.
+  `antes:vimos:después`. v4 se retiró con el corte
+  ([ADR](../../calipso-docs/adr/2026-11-02-retirar-v4.md)); v3 antes
+  ([ADR](../../calipso-docs/adr/2026-10-11-retirar-v3.md)).
 - **La trama** graba cada transición como una línea de texto: la fila de la
   tabla de la capa 0. **trama-resumen** la verifica y la resume.
 
@@ -83,13 +84,13 @@ La tabla completa, generada desde el código y comparada en cada test, está en
 
 | Crate | Qué es | IO |
 |---|---|---|
-| `scene-core` | **El motor**: la máquina de la capa 0, la atención, la crónica y la proyección a v3/v4. El contrato (`contract::{common, v3, v4}`) y sus JSON Schema | ninguno (lo vigila `check.sh`) |
+| `scene-core` | **El motor**: la máquina de la capa 0, la atención, la crónica y la proyección a v5 (`project::v5`). El contrato es la crate `scene-contract` (`v5.rs` y los tipos compartidos) y su JSON Schema en `contract/` | ninguno (lo vigila `check.sh`) |
 | `ingest` | RTSP → muestras decodificadas | red |
 | `sense` | los modelos ONNX (YOLO: detección, refuerzo, caras, pose, profundidad) | archivos |
 | `detector` | **la cáscara**: arma el lazo, el perfil (`config/*.toml`), publica a NATS, el archivero `--jsonl`. Binarios: `calipso-detector` y `calipso-detector-frames` | todo |
 
 Fuera de este repo: `rerun-bridge` es `calipso-rerun-bridge` (visualización en
-Rerun, consume v3 y v4); `golden` es `calipso-golden` (escenas golden); el
+Rerun, consume v5 y convierte las grabaciones v4); `golden` es `calipso-golden` (escenas golden); el
 verificador es `calipso-verifier`.
 
 Otras carpetas: `features/` (la especificación ejecutable, por capacidad),
@@ -132,16 +133,10 @@ propósito) se corre aparte con `scripts/wip.sh`.
 ## 6. Procedimiento B — Correr el motor en vivo
 
 1. **El perfil.** `config/sample1.toml` describe la cámara, los sentidos, la
-   política, el mapa (la cama dibujada) y NATS. Qué contratos se publican lo
-   dice la sección `[publish]`; sin ella, v3 y v4:
-
-   ```toml
-   [publish]
-   contracts = ["v3", "v4"]   # sin la sección, este es el default (R13-5)
-   ```
-
-   `[publish]` no cambia el hash del perfil: no es percepción. Para publicar
-   solo una versión, `contracts = ["v3"]` o `["v4"]`.
+   política, el mapa (la cama dibujada) y NATS. El detector publica solo
+   `calipso.scene.v5` y `calipso.events.v5`; el perfil no tiene sección
+   `[publish]`, porque con una sola versión no hay nada que elegir (como pasó
+   con v3).
 
 2. **Validarlo** sin abrir cámara ni modelos:
 
@@ -156,11 +151,9 @@ propósito) se corre aparte con `scripts/wip.sh`.
      calipso-detector --config mi-perfil.toml
    ```
 
-   Publica en `vision.{site}.{camera}.{scene,events}.v4` siempre (para sample1:
-   `vision.local.sample1.events.v4`), y en `.v5` cuando el perfil lo lista en
-   `[publish] versions`. Cada versión tiene su propia numeración y su
-   `last_event_seq`; los eventos llevan `Nats-Msg-Id` (`{run}-v4-{seq}` en v4,
-   `{run}-v5-{seq}` en v5).
+   Publica en `vision.{site}.{camera}.{scene,events}.v5` (para sample1:
+   `vision.local.sample1.events.v5`). Los eventos llevan `last_event_seq` y
+   `Nats-Msg-Id` (`{run}-v5-{seq}`).
 
 ## 7. Procedimiento C — Grabar la noche (la trama)
 
@@ -171,10 +164,11 @@ trama --nats nats://127.0.0.1:4222 --prefix vision.local.sample1 >> noche.trama
 ```
 
 **Desde el archivero** (una escena golden o una noche grabada en jsonl; las
-líneas que no son `events.v4` se saltean):
+líneas que no son `events.v5` se saltean):
 
 ```sh
-calipso-detector --config perfil-con-v4.toml --escena golden/s1-personal-acuesta.md --rapido --jsonl s1.jsonl
+# desde calipso-golden: corre la escena golden por el detector y escribe lo publicado
+calipso-replay --config config/scene.toml --scene scenes/s1-staff-put-to-bed.md --fast --jsonl s1.jsonl
 trama < s1.jsonl > s1.trama
 ```
 
@@ -275,8 +269,8 @@ mismo design system ([spec 1103](../../calipso-docs/specs/r11/1103-occupancy-tui
 cd tui/occupancy-tui && go run . --prefix vision.local.sample1
 ```
 
-A la izquierda, la habitación según la última `scene.v4` y el tiempo por
-estado; a la derecha, el log de `events.v4`, una vuelta por bloque:
+A la izquierda, la habitación según la última `scene.v5` y el tiempo por
+estado; a la derecha, el log de `events.v5`, una vuelta por bloque:
 
 ```text
   hora     muestra #   capa   transición                               hechos         duró    verif.
@@ -286,7 +280,7 @@ estado; a la derecha, el log de `events.v4`, una vuelta por bloque:
 ```
 
 **Los eventos permiten reaccionar; la escena permite reconciliar.** Si la
-última `scene.v4` contradice lo que armaron los eventos, o falta un evento
+última `scene.v5` contradice lo que armaron los eventos, o falta un evento
 (`seq` o `last_event_seq`), o una fila no encadena, aparece un `GAP` en el log
 y en la línea inferior; la pantalla no completa nada a mano. `j/k` + `enter`
 abre el inspector de una transición; `f` deja solo las transiciones.
@@ -295,17 +289,17 @@ abre el inspector de una transición; `f` deja solo las transiciones.
 
 El puente dibuja `scene.v5`/`events.v5` (y convierte las grabaciones `v4`) en Rerun **0.37.2** (el visor tiene que
 ser de la misma versión que el SDK: `uv run --no-project --with rerun-sdk==0.37.2 rerun`).
-Con el perfil por defecto, el detector ya publica v4:
+El detector publica v5 con su perfil:
 
 ```sh
 rerun &                                    # el visor 0.37.2, gRPC en 9876
-NATS_SUBJECT=vision.local.sample1.scene.v3 \
-  cargo run --locked --manifest-path crates/rerun-bridge/Cargo.toml
+NATS_SUBJECT='vision.local.sample1.*.v5' \
+  cargo run --locked --manifest-path ../calipso-rerun-bridge/Cargo.toml
 ```
 
 Se ve la escena 2D, el carril de la habitación con el modo de la máquina, la
 fase, la última celda, una línea por transición y la anatomía de la última
-([README del puente](../../calipso-rerun-bridge/README.md), sección v4).
+([README del puente](../../calipso-rerun-bridge/README.md)).
 
 ## 9. Procedimiento E — Cambiar algo (la forma de trabajo)
 
@@ -316,7 +310,7 @@ consumidores**.
 1. **Una spec por cambio**: `specs/rNN/NNNN-nombre/spec.md` (historia, caso
    de uso, reglas) y su `.feature` en español. Lo que no está listo, `@wip`.
 2. **Diseño mínimo antes de codificar**, mostrado y aprobado por la pareja.
-   Las decisiones que duran van a un ADR en `docs/adr/`.
+   Las decisiones que duran van a un ADR en `../calipso-docs/adr/`.
 3. **Un escenario por vez**: el paso Gherkin en rojo **por la razón
    correcta**, el código mínimo para el verde, y una **prueba de mutación en
    pasos visibles**: mutar → correr (tiene que caer) → restaurar → correr.
@@ -327,9 +321,9 @@ consumidores**.
 6. Los arneses Gherkin se reparten por tag: sin tag, el núcleo
    (`scene-core`); `@cascara`, el detector; `@trama`, la grabación.
 
-Reglas que no se rompen sin la pareja: v3 no cambia un byte con el perfil por
-defecto (lo comparan los ejemplos S1–S8, las escenas golden y la tabla
-dorada); el núcleo no importa IO; el dominio no habla en contrato.
+Reglas que no se rompen sin la pareja: el contrato v5 no cambia un byte sin
+ADR (lo comparan el esquema, los ejemplos S1–S8 de v5, las escenas golden y la
+tabla dorada); el núcleo no importa IO; el dominio no habla en contrato.
 
 ## 10. Problemas conocidos
 
@@ -338,14 +332,14 @@ dorada); el núcleo no importa IO; el dominio no habla en contrato.
 | `Model file not found: face/yolov12l-face.onnx` | los modelos están en `calipso-dist/models`: `CALIPSO_MODELS=…` |
 | `./target/release/…: no such file` | el target es `~/.cache/cargo-target` |
 | Al cortar con Ctrl-C: `WARN canal de publicación lleno o cerrado … dropped_events=0` | es la última escena en vuelo al cerrar; no se pierden eventos |
-| La cinta no tiene filas | ¿el perfil tiene `[publish] contracts = [..., "v4"]`? ¿`--prefix` es `vision.{site}.{camera}`? |
+| La cinta no tiene filas | ¿el consumidor lee `…scene.v5` / `…events.v5`? ¿`--prefix` es `vision.{site}.{camera}`? |
 | `git push` pide usuario | las credenciales de Gitea están en `~/.git-credentials` (`credential.helper store`) |
 | Primera fila `de_paso`/`lejos` en `boot` | es real (alguien se vio de paso antes de que la cama tuviera historia); la tabla no la cubre: no verificable |
 
 ## 11. Para seguir leyendo
 
-- [Memoria funcional R4](../../calipso-docs/specs/r4/00-memoria-funcional.md): las seis reglas y lo que se publica (§8, §8.1 v4).
-- [ADR del contrato v4](../../calipso-docs/adr/2026-10-10-contrato-v4-en-paralelo.md) y [spec 1301](../../calipso-docs/specs/r13/1301-contrato-v4/spec.md).
+- [Memoria funcional R4](../../calipso-docs/specs/r4/00-memoria-funcional.md): las seis reglas y lo que se publica (§8; §8.1 cuenta cómo entró v4, historia).
+- Historia del contrato: [ADR del contrato v4 en paralelo](../../calipso-docs/adr/2026-10-10-contrato-v4-en-paralelo.md), [spec 1301](../../calipso-docs/specs/r13/1301-contrato-v4/spec.md) y [ADR del retiro de v4](../../calipso-docs/adr/2026-11-02-retirar-v4.md).
 - [Spec 1104, la trama](../../calipso-docs/specs/r11/1104-la-trama/spec.md): el formato y la verificación.
 - [Spec 1001, la tabla como red](../../calipso-docs/specs/r10/1001-la-tabla-como-red/spec.md).
 - [Escenas golden](../../calipso-golden/README.md): correr una escena con `--escena`.

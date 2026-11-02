@@ -1,7 +1,7 @@
 # Arquitectura: 4+1 vistas, con C4 y UML
 
 Revisión por ingeniería inversa del código al **2026-11-01**, `main` en
-`7e7f443` (paquetes, dependencias, API y tamaños, medidos de nuevo el **2026-11-02** en `main` `6773238`): contrato v4, protocolo `drive`/`cancel`, verificador lento, geometría
+`7e7f443` (paquetes, dependencias, API y tamaños, medidos de nuevo el **2026-11-02** en `main` `6773238`): contrato v5 (v4 retirado), protocolo `drive`/`cancel`, verificador lento, geometría
 `Frontal`/`TwoPlanes`. Describe lo implementado; lo previsto se marca como tal.
 Si este documento y el código no coinciden, uno de los dos tiene un error: la
 referencia del motor es [`crates/scene-core/DESIGN.md`](crates/scene-core/DESIGN.md),
@@ -31,7 +31,7 @@ El motor es una **biblioteca Rust con estado, determinista y sin IO**,
 `scene-core`: una función de `(Policy, SiteMap, Input*, Reading*, Verified*)`.
 La conduce un **proceso por cámara**, `calipso-detector`, que recibe RTSP,
 decodifica bajo demanda, mira con modelos ONNX, consulta a un verificador lento
-fuera de la vuelta y publica `{prefix}.scene.v4` y `{prefix}.events.v4` en NATS.
+fuera de la vuelta y publica `{prefix}.scene.v5` y `{prefix}.events.v5` en NATS.
 Los consumidores leen solo el contrato publicado.
 
 El motor **publica la escena y los hechos de cada muestra**. Dentro calcula solo
@@ -49,7 +49,7 @@ Desde la revisión del 2026-10-11 el núcleo creció en cuatro direcciones:
 | --- | --- | --- |
 | El foco y su centinela: el detector principal mira la cama mientras el residente está solo en ella | `attention` (`Lens`), `map::focus_region` | proyecto 26, DESIGN §3.1 |
 | La geometría como pieza elegida por perfil: `Frontal` o `TwoPlanes` (cama en diagonal), dueña única del espacio | `room/` | white book VII |
-| La capa 1 (postura de cama), la ocupación por partes y el veredicto del nivel 2, cada uno con su tabla dorada | `belief/bed_posture`, `belief/parts`, `refine/verdict` | R16–R18, white book I cap. 09–10, II |
+| La capa 1 (postura de cama) y la ocupación por partes, cada una con su tabla dorada; el nivel 2 no responde cómo está en cama, lo hace la capa 1 | `belief/bed_posture`, `belief/parts` | R16–R18, white book I cap. 09–10, II |
 | El plano de verificación: preguntas al verificador lento (VLM), ráfagas, respuestas entre vueltas | `verification`, `detector::verifier` | white book III y V, ADR 2026-10-13 |
 
 ## 0. Contexto (C1)
@@ -70,7 +70,7 @@ flowchart TB
     maint -->|"perfil TOML por cámara"| engine
     engine -->|"recorte de la cama (request/reply)"| verifier
     verifier -->|"respuesta"| engine
-    engine -->|"scene.v4 · events.v4"| nats
+    engine -->|"scene.v5 · events.v5"| nats
     nats --> bridge
     bridge -->|"perception.observation.v1"| hive
     hive -->|"situación y alertas"| care
@@ -102,12 +102,12 @@ flowchart TB
             parts["parts<br/>dónde está cada parte"]
             bp["bed_posture<br/>capa 1"]
         end
-        refine["refine<br/>nivel 2: acostado, postura, veredicto"]
+        refine["refine<br/>nivel 2: acostado, postura"]
         verification["verification<br/>qué se preguntó, qué se debe,<br/>cuánto respalda al retenido"]
         sensor["sensor<br/>estado de recepción"]
         conclusion["conclusion"]
         chronicle["chronicle<br/>desde cuándo"]
-        project["project (+ v4, parts)<br/>traduce al cable"]
+        project["project (+ v5, parts)<br/>traduce al cable"]
     end
     contract["scene-contract<br/>el cable (crate hoja)"]
 
@@ -138,7 +138,7 @@ flowchart TB
 Las flechas son las únicas conversaciones permitidas:
 
 - **`cycle` solo secuencia** (regla 11). Le pasa la `Policy` entera a quien
-  decide; `check.sh` lo vigila. `cycle/engine.rs` agrupa los cambios que el
+  decide; `check.sh` lo vigila. `cycle/engine/` agrupa los cambios que el
   motor hace en sus memorias, en el orden en que dependen entre sí: la vuelta
   dice cuándo, el motor sabe qué cambiar.
 - **`attention` lee y nunca escribe** la creencia: devuelve `Ask(T)` o
@@ -295,7 +295,6 @@ puro con su **tabla dorada** y una máquina que lo sostiene en tiempo de fuente.
 | 0 · ocupación | `rbh[t−1] : fv[t] : contexto → rbh[t] + hechos` | `contract/layer-0-table.txt` | `belief/occupancy/conservation.rs` |
 | partes | `l0[t] + lugares[t−1] : visto[t] → lugares[t]` | `contract/parts-table.txt` | `belief/parts/rules` |
 | 1 · postura de cama | `l1[t−1] : l0[t] + visto[t] → l1[t]` | `contract/bed-posture-table.txt` | `belief/bed_posture/rules` |
-| nivel 2 · veredicto | grupos del cuerpo → acostado / postura | `contract/second-level-table.txt` | `refine/verdict.rs` |
 
 ```text
 Bodies ──► Span ──(Before, Seen)──► settle ──[Movement]──► Machine::apply ──► Transition
@@ -338,7 +337,7 @@ flowchart LR
     vtask <-->|"request/reply"| vsvc
     engine -->|"Output + Timing"| handle
     handle -->|"Publication (mpsc)"| actor
-    actor -->|"{prefix}.scene.v4 · {prefix}.events.v4"| nats
+    actor -->|"{prefix}.scene.v5 · {prefix}.events.v5"| nats
 ```
 
 - **Cada recurso nace y muere en su hilo** (`detector/src/main.rs`). Nada se
@@ -472,8 +471,8 @@ Cada guardián tiene una fixture que lo rompe a propósito
 | `room` no pregunta nada a las capas de arriba | 23 | `room-reads-a-layer` |
 | Pasos Gherkin sin definir | 15 | `undefined-step`, `undefined-step-shell` |
 
-Más las tablas doradas de capa 0, partes, lectura de las partes, capa 1 y
-nivel 2, con una sola red (`golden::assert_table`): un cambio de regla imprime
+Más las tablas doradas de capa 0, partes, lectura de las partes y capa 1,
+con una sola red (`golden::assert_table`): un cambio de regla imprime
 las filas que cambiaron y la tabla nueva, y el diff va en el commit. Y cada
 perfil de `config/` se carga en una prueba del detector
 (`every_profile_in_the_repository_loads`), que `quick.sh` corre cuando cambia
@@ -560,7 +559,7 @@ sequenceDiagram
     T->>A: ¿calibrar? ¿pose? ¿profundidad?
     T->>B: nivel 2 → Sighting → capa 1, partes
     T->>A: ¿duda que valga el verificador?
-    T->>P: Observation → Chronicled → escena y eventos v4
+    T->>P: Observation → Chronicled → escena y eventos v5
     T-->>D: Output { at, scene, events }
 ```
 
@@ -591,7 +590,7 @@ núcleo es determinista, la misma noche da las mismas escenas, y
 `calipso-distill` vuelve escena una noche publicada.
 
 **La grabación siempre queda fuera del detector.** El detector no graba
-nada: grabar es escuchar `scene.v4` y `events.v4` en el bus (`shark`,
+nada: grabar es escuchar `scene.v5` y `events.v5` en el bus (`shark`,
 `nats sub`, JetStream). Por eso una noche real se repite solo con lo que se
 publicó. La escena no lleva píxeles, y la respuesta del verificador se publica
 como procedencia (`held.check`), no como lectura: el destilado no la rearma.
@@ -603,7 +602,7 @@ como procedencia (`held.check`), no como lectura: el destilado no la rearma.
 | Documentos atrasados | Corregido el 2026-11-01: se retiró el `big-picture.md` de la raíz (la visión general vive en `calipso-docs/big-picture.md`) y las citas del white book apuntan a las carpetas nuevas. Sigue abierto: los tomos III y VII dicen «propuesta, sin implementar» y el código ya está en `main` | La regla «si el doc y el código no coinciden, uno tiene un error» no tiene guardián para estos documentos |
 | Segunda puerta del núcleo | `Monitor::verified` fuera de `Input` | La grabación está fuera del detector y se rearma desde lo publicado; la respuesta solo se publica como `held.check` y `distill` la saltea. Una noche destilada da las mismas cuentas y capas (la verificación nunca mueve una cuenta), pero no el `held.check`. Aceptado; conviene escribirlo |
 | Píxeles en el bus | El recorte va por NATS request/reply a `calipso.verify.v1`, fuera del prefijo `vision.<site>.<camera>` | Como grabar es escuchar el bus, la regla 7 depende de que ningún grabador ni stream de JetStream escuche ese subject (por ejemplo, un `>`). Hoy no tiene guardián |
-| Perfil grande | `detector/src/config.rs` ≈ 1 780 líneas | Donde se arma la política. Cada perfil del repositorio ya se carga en una prueba; las combinaciones de capacidades todavía no tienen escena golden por perfil |
+| Perfil grande | `detector/src/config/` ≈ 2 420 líneas (medido en `ef95cec`) | Donde se arma la política. Cada perfil del repositorio ya se carga en una prueba; las combinaciones de capacidades todavía no tienen escena golden por perfil |
 | Consumidores atados al núcleo | `calipso-rerun-bridge` depende de `scene-contract` y `scene-geom`, no de `scene-core` (medido en `6773238`). `calipso-shark` no está clonado: no se mide | El crate de tipos del cable existe (S7). Falta medir shark |
 | `Input::Sensor` | lleva un `SampleRef` inventado de la última muestra | Deuda: `observed_at` opcional en la próxima versión del contrato |
 | `last_event_seq` | lo escribe el actor NATS | Deuda de contrato (DESIGN §11) |

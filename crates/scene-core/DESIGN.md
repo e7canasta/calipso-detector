@@ -39,7 +39,7 @@ is its anti-corruption layer: the domain thinks in its own vocabulary and only
  sense (perception, ONNX) ──ports──► detector (shell: Open Host Service)
  ingest (transport)       ─────────►      │  publishes
                                           ▼
-                scene-core ── published language: scene-contract (project::v4)
+                scene-core ── published language: scene-contract (project::v5)
                                           │
           other repositories: calipso-golden (scenes and replay),
                               calipso-rerun-bridge, calipso-shark
@@ -69,9 +69,9 @@ number.
 | P7 | **The engine does one thing well.** It computes inside only what it uses to decide where to look | Unix philosophy |
 | C1 | **Consumers are not broken.** A published version keeps going out unchanged, byte for byte, while someone reads it | The kernel's "we don't break userspace" |
 | C2 | **Expand, migrate, contract.** A new version goes out next to the old one; consumers migrate one at a time; the old one is retired | Fowler, *Parallel Change* |
-| C3 | **One version, one source.** Each version is defined once (its types in `scene-contract`, its projection in `project::v4`) and its JSON Schema comes from the types (rule 13) | |
+| C3 | **One definition, one source.** The contract is defined once (its types in `scene-contract`, its projection in `project::v5`) and its JSON Schema comes from the types (rule 13) | |
 | C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same turn: they cannot tell different things | |
-| C5 | **A test proves it.** While two versions are published together, a test lowers the new one to the old one on every turn of the suites; it is retired with the old version | Metamorphic testing |
+| C5 | **A test proves it.** The contract is frozen by its guardians: the schema snapshot (`contract_schema.rs`), the eight examples `s*.scene.v5.jsonl` / `s*.events.v5.jsonl` as expected output (`contract_examples.rs`), and the scenarios of `features/contract/v5.feature` with fixed values | Metamorphic testing |
 
 A published version is frozen (C1), so its types are deliberately **not**
 `#[non_exhaustive]`: a consumer may `match` them exhaustively, and the compiler
@@ -95,7 +95,7 @@ would rename is in the wrong level.
 | space | the room and the bed's planes (`map`, `room`) | the bed, the headboard, the floor, the zone, the plane | a count, or a layer's name in a room question (rule 23) |
 | belief in time | what holds through the source time, without knowing what counts: the stabilizer (`belief/stabilizer`), provenance (`provenance`), the source time (`time`, `Elapsed`), the attention ledger (`Decision`, `Consideration`) | holds, current or retained, "not known", asked or omitted with its reason | the name of a layer or of a care rule (`occupancy`, `posture`, `held`, `lying`): the stabilizer does not know what it stabilizes |
 | central domain | the room and the bed: `belief/occupancy`, `bed_posture`, `parts`, `subject`, `refine`, the questions of `attention`, the decisions of `verification`, `chronicle` | retained, adopted, without explanation, lay down, tries to get out, the resident | the generic words of rule 24 (`Layer`, `Step`, `Node`, `Context`, `State`), and a wire name that is not in the shared core |
-| wire | the published language (`scene-contract`, `project`) | `scene.v4`, `events.v4`, the envelope | a domain name that the wire does not publish under that name: `project` translates it |
+| wire | the published language (`scene-contract`, `project`) | `scene.v5`, `events.v5`, the envelope | a domain name that the wire does not publish under that name: `project` translates it |
 
 The two places where the line is thin are the good ones, and they stay for the
 same reason. `scene-look` names the perception language (`Probe`, `Reading`) and
@@ -111,7 +111,7 @@ What no change may break. Each one has someone watching it.
 
 | Invariant | Rule or principle | Who watches it |
 |---|---|---|
-| No IO: no clocks, files, network or threads | 8 | `clippy.toml`, `scripts/check.sh` (dependency tree) |
+| No IO: no clocks, files, network or threads | 8 | `scripts/check.sh` (dependency tree) |
 | Only source time; never compared across sessions | 9 | `SampleRef::secs_since` returns `None` across sessions |
 | The loop is a protocol: a turn is not abandoned | 10 | `Turn` is `#[must_use]`, holds the belief exclusively and only `drive` or `cancel` close it |
 | `cycle` only sequences; each decision belongs to another module | 11 | `scripts/check.sh` (cycle consults no policy); review; the order lives in `Course::next` |
@@ -121,7 +121,7 @@ What no change may break. Each one has someone watching it.
 | Layer 0 decides as the golden table does | P2 | `belief/occupancy/machine/table.rs` |
 | Layer 1 decides as its golden table does (`contract/bed-posture-table.txt`) | P2 | `belief/bed_posture/rules/table.rs` |
 | The parts decide as their golden table does (`contract/parts-table.txt`) | P2 | `belief/parts/rules/table.rs` |
-| The second level's arbiter decides as its golden table does (`contract/second-level-table.txt`) | P2 | `refine/verdict.rs` |
+| The second level does not answer how the resident is in bed: layer 1 (`bed_posture`) does | P2 | `belief/bed_posture/` |
 | V settles an answer, or its expiry, as its golden table does (`contract/verification-table.txt`) | P2 | `verification/table.rs` |
 | The domain names from `scene_contract` only the shared core of §1; it has no `contract` module of its own, and only `project` and `cycle` (the `Output`) name the publication (`Scene`, `Event`, `Envelope`, `SchemaId`). The chronicle remembers the domain. What no version changes is projected by `project` itself, without naming a version | P3, P4, C2 | `scripts/check.sh` (the domain without contract: no `contract` module); `tests/guardians.rs` (production code outside `project/` and `cycle/` names only the shared core, listed in the ADR; test code may name the wire) |
 | Space has one owner: the bed's plane lives only in `map` and `room` | 23 | `scripts/check.sh` (space has one owner), with its fixture |
@@ -170,16 +170,15 @@ it has an owner. The decisions are the ADRs
 
 ```text
  Engine ──► Conclusion ──► Chronicle::record ──► Chronicled ─┐
-                │                                            ├──► project() ──► v4::observed ──► Output
+                │                                            ├──► project() ──► v5::observed ──► Output
                 └────────────────────────────────────────────┘
 ```
 
-`project::v4::observed` translates the observation into the published
-version. What no version changes (the evidence, the bed, the subject, how
-republishing degrades) lives in `project` itself (`project/mod.rs`), not in
-any version. `Output` carries the turn's `scene` and `events` in the
-published version. A version published next to it (C2) adds its own module,
-and a test lowers one to the other (C5).
+`project::v5::observed` translates the observation into the published
+version. What the wire shares (the evidence, the bed, the subject, how
+republishing degrades) lives in `project` itself (`project/mod.rs`). `Output`
+carries the turn's `scene` and `events` in v5. A future version (C2) adds its
+own module, with its own guardians (C5).
 
 ```text
  look ──► evidence ──► belief ──────────────► refine ──► project ──► Output
@@ -265,7 +264,7 @@ Layer 1 reads layer 0 and never changes it.
 How many are on the floor, how many in bed and who is still in bed unseen. It
 lives in `belief/occupancy/` and does not know the second level exists.
 
-### The named state (`room.rs`)
+### The named state (`belief/occupancy/room.rs`)
 
 ```text
 Room
@@ -289,8 +288,8 @@ Bodies ──► Span ──(Before, Seen)──► settle ──[Movement]─�
            hold?                     explains it?  movement)      facts            after, facts
 ```
 
-- `Span` (`span.rs`): the span since the last stable count. It uses the
-  `Stabilizer` (`stabilizer.rs`) in source time and delivers two columns of the
+- `Span` (`belief/occupancy/span.rs`): the span since the last stable count. It uses the
+  `Stabilizer` (`belief/stabilizer.rs`) in source time and delivers two columns of the
   table: what we believed (`Before`) and what we saw (`Seen`).
 - `settle` and `evolve` (`conservation.rs`): a pure *decider*. `settle` decides
   the ordered list of movements; `evolve` says how each one moves the counts. No
@@ -365,9 +364,10 @@ layer 1, never the other way round.
   (`attention::head_place`); the depth look and layer 1 read it.
 
 `chronicle` dates the state (`bed_posture` since) and `project` publishes
-`subject.bed_posture { state, seen, since }`, additively in v4. Each change
-of the stable state while it is followed is a `bed_posture` event in
-`events.v4`, also additive (the readers are ours, 2026-10-31): `{ at, cell,
+`subject.bed_posture { state, seen, since }`, additive in v5 (change 5 of the
+[contract v5 ADR](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md)).
+Each change of the stable state while it is followed is a `bed_posture` event
+in `events.v5`, also additive (the readers are ours, 2026-10-31): `{ at, cell,
 before { state, since, lasted_secs }, seen, after }`, last in the turn. The
 cell is a row of its golden table, `before | seen | after`. Starting or
 stopping to follow is not a row and publishes nothing: getting into and out
@@ -410,7 +410,7 @@ The row is `l0[t] + places[t−1] : seen[t] : places[t]`.
 
 It is published as layer 0 is, being its complement: the scene carries
 `subject.parts { state, seen, since, pending { places, duration }, last_cell }`
-and `events.v4` a `parts` event per change of the stable places, `{ at, cell,
+and `events.v5` a `parts` event per change of the stable places, `{ at, cell,
 before { places, since, lasted_secs }, seen { parts, span }, after }`, last in
 the turn so that layer 0's events stay together. The cell is
 `before | seen | after`. `chronicle` folds the last change (since when, the
@@ -438,7 +438,7 @@ The core is Markov: it keeps only what it needs to decide what comes next
   It is the only module that speaks `contract`, besides `cycle`'s `Output`;
   it does not decide and is not read back.
 - **`chronicle::Chronicle`**: since when the room's name, the bed's kind and
-  the second level's verdict (R16) hold, and the last turn that observed bodies per zone (the `observed_at` of
+  the bed posture of layer 1 (`bed_posture`) hold, and the last turn that observed bodies per zone (the `observed_at` of
   a turn without the detector). It folds the domain (`RoomName`, `BedKind`,
   the transition's counts), not the wire: the bed goes to unknown without
   layer 0 changing, and `project` translates the fold. It lives **outside the
@@ -468,7 +468,7 @@ One concept, one name.
 | focus | `FocusPolicy`, `SiteMap::focus`, `attention::primary_region` | Where the main detector looks while the resident is alone in bed: the bed up close |
 | room geometry | `room`, `Course::room` | The only owner of the questions of space: where a body is and whether it is near the bed (layer 0); where the head, a part, a box or a foot is against the bed and its headboard (layer 1 and the second level). The turn builds it once and every layer asks it; it answers with named facts, remembers nothing and counts nothing. The crops are the map's. `check.sh` keeps the bed's plane out of the layers (white book, volume VII, ch. 01) |
 | head area | `room::HeadArea` | The room's answer to where a point of the head falls: the headboard, the bed, past its sides or elsewhere. `refine::head` turns it into the published fact `HeadPlaceState`, which also says when no head was seen; the room does not depend on the layers above it |
-| geometry (of the frame) | `map::Geometry` | Whether the incoming frame has the resolution the bed was delimited for (`Valid`, `Invalid`): published in `scene.v4` as `map.geometry`. Not the room geometry: the piece that answers the questions of space is `room` |
+| geometry (of the frame) | `map::Geometry` | Whether the incoming frame has the resolution the bed was delimited for (`Valid`, `Invalid`): published in `scene.v5` as `map.geometry`. Not the room geometry: the piece that answers the questions of space is `room` |
 | frontal | `room::Frontal` | The room geometry of a camera that sees the bed along the image: in bed if the box's centre is in the bed, near the bed if the box reaches the bed's bounding box grown (in the bed frame, the bed grown in its own coordinates); the head, the parts and the feet in the bed's `u/v`. The engine's answers as they were (volume VII, ch. 02) |
 | two planes | `room::TwoPlanes`, `TwoPlanesPolicy` | The room geometry of a camera that sees the bed on the diagonal, chosen by the profile: a body is in bed when enough of its box falls over the mattress and its support rests close to the bed's footprint on the floor; near the bed, by the support's distance in metres. The other questions of space as frontal (white book, volume VII, ch. 14) |
 | support | `room::TwoPlanes`, `BodyShadow::support` | The centre of a box's lower edge: where a standing body rests on the floor, measured against the bed's footprint |
@@ -509,7 +509,7 @@ One concept, one name.
 | the subject's body, pose | `body::Pose`, `BodyPoint`, `Joint`, `SubjectBody` | The subject's COCO-17 keypoints and their relative depth: what level 2 looks at |
 | enrichment | `Enrichment`, `Belief::observe_body` | What a turn did with the subject's body: a fresh pose (and depth), kept, failed or nothing |
 | provenance | `provenance::Provenance` | Where a claim comes from: current, retained or stable (rule 2) |
-| published language | `scene-contract` (the wire: types only); `project::v4` translates the domain into it | What a version publishes (ADR crates-del-lenguaje-y-del-cable). The core imports the shared core from it; its re-exports are partial, and `Geometry` is the only public one (`map`). `Scene` and `Event` are named only by `project` and by `cycle` |
+| published language | `scene-contract` (the wire: types only); `project::v5` translates the domain into it | What a version publishes (ADR crates-del-lenguaje-y-del-cable). The core imports the shared core from it; its re-exports are partial, and `Geometry` is the only public one (`map`). `Scene` and `Event` are named only by `project` and by `cycle` |
 | shared core | the list in ADR [el dominio es dueño de lo que decide](../../../calipso-docs/adr/2026-11-02-el-dominio-es-dueno-de-lo-que-decide.md) (§1) | The wire types the domain reads: the instant, zone and count, provenance, the body and bed points, what the shell reports, the attention record, the map state and the republishing reasons. Everything else the domain decides with is its own |
 | rule 24, the business in the code | `tests/guardians.rs` | What the engine decides is code that names the domain. A configured value never expresses a rule, a step or an order. The golden tables are oracles: the code decides and the table checks it. Guarded: no decision behind `dyn` (local `&dyn Fn` predicates allowed), no map keyed by text, no round read from data (ADR el-negocio-se-escribe-en-el-codigo) |
 | engine response | `Engine` methods named for the domain (`reinforcement`, `faces`, `observation`) | The sequence asks the engine by name what it needs; it only says which step comes next. No file of `cycle/` reads an engine field (`.engine.<campo>`): guardian G2 (ADR la-secuencia-ordena-el-motor-responde, M1, integrated in `7e5b963`) |
@@ -521,7 +521,6 @@ One concept, one name.
 | bed point | `BedPoint`, `BedSite`, `Posture::bed_points` | A fixed site of the bed (today its centre, u/v 0.5) whose depth is read in the same look as the body, with the resident in bed: covered, the blanket over the hips. `upper_bed_centre` is the baseline next to the pelvis' disparity; context, not a vote (R17, 1707) |
 | head place | `body::HeadPlace`, `Posture::head_place` | Where the head is (at the headboard, below it in bed, past the bed's sides, elsewhere, unknown) and what said so: a fact of its own, as the occupancy is where the body is. The bed's centre is the hips only with the head at the headboard; readers read the fact, not how it was concluded (R17, 1707) |
 | head (of the second level) | `refine::Head` | An independent opinion on how the resident is: today `disparity`; the bed plane, the head's place in the bed and a VLM will follow |
-| arbiter, verdict | `refine::verdict`, `Verdict`, `VerdictState` | The table from the heads' opinions to one verdict, with the heads that support it and since when; only in bed for now (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) |
 | projection | `project` | How the belief looks from outside |
 | fold | `chronicle::Chronicle` | A value computed over a sequence: of the domain (the room's name, the bed's kind, a transition's counts) |
 | chronicle | `chronicle::Chronicle`, `Entry`, `Chronicled` | The memory outside the engine, in the domain: since when the room's name and the bed's kind hold, what changed, and the last transition's counts. `project` translates it |
@@ -571,13 +570,13 @@ geometry are crates of their own (`scene-contract`, `scene-look`, `scene-geom`);
 | `belief/bed_posture` | Layer 1: the bed posture machine, its rules and its table | changes a count, or reads a raw reading |
 | `belief/parts` | The occupancy of the subject's parts: where each part is against the bed, what is held | changes a count or reads the posture |
 | `belief/subject`, `belief/stabilizer` | The subject's enrichment (pose, depth, box); stabilizing in source time, for both layers | decides occupancy |
-| `refine` (+ `head`, `lying`, `posture`, `verdict`, `sighting`, `parts`) | The second level: where the head is, lying, posture by body groups, the arbiter's verdict (a golden table), what layer 1 saw | writes the belief or changes a count |
+| `refine` (+ `head`, `lying`, `posture`, `sighting`, `parts`) | The second level: where the head is, lying, posture by body groups, what layer 1 saw; it does not answer how the resident is in bed (layer 1 does) | writes the belief or changes a count |
 | `verification` (+ `burst`, `table`, `burst_table`) | The verification plane: the ticket in flight, the answers owed, the held body's provenance (`HeldCheck`), the burst machine. Answers arrive between turns (`Monitor::verified`) and are settled at the next sample's turn | moves a count, or is read by layer 0 or layer 1 |
 | `body` | Body vocabulary: the COCO-17 pose and its depth, the bed's sites, where the head is (`HeadPlace`, concluded by `refine::head`) | interprets the pose (that is `refine`) |
 | `provenance` | Where a claim comes from (rule 2) | is inferred outside the belief |
 | `conclusion` | The seam between deciding and publishing: what the engine delivers when the turn closes | depends on `project` or `chronicle` |
 | `chronicle` | The memory of what was concluded, in the domain: folds the turns | is read by the engine to decide, or imports the wire |
-| `project` (+ `v4`, `parts`) | Translates the domain into the wire, one version per module (`v4`, `pub(crate)`); the shared part is projected once | decides, mutates the chronicle or is read back |
+| `project` (+ `v5`, `parts`) | Translates the domain into the wire, in `v5` (`pub(crate)`); the shared part is projected once | decides, mutates the chronicle or is read back |
 | `policy` | The policies that come from the profiles, one slice per decider | is read from a file |
 | `map` (+ `plane`) | The site's static world; the bed's plane, which only `map` and `room` know | is inferred from the subject |
 | `room` (+ `frontal`, `two_planes`, `shadow`) | The questions of space, with named facts: the piece the profile chose and the shadow of a geometry that does not decide yet | remembers, counts, or hands a plane to a layer |
@@ -586,7 +585,7 @@ geometry are crates of their own (`scene-contract`, `scene-look`, `scene-geom`);
 | `units` | Units in the type: `Seconds`, `Confidence`. `serde` on purpose: the profile reads them with `try_from` (ADR unidades-en-el-tipo) | a geometry fraction |
 | `estimation` | Estimates over the subject's motion and depth | knows a rule |
 | `scene-look` (crate) | The perception language: `Probe` and its views `SenseProbe` and `VerifierProbe`, `Reading`, `Failure`, `Spent`, `Ticket`, `Verified` | contains pixels |
-| `scene-contract` (crate) | The wire: the published types of `scene.v4` and `events.v4` (in `lib.rs`) and of `scene.v5` and `events.v5` (`v5.rs`), types only | has logic or decisions |
+| `scene-contract` (crate) | The wire: the published types of `scene.v5` and `events.v5` (`v5.rs`) and the types they share (`lib.rs`), types only | has logic or decisions |
 | `scene-geom` (crate) | Pure geometry (`Point`, `Rect`, `Quad`) | knows a rule |
 
 ### 8.1 How to add a look
@@ -607,7 +606,7 @@ project 39 (P5, `Pending`).
 | 7 | `cycle/sequence.rs`: one line in `Course::next` with `self.wanted(LookKind::X, considered)` and the `Pending` variant for it | The order of a turn lives in one place (rule 11) | the review: `Course::next` matches on the phase, and a missing line is only a missing look |
 | 8 | `cycle/pending.rs`: a variant of `Pending` that carries what the turn gathered and what defines the question, with its arm in `probe()`; and its arm in `advance` (`cycle/readings.rs`), which reads the answer back | The question and its continuation are one value: there is no probe without its continuation, and `Turn::drive` resumes it without matching its kind (`cycle.rs`) | the compiler: `probe()` and `advance` match on `Pending` without `_`, so a variant without its two arms does not compile |
 | 9 | `evidence/<sense>.rs`: how the reading counts (admits it, or discards it with a reason) | One file per sense (ADR el-protocolo-es-un-mensaje, point 3, citing the 2026-11-01 table, F-6 and F-7) | the review |
-| 10 | `project/v4.rs`: only if the look is published as its own field | The projection is the only translation to the wire (rule 3, C4) | the review; a new published field is a contract change |
+| 10 | `project/v5.rs`: only if the look is published as its own field | The projection is the only translation to the wire (rule 3, C4) | the review; a new published field is a contract change |
 | 11 | `features/<area>/<name>.feature` first, then its step in `tests/bdd/` and its scripted answer in `tests/script.rs` | The specification comes before the code (rule 14, rule 15) | the BDD run: an undefined step fails (`fail_on_skipped`) |
 | 12 | `calipso-golden/crates/golden/src/world.rs`: the sense of the test world, if the scenes need it | The golden world answers each probe (its `respond` has no `_`) | the compiler |
 
@@ -633,7 +632,7 @@ the compiler flags and what only a review does.
 | 4 | `belief/mod.rs`: `observe_<layer>`, which reads the occupancy and never writes it | The layer below is an input, never an output (`observe_bed_posture` reads `self.occupancy.room()`) | the review: a write to the occupancy from the new layer is a borrow of `self.occupancy` that the compiler allows, so this is a review |
 | 5 | `refine/sighting.rs`: what the second level perceives, as the layer's typed sighting: `HeadPlace::sighting` maps each head state to a `Sighting` | The sighting is what the layer sees; the second level concludes it from the sample (`Sighting` in `belief/bed_posture/mod.rs`) | the compiler: `HeadPlace::sighting` matches on the head state without `_` |
 | 6 | `cycle/engine/belief.rs` (`follow`) and `cycle/engine/refinement.rs`: the engine calls `observe_<layer>` after the parts | The order of the layers is the order of the turn, one place (rule 11, G2) | the compiler when `follow` does not pass the new argument: its signature names every input |
-| 7 | `project/v4.rs`: the additive field of the scene and the change event (`bed_posture_change`) | The projection publishes what the layer concluded, and a change is a row of the chronicle, not a read of the wire (rule 3, C4) | the review, and `contract_schema` when the field enters the schema: a published field is a contract change |
+| 7 | `project/v5.rs`: the additive field of the scene and the change event (`bed_posture_change`) | The projection publishes what the layer concluded, and a change is a row of the chronicle, not a read of the wire (rule 3, C4) | the review, and `contract_schema` when the field enters the schema: a published field is a contract change |
 | 8 | `contract/` schema and snapshot (`contract_schema`), and the wire type in `scene-contract` | A published field is a versioned change of the wire (C1), and its snapshot says so | the compiler (`contract_schema` fails until the snapshot is regenerated) |
 | 9 | `features/<area>/<name>.feature` first, then the steps of `tests/bdd/` | The specification comes before the code (rule 14, rule 15) | the BDD run: an undefined step fails (`fail_on_skipped`) |
 
@@ -664,7 +663,7 @@ are for local scope.
   once per version, before a branch goes into `main` (format, clippy, core
   dependencies, every test and licenses).
 - The golden tables (layer 0, the parts and their reading, layer 1, the
-  second level's arbiter, V) share one net, `golden::assert_table`: if a rule
+  V) share one net, `golden::assert_table`: if a rule
   changed on purpose, the test prints the rows that changed and the whole new
   table to copy into its file under `contract/`, and the diff goes into the
   commit.
@@ -680,11 +679,11 @@ done; a row with no decision says so.
 | Debt | Why | Decision | State |
 |---|---|---|---|
 | The domain vocabulary carries the serde and schemars derives | A value knows how to serialize; each version decides what it publishes. A change for one version in a shared type changes every version | [The domain owns what it decides](../../../calipso-docs/adr/2026-11-02-el-dominio-es-dueno-de-lo-que-decide.md) (§1, §2): the types the domain computes go without `serde`; the shared core keeps them, since it is the wire | Closed (T, `beee0ca`). `units.rs` keeps `serde` on purpose: it is the configuration the profile reads (ADR unidades-en-el-tipo, `try_from`), not a type the domain decides with |
-| `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Renaming them changes the wire | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 4: they take names of relative scale | Decidida; espera el corte de v5 (publicación del dueño) |
-| `rbh` and `fv` are positional arrays | A consumer reads them by index; a change of order breaks it silently | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 5: named fields | Decidida; espera el corte de v5 (publicación del dueño) |
-| The scene's `last_event_seq` is written by the NATS actor, not by the stream's numbering | The transport writes into the published body; moving it changes what the field means to its consumers (C1) | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 1: the numbering writes it; the actor does not touch the body | Decidida; espera el corte de v5 (publicación del dueño) |
-| `Input::Sensor` carries a `SampleRef` that the shell makes up from the last sample (`Driver::sensor_at`), and `observed_at` is not optional | A reception change observes nothing, so its turn has no `at` | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 2: `observed_at` optional, `Driver::sensor_at` retired | Decidida; espera el corte de v5 (publicación del dueño) |
-| The second level's verdict (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) and layer 1's bed posture both say how the resident is in bed | Two answers to one question confuse a consumer; the verdict is published (C1) | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 3: `subject.verdict` retired; the arbiter leaves with its table if no layer uses it at the cut | Decidida; espera el corte de v5 (publicación del dueño) |
+| (v4) `subject.depth.meters` and `calibration.reference_m` are named in metres but carry the depth model's relative scale | Renaming them changes the wire | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 4: they take names of relative scale | Cerrada en v5 (`subject.depth.relative`, `calibration.reference`, `scene-contract/src/v5.rs`) |
+| (v4) `rbh` and `fv` are positional arrays | A consumer reads them by index; a change of order breaks it silently | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 5: named fields | Cerrada en v5 (`rbh`, `fv` con nombre) |
+| (v4) The scene's `last_event_seq` is written by the NATS actor, not by the stream's numbering | The transport writes into the published body; moving it changes what the field means to its consumers (C1) | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 1: the numbering writes it; the actor does not touch the body | Cerrada en v5 (`last_event_seq` lo escribe la numeración) |
+| (v4) `Input::Sensor` carries a `SampleRef` that the shell makes up from the last sample (`Driver::sensor_at`), and `observed_at` is not optional | A reception change observes nothing, so its turn has no `at` | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 2: `observed_at` optional, `Driver::sensor_at` retired | Cerrada en v5 (`observed_at` opcional en `v5.rs`) |
+| (v4) The second level's verdict (`lying_in_bed`, `sitting_up_in_bed`, `in_bed`) and layer 1's bed posture both say how the resident is in bed | Two answers to one question confuse a consumer; the verdict is published (C1) | [Contract v5](../../../calipso-docs/adr/2026-11-02-lo-que-espera-el-contrato-v5.md), point 3: `subject.verdict` retired; the arbiter leaves with its table if no layer uses it at the cut | Cerrada en `d1da0b5` (C5b): no hay árbitro en el segundo nivel; la capa 1 (`bed_posture`) responde, y `subject.verdict` no está en v5 (`v5.rs`). ADR: [retirar v4](../../../calipso-docs/adr/2026-11-02-retirar-v4.md) |
 
 ## Sources
 
