@@ -105,3 +105,154 @@ fn the_reader_sees_a_braced_list_and_a_single_path() {
     );
     assert!(named_from_the_contract("use scene_geom::Rect;").is_empty());
 }
+
+/// The core's code lines: comments are not decisions, so they are skipped.
+fn code_lines(text: &str) -> impl Iterator<Item = &str> {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+}
+
+/// Whether `line` holds a trait object (`dyn`) that is not a local closure
+/// predicate. `&dyn Fn(…)` is allowed: a predicate passed down for one
+/// computation. Any other `dyn` (`Box<dyn …>`, `Rc<dyn …>`, `&dyn Opinion`, a
+/// `dyn` in a signature) is a decision behind a dynamic object, and breaks
+/// rule 24.
+fn names_a_trait_object(line: &str) -> bool {
+    line.match_indices("dyn ").any(|(at, _)| {
+        let word_start = at == 0 || !line.as_bytes()[at - 1].is_ascii_alphanumeric();
+        let after = &line[at + "dyn ".len()..];
+        let local_predicate = line[..at].ends_with('&')
+            && ["Fn(", "FnMut(", "FnOnce("]
+                .iter()
+                .any(|f| after.starts_with(f));
+        word_start && !local_predicate
+    })
+}
+
+/// Whether `line` declares a map whose key is text (`String`, `&str`,
+/// `&'static str`). A policy or evidence keyed by text lets data name the
+/// decisions, which rule 24 forbids.
+fn keys_a_map_by_text(line: &str) -> bool {
+    ["HashMap<", "BTreeMap<", "IndexMap<"].iter().any(|map| {
+        line.match_indices(map).any(|(at, m)| {
+            let key = line[at + m.len()..].trim_start();
+            let key = key.strip_prefix('&').unwrap_or(key).trim_start();
+            let key = key
+                .strip_prefix("'static ")
+                .or_else(|| key.strip_prefix("'a "))
+                .unwrap_or(key);
+            ["str", "String"].iter().any(|t| {
+                key.strip_prefix(t).is_some_and(|rest| {
+                    !rest.starts_with(|c: char| c.is_alphanumeric() || c == '_')
+                })
+            })
+        })
+    })
+}
+
+/// Whether `line` holds a sequence of the round's phases (`Vec<Phase>`,
+/// `[Reached; 3]`, `&[Phase]`): the order of the round would then be a value
+/// that data can fill, not the match in `next`.
+fn sequences_the_round(line: &str) -> bool {
+    ["Vec<", "VecDeque<", "[", "&["].iter().any(|open| {
+        ["Reached", "Phase"].iter().any(|step| {
+            line.match_indices(step).any(|(at, _)| {
+                line[..at].ends_with(open)
+                    && !line[at + step.len()..]
+                        .starts_with(|c: char| c.is_alphanumeric() || c == '_')
+            })
+        })
+    })
+}
+
+/// The files of the core as `(path relative to src, text)`.
+fn core_sources() -> Vec<(String, String)> {
+    let root = src();
+    let mut files = Vec::new();
+    rust_files(&root, &mut files);
+    files
+        .into_iter()
+        .map(|file| {
+            let relative = file
+                .strip_prefix(&root)
+                .expect("a file under src")
+                .to_string_lossy()
+                .replace('\\', "/");
+            let text = fs::read_to_string(&file).expect("a readable source file");
+            (relative, text)
+        })
+        .collect()
+}
+
+#[test]
+fn the_core_does_not_decide_behind_a_dynamic_object() {
+    let offenders: Vec<String> = core_sources()
+        .iter()
+        .flat_map(|(relative, text)| {
+            code_lines(text)
+                .filter(|line| names_a_trait_object(line))
+                .map(move |line| format!("{relative}: {}", line.trim()))
+        })
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "a decision sits behind a trait object (Box/Rc/Arc/&dyn of a step or opinion); only &dyn Fn predicates are allowed (rule 24):\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+#[test]
+fn the_core_does_not_key_policy_or_evidence_by_text() {
+    let offenders: Vec<String> = core_sources()
+        .iter()
+        .flat_map(|(relative, text)| {
+            code_lines(text)
+                .filter(|line| keys_a_map_by_text(line))
+                .map(move |line| format!("{relative}: {}", line.trim()))
+        })
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "a map keyed by String or &str holds the policy or the evidence by name (rule 24):\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+#[test]
+fn the_order_of_the_round_is_not_a_value() {
+    let offenders: Vec<String> = core_sources()
+        .iter()
+        .filter(|(relative, _)| relative.starts_with("cycle/") || relative == "cycle.rs")
+        .flat_map(|(relative, text)| {
+            code_lines(text)
+                .filter(|line| sequences_the_round(line))
+                .map(move |line| format!("{relative}: {}", line.trim()))
+        })
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "the order of a round is a sequence held as data; it lives in the match of `next` (rule 24):\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+#[test]
+fn the_guardian_tells_a_predicate_from_a_decision() {
+    assert!(!names_a_trait_object(
+        "fn group(inside: &dyn Fn(Point) -> bool) {"
+    ));
+    assert!(names_a_trait_object("    steps: Vec<Box<dyn Step>>,"));
+    assert!(names_a_trait_object("fn decide(o: &dyn Opinion) {"));
+    assert!(names_a_trait_object("let rc: Rc<dyn Rule> = r;"));
+    assert!(!keys_a_map_by_text("let by_id: HashMap<u32, Policy> = m;"));
+    assert!(keys_a_map_by_text("    rules: HashMap<String, f32>,"));
+    assert!(keys_a_map_by_text(
+        "    rules: BTreeMap<&'static str, Policy>,"
+    ));
+    assert!(sequences_the_round("let steps = [Phase::Done];"));
+    assert!(sequences_the_round("let order: Vec<Reached> = Vec::new();"));
+    assert!(sequences_the_round("const ORDER: &[Phase] = &[];"));
+    assert!(!sequences_the_round(
+        "fn next(&mut self, reached: Reached) -> Phase {"
+    ));
+}
