@@ -5,7 +5,7 @@ use super::{Arrival, SampleSource};
 use crate::decoder::SessionDecoder;
 use crate::driver::stamp_to_ref;
 use image::DynamicImage;
-use ingest::{Mailbox, Sample, StreamEvent, Take};
+use ingest::{Clock, Mailbox, Sample, StreamEvent, Take};
 use std::{
     sync::{Arc, mpsc::Receiver},
     time::{Duration, Instant},
@@ -18,8 +18,10 @@ pub struct SampleDecoder {
 }
 
 impl SampleDecoder {
-    pub fn arrival(&mut self, sample: Sample) -> Arrival<DynamicImage> {
-        let started = Instant::now();
+    /// The arrival of a sample: its frame, and the instant decoding starts, on
+    /// the same clock that stamped its arrival (`wait_ms` is their difference).
+    pub fn arrival(&mut self, sample: Sample, clock: &impl Clock) -> Arrival<DynamicImage> {
+        let started = clock.now();
         Arrival::Sample {
             at: stamp_to_ref(sample.stamp),
             received: sample.received_at,
@@ -30,21 +32,25 @@ impl SampleDecoder {
 }
 
 #[derive(Debug)]
-pub struct RtspSource {
+pub struct RtspSource<C: Clock> {
     mailbox: Arc<Mailbox<Sample>>,
     events: Receiver<StreamEvent>,
     decoder: SampleDecoder,
     interval: Duration,
+    /// Pacing: the camera's cadence is a schedule, not a measurement.
     next_due: Instant,
     /// A taken sample waiting for earlier events to be delivered.
     pending: Option<Sample>,
+    /// The clock of the arrivals: the same one the stream stage stamps with.
+    clock: C,
 }
 
-impl RtspSource {
+impl<C: Clock> RtspSource<C> {
     pub fn new(
         mailbox: Arc<Mailbox<Sample>>,
         events: Receiver<StreamEvent>,
         interval: Duration,
+        clock: C,
     ) -> Self {
         Self {
             mailbox,
@@ -53,11 +59,12 @@ impl RtspSource {
             interval,
             next_due: Instant::now(),
             pending: None,
+            clock,
         }
     }
 }
 
-impl SampleSource for RtspSource {
+impl<C: Clock> SampleSource for RtspSource<C> {
     type Frame = DynamicImage;
 
     /// Transport events go before the sample: that way a reconnection is always
@@ -67,7 +74,7 @@ impl SampleSource for RtspSource {
             return Arrival::Transport(event);
         }
         if let Some(sample) = self.pending.take() {
-            return self.decoder.arrival(sample);
+            return self.decoder.arrival(sample, &self.clock);
         }
         if let Some(rest) = self.next_due.checked_duration_since(Instant::now()) {
             std::thread::sleep(rest.min(wait));
@@ -88,17 +95,18 @@ impl SampleSource for RtspSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::clock::FixedClock;
     use ingest::{Payload, Stamp};
     use std::sync::mpsc;
 
-    fn sample(n: u64) -> Sample {
+    fn sample(n: u64, received_at: Instant) -> Sample {
         Sample {
             stamp: Stamp {
                 session: 1,
                 sequence: n,
                 source_secs: n as f64,
             },
-            received_at: Instant::now(),
+            received_at,
             payload: Payload::Keyframe {
                 data: Vec::new(),
                 pts_ticks: 0,
@@ -107,20 +115,38 @@ mod tests {
         }
     }
 
-    fn source(interval: Duration) -> (RtspSource, Arc<Mailbox<Sample>>, mpsc::Sender<StreamEvent>) {
+    fn source<C: Clock>(
+        interval: Duration,
+        clock: C,
+    ) -> (
+        RtspSource<C>,
+        Arc<Mailbox<Sample>>,
+        mpsc::Sender<StreamEvent>,
+    ) {
         let mailbox = Arc::new(Mailbox::default());
         let (tx, rx) = mpsc::channel();
         (
-            RtspSource::new(Arc::clone(&mailbox), rx, interval),
+            RtspSource::new(Arc::clone(&mailbox), rx, interval, clock),
             mailbox,
             tx,
         )
     }
 
+    /// A clock the test moves by hand, to measure a wait that is not zero.
+    #[derive(Debug)]
+    struct ManualClock(std::cell::Cell<Instant>);
+
+    impl Clock for ManualClock {
+        fn now(&self) -> Instant {
+            self.0.get()
+        }
+    }
+
     #[test]
     fn transport_events_arrive_before_the_sample() {
-        let (mut s, mailbox, tx) = source(Duration::ZERO);
-        mailbox.put(sample(7));
+        let clock = FixedClock::new();
+        let (mut s, mailbox, tx) = source(Duration::ZERO, clock);
+        mailbox.put(sample(7, clock.now()));
         tx.send(StreamEvent::Streaming { session: 1 }).unwrap();
         assert!(matches!(
             s.next(Duration::from_millis(10)),
@@ -134,20 +160,45 @@ mod tests {
 
     #[test]
     fn after_a_sample_it_waits_for_the_interval() {
-        let (mut s, mailbox, _tx) = source(Duration::from_secs(3600));
-        mailbox.put(sample(1));
+        let clock = FixedClock::new();
+        let (mut s, mailbox, _tx) = source(Duration::from_secs(3600), clock);
+        mailbox.put(sample(1, clock.now()));
         assert!(matches!(
             s.next(Duration::from_millis(10)),
             Arrival::Sample { .. }
         ));
-        mailbox.put(sample(2));
+        mailbox.put(sample(2, clock.now()));
         assert!(matches!(s.next(Duration::from_millis(1)), Arrival::Nothing));
     }
 
     #[test]
     fn a_closed_mailbox_ends_the_source() {
-        let (mut s, mailbox, _tx) = source(Duration::ZERO);
+        let (mut s, mailbox, _tx) = source(Duration::ZERO, FixedClock::new());
         mailbox.close();
         assert!(matches!(s.next(Duration::from_millis(10)), Arrival::End));
+    }
+
+    #[test]
+    fn the_wait_is_the_time_on_the_clock_between_arrival_and_decoding() {
+        let clock = ManualClock(std::cell::Cell::new(Instant::now()));
+        let received = clock.now();
+        clock.0.set(received + Duration::from_millis(250));
+        let Arrival::Sample {
+            received: got,
+            started,
+            ..
+        } = SampleDecoder::default().arrival(sample(9, received), &clock)
+        else {
+            panic!("the sample was expected");
+        };
+        assert_eq!(
+            got, received,
+            "the arrival keeps the instant it was stamped"
+        );
+        assert_eq!(
+            started.saturating_duration_since(got),
+            Duration::from_millis(250),
+            "the wait is measured on the injected clock"
+        );
     }
 }

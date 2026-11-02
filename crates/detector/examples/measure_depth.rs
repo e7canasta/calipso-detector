@@ -210,6 +210,7 @@ async fn main() -> Result<()> {
         Arc::clone(&mailbox),
         events_tx,
         shutdown.clone(),
+        detector::clock::SystemClock,
     );
     let interval = Duration::from_millis(config.stream.sample_interval_ms);
     let seconds = args.seconds;
@@ -223,7 +224,8 @@ async fn main() -> Result<()> {
     let (spans, scale, times) = tokio::task::block_in_place({
         let mailbox = Arc::clone(&mailbox);
         || -> Result<_> {
-            let mut source = RtspSource::new(mailbox, events_rx, interval);
+            let mut source =
+                RtspSource::new(mailbox, events_rx, interval, detector::clock::SystemClock);
             let deadline = Instant::now() + Duration::from_secs(seconds);
             let mut spans: BTreeMap<&'static str, Span> = BTreeMap::new();
             let mut scale = Vec::new();

@@ -3,17 +3,14 @@ use detector::clock::FixedClock;
 use detector::driver::Driver;
 use detector::source::{Arrival, rtsp::SampleDecoder};
 use image::DynamicImage;
-use ingest::{Payload, Sample, Stamp};
+use ingest::{Clock, Payload, Sample, Stamp};
 use scene_core::{
     geom::{Quad, Rect},
     look::Detection,
     map::SiteMap,
     policy::Policy,
 };
-use std::{
-    collections::VecDeque,
-    time::{Duration, Instant},
-};
+use std::{collections::VecDeque, time::Duration};
 
 pub struct Script(pub VecDeque<Vec<Detection>>);
 impl sense::DetectorPort for Script {
@@ -57,17 +54,22 @@ pub fn sample(n: u64, session: u64) -> Arrival<DynamicImage> {
         .nth(1)
         .unwrap()
         .0;
-    SampleDecoder::default().arrival(Sample {
-        stamp: Stamp {
-            session,
-            sequence: n,
-            source_secs: n as f64,
+    // One clock stamps the arrival and starts the decoding: `wait_ms` is exact.
+    let clock = FixedClock::new();
+    SampleDecoder::default().arrival(
+        Sample {
+            stamp: Stamp {
+                session,
+                sequence: n,
+                source_secs: n as f64,
+            },
+            received_at: clock.now(),
+            payload: Payload::Keyframe {
+                data: VIDEO[..end].to_vec(),
+                pts_ticks: n as i64 * 90000,
+                clock_rate: 90000,
+            },
         },
-        received_at: Instant::now(),
-        payload: Payload::Keyframe {
-            data: VIDEO[..end].to_vec(),
-            pts_ticks: n as i64 * 90000,
-            clock_rate: 90000,
-        },
-    })
+        &clock,
+    )
 }

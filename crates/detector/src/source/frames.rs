@@ -7,26 +7,29 @@
 //! whose name is not a number are ignored.
 use super::{Arrival, SampleSource};
 use image::DynamicImage;
+use ingest::Clock;
 use ingest::{IngestError, StreamEvent};
 use scene_contract::{SampleRef, SessionId, SourceSecs};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// A single session: the clip, from its first frame to its last.
 const SESSION: u64 = 1;
 
 /// The frames of a directory, in source-time order.
 #[derive(Debug)]
-pub struct FramesSource {
+pub struct FramesSource<C: Clock> {
     frames: VecDeque<(f64, PathBuf)>,
     sequence: u64,
     connected: bool,
+    /// The arrival stamp of each frame: the clock is the shell's.
+    clock: C,
 }
 
-impl FramesSource {
+impl<C: Clock> FramesSource<C> {
     /// The directory's images named by their source second.
-    pub fn open(dir: &Path) -> std::io::Result<Self> {
+    pub fn open(dir: &Path, clock: C) -> std::io::Result<Self> {
         let mut frames: Vec<(f64, PathBuf)> = std::fs::read_dir(dir)?
             .filter_map(|entry| entry.ok().map(|e| e.path()))
             .filter_map(|path| {
@@ -39,6 +42,7 @@ impl FramesSource {
             frames: frames.into(),
             sequence: 0,
             connected: false,
+            clock,
         })
     }
 
@@ -52,7 +56,7 @@ impl FramesSource {
     }
 }
 
-impl SampleSource for FramesSource {
+impl<C: Clock> SampleSource for FramesSource<C> {
     type Frame = DynamicImage;
 
     /// First the transport connects, like a camera; then, each frame.
@@ -65,7 +69,7 @@ impl SampleSource for FramesSource {
             return Arrival::End;
         };
         self.sequence += 1;
-        let now = Instant::now();
+        let now = self.clock.now();
         let frame = image::open(&path)
             .map(Some)
             .map_err(|e| IngestError::Decode(format!("{}: {e}", path.display())));

@@ -16,13 +16,8 @@ const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "source/rtsp.rs",
-        "`started` is the arrival stamp of a camera frame and the camera's pacing; both move to the \
-         injected clock with F6 (ADR, análisis de `wait_ms`)",
-    ),
-    (
-        "source/frames.rs",
-        "the arrival stamp of a frame read from disk: one instant, measured through the injected \
-         clock with F6 (ADR: no changes anything measured)",
+        "the camera's pacing (`next_due`): a schedule, not a measurement. The arrival stamp \
+         (`started`) reads the injected clock since F6 (ADR, análisis de `wait_ms`)",
     ),
     (
         "publish/nats.rs",

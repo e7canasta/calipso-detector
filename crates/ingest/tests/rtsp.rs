@@ -68,6 +68,7 @@ impl Receiver {
             Arc::clone(&mailbox),
             send,
             shutdown.clone(),
+            WallClock,
         );
         Self {
             mailbox,
@@ -187,4 +188,14 @@ fn continuous_decode_delivers_rgb_when_consumer_waits() {
     assert_eq!((picture.width(), picture.height()), (160, 96));
     assert_eq!(sample.stamp.source_secs, picture.source_time_secs.unwrap());
     println!("Continuous decode OK: 160x96 RGB, session=1");
+}
+
+/// The system clock, for the ingest tests: this crate cannot depend on the shell.
+#[derive(Clone, Copy)]
+struct WallClock;
+
+impl ingest::Clock for WallClock {
+    fn now(&self) -> std::time::Instant {
+        std::time::Instant::now()
+    }
 }

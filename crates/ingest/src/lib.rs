@@ -6,6 +6,7 @@
 // What is `pub` is reachable from outside; the rest says `pub(crate)`.
 #![warn(unreachable_pub)]
 
+pub mod clock;
 pub mod decode;
 mod error;
 pub mod mailbox;
@@ -14,6 +15,7 @@ pub use error::IngestError;
 
 use std::time::{Duration, Instant};
 
+pub use clock::Clock;
 pub use mailbox::{Mailbox, Take};
 pub use rtsp::spawn;
 

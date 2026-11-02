@@ -11,7 +11,7 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
-use super::{Mailbox, Payload, Sample, StreamEvent, decode::FrameDecoder};
+use super::{Clock, Mailbox, Payload, Sample, StreamEvent, decode::FrameDecoder};
 use crate::{IngestConfig, Stamp};
 
 const STATS_INTERVAL: Duration = Duration::from_secs(10);
@@ -50,26 +50,28 @@ impl IngestStats {
 
 /// Runs reception on a dedicated thread with its own current-thread runtime,
 /// so retina and FFmpeg objects never cross threads.
-pub fn spawn(
+pub fn spawn<C: Clock + Send + 'static>(
     config: IngestConfig,
     mailbox: Arc<Mailbox<Sample>>,
     events: mpsc::Sender<StreamEvent>,
     shutdown: CancellationToken,
+    clock: C,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("failed to create stream runtime");
-        runtime.block_on(run(config, mailbox, events, shutdown));
+        runtime.block_on(run(config, mailbox, events, shutdown, clock));
     })
 }
 
-async fn run(
+async fn run<C: Clock>(
     config: IngestConfig,
     mailbox: Arc<Mailbox<Sample>>,
     events: mpsc::Sender<StreamEvent>,
     shutdown: CancellationToken,
+    clock: C,
 ) {
     let creds = config
         .username
@@ -86,7 +88,7 @@ async fn run(
         let _ = events.send(StreamEvent::Connecting);
         info!("Connecting to {} (session {session})", config.url);
         let result = tokio::select! {
-            result = stream_session(&config, creds.clone(), session, &mailbox, &events, &mut stats) => result,
+            result = stream_session(&config, creds.clone(), session, &mailbox, &events, &mut stats, &clock) => result,
             _ = shutdown.cancelled() => return,
         };
         let reason = match result {
@@ -105,13 +107,14 @@ async fn run(
     }
 }
 
-async fn stream_session(
+async fn stream_session<C: Clock>(
     config: &IngestConfig,
     creds: Option<retina::client::Credentials>,
     session_id: u64,
     mailbox: &Mailbox<Sample>,
     events: &mpsc::Sender<StreamEvent>,
     stats: &mut IngestStats,
+    clock: &C,
 ) -> Result<()> {
     let mut session = retina::client::Session::describe(
         config
@@ -207,6 +210,7 @@ async fn stream_session(
                         pts_ticks: timestamp.elapsed(),
                         clock_rate: timestamp.clock_rate().get(),
                     },
+                    clock,
                 )?;
             }
         } else if sync.admit(is_keyframe) {
@@ -227,7 +231,7 @@ async fn stream_session(
                         source_secs: picture.source_time_secs.unwrap_or(sample.source_secs),
                         ..sample
                     };
-                    publish(mailbox, stats, sample, Payload::Picture(picture))?;
+                    publish(mailbox, stats, sample, Payload::Picture(picture), clock)?;
                 }
                 Ok(None) => {}
                 // A corrupt unit costs the frames up to the next keyframe,
@@ -294,15 +298,16 @@ impl ErrorBudget {
     }
 }
 
-fn publish(
+fn publish<C: Clock>(
     mailbox: &Mailbox<Sample>,
     stats: &mut IngestStats,
     sample: Stamp,
     payload: Payload,
+    clock: &C,
 ) -> Result<()> {
     let delivered = mailbox.put(Sample {
         stamp: sample,
-        received_at: Instant::now(),
+        received_at: clock.now(),
         payload,
     });
     if !delivered {

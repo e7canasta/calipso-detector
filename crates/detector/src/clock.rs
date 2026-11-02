@@ -6,10 +6,9 @@
 
 use std::time::Instant;
 
-/// Where the shell reads the instant of a measurement.
-pub trait Clock {
-    fn now(&self) -> Instant;
-}
+/// Where the shell reads the instant of a measurement: the trait lives in the
+/// stream stage (`ingest`), which stamps the arrivals with it.
+pub use ingest::Clock;
 
 /// The system's monotonic clock: production.
 #[derive(Debug, Clone, Copy, Default)]

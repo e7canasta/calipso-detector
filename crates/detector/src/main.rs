@@ -77,6 +77,7 @@ async fn main() -> Result<()> {
         Arc::clone(&mailbox),
         events_tx,
         token.clone(),
+        SystemClock,
     );
     // The slow verifier, if the profile has one: a local service behind NATS,
     // on its own connection, outside the turn.
@@ -109,6 +110,7 @@ async fn main() -> Result<()> {
                 mailbox,
                 events_rx,
                 Duration::from_millis(config.stream.sample_interval_ms),
+                SystemClock,
             );
             let emit = |processed: detector::driver::Processed| {
                 publisher.send(processed.output, processed.timing);

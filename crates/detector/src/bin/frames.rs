@@ -47,7 +47,7 @@ fn main() -> Result<()> {
         config.senses.verify.is_none(),
         "drop [senses.verify]: the verifier is not repeatable"
     );
-    let mut source = FramesSource::open(&args.frames)
+    let mut source = FramesSource::open(&args.frames, SystemClock)
         .with_context(|| format!("read {}", args.frames.display()))?;
     anyhow::ensure!(
         !source.is_empty(),

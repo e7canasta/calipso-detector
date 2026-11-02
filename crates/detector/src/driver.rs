@@ -277,25 +277,29 @@ mod tests {
     #[test]
     fn real_keyframe_and_stamp_translation() {
         let mut d = driver();
-        let outputs = d.arrive(SampleDecoder::default().arrival(Sample {
-            stamp: stamp(),
-            received_at: Instant::now(),
-            payload: Payload::Keyframe {
-                data: {
-                    let video = include_bytes!("../../ingest/tests/fixtures/testsrc.h264");
-                    let end = video
-                        .windows(5)
-                        .enumerate()
-                        .filter(|(_, b)| *b == [0, 0, 0, 1, 9])
-                        .nth(1)
-                        .unwrap()
-                        .0;
-                    video[..end].to_vec()
+        let clock = FixedClock::new();
+        let outputs = d.arrive(SampleDecoder::default().arrival(
+            Sample {
+                stamp: stamp(),
+                received_at: clock.now(),
+                payload: Payload::Keyframe {
+                    data: {
+                        let video = include_bytes!("../../ingest/tests/fixtures/testsrc.h264");
+                        let end = video
+                            .windows(5)
+                            .enumerate()
+                            .filter(|(_, b)| *b == [0, 0, 0, 1, 9])
+                            .nth(1)
+                            .unwrap()
+                            .0;
+                        video[..end].to_vec()
+                    },
+                    pts_ticks: 378000,
+                    clock_rate: 90000,
                 },
-                pts_ticks: 378000,
-                clock_rate: 90000,
             },
-        }));
+            &clock,
+        ));
         let output = &outputs.last().unwrap().output;
         assert_eq!(output.at, stamp_to_ref(stamp()));
         assert_eq!(
@@ -306,7 +310,8 @@ mod tests {
             })
         );
         assert!(output.scene.republished.is_none());
-        // The driver's clock is fixed: its turn measures zero.
+        // Both clocks are fixed: the wait and the turn measure zero, exactly.
+        assert_eq!(outputs.last().unwrap().timing.wait_ms, 0.0);
         assert_eq!(outputs.last().unwrap().timing.processing_ms, 0.0);
     }
     #[test]
