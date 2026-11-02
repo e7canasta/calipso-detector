@@ -13,8 +13,9 @@
 //! 5. `rbh` and `fv` have named fields: [`Rbh`] and [`Fv`].
 
 use crate::{
-    Attention, Bed, Evidence, Floor, FrameInfo, Geometry, Profile, Provenance, Republished, Room,
-    SampleRef, SensorState, Source, Timing,
+    Attention, Bed, BedPostureChange, BedState, Cause, Cell, Evidence, Floor, FrameInfo, Geometry,
+    Mode, PartsChange, Phase, Profile, Provenance, Republished, Room, SampleRef, SensorState,
+    Source, Timing,
 };
 use scene_geom::{Quad, Rect};
 use schemars::JsonSchema;
@@ -163,4 +164,229 @@ pub struct Scene {
     pub sensor: SensorState,
     /// Present only if this scene does not come from a new observation (rule 2).
     pub republished: Option<Republished>,
+}
+
+/// The occupancy: as in v4, with `rbh` split into named fields (change 5: the
+/// room in total, the bed, the held in bed).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Occupancy {
+    /// Occupants of the room, of the bed and held in it.
+    pub rbh: Rbh,
+    /// The machine's state those counts name.
+    pub mode: Mode,
+    /// `unknown` if the geometry does not apply, even with counts.
+    pub bed: BedState,
+    /// Bodies in the bed that are not occupants (rule 6).
+    pub unexplained: u32,
+}
+
+/// What we believed, since when and for how long. Differs from v4 only in its
+/// `occupancy`, which is v5's (`rbh` with names).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Before {
+    /// The occupancy we believed.
+    #[serde(flatten)]
+    pub occupancy: Occupancy,
+    /// The sample of the previous transition; `None` on the first.
+    pub since: Option<SampleRef>,
+    /// Source seconds since `since`; `None` without `since` or across sessions.
+    pub lasted_secs: Option<f64>,
+}
+
+/// The span that held: as in v4, unchanged. Re-declared here so `Seen` below
+/// names v5's `Fv`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Span {
+    /// The first sample that saw the new count.
+    pub first: SampleRef,
+    /// Source seconds it held before counting.
+    pub secs: f64,
+}
+
+/// What happened during the span and decided the cell: as in v4, unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Context {
+    /// How many appeared far from the bed.
+    pub far: u32,
+    /// How many appeared in passing.
+    pub passing: u32,
+}
+
+/// What we saw: the count that held, the span and its context. Differs from v4
+/// only in `fv`, which is v5's (change 5: named fields).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Seen {
+    /// The bodies seen on the floor and in bed, as they held.
+    pub fv: Fv,
+    /// How long they held before counting.
+    pub span: Span,
+    /// What happened meanwhile, which decided the cell.
+    pub context: Context,
+}
+
+/// What happened to someone: as in v4, unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum FactBody {
+    /// Someone appeared on the floor: they entered the room.
+    Entered,
+    /// Someone stopped being seen on the floor: they left the room.
+    LeftRoom,
+    /// Someone appeared in bed coming from the floor; with cause `baseline`,
+    /// they were found in bed at startup.
+    LayDown,
+    /// Someone was seen moving from the bed to the floor.
+    LeftBed,
+    /// Someone stopped being seen in bed without leaving: they are retained.
+    HeldInBed {
+        /// The last sample they were seen in.
+        last_seen: SampleRef,
+    },
+    /// Someone retained in bed was seen again.
+    Reappeared {
+        /// The sample since which they were retained.
+        held_since: SampleRef,
+    },
+}
+
+/// A fact within its transition, with the occupancy it leaves. Differs from v4
+/// only in `after`, which is v5's `Occupancy`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Fact {
+    /// What happened.
+    #[serde(flatten)]
+    pub body: FactBody,
+    /// Why it happened.
+    pub cause: Cause,
+    /// The occupancy this fact leaves, before the next one.
+    pub after: Occupancy,
+}
+
+/// A layer-0 change: what we believed, what we saw, what we believe and the
+/// facts, in order. Differs from v4 only in the occupancy and seen types it
+/// names (`Before`, `Seen`, `Occupancy` of v5).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Transition {
+    /// The sample in which the new count held.
+    pub at: SampleRef,
+    /// The row of the layer-0 table this change crossed.
+    pub cell: Cell,
+    /// The phase it was decided with.
+    pub phase: Phase,
+    /// What we believed, and since when.
+    pub before: Before,
+    /// What we saw hold.
+    pub seen: Seen,
+    /// The occupancy we believe at the end of the turn.
+    pub after: Occupancy,
+    /// What happened to each person, in order.
+    pub facts: Vec<Fact>,
+}
+
+/// A change in what was published, by comparing turns. Differs from v4 only in
+/// `after`, which is v5's `Occupancy`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct DerivedEvent {
+    /// Why it changed.
+    pub cause: Cause,
+    /// The sample in which it changed.
+    pub at: SampleRef,
+    /// What changed.
+    #[serde(flatten)]
+    pub body: DerivedBody,
+    /// The occupancy at the end of the turn.
+    pub after: Occupancy,
+}
+
+/// What changed: as in v4, unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DerivedBody {
+    /// The mode changed.
+    RoomChanged {
+        /// The previous mode.
+        from: Mode,
+        /// The new mode.
+        to: Mode,
+    },
+    /// The bed changed; it goes to `unknown` without a transition.
+    BedChanged {
+        /// The previous state.
+        from: BedState,
+        /// The new state.
+        to: BedState,
+    },
+}
+
+/// A reception change, reported by the shell. Differs from v4 only in `after`,
+/// which is v5's `Occupancy`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SensorEvent {
+    /// Always `sensor_reported`.
+    pub cause: Cause,
+    /// The sample the shell reported it with.
+    pub at: SampleRef,
+    /// What changed.
+    #[serde(flatten)]
+    pub body: SensorBody,
+    /// The occupancy, which a reception change does not touch.
+    pub after: Occupancy,
+}
+
+/// What changed in the reception: as in v4, unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SensorBody {
+    /// The reception changed.
+    SensorChanged {
+        /// The previous state.
+        from: SensorState,
+        /// The new state.
+        to: SensorState,
+    },
+}
+
+/// What the map learned. Differs from v4 only in its body: `MapBody` names the
+/// depth as relative (change 4).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct MapEvent {
+    /// Always `map_learned`.
+    pub cause: Cause,
+    /// The sample it was learned in.
+    pub at: SampleRef,
+    /// What was learned.
+    #[serde(flatten)]
+    pub body: MapBody,
+}
+
+/// What the map learned: the empty bed's depth, on the relative scale (change
+/// 4). Differs from v4's `MapBody` in the name of its field.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum MapBody {
+    /// The map learned the depth of the empty bed.
+    BedCalibrated {
+        /// The empty bed's depth, on the depth model's relative scale.
+        reference: f32,
+    },
+}
+
+/// A message of `events.v5`: the same variants as v4's, with v5's types. Within
+/// a turn they come out in order: `sensor`, `transition`, `map`, `derived`,
+/// `parts`, `bed_posture` (as in v4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Event {
+    /// A layer-0 change, with its facts.
+    Transition(Transition),
+    /// A change of the parts' places: unchanged from v4 (re-exported).
+    Parts(PartsChange),
+    /// A change in what was published, by comparing turns.
+    Derived(DerivedEvent),
+    /// A reception change.
+    Sensor(SensorEvent),
+    /// What the map learned.
+    Map(MapEvent),
+    /// A layer-1 change: unchanged from v4 (re-exported).
+    BedPosture(BedPostureChange),
 }

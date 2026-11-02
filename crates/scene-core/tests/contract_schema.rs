@@ -37,6 +37,14 @@ fn events_v4() {
 }
 
 #[test]
+fn events_v5() {
+    snapshot(
+        "calipso.events.v5",
+        schemars::schema_for!(scene_contract::v5::Envelope<scene_contract::v5::Event>),
+    );
+}
+
+#[test]
 fn scene_v5() {
     snapshot(
         "calipso.scene.v5",
