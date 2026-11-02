@@ -8,7 +8,7 @@ use crate::geom::Rect;
 use crate::policy::EnrichPolicy;
 use crate::provenance::Provenance;
 use crate::time::SampleRef;
-use crate::time::secs_since;
+use crate::time::SourceTime;
 
 /// The pose and its memory are decided together; the reason only explains the decision.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -95,11 +95,9 @@ pub(crate) fn enrich(
         return EnrichPlan::Posed { bbox: subject.bbox };
     }
     // A pose from another session, or without a sample, has expired.
-    let expired = policy.max_pose_age_secs.is_some_and(|max| {
-        since
-            .and_then(|s| secs_since(now, s))
-            .is_none_or(|age| age >= max.get())
-    });
+    let expired = policy
+        .max_pose_age_secs
+        .is_some_and(|max| since.is_none_or(|s| !now.since(s).within(max)));
     if let Some(r) = reference
         && !estimation::moved(&r, &subject.bbox, policy.move_threshold)
         && !expired

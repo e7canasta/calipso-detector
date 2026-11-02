@@ -8,9 +8,9 @@ use crate::geom::Rect;
 use crate::look::{Question, Target};
 use crate::policy::VerifyPolicy;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
-use crate::time::secs_since;
-use crate::units::Extension;
-use crate::verification::{HOUR_SECS, HeldCheckState, Verification};
+use crate::time::SourceTime;
+use crate::units::{Extension, Seconds};
+use crate::verification::{HeldCheckState, Verification};
 
 /// The crop the verifier looks at: the bed grown by this fraction of its width
 /// and height on each side (white book, volume III, ch. 05).
@@ -78,15 +78,12 @@ pub(crate) fn verify(
         return Consideration::Inapplicable;
     };
     let due = match held.check.state {
-        HeldCheckState::Unverified => {
-            secs_since(g.at, held.held_at).is_some_and(|age| age >= held_policy.after_secs.get())
-        }
+        HeldCheckState::Unverified => g.at.since(held.held_at).at_least(held_policy.after_secs),
         HeldCheckState::Confirmed | HeldCheckState::NotConfirmed => {
             held_policy.valid_secs.is_some_and(|valid| {
                 held.check
                     .looked
-                    .and_then(|looked| secs_since(g.at, looked))
-                    .is_none_or(|age| age >= valid.get())
+                    .is_none_or(|looked| !g.at.since(looked).within(valid))
             })
         }
     };
@@ -121,7 +118,7 @@ fn ask(
         return Consideration::Decided(Decision::Skip(SkipReason::VerifyBusy));
     }
     let spent = verify.max_per_hour.is_some_and(|max| {
-        verification.asked_within(g.at, HOUR_SECS) >= usize::try_from(max).unwrap_or(usize::MAX)
+        verification.asked_within(g.at, Seconds::HOUR) >= usize::try_from(max).unwrap_or(usize::MAX)
     });
     if spent {
         return Consideration::Decided(Decision::Skip(SkipReason::BudgetSpent));

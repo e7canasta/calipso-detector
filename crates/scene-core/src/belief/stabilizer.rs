@@ -4,8 +4,8 @@
 //! with it and layer 1 the bed posture. Counting samples would make the
 //! same policy depend on the camera cadence.
 
-use crate::policy::Persistence;
-use crate::time::SampleRef;
+use crate::time::{SampleRef, SourceTime};
+use crate::units::Seconds;
 
 /// A new value that repeats, not yet stabilized.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -15,7 +15,8 @@ pub(super) struct Candidate<T> {
 }
 
 impl<T> Candidate<T> {
-    /// Source seconds since the first observation.
+    /// Source seconds since the first observation, as the pending count
+    /// publishes them. The decision asks `at.since(first)` instead.
     pub(super) fn elapsed(&self, at: SampleRef) -> f64 {
         at.source_secs.0 - self.first.source_secs.0
     }
@@ -55,7 +56,7 @@ impl<T: Copy + Eq> Stabilizer<T> {
     /// One observation. If the new value held as required, returns the change.
     /// Any other value, the stable one included, discards the candidate; and a
     /// new session restarts it: source time is not compared across sessions.
-    pub(super) fn observe(&mut self, at: SampleRef, raw: T, p: &Persistence) -> Option<Change<T>> {
+    pub(super) fn observe(&mut self, at: SampleRef, raw: T, dwell: Seconds) -> Option<Change<T>> {
         if raw == self.stable {
             self.pending = None;
             return None;
@@ -67,7 +68,7 @@ impl<T: Copy + Eq> Stabilizer<T> {
                 first: at,
             },
         };
-        if candidate.elapsed(at) >= p.dwell_secs.get() {
+        if at.since(candidate.first).at_least(dwell) {
             let from = std::mem::replace(&mut self.stable, raw);
             self.pending = None;
             Some(Change {
@@ -97,17 +98,13 @@ mod tests {
         }
     }
 
-    const TWO: Persistence = Persistence {
-        dwell_secs: Seconds::TWO,
-    };
-
     #[test]
     fn changes_when_it_held_for_the_required_time() {
         let mut s = Stabilizer::new(0);
-        assert_eq!(s.observe(at(1.0), 1, &TWO), None);
-        assert_eq!(s.observe(at(2.0), 1, &TWO), None);
+        assert_eq!(s.observe(at(1.0), 1, Seconds::TWO), None);
+        assert_eq!(s.observe(at(2.0), 1, Seconds::TWO), None);
         assert_eq!(
-            s.observe(at(3.0), 1, &TWO),
+            s.observe(at(3.0), 1, Seconds::TWO),
             Some(Change {
                 from: 0,
                 to: 1,
@@ -121,9 +118,9 @@ mod tests {
     fn time_rules_not_the_number_of_samples() {
         // One sample every 4 s: the second is already past the required 2 s.
         let mut s = Stabilizer::new(0);
-        assert_eq!(s.observe(at(0.0), 1, &TWO), None);
+        assert_eq!(s.observe(at(0.0), 1, Seconds::TWO), None);
         assert_eq!(
-            s.observe(at(4.0), 1, &TWO),
+            s.observe(at(4.0), 1, Seconds::TWO),
             Some(Change {
                 from: 0,
                 to: 1,
@@ -133,7 +130,7 @@ mod tests {
         // Ten samples in one second are not enough.
         let mut s = Stabilizer::new(0);
         for i in 0..10 {
-            assert_eq!(s.observe(at(f64::from(i) * 0.1), 1, &TWO), None);
+            assert_eq!(s.observe(at(f64::from(i) * 0.1), 1, Seconds::TWO), None);
         }
     }
 
@@ -141,13 +138,7 @@ mod tests {
     fn without_dwell_the_first_observation_counts() {
         let mut s = Stabilizer::new(0);
         assert_eq!(
-            s.observe(
-                at(1.0),
-                1,
-                &Persistence {
-                    dwell_secs: Seconds::ZERO
-                }
-            ),
+            s.observe(at(1.0), 1, Seconds::ZERO),
             Some(Change {
                 from: 0,
                 to: 1,
@@ -159,10 +150,10 @@ mod tests {
     #[test]
     fn a_flicker_discards_the_candidate() {
         let mut s = Stabilizer::new(0);
-        s.observe(at(1.0), 1, &TWO);
-        s.observe(at(2.0), 0, &TWO);
+        s.observe(at(1.0), 1, Seconds::TWO);
+        s.observe(at(2.0), 0, Seconds::TWO);
         assert!(s.pending().is_none());
-        s.observe(at(3.0), 1, &TWO);
+        s.observe(at(3.0), 1, Seconds::TWO);
         assert_eq!(s.pending().map(|c| c.first), Some(at(3.0)));
     }
 
@@ -176,11 +167,11 @@ mod tests {
             source_secs: SourceSecs(secs),
         };
         let mut s = Stabilizer::new(0);
-        s.observe(at(100.0), 1, &TWO);
-        assert_eq!(s.observe(other(0.0), 1, &TWO), None);
+        s.observe(at(100.0), 1, Seconds::TWO);
+        assert_eq!(s.observe(other(0.0), 1, Seconds::TWO), None);
         assert_eq!(s.pending().map(|c| c.first), Some(other(0.0)));
         assert_eq!(
-            s.observe(other(2.0), 1, &TWO),
+            s.observe(other(2.0), 1, Seconds::TWO),
             Some(Change {
                 from: 0,
                 to: 1,

@@ -4,7 +4,7 @@
 //!
 //! `Verification::step(event)` moves the state and returns the effects, in
 //! order. It does no IO and reads no clock: time arrives as a `SampleRef`, and
-//! every duration is `secs_since` of it. The shell keeps what the machine only
+//! every duration is `at.since(earlier)` of it. The shell keeps what the machine only
 //! asks for: crops (`ProbeKeep`), the request itself (`ProbeVerify`), and the
 //! wall-clock deadline of a request, which is not a source-time expiry.
 //!
@@ -27,7 +27,7 @@ use crate::geom::Rect;
 use crate::look::{Target, Ticket, Verified};
 use crate::policy::{Burst, SharpnessPolicy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
-use crate::time::{SampleRef, secs_since};
+use crate::time::{Elapsed, SampleRef, SourceTime};
 use crate::units::Seconds;
 
 /// Where the verification plane is: at most one request per camera, either
@@ -266,9 +266,10 @@ fn burst_step(
     places: Option<BodyPlaces>,
     held: Option<SampleRef>,
 ) -> BurstStep {
-    let Some(age) = secs_since(at, collecting.last) else {
+    let age = at.since(collecting.last);
+    if age == Elapsed::Unknown {
         return BurstStep::Stale;
-    };
+    }
     if !holds(collecting.ticket.target, layer_1, held) {
         return BurstStep::Stale;
     }
@@ -283,7 +284,7 @@ fn burst_step(
     if resolved {
         return BurstStep::Resolved;
     }
-    if age < collecting.burst.every_secs.get() {
+    if age.within(collecting.burst.every_secs) {
         return BurstStep::Wait;
     }
     BurstStep::Keep
@@ -309,9 +310,7 @@ fn burst_ready(
     if counted.len() >= frames {
         return Some(counted.into_iter().take(frames).collect());
     }
-    let waited = policy.is_some_and(|p| {
-        secs_since(at, collecting.opened).is_none_or(|age| age >= p.max_wait_secs.get())
-    });
+    let waited = policy.is_some_and(|p| !at.since(collecting.opened).within(p.max_wait_secs));
     if !waited || collecting.crops.is_empty() {
         return None;
     }
@@ -568,10 +567,8 @@ impl Verification {
         let Phase::InFlight { ticket, sent } = self.phase else {
             return Vec::new();
         };
-        let expired = match secs_since(at, sent) {
-            None => true,
-            Some(age) => timeout.is_some_and(|max| age >= max.get()),
-        };
+        let age = at.since(sent);
+        let expired = age == Elapsed::Unknown || timeout.is_some_and(|max| age.at_least(max));
         if !expired {
             return Vec::new();
         }

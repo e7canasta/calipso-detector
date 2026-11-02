@@ -11,7 +11,7 @@ use crate::geom::Rect;
 use crate::map::CalibrationMemory;
 use crate::outcome::DepthTarget;
 use crate::policy::{CalibrationPolicy, EnrichPolicy};
-use crate::time::secs_since;
+use crate::time::SourceTime;
 use crate::units::Extension;
 
 /// A depth look: through the lens (`region`; `None`, the whole frame), at
@@ -119,8 +119,7 @@ pub(crate) fn calibrate(
     }
     if memory
         .calibration_attempt
-        .and_then(|last| secs_since(at, last))
-        .is_some_and(|age| age < policy.retry_secs.get())
+        .is_some_and(|last| at.since(last).within(policy.retry_secs))
     {
         return skip(SkipReason::RetryWait);
     }

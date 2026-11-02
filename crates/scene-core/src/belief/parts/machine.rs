@@ -42,7 +42,7 @@ impl Machine {
         let places = self
             .places
             .get_or_insert_with(|| Stabilizer::new(ByPart::default()));
-        let change = places.observe(at, unheld(now), persistence);
+        let change = places.observe(at, unheld(now), persistence.dwell_secs);
         let stable = places.stable();
         let read_now = reading::read(Facts::of(&now));
         let read = self
@@ -51,9 +51,7 @@ impl Machine {
         read.observe(
             at,
             read_now,
-            &Persistence {
-                dwell_secs: reading::dwell(read_now, persistence.dwell_secs),
-            },
+            reading::dwell(read_now, persistence.dwell_secs),
         );
         Some(Concluded {
             seen,

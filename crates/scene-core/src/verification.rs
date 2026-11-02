@@ -12,17 +12,13 @@ use crate::belief::bed_posture::BedPostureState;
 use crate::look::{Answer, Target, Ticket, Verified};
 use crate::policy::{Frames, SharpnessPolicy, VerifyPolicy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
-use crate::time::SampleRef;
-use crate::time::secs_since;
+use crate::time::{SampleRef, SourceTime};
 use crate::units::Seconds;
 
 mod burst;
 #[cfg(test)]
 pub(crate) use burst::Effect;
 pub(crate) use burst::{AskOut, BurstStep, Dispatch, Event, KeptOut, Phase, TurnOut};
-
-/// An hour of source time: the budget's window.
-pub(crate) const HOUR_SECS: f64 = 3600.0;
 
 /// How much observation backs a body held in bed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -244,10 +240,10 @@ impl Verification {
 
     /// How many requests went out in the last `secs` of source time, in this
     /// session.
-    pub(crate) fn asked_within(&self, at: SampleRef, secs: f64) -> usize {
+    pub(crate) fn asked_within(&self, at: SampleRef, secs: Seconds) -> usize {
         self.asked
             .iter()
-            .filter(|a| secs_since(at, **a).is_some_and(|age| age < secs))
+            .filter(|a| at.since(**a).within(secs))
             .count()
     }
 
@@ -276,8 +272,7 @@ impl Verification {
     /// the places it asks about: the answer fills them (V16).
     fn issue(&mut self, target: Target, at: SampleRef, places: Option<BodyPlaces>) -> Ticket {
         self.asked_places = places;
-        self.asked
-            .retain(|a| secs_since(at, *a).is_some_and(|age| age < HOUR_SECS));
+        self.asked.retain(|a| at.since(*a).within(Seconds::HOUR));
         self.asked.push(at);
         self.issued += 1;
         Ticket {

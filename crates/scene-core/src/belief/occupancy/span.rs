@@ -119,7 +119,7 @@ impl Span {
         } else {
             self.window.track(bodies, near_first);
         }
-        let Change { from, to, first } = self.counts.observe(at, raw, p)?;
+        let Change { from, to, first } = self.counts.observe(at, raw, p.dwell_secs)?;
         let seen = SeenMark {
             counts: to,
             from_door: self.window.from_door,

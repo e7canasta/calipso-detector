@@ -13,7 +13,7 @@ use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::map::BedCalibrated;
 use crate::reception::SensorChanged;
-use crate::time::secs_since;
+use crate::time::SourceTime;
 use scene_contract::{
     Attention, BedPostureBefore, BedPostureChange, Before, Cause, Cell, Context, DerivedBody,
     DerivedEvent, Evidence, Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState,
@@ -232,7 +232,7 @@ fn bed_posture_change(
         before: BedPostureBefore {
             state: before,
             since,
-            lasted_secs: since.and_then(|since| secs_since(at, since)),
+            lasted_secs: since.and_then(|since| at.since(since).published()),
         },
         seen,
         after: now.state,
@@ -251,13 +251,13 @@ fn parts_change(
         before: PartsBefore {
             places: super::parts::places(&t.before),
             since,
-            lasted_secs: since.and_then(|since| secs_since(t.at, since)),
+            lasted_secs: since.and_then(|since| t.at.since(since).published()),
         },
         seen: PartsSeen {
             parts: super::parts::seen(&t.seen),
             span: Span {
                 first: t.first_seen,
-                secs: secs_since(t.at, t.first_seen).unwrap_or(0.0),
+                secs: t.at.since(t.first_seen).published().unwrap_or(0.0),
             },
         },
         after: PartsAfter {
@@ -276,13 +276,13 @@ fn transition(t: &belief::Transition, since: Option<SampleRef>) -> Transition {
         before: Before {
             occupancy: occupancy(t.before, true),
             since,
-            lasted_secs: since.and_then(|since| secs_since(t.at, since)),
+            lasted_secs: since.and_then(|since| t.at.since(since).published()),
         },
         seen: Seen {
             fv: Fv(t.seen.counts.floor, t.seen.counts.bed),
             span: Span {
                 first: t.first_seen,
-                secs: secs_since(t.at, t.first_seen).unwrap_or(0.0),
+                secs: t.at.since(t.first_seen).published().unwrap_or(0.0),
             },
             context: Context {
                 far: t.seen.from_door,

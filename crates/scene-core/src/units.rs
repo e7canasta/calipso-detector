@@ -50,6 +50,8 @@ impl Seconds {
     pub const ONE: Self = Self(1.0);
     /// Two source seconds: the default dwell of a new count.
     pub const TWO: Self = Self(2.0);
+    /// An hour of source time: the verifier's budget window.
+    pub const HOUR: Self = Self(3600.0);
 
     /// Builds a duration. Rejects `NaN`, infinities and negative values.
     pub fn new(seconds: f64) -> Result<Self, UnitError> {

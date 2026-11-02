@@ -56,7 +56,7 @@ impl Machine {
         let dwell = Persistence {
             dwell_secs: dwell_secs(policy, proposed),
         };
-        posture.observe(at, proposed, &dwell);
+        posture.observe(at, proposed, dwell.dwell_secs);
         Some(Concluded {
             state: posture.stable(),
             seen: super::bed_posture_seen_of(l0, sighting),
