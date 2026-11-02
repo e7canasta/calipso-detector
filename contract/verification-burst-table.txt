@@ -10,10 +10,10 @@ Idle | kept crop | no burst | Idle asked=0 win=[0.9] held=— | kept counted=tru
 Idle | keep failed | no burst | Idle asked=0 win=[] held=— | —
 Collecting | turn | younger than every_secs | Collecting asked=1 win=[] held=— | waited
 Collecting | turn | every_secs passed | Collecting asked=1 win=[] held=— | keep ticket=1
-Collecting | turn | layer 1 moved on | Idle asked=1 win=[] held=— | dropped stale
-Collecting | turn | another session | Idle asked=1 win=[] held=— | dropped stale
-Collecting | turn | doubt cleared | Idle asked=1 win=[] held=— | dropped resolved
-Collecting | turn | held body no longer held | Idle asked=1 win=[] held=— | dropped stale
+Collecting | turn | layer 1 moved on | Idle asked=0 win=[] held=— | dropped stale
+Collecting | turn | another session | Idle asked=0 win=[] held=— | dropped stale
+Collecting | turn | doubt cleared | Idle asked=0 win=[] held=— | dropped resolved
+Collecting | turn | held body no longer held | Idle asked=0 win=[] held=— | dropped stale
 Collecting | kept crop | sharp, first | Collecting asked=1 win=[0.9] held=— | kept counted=true
 Collecting | kept crop | blurred, not the last | Collecting asked=1 win=[0.9, 0.2] held=— | kept counted=false
 Collecting | kept crop | third counted: ready | InFlight asked=1 win=[0.9, 0.85, 0.8] held=— | kept counted=true; verify ticket=1 crops=[0, 1, 2]
@@ -31,6 +31,8 @@ InFlight | answer | feet · answer no · holds | Idle asked=1 win=[] held=since=
 InFlight | answer | feet · answer no · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | feet · answer unsure · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | feet · answer unsure · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | feet · answer none (wall deadline) · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | feet PastTheSides
+InFlight | answer | feet · answer none (wall deadline) · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | feet · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | feet · another ticket | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | disparity · answer yes · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | disparity Upright
@@ -39,6 +41,8 @@ InFlight | answer | disparity · answer no · holds | Idle asked=1 win=[] held=s
 InFlight | answer | disparity · answer no · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | disparity · answer unsure · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | disparity · answer unsure · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · answer none (wall deadline) · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | disparity · answer none (wall deadline) · moved on | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | disparity · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | disparity · another ticket | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | held · answer yes · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=confirmed | held confirmed
@@ -47,6 +51,8 @@ InFlight | answer | held · answer no · holds | Idle asked=1 win=[] held=since=
 InFlight | answer | held · answer no · moved on | Idle asked=1 win=[] held=— | —
 InFlight | answer | held · answer unsure · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=not_confirmed | held not_confirmed
 InFlight | answer | held · answer unsure · moved on | Idle asked=1 win=[] held=— | —
+InFlight | answer | held · answer none (wall deadline) · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
+InFlight | answer | held · answer none (wall deadline) · moved on | Idle asked=1 win=[] held=— | —
 InFlight | answer | held · another session | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | answer | held · another ticket | InFlight asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | —
 InFlight | expire | feet · timeout reached · holds | Idle asked=1 win=[] held=since=s1n1 at=s1n1 check=unverified | feet PastTheSides

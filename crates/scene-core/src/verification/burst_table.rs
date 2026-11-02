@@ -247,11 +247,12 @@ fn in_flight(target: Target, places: Option<BodyPlaces>) -> (Verification, crate
     (v, ticket_of(&effects))
 }
 
-fn answer_name(a: Answer) -> &'static str {
+fn answer_name(a: Option<Answer>) -> &'static str {
     match a {
-        Answer::Yes => "yes",
-        Answer::No => "no",
-        Answer::Unsure => "unsure",
+        Some(Answer::Yes) => "yes",
+        Some(Answer::No) => "no",
+        Some(Answer::Unsure) => "unsure",
+        None => "none (wall deadline)",
     }
 }
 
@@ -294,7 +295,7 @@ fn idle_rows(out: &mut Vec<String>) {
             looked: at(1, 1.0),
             target: feet_target(),
         },
-        answer: Answer::Yes,
+        answer: Some(Answer::Yes),
     }));
     out.push(row("Idle", "answer", "arrives", &v, &fx));
     let mut v = Verification::default();
@@ -419,7 +420,7 @@ fn collecting_rows(out: &mut Vec<String>) {
             looked: at(2, 2.0),
             target: feet_target(),
         },
-        answer: Answer::Yes,
+        answer: Some(Answer::Yes),
     }));
     out.push(row("Collecting", "answer", "for a burst not sent", &v, &fx));
     let mut v = base();
@@ -453,7 +454,12 @@ fn settle_rows(out: &mut Vec<String>) {
             Target::Held { .. } => None,
             _ => Some(places(FeetPlace::Unseen, DisparitySide::Unknown)),
         };
-        for answer in [Answer::Yes, Answer::No, Answer::Unsure] {
+        for answer in [
+            Some(Answer::Yes),
+            Some(Answer::No),
+            Some(Answer::Unsure),
+            None,
+        ] {
             for holds in [true, false] {
                 let (mut v, t) = in_flight(target, p);
                 if !holds && matches!(target, Target::Held { .. }) {
@@ -479,7 +485,7 @@ fn settle_rows(out: &mut Vec<String>) {
         let (mut v, t) = in_flight(target, p);
         v.step(Event::Answer(Verified {
             ticket: t,
-            answer: Answer::Yes,
+            answer: Some(Answer::Yes),
         }));
         let fx = settle(&mut v, sess(2, 6, 6.0), Some(BedPostureState::Lying));
         out.push(row(
@@ -494,7 +500,7 @@ fn settle_rows(out: &mut Vec<String>) {
         t.id += 100;
         v.step(Event::Answer(Verified {
             ticket: t,
-            answer: Answer::Yes,
+            answer: Some(Answer::Yes),
         }));
         let fx = settle(&mut v, at(6, 6.0), Some(BedPostureState::Lying));
         out.push(row(

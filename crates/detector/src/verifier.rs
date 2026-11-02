@@ -4,6 +4,7 @@
 //! later, and the driver delivers them to the monitor before the next sample
 //! (`Monitor::verified`). Nothing here writes a pixel anywhere (rule 7): the
 //! crop goes to the local verifier and is dropped.
+use crate::clock::Clock;
 use image::{DynamicImage, codecs::jpeg::JpegEncoder};
 use scene_core::{
     geom::{Quad, Rect},
@@ -11,7 +12,7 @@ use scene_core::{
 };
 use std::marker::PhantomData;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Who verifies: it takes a request over the looked frame without blocking
 /// the turn, and gives back the answers that arrived since the last call.
@@ -194,15 +195,14 @@ impl NatsVerifier {
     /// Starts the task on `runtime`, on its own connection to `url`. Each
     /// request carries the stream (the NATS prefix), the camera, the
     /// question's versioned id, the ticket and the looked sample as headers,
-    /// and the crop as the payload. Without a reply within `wall_timeout`, the
-    /// answer is unsure.
+    /// and the crop as the payload. The wall-clock deadline is not here: it is
+    /// [`DeadlineVerifier`]'s, which wraps this port.
     pub fn spawn(
         runtime: &tokio::runtime::Handle,
         url: String,
         subject: String,
         stream: String,
         camera: String,
-        wall_timeout: Duration,
     ) -> Self {
         let (requests, mut queue) = tokio::sync::mpsc::channel::<Request>(1);
         let (answered, answers) = mpsc::channel();
@@ -238,18 +238,16 @@ impl NatsVerifier {
                     headers.insert("Calipso-Frames", jpegs.len().to_string().as_str());
                     headers.insert("Calipso-Frame-Lengths", lengths.as_str());
                 }
-                let reply = tokio::time::timeout(
-                    wall_timeout,
-                    client.request_with_headers(subject.clone(), headers, payload.into()),
-                )
-                .await;
-                let answer = match reply {
-                    Ok(Ok(message)) => read_answer(&message.payload),
-                    Ok(Err(error)) => {
-                        tracing::warn!(%error, "verifier: request failed");
-                        Answer::Unsure
+                // No reply is no answer: the core takes it as the request's expiry.
+                let answer = match client
+                    .request_with_headers(subject.clone(), headers, payload.into())
+                    .await
+                {
+                    Ok(message) => Some(read_answer(&message.payload)),
+                    Err(error) => {
+                        tracing::warn!(%error, "verifier: no reply");
+                        None
                     }
-                    Err(_) => Answer::Unsure,
                 };
                 if answered.send(Verified { ticket, answer }).is_err() {
                     return;
@@ -261,6 +259,84 @@ impl NatsVerifier {
             answers,
             kept: None,
         }
+    }
+}
+
+/// The wall-clock deadline of a request, kept by the shell (ADR 2026-11-02, la
+/// ráfaga como máquina pura, decisión (b)). A request sent through this port
+/// that gets no answer within `wall_timeout` is answered with no answer
+/// (`Verified { answer: None }`), which the core takes as the expiry of its
+/// request, the same as its own source-time timeout. It wraps any verifier, so
+/// a fake can test the deadline without a clock that runs.
+#[derive(Debug)]
+pub struct DeadlineVerifier<V, C> {
+    inner: V,
+    wall_timeout: Duration,
+    clock: C,
+    /// The requests sent and not answered yet, with the instant they expire.
+    sent: Vec<(Ticket, Instant)>,
+}
+
+impl<V, C> DeadlineVerifier<V, C> {
+    pub fn new(inner: V, wall_timeout: Duration, clock: C) -> Self {
+        Self {
+            inner,
+            wall_timeout,
+            clock,
+            sent: Vec::new(),
+        }
+    }
+}
+
+impl<V: VerifierPort, C: Clock> VerifierPort for DeadlineVerifier<V, C> {
+    type Frame = V::Frame;
+    fn ask(
+        &mut self,
+        frame: &V::Frame,
+        ticket: Ticket,
+        region: Rect,
+        bed: &Quad,
+        question: Question,
+        crops: &[u8],
+    ) -> Result<(), Failure> {
+        self.inner
+            .ask(frame, ticket, region, bed, question, crops)?;
+        self.sent
+            .push((ticket, self.clock.now() + self.wall_timeout));
+        Ok(())
+    }
+    fn answers(&mut self) -> Vec<Verified> {
+        // An answer that arrives in time is delivered as it is. One that arrives
+        // after its deadline is dropped: the core has already taken the request
+        // as expired.
+        let mut answers = Vec::new();
+        for verified in self.inner.answers() {
+            if let Some(at) = self
+                .sent
+                .iter()
+                .position(|(t, _)| t.id == verified.ticket.id)
+            {
+                self.sent.remove(at);
+                answers.push(verified);
+            }
+        }
+        let now = self.clock.now();
+        let mut expired = Vec::new();
+        self.sent.retain(|(ticket, deadline)| {
+            let due = now >= *deadline;
+            if due {
+                expired.push(*ticket);
+            }
+            !due
+        });
+        answers.extend(expired.into_iter().map(|ticket| Verified {
+            ticket,
+            answer: None,
+        }));
+        answers
+    }
+    fn keep(&mut self, frame: &V::Frame, ticket: Ticket, region: Rect) -> Result<f32, Failure> {
+        self.inner.keep(frame, ticket, region)
     }
 }
 

@@ -50,7 +50,7 @@ impl VerifierPort for Scripted {
         due.into_iter()
             .map(|(_, ticket)| Verified {
                 ticket,
-                answer: Answer::Yes,
+                answer: Some(Answer::Yes),
             })
             .collect()
     }
@@ -174,7 +174,6 @@ fn the_live_verifier_answers_over_nats() {
         "calipso.verify.v1".into(),
         "vision.test.room-1".into(),
         "room-1".into(),
-        Duration::from_secs(30),
     );
     let frame = DynamicImage::new_rgb8(128, 96);
     let looked = scene_contract::SampleRef {

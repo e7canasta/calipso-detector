@@ -293,10 +293,11 @@ impl Verification {
         layer_1: Option<BedPostureState>,
         places: Option<BodyPlaces>,
     ) -> Vec<Effect> {
-        let (ticket, region, step) = match &self.phase {
+        let (ticket, region, opened, step) = match &self.phase {
             Phase::Collecting(collecting) => (
                 collecting.ticket,
                 collecting.look.region,
+                collecting.opened,
                 burst_step(at, collecting, layer_1, places, self.held.map(|h| h.since)),
             ),
             _ => return Vec::new(),
@@ -305,6 +306,11 @@ impl Verification {
             BurstStep::Stale | BurstStep::Resolved => {
                 self.phase = Phase::Idle;
                 self.asked_places = None;
+                // The question was counted when the burst opened (V19c, ADR la
+                // ráfaga como máquina pura): a burst dropped unasked gives it back.
+                if let Some(counted) = self.asked.iter().rposition(|a| *a == opened) {
+                    self.asked.remove(counted);
+                }
                 vec![Effect::Dropped(step)]
             }
             BurstStep::Wait => vec![Effect::Waited],
@@ -381,7 +387,7 @@ impl Verification {
                 continue;
             }
             let holds = holds(ticket.target, layer_1, self.held.map(|h| h.since));
-            match decide(Asked::of(ticket.target), Some(answer), holds) {
+            match decide(Asked::of(ticket.target), answer, holds) {
                 Settled::Nothing => {}
                 Settled::Feet(feet) => {
                     if let Some(places) = self.asked_places {
@@ -444,5 +450,160 @@ impl Verification {
             }
         }
         Vec::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::body::HeadPlaceState;
+    use crate::geom::{Quad, Rect};
+    use crate::look::Answer;
+    use crate::look::Question;
+    use crate::time::SessionId;
+    use crate::units::Seconds;
+    use scene_contract::SourceSecs;
+
+    fn at(n: u64, secs: f64) -> SampleRef {
+        SampleRef {
+            session: SessionId(1),
+            sequence: n,
+            source_secs: SourceSecs(secs),
+        }
+    }
+
+    fn feet_look(places: Option<BodyPlaces>) -> VerifyLook {
+        let rect = Rect::new(0.0, 0.0, 10.0, 10.0);
+        VerifyLook {
+            target: Target::Feet {
+                stable: BedPostureState::Lying,
+            },
+            region: rect,
+            bed: Quad::from_rect(rect),
+            question: Question::LeavingBed,
+            places,
+        }
+    }
+
+    fn places(feet: FeetPlace) -> Option<BodyPlaces> {
+        Some(BodyPlaces {
+            head: HeadPlaceState::AtHeadboard,
+            feet,
+            disparity: DisparitySide::Unknown,
+        })
+    }
+
+    fn burst(frames: u8) -> Burst {
+        Burst {
+            frames,
+            every_secs: Seconds::ONE,
+        }
+    }
+
+    fn sharp() -> Option<SharpnessPolicy> {
+        Some(SharpnessPolicy {
+            min_ratio: 0.5,
+            window: 3,
+            max_wait_secs: Seconds::TWO,
+        })
+    }
+
+    /// A question sent and answered before the burst under test: its count stays.
+    fn one_answered_question(v: &mut Verification) {
+        v.step(Event::Ask {
+            at: at(1, 1.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: Burst::ONE,
+            judged: false,
+        });
+        v.step(Event::Settle {
+            at: at(2, 2.0),
+            layer_1: Some(BedPostureState::Lying),
+        });
+        v.step(Event::Answer(Verified {
+            ticket: Ticket {
+                id: 1,
+                looked: at(1, 1.0),
+                target: feet_look(None).target,
+            },
+            answer: Some(Answer::Yes),
+        }));
+        v.step(Event::Settle {
+            at: at(3, 3.0),
+            layer_1: Some(BedPostureState::Lying),
+        });
+    }
+
+    #[test]
+    fn a_burst_dropped_as_stale_gives_its_question_back() {
+        let mut v = Verification::default();
+        one_answered_question(&mut v);
+        let before = v.asked.clone();
+        v.step(Event::Ask {
+            at: at(4, 4.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: burst(3),
+            judged: true,
+        });
+        assert_eq!(
+            v.asked.len(),
+            before.len() + 1,
+            "the burst counts when it opens"
+        );
+        let fx = v.step(Event::Turn {
+            at: at(4, 5.0),
+            layer_1: Some(BedPostureState::SittingUp),
+            places: None,
+        });
+        assert_eq!(fx, vec![Effect::Dropped(BurstStep::Stale)]);
+        assert_eq!(v.asked, before, "as before the burst opened");
+    }
+
+    #[test]
+    fn a_burst_dropped_as_resolved_gives_its_question_back() {
+        let mut v = Verification::default();
+        one_answered_question(&mut v);
+        let before = v.asked.clone();
+        v.step(Event::Ask {
+            at: at(4, 4.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: burst(3),
+            judged: true,
+        });
+        let fx = v.step(Event::Turn {
+            at: at(4, 4.5),
+            layer_1: Some(BedPostureState::Lying),
+            places: places(FeetPlace::Seen),
+        });
+        assert_eq!(fx, vec![Effect::Dropped(BurstStep::Resolved)]);
+        assert_eq!(v.asked, before, "as before the burst opened");
+    }
+
+    #[test]
+    fn a_burst_that_was_sent_keeps_its_count() {
+        let mut v = Verification::default();
+        one_answered_question(&mut v);
+        let counted = v.asked.len();
+        v.step(Event::Ask {
+            at: at(4, 4.0),
+            look: feet_look(places(FeetPlace::Unseen)),
+            burst: burst(1),
+            judged: true,
+        });
+        let fx = v.step(Event::KeptCrop {
+            at: at(4, 4.0),
+            sharpness: 0.9,
+            policy: sharp(),
+        });
+        assert!(
+            matches!(fx.last(), Some(Effect::ProbeVerify { .. })),
+            "{fx:?}"
+        );
+        assert!(matches!(v.phase, Phase::InFlight { .. }));
+        assert_eq!(
+            v.asked.len(),
+            counted + 1,
+            "sent: the question stays counted"
+        );
     }
 }

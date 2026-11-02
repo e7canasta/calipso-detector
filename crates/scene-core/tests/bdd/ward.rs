@@ -166,7 +166,10 @@ impl Ward {
                 });
             self.verifier.owed = owed;
             for (ticket, _) in due {
-                monitor.verified(scene_core::look::Verified { ticket, answer });
+                monitor.verified(scene_core::look::Verified {
+                    ticket,
+                    answer: Some(answer),
+                });
             }
         }
         let mut asked = Vec::new();

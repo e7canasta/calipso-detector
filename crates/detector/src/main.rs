@@ -8,7 +8,7 @@ use detector::{
     driver::Driver,
     publish::{PublisherHandle, nats},
     source::rtsp::RtspSource,
-    verifier::NatsVerifier,
+    verifier::{DeadlineVerifier, NatsVerifier},
 };
 use ingest::{Mailbox, Sample};
 use scene_contract::Source;
@@ -81,13 +81,16 @@ async fn main() -> Result<()> {
     // The slow verifier, if the profile has one: a local service behind NATS,
     // on its own connection, outside the turn.
     let verifier = config.senses.verify.as_ref().map(|sense| {
-        NatsVerifier::spawn(
-            &tokio::runtime::Handle::current(),
-            config.nats.url.clone(),
-            sense.subject.clone(),
-            config.prefix(),
-            config.camera.id.clone(),
+        DeadlineVerifier::new(
+            NatsVerifier::spawn(
+                &tokio::runtime::Handle::current(),
+                config.nats.url.clone(),
+                sense.subject.clone(),
+                config.prefix(),
+                config.camera.id.clone(),
+            ),
             Duration::from_secs_f64(sense.wall_timeout_secs),
+            SystemClock,
         )
     });
     let mut engine = tokio::task::spawn_blocking({

@@ -140,13 +140,16 @@ pub enum Answer {
     Unsure,
 }
 
-/// An answer to a ticket, as the shell delivers it.
+/// An answer to a ticket, as the shell delivers it. `answer: None` is no answer
+/// at all: the shell's wall-clock deadline passed. The core takes it as the
+/// source-time expiry of the request (`decide` with no answer), so an answer
+/// that the verifier did not give is never read as a «no sé».
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Verified {
     /// The ticket it answers.
     pub ticket: Ticket,
-    /// What the verifier said.
-    pub answer: Answer,
+    /// What the verifier said; `None`: nothing came back in time.
+    pub answer: Option<Answer>,
 }
 
 /// Whose pose is asked for.
