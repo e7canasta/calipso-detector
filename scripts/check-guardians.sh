@@ -43,6 +43,7 @@ fixtures=(
   scripts/fixtures/geom-depends-on-tokio.sh
   scripts/fixtures/geom-grows-a-dependency.sh
   scripts/fixtures/occupancy-reads-verify.sh
+  scripts/fixtures/public-api-adds-a-pub.sh
   scripts/fixtures/room-reads-a-layer.sh
   scripts/fixtures/rule24-dyn-decides.sh
   scripts/fixtures/sense-depends-on-core.sh
