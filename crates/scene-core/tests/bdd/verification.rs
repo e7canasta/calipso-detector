@@ -160,6 +160,45 @@ fn nothing_asked(ward: &mut Ward, n: u32) {
     );
 }
 
+#[given("the verifier refuses to take its requests")]
+fn refuses_requests(ward: &mut Ward) {
+    ward.verifier.refuses_requests = true;
+}
+
+#[given("the verifier refuses to keep the crops")]
+fn refuses_crops(ward: &mut Ward) {
+    ward.verifier.refuses_crops = true;
+}
+
+/// Sample `n` has a look of `kind` that failed: the shell's port refused it.
+fn failed(ward: &Ward, n: u32, kind: LookKind) {
+    let scene = scene(ward, n);
+    assert!(
+        scene
+            .attention
+            .looks
+            .iter()
+            .any(|l| l.kind == kind && matches!(l.result(), Some(LookResult::Failed { .. }))),
+        "sample {n} has no failed {kind:?}: {:?}",
+        scene.attention.looks
+    );
+}
+
+#[then(expr = "in sample {int} a verification of the disparity fails")]
+fn disparity_fails(ward: &mut Ward, n: u32) {
+    failed(ward, n, LookKind::Verify);
+}
+
+#[then(expr = "in sample {int} a verification of the feet fails")]
+fn feet_fails(ward: &mut Ward, n: u32) {
+    failed(ward, n, LookKind::Verify);
+}
+
+#[then(expr = "in sample {int} a crop fails")]
+fn crop_fails(ward: &mut Ward, n: u32) {
+    failed(ward, n, LookKind::Keep);
+}
+
 fn verify(ward: &mut Ward) -> &mut VerifyPolicy {
     ward.policy
         .verify

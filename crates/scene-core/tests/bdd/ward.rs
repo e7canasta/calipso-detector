@@ -9,7 +9,7 @@ pub use crate::script::Script;
 use cucumber::World;
 use scene_contract::{LookKind, LookResult, Provenance, SampleRef, Scene, SessionId, SourceSecs};
 use scene_core::geom::Quad;
-use scene_core::look::Spent;
+use scene_core::look::{Failure, Spent};
 use scene_core::map::FrameInfo;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
@@ -78,6 +78,10 @@ pub struct Verifier {
     /// The samples whose kept crop is blurred: the shell measures it at 10,
     /// against 100 for every other.
     pub blurred: Vec<u32>,
+    /// The verifier's port refuses every request it is sent (`Failure::Model`).
+    pub refuses_requests: bool,
+    /// The verifier's port refuses every crop it is asked to keep.
+    pub refuses_crops: bool,
 }
 
 impl fmt::Debug for Ward {
@@ -142,6 +146,8 @@ impl Ward {
             }
             _ => false,
         };
+        let (refuses_requests, refuses_crops) =
+            (self.verifier.refuses_requests, self.verifier.refuses_crops);
         let monitor = self.monitor.get_or_insert_with(|| {
             Monitor::new(
                 self.policy.clone(),
@@ -169,6 +175,15 @@ impl Ward {
             _ => None,
         };
         let output = monitor.handle(input.clone()).drive(|request| {
+            match request {
+                scene_core::look::Probe::Verify { .. } if refuses_requests => {
+                    return (Err(Failure::Model), Spent(1.0));
+                }
+                scene_core::look::Probe::Keep { .. } if refuses_crops => {
+                    return (Err(Failure::Model), Spent(1.0));
+                }
+                _ => {}
+            }
             if blurred && matches!(request, scene_core::look::Probe::Keep { .. }) {
                 return (
                     Ok(scene_core::look::Reading::Kept { sharpness: 10.0 }),
