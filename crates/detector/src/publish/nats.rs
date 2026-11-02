@@ -437,4 +437,58 @@ mod tests {
         assert_eq!(v4_scene.last_event_seq, Some(1));
         assert_eq!(v5_scene.last_event_seq, Some(v5.events.len() as u64));
     }
+
+    /// Retirar v4 (ADR 2026-11-02-retirar-v4): sin v4 en el perfil, v5 sigue
+    /// sin reenviar el último evento enviado. El transporte no reescribe la
+    /// escena de v5: su `last_event_seq` es el último evento numerado.
+    #[test]
+    fn v5_alone_keeps_its_last_event_seq_when_the_transport_restates_one_sent() {
+        use crate::publish::Version;
+        let (mut handle, _) = PublisherHandle::channel_with(
+            Source {
+                site: "s".into(),
+                camera: "c".into(),
+                run_id: "r".into(),
+                build: build::current(),
+            },
+            Profile {
+                camera: None,
+                resident: None,
+                hash: ProfileHash("h".into()),
+                senses: Vec::new(),
+            },
+            &[Version::V5],
+        );
+        let mut monitor = Monitor::new(
+            Policy::default(),
+            SiteMap::new(Quad::from_rect(Rect::new(1.0, 1.0, 2.0, 2.0))),
+        );
+        let at = SampleRef {
+            session: SessionId(1),
+            sequence: 0,
+            source_secs: SourceSecs(0.0),
+        };
+        let output = monitor
+            .handle(Input::Sensor {
+                state: SensorState::Streaming,
+                session: at.session,
+                last: Some(at),
+            })
+            .cancel();
+        let publication = handle.prepare(
+            output,
+            Timing {
+                wait_ms: 0.0,
+                processing_ms: 0.0,
+            },
+        );
+        let v5 = publication.v5.expect("v5 is listed");
+        let numbered = v5.events.len() as u64;
+        assert_eq!(v5.scene.last_event_seq, Some(numbered));
+        // The transport's number must differ from the numbered one, or a
+        // restamp that copies it would pass.
+        let mut scene = v5.scene;
+        super::Restamp::restamp(&mut scene, super::Sent(numbered + 7));
+        assert_eq!(scene.last_event_seq, Some(numbered));
+    }
 }
