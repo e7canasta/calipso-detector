@@ -1,0 +1,1821 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "The envelope of every v5 message: as v4's, with `observed_at` optional\n(change 2) and v5's `SchemaId`.",
+  "type": "object",
+  "properties": {
+    "body": {
+      "description": "The scene or the event.",
+      "$ref": "#/$defs/Scene"
+    },
+    "event_id": {
+      "description": "Events only: unique per event, for deduplication on redelivery.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_event_seq": {
+      "description": "Scenes only: the `seq` of the last event published before this scene.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0
+    },
+    "observed_at": {
+      "description": "Source time of what is claimed. `None` for a message that observes no\nsample (a reception change).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SampleRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "profile": {
+      "description": "The configuration the engine ran with.",
+      "$ref": "#/$defs/Profile"
+    },
+    "published_at_ms": {
+      "description": "Wall clock; set by publishing, never by the core.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "schema": {
+      "description": "What the body is: a scene or an event.",
+      "$ref": "#/$defs/SchemaId"
+    },
+    "seq": {
+      "description": "Contiguous from 1 per run and per schema; a gap is a lost message.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "source": {
+      "description": "Who published it.",
+      "$ref": "#/$defs/Source"
+    },
+    "timing": {
+      "description": "Scenes only: how long the shell took with the sample.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Timing"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "source",
+    "seq",
+    "published_at_ms",
+    "profile",
+    "body"
+  ],
+  "$defs": {
+    "Attention": {
+      "description": "What was looked at during the turn, in order.",
+      "type": "object",
+      "properties": {
+        "looks": {
+          "description": "One per sense considered, in the order of the turn.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Look"
+          }
+        }
+      },
+      "required": [
+        "looks"
+      ]
+    },
+    "Bed": {
+      "description": "The bed: who is believed in it, seen or held.",
+      "type": "object",
+      "properties": {
+        "held": {
+          "description": "Who is retained in the bed without being seen, oldest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Held"
+          }
+        },
+        "seen": {
+          "description": "Occupants seen in the bed, in the stable count. It is belief: if the\nscene did not come from an observation, `republished` says so.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "since": {
+          "description": "Since when `state` holds; `None` before the first turn.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "Empty, seen, held or unknown.",
+          "$ref": "#/$defs/BedState"
+        },
+        "unexplained": {
+          "description": "Stable bodies in the bed that are not occupants: they appeared without\nanyone coming from the floor. They do not count in the room.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "state",
+        "seen",
+        "held",
+        "unexplained"
+      ]
+    },
+    "BedState": {
+      "description": "Is someone in the bed?",
+      "oneOf": [
+        {
+          "description": "Nobody in the bed.",
+          "type": "string",
+          "const": "empty"
+        },
+        {
+          "description": "At least one visible occupant in the bed's stable count.",
+          "type": "string",
+          "const": "seen"
+        },
+        {
+          "description": "Nobody seen, with retained occupants.",
+          "type": "string",
+          "const": "held"
+        },
+        {
+          "description": "The bed geometry does not apply to the image.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "BodiesEvidence": {
+      "description": "The bodies of this sample.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "description": "One per admitted person, after consolidating overlapping boxes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BodySeen"
+          }
+        },
+        "status": {
+          "description": "Whether there was a reading, with or without zones.",
+          "$ref": "#/$defs/BodiesStatus"
+        }
+      },
+      "required": [
+        "status",
+        "items"
+      ]
+    },
+    "BodiesStatus": {
+      "description": "Whether this sample has bodies to show.",
+      "oneOf": [
+        {
+          "description": "The detector read and each body has its zone.",
+          "type": "string",
+          "const": "seen"
+        },
+        {
+          "description": "The detector read, but the bed geometry does not apply: no zones.",
+          "type": "string",
+          "const": "unzoned"
+        },
+        {
+          "description": "No body reading in this sample (the detector failed or nothing was\ndecoded).",
+          "type": "string",
+          "const": "unavailable"
+        }
+      ]
+    },
+    "BodySeen": {
+      "description": "A body admitted in this sample.",
+      "type": "object",
+      "properties": {
+        "bbox": {
+          "description": "The box, in image pixels.",
+          "$ref": "#/$defs/Rect"
+        },
+        "confidence": {
+          "description": "The detector's score.",
+          "type": "number",
+          "format": "float"
+        },
+        "knee_deg": {
+          "description": "The hip–knee–ankle angle, in degrees, when the body was doubtful and\nits pose was asked before believing: bent, the room put it in bed\n(white book, volume VII, ch. 15).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "near_bed": {
+          "description": "On the floor: whether it touches the grown bed. Absent in bed.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "shadow": {
+          "description": "Where it falls for the geometry's shadow: absent unless the profile\nasks for it. It decides nothing (white book, volume VII, ch. 11).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BodyShadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "description": "Which detector saw it.",
+          "$ref": "#/$defs/BodySource"
+        },
+        "zone": {
+          "description": "In bed or on the floor; `None` when the bed geometry does not apply.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Zone"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "bbox",
+        "confidence",
+        "source"
+      ]
+    },
+    "BodyShadow": {
+      "description": "The shadow of one body. It decides nothing.",
+      "type": "object",
+      "properties": {
+        "centroid": {
+          "description": "The box's centre on the mattress: what decides the zone today.",
+          "$ref": "#/$defs/PlanePoint"
+        },
+        "near_bed": {
+          "description": "On the floor for the shadow: whether the support is within the\nshadow's distance of the bed. Absent in bed or without the bed's size.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "share": {
+          "description": "The share of the box over the mattress, on an 8 × 8 grid.",
+          "type": "number",
+          "format": "float"
+        },
+        "support": {
+          "description": "The centre of the box's lower edge, where a standing body rests.",
+          "$ref": "#/$defs/PlanePoint"
+        },
+        "support_distance_m": {
+          "description": "How far the support is from the bed, in metres; zero inside. Absent\nwithout the bed's size.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "support_plane": {
+          "description": "Where the support was measured.",
+          "$ref": "#/$defs/ShadowPlane"
+        },
+        "zone": {
+          "description": "The zone the support says: in bed within the shadow's margin, on the\nfloor past it. Absent without the bed's size.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Zone"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "centroid",
+        "support",
+        "support_plane",
+        "share"
+      ]
+    },
+    "BodySource": {
+      "description": "Which detector the admitted body came from.",
+      "oneOf": [
+        {
+          "description": "The main detector, over the whole frame.",
+          "type": "string",
+          "const": "primary"
+        },
+        {
+          "description": "The finer detector, over the bed.",
+          "type": "string",
+          "const": "reinforcement"
+        }
+      ]
+    },
+    "Build": {
+      "description": "The publishing binary.",
+      "type": "object",
+      "properties": {
+        "git": {
+          "description": "The commit it was built from.",
+          "type": "string"
+        },
+        "version": {
+          "description": "The crate version.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "git"
+      ]
+    },
+    "Calibration": {
+      "description": "The empty bed's calibration: as in v4, with the depth named for its scale\n(change 4).",
+      "oneOf": [
+        {
+          "description": "The empty bed has not been learned.",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "unavailable"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "The empty bed was learned.",
+          "type": "object",
+          "properties": {
+            "reference": {
+              "description": "Its depth, on the depth model's relative scale.",
+              "type": "number",
+              "format": "float"
+            },
+            "since": {
+              "description": "The sample it was learned in; `None` if the profile brought it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SampleRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "type": "string",
+              "const": "complete"
+            }
+          },
+          "required": [
+            "status",
+            "reference"
+          ]
+        }
+      ]
+    },
+    "Cell": {
+      "description": "The cell of a transition: `before:seen:after`, the natural key of the row.\nEach part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`).",
+      "type": "string",
+      "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$"
+    },
+    "Counts": {
+      "description": "What is seen in each zone, stabilized or yet to stabilize.",
+      "type": "object",
+      "properties": {
+        "bed": {
+          "description": "Seen in the bed.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "floor": {
+          "description": "Seen off the bed.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "floor",
+        "bed"
+      ]
+    },
+    "Evidence": {
+      "description": "What was admitted in this sample, apart from the stabilized belief.",
+      "type": "object",
+      "properties": {
+        "bodies": {
+          "description": "The bodies admitted from the person detectors.",
+          "$ref": "#/$defs/BodiesEvidence"
+        },
+        "faces": {
+          "description": "The faces admitted from the face detector.",
+          "$ref": "#/$defs/FacesEvidence"
+        }
+      },
+      "required": [
+        "bodies",
+        "faces"
+      ]
+    },
+    "FaceSeen": {
+      "description": "A face admitted in this sample.",
+      "type": "object",
+      "properties": {
+        "bbox": {
+          "description": "The box, in image pixels.",
+          "$ref": "#/$defs/Rect"
+        },
+        "confidence": {
+          "description": "The face detector's score.",
+          "type": "number",
+          "format": "float"
+        },
+        "on_subject": {
+          "description": "Whether it lies on the subject seen in this sample.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bbox",
+        "confidence",
+        "on_subject"
+      ]
+    },
+    "FacesEvidence": {
+      "description": "The faces of this sample.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "description": "The admitted faces.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FaceSeen"
+          }
+        },
+        "reason": {
+          "description": "Why faces were not looked for; only with `skipped`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkipReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "description": "Whether faces were looked for and what came of it.",
+          "$ref": "#/$defs/FacesStatus"
+        }
+      },
+      "required": [
+        "status",
+        "items"
+      ]
+    },
+    "FacesStatus": {
+      "description": "What happened with faces in this sample.",
+      "oneOf": [
+        {
+          "description": "Looked for, and at least one admitted.",
+          "type": "string",
+          "const": "ok"
+        },
+        {
+          "description": "Looked for, and none admitted.",
+          "type": "string",
+          "const": "empty"
+        },
+        {
+          "description": "The face detector failed.",
+          "type": "string",
+          "const": "failed"
+        },
+        {
+          "description": "Not looked for; `reason` says why.",
+          "type": "string",
+          "const": "skipped"
+        }
+      ]
+    },
+    "FailureKind": {
+      "description": "How a look failed, as published.",
+      "oneOf": [
+        {
+          "description": "The shell could not complete the probe (shutdown).",
+          "type": "string",
+          "const": "cancelled"
+        },
+        {
+          "description": "The sense ran and failed (model or backend error).",
+          "type": "string",
+          "const": "model"
+        }
+      ]
+    },
+    "Floor": {
+      "description": "Off the bed, no longer being seen is leaving the room: nobody is retained.",
+      "type": "object",
+      "properties": {
+        "seen": {
+          "description": "Occupants seen off the bed, in the stable count.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "seen"
+      ]
+    },
+    "FrameInfo": {
+      "description": "Size of a decoded frame.",
+      "type": "object",
+      "properties": {
+        "height": {
+          "description": "In pixels.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "width": {
+          "description": "In pixels.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ]
+    },
+    "Geometry": {
+      "description": "Whether the delimited bed matches the incoming image.",
+      "oneOf": [
+        {
+          "description": "The image has the resolution the bed was delimited for.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "valid"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "The resolution is not the declared one: \"in bed\" cannot be claimed.",
+          "type": "object",
+          "properties": {
+            "actual": {
+              "description": "The resolution of the incoming image.",
+              "$ref": "#/$defs/FrameInfo"
+            },
+            "declared": {
+              "description": "The resolution the bed was delimited for.",
+              "$ref": "#/$defs/FrameInfo"
+            },
+            "type": {
+              "type": "string",
+              "const": "invalid"
+            }
+          },
+          "required": [
+            "type",
+            "declared",
+            "actual"
+          ]
+        }
+      ]
+    },
+    "Held": {
+      "description": "Someone who stopped being seen in bed without an observed exit.",
+      "type": "object",
+      "properties": {
+        "bbox": {
+          "description": "Where they were last seen, in image pixels.",
+          "$ref": "#/$defs/Rect"
+        },
+        "check": {
+          "description": "Whether a verifier looked since: only with a verifier configured\n(white book, volume III). It never moves the count.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeldCheck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_seen": {
+          "description": "The last sample they were seen in.",
+          "$ref": "#/$defs/SampleRef"
+        }
+      },
+      "required": [
+        "bbox",
+        "last_seen"
+      ]
+    },
+    "HeldCheck": {
+      "description": "The provenance of a held body: whether a verifier looked, and when.",
+      "type": "object",
+      "properties": {
+        "by": {
+          "description": "Who looked; `None` while unverified.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "looked": {
+          "description": "The sample it looked at; `None` while unverified.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "Unverified, confirmed or not confirmed.",
+          "$ref": "#/$defs/HeldCheckState"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "HeldCheckState": {
+      "description": "How much observation backs a body held in bed.",
+      "oneOf": [
+        {
+          "description": "Nobody looked since it stopped being seen.",
+          "type": "string",
+          "const": "unverified"
+        },
+        {
+          "description": "A verifier saw it: the belief has an observation behind it.",
+          "type": "string",
+          "const": "confirmed"
+        },
+        {
+          "description": "A verifier looked and did not see it. It is not released: the blanket\nhides it from every verifier (book 4, frontier 3).",
+          "type": "string",
+          "const": "not_confirmed"
+        }
+      ]
+    },
+    "LayerRef": {
+      "description": "A layer of the profile, by name and revision.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The layer's name.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Its revision; `0` while layers are not versioned.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ]
+    },
+    "Look": {
+      "description": "An entry of attention's ledger (rule 12): what was decided to look at or\nnot, and what happened.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "Which sense.",
+          "$ref": "#/$defs/LookKind"
+        },
+        "outcome": {
+          "description": "Asked, with what came back, or skipped, with why.",
+          "$ref": "#/$defs/LookOutcome"
+        }
+      },
+      "required": [
+        "kind",
+        "outcome"
+      ]
+    },
+    "LookKind": {
+      "description": "What was asked to be looked at.",
+      "oneOf": [
+        {
+          "description": "The main person detector.",
+          "type": "string",
+          "const": "detect"
+        },
+        {
+          "description": "The face detector.",
+          "type": "string",
+          "const": "faces"
+        },
+        {
+          "description": "The finer detector over the bed, when the subject is lost.",
+          "type": "string",
+          "const": "reinforce"
+        },
+        {
+          "description": "The subject's pose.",
+          "type": "string",
+          "const": "pose"
+        },
+        {
+          "description": "A doubtful body's pose, before believing.",
+          "type": "string",
+          "const": "pose_body"
+        },
+        {
+          "description": "The depth at image points.",
+          "type": "string",
+          "const": "depth"
+        },
+        {
+          "description": "The depth of the empty bed, to learn it.",
+          "type": "string",
+          "const": "calibrate"
+        },
+        {
+          "description": "The slow verifier, asked about a crop.",
+          "type": "string",
+          "const": "verify"
+        },
+        {
+          "description": "A crop kept for a burst to the verifier.",
+          "type": "string",
+          "const": "keep"
+        }
+      ]
+    },
+    "LookOutcome": {
+      "description": "What came of a look.",
+      "oneOf": [
+        {
+          "description": "A look was requested.",
+          "type": "object",
+          "properties": {
+            "region": {
+              "description": "`None`: the whole frame.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Rect"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result": {
+              "description": "What the sense returned.",
+              "$ref": "#/$defs/LookResult"
+            },
+            "spent_ms": {
+              "description": "What the shell measured; the core only records it (rule 9).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "asked"
+            }
+          },
+          "required": [
+            "type",
+            "result",
+            "spent_ms"
+          ]
+        },
+        {
+          "description": "It was decided not to look, with a reason.",
+          "type": "object",
+          "properties": {
+            "reason": {
+              "description": "Why not.",
+              "$ref": "#/$defs/SkipReason"
+            },
+            "type": {
+              "type": "string",
+              "const": "skipped"
+            }
+          },
+          "required": [
+            "type",
+            "reason"
+          ]
+        }
+      ]
+    },
+    "LookResult": {
+      "description": "What a look returned.",
+      "oneOf": [
+        {
+          "description": "The sense read: how many candidates, and why those that did not count\nwere discarded.",
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "description": "How many the sense returned, before admission.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "rejected": {
+              "description": "The discarded ones, grouped by reason.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Rejected"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "read"
+            }
+          },
+          "required": [
+            "type",
+            "candidates",
+            "rejected"
+          ]
+        },
+        {
+          "description": "The sense failed: it proves nothing (rule 1).",
+          "type": "object",
+          "properties": {
+            "failure": {
+              "description": "How it failed.",
+              "$ref": "#/$defs/FailureKind"
+            },
+            "type": {
+              "type": "string",
+              "const": "failed"
+            }
+          },
+          "required": [
+            "type",
+            "failure"
+          ]
+        },
+        {
+          "description": "The verifier took the request: the answer comes in a later turn.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "dispatched"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "The shell kept the crop for a burst.",
+          "type": "object",
+          "properties": {
+            "counted": {
+              "description": "Whether it counts for the burst: sharp enough for this camera.",
+              "type": "boolean"
+            },
+            "sharpness": {
+              "description": "How sharp the shell measured it.",
+              "type": "number",
+              "format": "float"
+            },
+            "type": {
+              "type": "string",
+              "const": "kept"
+            }
+          },
+          "required": [
+            "type",
+            "sharpness",
+            "counted"
+          ]
+        }
+      ]
+    },
+    "MapState": {
+      "description": "The map's state, as v5 publishes it: as in v4, with `calibration` named for\nits scale (change 4).",
+      "type": "object",
+      "properties": {
+        "bed": {
+          "description": "The bed's four corners on the image, clockwise.",
+          "$ref": "#/$defs/Quad"
+        },
+        "calibration": {
+          "description": "What the map learned about the empty bed.",
+          "$ref": "#/$defs/Calibration"
+        },
+        "focus": {
+          "description": "The main detector's focus, when the policy has one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "geometry": {
+          "description": "Whether the delimited bed applies to this image.",
+          "$ref": "#/$defs/Geometry"
+        },
+        "headboard": {
+          "description": "Where faces are looked for when nobody is in sight.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "geometry",
+        "bed",
+        "calibration"
+      ]
+    },
+    "Mode": {
+      "description": "The mode of the layer-0 machine: the name of its state.",
+      "oneOf": [
+        {
+          "description": "Nobody in the room.",
+          "type": "string",
+          "const": "empty"
+        },
+        {
+          "description": "One occupant, off the bed.",
+          "type": "string",
+          "const": "alone_out"
+        },
+        {
+          "description": "One occupant in bed, seen in the stable count.",
+          "type": "string",
+          "const": "alone_in_bed_seen"
+        },
+        {
+          "description": "One occupant in bed, retained.",
+          "type": "string",
+          "const": "alone_in_bed_held"
+        },
+        {
+          "description": "More than one occupant.",
+          "type": "string",
+          "const": "accompanied"
+        }
+      ]
+    },
+    "Pending": {
+      "description": "A new count that has not stabilized yet.",
+      "type": "object",
+      "properties": {
+        "counts": {
+          "description": "The new count per zone, waiting to hold.",
+          "$ref": "#/$defs/Counts"
+        },
+        "duration": {
+          "description": "Source seconds it has held, against the required dwell.",
+          "$ref": "#/$defs/Progress"
+        }
+      },
+      "required": [
+        "counts",
+        "duration"
+      ]
+    },
+    "Phase": {
+      "description": "The phase of rule 6: until the first climb into bed, whatever appears in\nit is adopted.",
+      "oneOf": [
+        {
+          "description": "The bed has no history yet: whoever is clearly seen in it is adopted.",
+          "type": "string",
+          "const": "booting"
+        },
+        {
+          "description": "Someone climbed into bed from the floor: the bed only rises from it.",
+          "type": "string",
+          "const": "running"
+        }
+      ]
+    },
+    "PlanePoint": {
+      "description": "A point of the image and where it falls in the bed's coordinates on a\nplane: `u` across, `v` from the foot (0) to the headboard (1).",
+      "type": "object",
+      "properties": {
+        "u": {
+          "description": "Across the bed: 0 and 1 are its sides.",
+          "type": "number",
+          "format": "float"
+        },
+        "v": {
+          "description": "Along the bed: 0 the foot, 1 the headboard.",
+          "type": "number",
+          "format": "float"
+        },
+        "x": {
+          "description": "In image pixels.",
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "description": "In image pixels.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "u",
+        "v"
+      ]
+    },
+    "Point": {
+      "description": "A point on the image plane.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "description": "Pixels from the left edge.",
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "description": "Pixels from the top edge.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "Profile": {
+      "description": "The configuration the engine ran with, as the consumer needs to compare runs.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera layer of the profile.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LayerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hash": {
+          "description": "Two runs with the same hash believed with the same policy and map.",
+          "$ref": "#/$defs/ProfileHash"
+        },
+        "resident": {
+          "description": "The resident layer of the profile; `None` while there is none.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LayerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "senses": {
+          "description": "What each configured sense looks with. `hash` already covers them; this\nnames them for whoever watches, as in v2. Empty if the shell does not\nreport them.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SenseProfile"
+          }
+        }
+      },
+      "required": [
+        "hash"
+      ]
+    },
+    "ProfileHash": {
+      "description": "Hash of the effective policy the engine ran with.",
+      "type": "string"
+    },
+    "Progress": {
+      "description": "A quantity reached against the one required.",
+      "type": "object",
+      "properties": {
+        "have": {
+          "description": "What has been reached.",
+          "type": "number",
+          "format": "double"
+        },
+        "need": {
+          "description": "What is required.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "have",
+        "need"
+      ]
+    },
+    "Provenance": {
+      "description": "Where a claim comes from (rule 2).",
+      "oneOf": [
+        {
+          "description": "Observed in this sample.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "current"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Observed earlier and retained without a current observation.",
+          "type": "object",
+          "properties": {
+            "since": {
+              "description": "The last sample it was observed in.",
+              "$ref": "#/$defs/SampleRef"
+            },
+            "type": {
+              "type": "string",
+              "const": "retained"
+            }
+          },
+          "required": [
+            "type",
+            "since"
+          ]
+        },
+        {
+          "description": "Computed earlier and still valid because the subject did not move.",
+          "type": "object",
+          "properties": {
+            "since": {
+              "description": "The sample it was computed in.",
+              "$ref": "#/$defs/SampleRef"
+            },
+            "type": {
+              "type": "string",
+              "const": "stable"
+            }
+          },
+          "required": [
+            "type",
+            "since"
+          ]
+        }
+      ]
+    },
+    "Quad": {
+      "description": "A quadrilateral: the bed seen in perspective.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Point"
+      },
+      "maxItems": 4,
+      "minItems": 4
+    },
+    "Rect": {
+      "description": "An axis-aligned rectangle: top-left and bottom-right corners.",
+      "type": "object",
+      "properties": {
+        "x0": {
+          "description": "Left edge, in pixels.",
+          "type": "number",
+          "format": "float"
+        },
+        "x1": {
+          "description": "Right edge, in pixels.",
+          "type": "number",
+          "format": "float"
+        },
+        "y0": {
+          "description": "Top edge, in pixels.",
+          "type": "number",
+          "format": "float"
+        },
+        "y1": {
+          "description": "Bottom edge, in pixels.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x0",
+        "y0",
+        "x1",
+        "y1"
+      ]
+    },
+    "RejectReason": {
+      "description": "Why a candidate did not count as evidence.",
+      "oneOf": [
+        {
+          "description": "Another class than a person.",
+          "type": "string",
+          "const": "not_person"
+        },
+        {
+          "description": "Below the policy's minimum confidence.",
+          "type": "string",
+          "const": "low_confidence"
+        },
+        {
+          "description": "Outside the region where the look was requested.",
+          "type": "string",
+          "const": "outside_region"
+        }
+      ]
+    },
+    "Rejected": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "description": "How many, for that reason.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "reason": {
+          "description": "Why they did not count.",
+          "$ref": "#/$defs/RejectReason"
+        }
+      },
+      "required": [
+        "reason",
+        "count"
+      ]
+    },
+    "RepublishReason": {
+      "description": "Why the scene is republished without a new observation.",
+      "oneOf": [
+        {
+          "description": "The sample did not decode.",
+          "type": "string",
+          "const": "decode_failed"
+        },
+        {
+          "description": "The decoder produced no image.",
+          "type": "string",
+          "const": "decode_empty"
+        },
+        {
+          "description": "The sensor state changed.",
+          "type": "string",
+          "const": "sensor"
+        },
+        {
+          "description": "The main detector failed: the belief is that of the last observation.",
+          "type": "string",
+          "const": "detect_failed"
+        }
+      ]
+    },
+    "Republished": {
+      "description": "A republished scene: what happened and when what it claims is from.",
+      "type": "object",
+      "properties": {
+        "observed_at": {
+          "description": "The last observed sample; `None` if there has been none yet.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "description": "Why this sample was not observed.",
+          "$ref": "#/$defs/RepublishReason"
+        }
+      },
+      "required": [
+        "reason"
+      ]
+    },
+    "Room": {
+      "description": "The room: the machine's mode, the phase and the last cell.",
+      "type": "object",
+      "properties": {
+        "last_cell": {
+          "description": "The cell of the last transition; `None` before the first.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cell"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "description": "The machine's state.",
+          "$ref": "#/$defs/Mode"
+        },
+        "occupants": {
+          "description": "How many people are in the room, seen or retained.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "pending": {
+          "description": "A new count that has not held long enough yet.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pending"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phase": {
+          "description": "Whether the bed has history yet (rule 6).",
+          "$ref": "#/$defs/Phase"
+        },
+        "since": {
+          "description": "Since when the mode holds.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "occupants",
+        "phase"
+      ]
+    },
+    "SampleRef": {
+      "description": "Which sample and when, in source time. It is the domain's only clock\n(rule 9).",
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "description": "The sample's number, increasing within the run.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "session": {
+          "description": "The stream session: a reconnection starts a new one.",
+          "$ref": "#/$defs/SessionId"
+        },
+        "source_secs": {
+          "description": "The sample's presentation time, comparable only within its session.",
+          "$ref": "#/$defs/SourceSecs"
+        }
+      },
+      "required": [
+        "session",
+        "sequence",
+        "source_secs"
+      ]
+    },
+    "Scene": {
+      "description": "The scene of a sample, as v5 publishes it: as in v4 except for the subject\nand the map, which name the changed types (changes 3 and 4).",
+      "type": "object",
+      "properties": {
+        "attention": {
+          "description": "What the core looked at in this turn, and why not the rest.",
+          "$ref": "#/$defs/Attention"
+        },
+        "bed": {
+          "description": "Who is believed in bed.",
+          "$ref": "#/$defs/Bed"
+        },
+        "evidence": {
+          "description": "What was admitted in this sample.",
+          "$ref": "#/$defs/Evidence"
+        },
+        "floor": {
+          "description": "Who is seen off the bed.",
+          "$ref": "#/$defs/Floor"
+        },
+        "frame": {
+          "description": "The image size the turn worked on; `None` before the first image.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrameInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "map": {
+          "description": "The bed geometry and what the map learned.",
+          "$ref": "#/$defs/MapState"
+        },
+        "republished": {
+          "description": "Present only if this scene does not come from a new observation (rule 2).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Republished"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "room": {
+          "description": "How many are in the room and the machine's mode.",
+          "$ref": "#/$defs/Room"
+        },
+        "sensor": {
+          "description": "The reception, as the shell reported it.",
+          "$ref": "#/$defs/SensorState"
+        },
+        "subject": {
+          "description": "The room's only occupant, when there is exactly one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Subject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "evidence",
+        "room",
+        "bed",
+        "floor",
+        "attention",
+        "map",
+        "sensor"
+      ]
+    },
+    "SchemaId": {
+      "description": "Which schema a v5 message carries.",
+      "oneOf": [
+        {
+          "description": "One scene per sample.",
+          "type": "string",
+          "const": "calipso.scene.v5"
+        },
+        {
+          "description": "Every event, in order.",
+          "type": "string",
+          "const": "calipso.events.v5"
+        }
+      ]
+    },
+    "SenseProfile": {
+      "description": "The model and thresholds of a sense.",
+      "type": "object",
+      "properties": {
+        "backend_confidence": {
+          "description": "Below this score the backend does not return the candidate.",
+          "type": "number",
+          "format": "float"
+        },
+        "kind": {
+          "description": "The look this sense answers.",
+          "$ref": "#/$defs/LookKind"
+        },
+        "min_confidence": {
+          "description": "Below this score the policy does not admit the candidate.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "min_keypoint_score": {
+          "description": "The pose only: below this score a keypoint is not seen, and the core\nneither measures nor reasons with it. Absent in every other sense.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "model": {
+          "description": "The model file, without its path.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "model",
+        "backend_confidence"
+      ]
+    },
+    "SensorState": {
+      "description": "The reception state, as the shell reports it. It says nothing about the bed.",
+      "oneOf": [
+        {
+          "description": "Opening the stream.",
+          "type": "string",
+          "const": "connecting"
+        },
+        {
+          "description": "Samples are arriving.",
+          "type": "string",
+          "const": "streaming"
+        },
+        {
+          "description": "Connected, but no sample within the stall timeout.",
+          "type": "string",
+          "const": "stalled"
+        },
+        {
+          "description": "The stream dropped; trying again.",
+          "type": "string",
+          "const": "reconnecting"
+        }
+      ]
+    },
+    "SessionId": {
+      "description": "Source session. Source time is only comparable within one session.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "ShadowPlane": {
+      "description": "The plane a point was measured on.",
+      "oneOf": [
+        {
+          "description": "The bed's footprint on the floor.",
+          "type": "string",
+          "const": "floor"
+        },
+        {
+          "description": "The mattress, when there is no footprint.",
+          "type": "string",
+          "const": "mattress"
+        }
+      ]
+    },
+    "SkipReason": {
+      "description": "Why nothing was looked at (rule 12).",
+      "oneOf": [
+        {
+          "description": "This sense was not requested.",
+          "type": "string",
+          "const": "not_requested"
+        },
+        {
+          "description": "No body and no delimited headboard: nowhere to look for faces.",
+          "type": "string",
+          "const": "no_face_region"
+        },
+        {
+          "description": "This loss was already reinforced: once per loss.",
+          "type": "string",
+          "const": "latch_spent"
+        },
+        {
+          "description": "Nobody was seen in bed: there is no loss to reinforce.",
+          "type": "string",
+          "const": "no_subject_in_bed"
+        },
+        {
+          "description": "The geometry does not apply: where the bed is, is unknown.",
+          "type": "string",
+          "const": "no_bed_geometry"
+        },
+        {
+          "description": "The subject did not move since the last pose: the previous one holds.",
+          "type": "string",
+          "const": "subject_still"
+        },
+        {
+          "description": "The subject was posed in this turn as a doubtful body, before\nbelieving: that pose is read without looking again.",
+          "type": "string",
+          "const": "posed_before"
+        },
+        {
+          "description": "The subject is retained, not seen in this sample.",
+          "type": "string",
+          "const": "no_current_subject"
+        },
+        {
+          "description": "Without a pose there are no points to measure depth at.",
+          "type": "string",
+          "const": "no_pose"
+        },
+        {
+          "description": "Someone is in the room: a person is not learned as the bed.",
+          "type": "string",
+          "const": "room_occupied"
+        },
+        {
+          "description": "Faces are in sight: someone may be covering the bed.",
+          "type": "string",
+          "const": "faces_present"
+        },
+        {
+          "description": "The last attempt failed and the retry delay has not passed yet.",
+          "type": "string",
+          "const": "retry_wait"
+        },
+        {
+          "description": "A verification is already in flight: one at a time per camera.",
+          "type": "string",
+          "const": "verify_busy"
+        },
+        {
+          "description": "The camera's verification budget for the hour is spent.",
+          "type": "string",
+          "const": "budget_spent"
+        },
+        {
+          "description": "The doubt cleared while the burst was being collected: nothing is asked\n(white book, volume III, ch. 12, V17).",
+          "type": "string",
+          "const": "burst_resolved"
+        },
+        {
+          "description": "What the burst asked about no longer holds: it is dropped unasked.",
+          "type": "string",
+          "const": "burst_stale"
+        }
+      ]
+    },
+    "Source": {
+      "description": "Identity of the publishing shell; the core does not build these values.",
+      "type": "object",
+      "properties": {
+        "build": {
+          "description": "The binary that published.",
+          "$ref": "#/$defs/Build"
+        },
+        "camera": {
+          "description": "The camera within the site (a subject token).",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "One per process start: a new run restarts every numbering.",
+          "type": "string"
+        },
+        "site": {
+          "description": "The site the camera belongs to (a subject token).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "site",
+        "camera",
+        "run_id",
+        "build"
+      ]
+    },
+    "SourceSecs": {
+      "description": "Seconds of source time (video PTS) within a session.",
+      "type": "number",
+      "format": "double"
+    },
+    "Subject": {
+      "description": "The subject: as in v4, without `verdict` (change 3).",
+      "type": "object",
+      "properties": {
+        "bbox": {
+          "description": "The subject's box, in image pixels.",
+          "$ref": "#/$defs/Rect"
+        },
+        "depth": {
+          "description": "The subject's depth, when measured.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubjectDepth"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "bbox"
+      ]
+    },
+    "SubjectDepth": {
+      "description": "The subject's depth, on the depth model's relative scale (the unit is\n`RelativeDepth`): the name says what the value is.",
+      "type": "object",
+      "properties": {
+        "provenance": {
+          "description": "Measured in this sample, or stable with the pose.",
+          "$ref": "#/$defs/Provenance"
+        },
+        "relative": {
+          "description": "The median of the subject's measured points, on the depth model's\nrelative scale.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "relative",
+        "provenance"
+      ]
+    },
+    "Timing": {
+      "description": "How long the shell took with a sample, in wall-clock milliseconds. It is\nmeasured by the shell and never decides anything (rule 9).",
+      "type": "object",
+      "properties": {
+        "processing_ms": {
+          "description": "The whole turn: decoding, every look and the projection.",
+          "type": "number",
+          "format": "double"
+        },
+        "wait_ms": {
+          "description": "From the sample's arrival to the start of its turn.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "wait_ms",
+        "processing_ms"
+      ]
+    },
+    "Verifier": {
+      "description": "Who looked.",
+      "oneOf": [
+        {
+          "description": "The slow verifier: a vision-language model over a crop of the bed.",
+          "type": "string",
+          "const": "vlm"
+        }
+      ]
+    },
+    "Zone": {
+      "description": "The zones of the room.",
+      "oneOf": [
+        {
+          "description": "The delimited bed.",
+          "type": "string",
+          "const": "bed"
+        },
+        {
+          "description": "The rest of the room.",
+          "type": "string",
+          "const": "floor"
+        }
+      ]
+    }
+  }
+}

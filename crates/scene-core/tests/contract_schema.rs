@@ -36,6 +36,14 @@ fn events_v4() {
     snapshot("calipso.events.v4", schemars::schema_for!(Envelope<Event>));
 }
 
+#[test]
+fn scene_v5() {
+    snapshot(
+        "calipso.scene.v5",
+        schemars::schema_for!(scene_contract::v5::Envelope<scene_contract::v5::Scene>),
+    );
+}
+
 /// A v4 transition, as is: it reads and writes back the same.
 #[test]
 fn the_v4_transition_is_the_specs() {

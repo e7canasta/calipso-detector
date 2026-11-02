@@ -5,6 +5,8 @@
 #![warn(unreachable_pub)]
 
 use scene_geom::{Quad, Rect};
+
+pub mod v5;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
