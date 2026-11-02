@@ -68,6 +68,47 @@ fn the_v5_transition_is_the_specs() {
     assert_eq!(serde_json::to_value(&envelope).unwrap(), json);
 }
 
+/// The same transition written by hand, not read from the examples: a path of
+/// its own, so the cell is checked against a value nobody computed.
+#[test]
+fn the_v5_transition_written_by_hand_is_the_specs() {
+    let at = |sequence: u64, secs: f64| serde_json::json!({ "session": 1, "sequence": sequence, "source_secs": secs });
+    let json = serde_json::json!({
+        "kind": "transition",
+        "at": at(812, 2034.0),
+        "cell": "210:00:111",
+        "phase": "running",
+        "before": { "rbh": { "room": 2, "bed": 1, "held": 0 }, "mode": "accompanied", "bed": "seen",
+                    "unexplained": 0, "since": at(640, 1862.0), "lasted_secs": 172.0 },
+        "seen": { "fv": { "floor": 0, "bed": 0 }, "span": { "first": at(810, 2032.0), "secs": 2.0 },
+                  "context": { "far": 0, "passing": 0 } },
+        "after": { "rbh": { "room": 1, "bed": 1, "held": 1 }, "mode": "alone_in_bed_held", "bed": "held",
+                   "unexplained": 0 },
+        "facts": [
+            { "type": "held_in_bed", "last_seen": at(809, 2031.0), "cause": "stabilized",
+              "after": { "rbh": { "room": 2, "bed": 1, "held": 1 }, "mode": "accompanied", "bed": "held",
+                         "unexplained": 0 } },
+            { "type": "left_room", "cause": "stabilized",
+              "after": { "rbh": { "room": 1, "bed": 1, "held": 1 }, "mode": "alone_in_bed_held", "bed": "held",
+                         "unexplained": 0 } }
+        ]
+    });
+    let event: Event = serde_json::from_value(json.clone()).unwrap();
+    let Event::Transition(transition) = &event else {
+        panic!("not a transition: {event:?}");
+    };
+    assert_eq!(transition.cell.as_str(), "210:00:111");
+    assert_eq!(
+        transition.cell,
+        scene_core::cell_of(
+            transition.before.occupancy.rbh,
+            transition.seen.fv,
+            transition.after.rbh,
+        )
+    );
+    assert_eq!(serde_json::to_value(&event).unwrap(), json);
+}
+
 #[test]
 fn rejections_are_published_grouped_by_reason() {
     use scene_contract::{LookResult, RejectReason};

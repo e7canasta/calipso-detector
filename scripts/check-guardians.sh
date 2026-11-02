@@ -45,6 +45,7 @@ fixtures=(
   scripts/fixtures/occupancy-reads-verify.sh
   scripts/fixtures/public-api-adds-a-pub.sh
   scripts/fixtures/retired-v4-reappears.sh
+  scripts/fixtures/retired-v4-schema-returns.sh
   scripts/fixtures/room-reads-a-layer.sh
   scripts/fixtures/rule24-dyn-decides.sh
   scripts/fixtures/sense-depends-on-core.sh
