@@ -1,6 +1,6 @@
 # language: en
 Feature: The body groups in the scene
-  As a consumer of calipso.scene.v4
+  As a consumer of calipso.scene.v5
   I want the posture to carry its groups (head, shoulders, pelvis), their disparities and the tolerance
   to see what the decision was made with, without today's scenes changing
 

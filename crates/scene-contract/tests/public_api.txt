@@ -17,12 +17,8 @@ pub struct LayerRef
 pub struct Timing
 pub struct ProfileHash(pub String)
 pub struct Progress<T>
-pub enum SchemaId
-pub struct Envelope<T>
 pub enum Mode
 pub enum Phase
-pub struct Rbh(pub u32, pub u32, pub u32)
-pub struct Fv(pub u32, pub u32)
 pub enum RepublishReason
 pub enum SkipReason
 pub enum BodySource
@@ -38,7 +34,6 @@ pub struct Disparities
 pub enum PostureState
 pub enum LyingState
 pub struct Lying
-pub enum Head
 pub enum HeldCheckState
 pub enum HeadEvidence
 pub enum Geometry
@@ -49,7 +44,6 @@ pub struct Keypoint
 pub enum Joint
 pub struct BodyPoint
 pub struct Pose
-pub struct SubjectDepth
 pub enum BedSite
 pub struct BedPoint
 pub struct HeadPlace
@@ -75,34 +69,14 @@ pub struct BodiesEvidence
 pub struct BodySeen
 pub enum BedPostureState
 pub enum BedPostureSeen
-pub struct Occupancy
-pub struct Before
-pub struct Span
-pub struct Context
-pub struct Seen
-pub enum FactBody
-pub struct Fact
-pub struct Transition
 pub struct PartsChange
+pub struct Span
 pub struct PartsBefore
 pub struct PartsSeen
 pub struct PartsAfter
 pub struct BedPostureChange
 pub struct BedPostureBefore
-pub enum DerivedBody
-pub enum SensorBody
-pub enum MapBody
-pub struct DerivedEvent
-pub struct SensorEvent
-pub struct MapEvent
-pub enum Event
 pub struct Room
 pub struct MapShadow
-pub struct MapState
-pub enum Calibration
 pub struct Posture
-pub enum VerdictState
-pub struct Verdict
 pub struct BedPosture
-pub struct Subject
-pub struct Scene

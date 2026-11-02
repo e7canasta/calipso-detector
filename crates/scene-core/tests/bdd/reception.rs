@@ -1,11 +1,11 @@
 //! Reception steps (`features/architecture/reception.feature`): the reception
 //! the shell reports reaches the published scene under the field `sensor`, and
-//! the contract schema is still the snapshot it was before the rename.
+//! the v5 scene schema is still the frozen snapshot.
 
 use crate::script::Script;
 use crate::ward::Ward;
 use cucumber::{given, then, when};
-use scene_contract::{Envelope, Scene, SensorState};
+use scene_contract::{SensorState, v5};
 use scene_core::Input;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -71,12 +71,12 @@ fn the_published_field(ward: &mut Ward, field: String, value: String) {
     );
 }
 
-#[then("the contract schema is the same as before the rename")]
+#[then("the v5 scene schema is the frozen snapshot")]
 fn the_contract_schema_is_the_same(_ward: &mut Ward) {
-    let schema = schemars::schema_for!(Envelope<Scene>);
+    let schema = schemars::schema_for!(v5::Envelope<v5::Scene>);
     let actual = serde_json::to_string_pretty(&schema).expect("the schema serializes") + "\n";
     let snapshot = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../contract/schema/calipso.scene.v4.json");
+        .join("../../contract/schema/calipso.scene.v5.json");
     let expected = std::fs::read_to_string(&snapshot).expect("the schema snapshot is there");
     assert!(
         actual == expected,

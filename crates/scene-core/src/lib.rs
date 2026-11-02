@@ -31,7 +31,7 @@
 
 // The public API is the loop protocol and its vocabulary: `Monitor` and `Turn`,
 // what is asked and read (`look`), what is published (`contract`, per version:
-// `contract::v4`), what configures it (`policy`, `map`) and the geometry. How
+// `contract::v5`), what configures it (`policy`, `map`) and the geometry. How
 // the core believes and decides is internal: it can be redesigned without
 // breaking anyone.
 //

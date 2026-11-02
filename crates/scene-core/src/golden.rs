@@ -1,8 +1,7 @@
 //! The net of the golden tables (P2): layer 0, the parts and their reading,
-//! layer 1 and the second level's arbiter each print every combination they
-//! decide and compare it with their file under `contract/`. Only tests use
-//! it: the core does no IO, not even here (rule 8), so each table reads its
-//! file at compile time.
+//! and layer 1 each print every combination they decide and compare it with
+//! their file under `contract/`. Only tests use it: the core does no IO, not
+//! even here (rule 8), so each table reads its file at compile time.
 
 use serde::Serialize;
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Envelope",
-  "description": "The envelope of every v5 message: as v4's, with `observed_at` optional\n(change 2) and v5's `SchemaId`.",
+  "description": "The envelope of every v5 message. `observed_at` is optional: a reception\nchange observes no sample (change 2).",
   "type": "object",
   "properties": {
     "body": {
@@ -236,7 +236,7 @@
       ]
     },
     "Before": {
-      "description": "What we believed, since when and for how long. Differs from v4 only in its\n`occupancy`, which is v5's (`rbh` with names).",
+      "description": "What we believed, since when and for how long. Its `occupancy` names `rbh`\n(change 5).",
       "type": "object",
       "properties": {
         "bed": {
@@ -333,7 +333,7 @@
       "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$"
     },
     "Context": {
-      "description": "What happened during the span and decided the cell: as in v4, unchanged.",
+      "description": "What happened during the span and decided the cell.",
       "type": "object",
       "properties": {
         "far": {
@@ -355,7 +355,7 @@
       ]
     },
     "DerivedEvent": {
-      "description": "A change in what was published, by comparing turns. Differs from v4 only in\n`after`, which is v5's `Occupancy`.",
+      "description": "A change in what was published, by comparing turns.",
       "type": "object",
       "properties": {
         "after": {
@@ -426,7 +426,7 @@
       ]
     },
     "Event": {
-      "description": "A message of `events.v5`: the same variants as v4's, with v5's types. Within\na turn they come out in order: `sensor`, `transition`, `map`, `derived`,\n`parts`, `bed_posture` (as in v4).",
+      "description": "A message of `events.v5`, in the order the turn publishes them.",
       "oneOf": [
         {
           "description": "A layer-0 change, with its facts.",
@@ -443,7 +443,7 @@
           ]
         },
         {
-          "description": "A change of the parts' places: unchanged from v4 (re-exported).",
+          "description": "A change of the parts' places.",
           "type": "object",
           "properties": {
             "kind": {
@@ -499,7 +499,7 @@
           ]
         },
         {
-          "description": "A layer-1 change: unchanged from v4 (re-exported).",
+          "description": "A layer-1 change.",
           "type": "object",
           "properties": {
             "kind": {
@@ -515,7 +515,7 @@
       ]
     },
     "Fact": {
-      "description": "A fact within its transition, with the occupancy it leaves. Differs from v4\nonly in `after`, which is v5's `Occupancy`.",
+      "description": "A fact within its transition, with the occupancy it leaves.",
       "type": "object",
       "properties": {
         "after": {
@@ -715,7 +715,7 @@
       ]
     },
     "MapEvent": {
-      "description": "What the map learned. Differs from v4 only in its body: `MapBody` names the\ndepth as relative (change 4).",
+      "description": "What the map learned: the bed's depth reference, named for its scale.",
       "type": "object",
       "properties": {
         "at": {
@@ -784,7 +784,7 @@
       ]
     },
     "Occupancy": {
-      "description": "The occupancy: as in v4, with `rbh` split into named fields (change 5: the\nroom in total, the bed, the held in bed).",
+      "description": "The occupancy: `rbh` is split into named fields (change 5: the room in\ntotal, the bed, the held in bed).",
       "type": "object",
       "properties": {
         "bed": {
@@ -1040,7 +1040,7 @@
       ]
     },
     "Seen": {
-      "description": "What we saw: the count that held, the span and its context. Differs from v4\nonly in `fv`, which is v5's (change 5: named fields).",
+      "description": "What we saw: the count that held, the span and its context, with v5's `Fv`.",
       "type": "object",
       "properties": {
         "context": {
@@ -1103,7 +1103,7 @@
       ]
     },
     "SensorEvent": {
-      "description": "A reception change, reported by the shell. Differs from v4 only in `after`,\nwhich is v5's `Occupancy`.",
+      "description": "A reception change, reported by the shell, with its `after`.",
       "type": "object",
       "properties": {
         "after": {
@@ -1221,7 +1221,7 @@
       "format": "double"
     },
     "Span": {
-      "description": "The span that held: as in v4, unchanged. Re-declared here so `Seen` below\nnames v5's `Fv`.",
+      "description": "The span that held. Re-declared here so `Seen` below names v5's `Fv`.",
       "type": "object",
       "properties": {
         "first": {
@@ -1279,7 +1279,7 @@
       ]
     },
     "Transition": {
-      "description": "A layer-0 change: what we believed, what we saw, what we believe and the\nfacts, in order. Differs from v4 only in the occupancy and seen types it\nnames (`Before`, `Seen`, `Occupancy` of v5).",
+      "description": "A layer-0 change: what we believed, what we saw, what we believe and the\nfacts, in order.",
       "type": "object",
       "properties": {
         "after": {

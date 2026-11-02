@@ -1,6 +1,6 @@
 //! The wire of `scene.v5` and `events.v5`: only the types that the five changes of
 //! ADR "Lo que espera el contrato v5" touch are defined here. Everything else is
-//! re-exported from the crate root, so v5 shares it with v4 and does not copy it.
+//! re-exported from the crate root, where the shared vocabulary lives.
 //!
 //! The changes, and where each one lands:
 //! 1. `last_event_seq` is written by the numbering, not by the transport: the
@@ -54,8 +54,8 @@ pub struct SubjectDepth {
     pub provenance: Provenance,
 }
 
-/// The subject: as in v4, without `verdict` (change 3). Every other field is
-/// v4's; `depth` is the relative one (change 4).
+/// The subject of the scene. It has no `verdict` (change 3), and its `depth`
+/// is the relative one (change 4).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Subject {
     /// Where the subject is: in bed or on the floor.
@@ -84,8 +84,7 @@ pub struct Subject {
     pub parts: Option<crate::Parts>,
 }
 
-/// The empty bed's calibration: as in v4, with the depth named for its scale
-/// (change 4).
+/// The empty bed's calibration, with the depth named for its scale (change 4).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "status", rename_all = "snake_case")]
 #[non_exhaustive]
@@ -101,8 +100,8 @@ pub enum Calibration {
     },
 }
 
-/// The envelope of every v5 message: as v4's, with `observed_at` optional
-/// (change 2) and v5's `SchemaId`.
+/// The envelope of every v5 message. `observed_at` is optional: a reception
+/// change observes no sample (change 2).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Envelope<T> {
     /// What the body is: a scene or an event.
@@ -143,8 +142,7 @@ pub enum SchemaId {
     Events,
 }
 
-/// The map's state, as v5 publishes it: as in v4, with `calibration` named for
-/// its scale (change 4).
+/// The map's state. Its `calibration` is named for its scale (change 4).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MapState {
     /// Whether the delimited bed applies to this image.
@@ -156,15 +154,15 @@ pub struct MapState {
     /// The main detector's focus, when the policy has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus: Option<Rect>,
-    /// The geometry's shadow, as v4 publishes it (unchanged: re-exported).
+    /// The geometry's shadow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<crate::MapShadow>,
     /// What the map learned about the empty bed.
     pub calibration: Calibration,
 }
 
-/// The scene of a sample, as v5 publishes it: as in v4 except for the subject
-/// and the map, which name the changed types (changes 3 and 4).
+/// The scene of a sample. Its subject and its map name the changed types
+/// (changes 3 and 4).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Scene {
     /// The image size the turn worked on; `None` before the first image.
@@ -189,8 +187,8 @@ pub struct Scene {
     pub republished: Option<Republished>,
 }
 
-/// The occupancy: as in v4, with `rbh` split into named fields (change 5: the
-/// room in total, the bed, the held in bed).
+/// The occupancy: `rbh` is split into named fields (change 5: the room in
+/// total, the bed, the held in bed).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Occupancy {
     /// Occupants of the room, of the bed and held in it.
@@ -203,8 +201,8 @@ pub struct Occupancy {
     pub unexplained: u32,
 }
 
-/// What we believed, since when and for how long. Differs from v4 only in its
-/// `occupancy`, which is v5's (`rbh` with names).
+/// What we believed, since when and for how long. Its `occupancy` names `rbh`
+/// (change 5).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Before {
     /// The occupancy we believed.
@@ -216,8 +214,7 @@ pub struct Before {
     pub lasted_secs: Option<f64>,
 }
 
-/// The span that held: as in v4, unchanged. Re-declared here so `Seen` below
-/// names v5's `Fv`.
+/// The span that held. Re-declared here so `Seen` below names v5's `Fv`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Span {
     /// The first sample that saw the new count.
@@ -226,7 +223,7 @@ pub struct Span {
     pub secs: f64,
 }
 
-/// What happened during the span and decided the cell: as in v4, unchanged.
+/// What happened during the span and decided the cell.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Context {
     /// How many appeared far from the bed.
@@ -235,8 +232,7 @@ pub struct Context {
     pub passing: u32,
 }
 
-/// What we saw: the count that held, the span and its context. Differs from v4
-/// only in `fv`, which is v5's (change 5: named fields).
+/// What we saw: the count that held, the span and its context, with v5's `Fv`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Seen {
     /// The bodies seen on the floor and in bed, as they held.
@@ -247,7 +243,7 @@ pub struct Seen {
     pub context: Context,
 }
 
-/// What happened to someone: as in v4, unchanged.
+/// What happened to someone.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FactBody {
@@ -272,8 +268,7 @@ pub enum FactBody {
     },
 }
 
-/// A fact within its transition, with the occupancy it leaves. Differs from v4
-/// only in `after`, which is v5's `Occupancy`.
+/// A fact within its transition, with the occupancy it leaves.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Fact {
     /// What happened.
@@ -286,8 +281,7 @@ pub struct Fact {
 }
 
 /// A layer-0 change: what we believed, what we saw, what we believe and the
-/// facts, in order. Differs from v4 only in the occupancy and seen types it
-/// names (`Before`, `Seen`, `Occupancy` of v5).
+/// facts, in order.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Transition {
     /// The sample in which the new count held.
@@ -306,8 +300,7 @@ pub struct Transition {
     pub facts: Vec<Fact>,
 }
 
-/// A change in what was published, by comparing turns. Differs from v4 only in
-/// `after`, which is v5's `Occupancy`.
+/// A change in what was published, by comparing turns.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct DerivedEvent {
     /// Why it changed.
@@ -321,7 +314,7 @@ pub struct DerivedEvent {
     pub after: Occupancy,
 }
 
-/// What changed: as in v4, unchanged.
+/// What changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DerivedBody {
@@ -341,8 +334,7 @@ pub enum DerivedBody {
     },
 }
 
-/// A reception change, reported by the shell. Differs from v4 only in `after`,
-/// which is v5's `Occupancy`.
+/// A reception change, reported by the shell, with its `after`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SensorEvent {
     /// Always `sensor_reported`.
@@ -357,7 +349,7 @@ pub struct SensorEvent {
     pub after: Occupancy,
 }
 
-/// What changed in the reception: as in v4, unchanged.
+/// What changed in the reception.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SensorBody {
@@ -370,8 +362,7 @@ pub enum SensorBody {
     },
 }
 
-/// What the map learned. Differs from v4 only in its body: `MapBody` names the
-/// depth as relative (change 4).
+/// What the map learned: the bed's depth reference, named for its scale.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MapEvent {
     /// Always `map_learned`.
@@ -384,7 +375,7 @@ pub struct MapEvent {
 }
 
 /// What the map learned: the empty bed's depth, on the relative scale (change
-/// 4). Differs from v4's `MapBody` in the name of its field.
+/// 4).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MapBody {
@@ -395,15 +386,13 @@ pub enum MapBody {
     },
 }
 
-/// A message of `events.v5`: the same variants as v4's, with v5's types. Within
-/// a turn they come out in order: `sensor`, `transition`, `map`, `derived`,
-/// `parts`, `bed_posture` (as in v4).
+/// A message of `events.v5`, in the order the turn publishes them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Event {
     /// A layer-0 change, with its facts.
     Transition(Transition),
-    /// A change of the parts' places: unchanged from v4 (re-exported).
+    /// A change of the parts' places.
     Parts(PartsChange),
     /// A change in what was published, by comparing turns.
     Derived(DerivedEvent),
@@ -411,6 +400,6 @@ pub enum Event {
     Sensor(SensorEvent),
     /// What the map learned.
     Map(MapEvent),
-    /// A layer-1 change: unchanged from v4 (re-exported).
+    /// A layer-1 change.
     BedPosture(BedPostureChange),
 }

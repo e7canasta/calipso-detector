@@ -1,4 +1,4 @@
-//! Contract steps (`features/contract`): what `events.v4` and `scene.v4`
+//! Contract steps (`features/contract`): what `events.v5` and `scene.v5`
 //! publish is checked as their consumers read it: the contract's JSON.
 
 use cucumber::gherkin::Step;
@@ -150,8 +150,6 @@ fn published_none_since(ward: &mut Ward, from: u64) {
     );
 }
 
-// --- 1301: contract v4
-
 #[then(expr = "layer 0 published transition {string} with these facts:")]
 fn with_facts(ward: &mut Ward, cell_: String, step: &Step) {
     let t = transition(ward, &cell_);
@@ -188,19 +186,6 @@ fn turn(ward: &Ward, n: u64) -> &scene_core::Output {
         .find(|t| t.output.at.unwrap().sequence == n)
         .unwrap_or_else(|| panic!("there was no turn at sample {n}"))
         .output
-}
-
-#[then(
-    expr = "the scene of sample {int} says mode {string}, phase {string} and last cell {string}"
-)]
-fn scene_v4(ward: &mut Ward, n: u64, mode: String, phase: String, last: String) {
-    let scene = serde_json::to_value(&*turn(ward, n).v5.scene).expect("the scene serializes");
-    let room = &scene["room"];
-    assert_eq!(
-        (&room["mode"], &room["phase"], &room["last_cell"]),
-        (&Value::from(mode), &Value::from(phase), &Value::from(last)),
-        "the room at sample {n}: {room}"
-    );
 }
 
 // --- v5: the same turn, read from the v5 projection (`Output::v5`)
@@ -309,8 +294,8 @@ fn room_changes(events: Vec<Value>) -> Vec<(String, String)> {
         .collect()
 }
 
-#[then(expr = "events.v4 published {string} from {string} to {string}")]
-fn v4_published(ward: &mut Ward, kind: String, from: String, to: String) {
+#[then(expr = "events.v5 published {string} from {string} to {string}")]
+fn v5_published(ward: &mut Ward, kind: String, from: String, to: String) {
     assert_eq!(kind, "room_changed", "this step reads room_changed");
     let events = ward
         .turns
@@ -321,7 +306,7 @@ fn v4_published(ward: &mut Ward, kind: String, from: String, to: String) {
     let changes = room_changes(events);
     assert!(
         changes.contains(&(from.clone(), to.clone())),
-        "events.v4 did not publish room_changed from \"{from}\" to \"{to}\": {changes:?}"
+        "events.v5 did not publish room_changed from \"{from}\" to \"{to}\": {changes:?}"
     );
 }
 
@@ -346,13 +331,13 @@ fn counts(text: &str) -> Vec<u32> {
 
 #[given(expr = "a transition from {string} seeing {string} to {string}")]
 fn a_transition(ward: &mut Ward, before: String, seen: String, after: String) {
-    use scene_contract::{Fv, Rbh};
+    use scene_contract::v5::{Fv, Rbh};
     let rbh = |text: &str| match counts(text)[..] {
-        [r, b, h] => Rbh(r, b, h),
+        [room, bed, held] => Rbh { room, bed, held },
         _ => panic!("\"{text}\": a triple"),
     };
     let fv = match counts(&seen)[..] {
-        [f, v] => Fv(f, v),
+        [floor, bed] => Fv { floor, bed },
         _ => panic!("\"{seen}\": a pair"),
     };
     ward.cell = Some(

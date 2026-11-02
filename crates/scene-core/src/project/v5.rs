@@ -1,8 +1,6 @@
-//! The v5 projection of an observed turn: `scene.v5` and `events.v5`, from the
-//! same `Observation` and chronicle that v4 reads (C4). It depends on the domain
-//! and on the common projection (`project/mod.rs`), never on v4: the day v4 is
-//! retired, v5 stands on its own (DESIGN, the versions do not depend on each
-//! other). The equivalence test (C5) compares two independent projections.
+//! The projection of an observed turn into the contract: `scene.v5` and
+//! `events.v5`, from the turn's `Observation` and chronicle. It depends on the
+//! domain and on the common helpers of `project/mod.rs`.
 
 use super::parts;
 use super::{
@@ -58,7 +56,15 @@ fn scene_and_events(observation: &Observation, chronicled: &Chronicled) -> (Scen
         believed.subject.as_ref(),
         &observation.attention,
     );
-    let subject = publish_subject_v5(observation, chronicled, at);
+    let subject = publish_subject(
+        &observation.believed,
+        observation.refined.clone(),
+        observation.bed_posture,
+        observation.parts,
+        chronicled,
+        at,
+        observation.dwell_secs,
+    );
     let after = believed_occupancy(occupancy_now);
     let scene = Scene {
         frame: observation.frame,
@@ -119,7 +125,7 @@ fn mode(occupants: Occupants) -> Mode {
     publish_room(RoomName::of(occupants))
 }
 
-/// The phase of the bed, as v5 names it: the same states as v4.
+/// The phase of the bed: booting until it has history, then running.
 fn phase(phase: crate::belief::BedPhase) -> Phase {
     match phase {
         crate::belief::BedPhase::Adopting => Phase::Booting,
@@ -127,57 +133,25 @@ fn phase(phase: crate::belief::BedPhase) -> Phase {
     }
 }
 
-/// The cell of a transition in v5: `before:seen:after`, the same cell as v4.
+/// The cell of a transition: `before:seen:after`.
 fn publish_cell(key: &TransitionKey) -> scene_contract::Cell {
     cell_of(
-        rbh_v4(key.before),
-        scene_contract::Fv(key.seen.floor, key.seen.bed),
-        rbh_v4(key.after),
+        rbh_of(key.before),
+        scene_contract::v5::Fv {
+            floor: key.seen.floor,
+            bed: key.seen.bed,
+        },
+        rbh_of(key.after),
     )
 }
 
-/// The v4 triple that `cell_of` writes: the cell's text is the same in both
-/// versions, so the key is written with the same function.
-fn rbh_v4(occupants: Occupants) -> scene_contract::Rbh {
-    scene_contract::Rbh(
-        total(occupants),
-        occupants.bed + occupants.held,
-        occupants.held,
-    )
-}
-
-fn publish_subject_v5(
-    observation: &Observation,
-    chronicled: &Chronicled,
-    at: SampleRef,
-) -> Option<v5::Subject> {
-    // The same subject as v4 (`publish_subject`), with the depth relative and
-    // without verdict (changes 3 and 4): the common projection decides its
-    // values, this only names them.
-    let subject = publish_subject(
-        &observation.believed,
-        observation.refined.clone(),
-        observation.bed_posture,
-        observation.parts,
-        chronicled,
-        at,
-        observation.dwell_secs,
-    )?;
-    Some(v5::Subject {
-        zone: subject.zone,
-        bbox: subject.bbox,
-        confidence: subject.confidence,
-        provenance: subject.provenance,
-        pose: subject.pose,
-        depth: subject.depth.map(|d| v5::SubjectDepth {
-            relative: d.meters,
-            provenance: d.provenance,
-        }),
-        lying: subject.lying,
-        posture: subject.posture,
-        bed_posture: subject.bed_posture,
-        parts: subject.parts,
-    })
+/// The `Rbh` of occupants, as `cell_of` writes it.
+fn rbh_of(occupants: Occupants) -> scene_contract::v5::Rbh {
+    scene_contract::v5::Rbh {
+        room: total(occupants),
+        bed: occupants.bed + occupants.held,
+        held: occupants.held,
+    }
 }
 
 fn map_v5(map: &crate::map::MapState) -> v5::MapState {
@@ -187,22 +161,17 @@ fn map_v5(map: &crate::map::MapState) -> v5::MapState {
         headboard: map.headboard,
         focus: map.focus,
         shadow: map.shadow,
-        calibration: calibration_v5(map.calibration),
-    }
-}
-
-fn calibration_v5(calibration: scene_contract::Calibration) -> v5::Calibration {
-    match calibration {
-        scene_contract::Calibration::Complete { reference_m, since } => v5::Calibration::Complete {
-            reference: reference_m,
-            since,
+        calibration: match map.calibration {
+            crate::map::CalibrationState::Unavailable => v5::Calibration::Unavailable,
+            crate::map::CalibrationState::Complete { reference, since } => {
+                v5::Calibration::Complete { reference, since }
+            }
         },
-        _ => v5::Calibration::Unavailable,
     }
 }
 
 /// The events of an observed turn in v5, in order: the layer-0 transition, the
-/// calibration, the derived ones, the parts and, last, layer 1 (as in v4).
+/// calibration, the derived ones, the parts and, last, layer 1.
 fn events(
     at: SampleRef,
     observation: &Observation,
@@ -256,14 +225,14 @@ fn events(
             chronicled.parts_transition_since,
         )));
     }
-    // Layer 1 last: it reads layer 0, as its row does (as in v4).
+    // Layer 1 last: it reads layer 0, as its row does.
     events.extend(
         bed_posture_change(at, observation.bed_posture.as_ref(), chronicled).map(Event::BedPosture),
     );
     events
 }
 
-/// A change of layer 1 while it is followed: the same row as v4's, with the
+/// A change of layer 1 while it is followed: its row, with the
 /// states it believed and the sample it perceived.
 fn bed_posture_change(
     at: SampleRef,
@@ -345,13 +314,13 @@ fn transition(t: &belief::Transition, since: Option<SampleRef>) -> Transition {
     }
 }
 
-/// The cell of a layer-0 transition in v5: the same text as v4's.
+/// The cell of a layer-0 transition.
 fn cell_v5(t: &belief::Transition) -> scene_contract::Cell {
     publish_cell(&TransitionKey::of(t))
 }
 
 /// The last scene, without a new observation and declared as such (rule 2), in
-/// v5: it republishes the last v5 scene, never a v4 one.
+/// It republishes the last scene of the contract.
 fn republish_scene(
     last: Option<(&Scene, SampleRef)>,
     reason: RepublishReason,
@@ -448,7 +417,7 @@ fn empty_occupancy() -> Occupancy {
 }
 
 /// The subject of the last scene, kept while the turn carries no observation
-/// of it: the same rule as v4's, on the v5 subject.
+/// of it: the same rule, on the v5 subject.
 fn retained_subject_v5(
     subject: Option<&v5::Subject>,
     _projected_at: SampleRef,
@@ -477,7 +446,7 @@ pub(crate) fn republished(
     }
 }
 
-/// The parts' change in v5: the same cell, places and seen as v4, from the
+/// The parts' change: its cell, places and seen, from the
 /// common parts projection (`project::parts`), with the same shape.
 fn parts_change(
     t: &crate::belief::parts::PartsTransition,

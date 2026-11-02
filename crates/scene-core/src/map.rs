@@ -178,16 +178,40 @@ impl CalibrationMemory {
         })
     }
 
-    /// What is published of it.
-    fn state(&self) -> Calibration {
+    /// What the map knows of the empty bed, as the domain holds it.
+    fn state(&self) -> CalibrationState {
         self.reference
-            .map_or(Calibration::Unavailable, |reference| {
-                Calibration::Complete {
-                    reference_m: reference.depth,
+            .map_or(CalibrationState::Unavailable, |reference| {
+                CalibrationState::Complete {
+                    reference: reference.depth,
                     since: reference.since,
                 }
             })
     }
+}
+
+/// What the map learned of the empty bed: its depth and the sample it came
+/// from, or nothing yet. The published form is the contract's (project/).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum CalibrationState {
+    Unavailable,
+    Complete {
+        reference: f32,
+        since: Option<SampleRef>,
+    },
+}
+
+/// The static world of a turn, as the domain holds it: the bed, the headboard,
+/// the focus and the shadow, and what was learned of the bed. The contract's
+/// form is built in project/.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MapState {
+    pub geometry: Geometry,
+    pub bed: Quad,
+    pub headboard: Option<Rect>,
+    pub focus: Option<Rect>,
+    pub shadow: Option<MapShadow>,
+    pub calibration: CalibrationState,
 }
 
 impl Map {
@@ -329,7 +353,7 @@ fn gate(resolution: Option<FrameInfo>, frame: FrameInfo) -> Geometry {
 
 pub use scene_contract::FrameInfo;
 pub use scene_contract::Geometry;
-pub use scene_contract::{Calibration, MapShadow, MapState};
+pub use scene_contract::MapShadow;
 #[cfg(test)]
 mod tests {
     #[test]

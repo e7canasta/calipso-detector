@@ -50,7 +50,7 @@ def loops(path):
         if session is None or t is None:
             continue
         body = strip({k: v for k, v in e.items() if k not in RUN})
-        if m["subject"].endswith(".scene.v4"):
+        if m["subject"].endswith(".scene.v5"):
             scenes[session][round(t, 1)] = body
         else:
             events[session].append((round(t, 1), json.dumps(body, sort_keys=True)))

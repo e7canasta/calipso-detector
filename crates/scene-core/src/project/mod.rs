@@ -15,9 +15,7 @@ use crate::belief::BedPosture;
 use crate::belief::bed_posture::BedPostureSeen;
 use crate::belief::bed_posture::Concluded;
 use crate::belief::{Alone, Believed, InBed, Occupancy, Occupants, Subject as BelievedSubject};
-use crate::body::{
-    BedPoint, BodyPoint, HeadEvidence, HeadPlace, HeadPlaceState, Pose, SubjectDepth,
-};
+use crate::body::{BedPoint, BodyPoint, HeadEvidence, HeadPlace, HeadPlaceState, Pose};
 use crate::chronicle::{BedKind, Chronicled, RoomName};
 use crate::conclusion::RepublishReason;
 use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
@@ -26,12 +24,13 @@ use crate::refine::Refinement;
 use crate::refine::{BodyGroup, BodyGroups, Disparities, Lying, LyingState, Posture, PostureState};
 use crate::units::Seconds;
 use crate::verification::{HeldCheck, HeldCheckState, Verifier};
+use scene_contract::v5::{Fv, Rbh};
 use scene_contract::{
     Bed, BedState, BodiesEvidence, BodiesStatus, BodySeen, Evidence, FaceSeen, FacesEvidence,
     FacesStatus, Held, LookKind, LookOutcome, Pending, Progress, Provenance, Republished,
-    SampleRef, SkipReason, Subject, Zone,
+    SampleRef, SkipReason, Zone,
 };
-use scene_contract::{Cell, Fv, Mode, Rbh};
+use scene_contract::{Cell, Mode};
 
 impl From<BedPostureSeen> for scene_contract::BedPostureSeen {
     fn from(seen: BedPostureSeen) -> Self {
@@ -197,15 +196,6 @@ impl From<Pose> for scene_contract::Pose {
     }
 }
 
-impl From<SubjectDepth> for scene_contract::SubjectDepth {
-    fn from(d: SubjectDepth) -> Self {
-        Self {
-            meters: d.meters,
-            provenance: d.provenance,
-        }
-    }
-}
-
 impl From<BedPoint> for scene_contract::BedPoint {
     fn from(b: BedPoint) -> Self {
         Self {
@@ -324,23 +314,25 @@ fn publish_subject(
     chronicled: &Chronicled,
     at: SampleRef,
     dwell_secs: Seconds,
-) -> Option<Subject> {
+) -> Option<scene_contract::v5::Subject> {
     let s = believed.subject?;
     let (pose, depth) = believed
         .body
         .clone()
         .map_or((None, None), |b| (Some(b.pose), b.depth));
-    Some(Subject {
+    Some(scene_contract::v5::Subject {
         zone: s.zone,
         bbox: s.bbox,
         confidence: s.confidence,
         provenance: s.provenance,
         pose: pose.map(Into::into),
-        depth: depth.map(Into::into),
+        // The depth is named for its scale: relative (change 4).
+        depth: depth.map(|d| scene_contract::v5::SubjectDepth {
+            relative: d.meters,
+            provenance: d.provenance,
+        }),
         lying: refined.lying.map(Into::into),
         posture: refined.posture.map(Into::into),
-        // The second level's arbiter is gone (C5b): no verdict is published.
-        verdict: None,
         bed_posture: bed_posture.map(|b| {
             BedPosture {
                 state: b.state,
@@ -464,17 +456,14 @@ fn faces(
 }
 
 /// The cell of a change from `before`, seeing `seen`, to `after`: the natural
-/// key of the row, `before:seen:after`. The same in every version; the
-/// integration tests use it as their oracle.
+/// key of the row, `before:seen:after`. The integration tests use it as their
+/// oracle.
 pub fn cell_of(before: Rbh, seen: Fv, after: Rbh) -> Cell {
-    let Rbh(r0, b0, h0) = before;
-    let Fv(f, v) = seen;
-    let Rbh(r1, b1, h1) = after;
     Cell(format!(
         "{}:{}:{}",
-        part(&[r0, b0, h0]),
-        part(&[f, v]),
-        part(&[r1, b1, h1])
+        part(&[before.room, before.bed, before.held]),
+        part(&[seen.floor, seen.bed]),
+        part(&[after.room, after.bed, after.held])
     ))
 }
 
@@ -502,19 +491,23 @@ pub(crate) fn publish_room(name: RoomName) -> Mode {
 #[cfg(test)]
 mod tests {
     use super::cell_of;
-    use scene_contract::{Fv, Rbh};
+    use scene_contract::v5::{Fv, Rbh};
+
+    fn rbh(room: u32, bed: u32, held: u32) -> Rbh {
+        Rbh { room, bed, held }
+    }
 
     #[test]
     fn a_cell_is_written_in_digits_if_all_counts_are_below_ten() {
-        let cell = cell_of(Rbh(2, 1, 0), Fv(0, 0), Rbh(1, 1, 1));
+        let cell = cell_of(rbh(2, 1, 0), Fv { floor: 0, bed: 0 }, rbh(1, 1, 1));
         assert_eq!(cell.as_str(), "210:00:111");
     }
 
     #[test]
     fn a_part_with_two_digit_counts_is_written_as_a_tuple() {
-        let cell = cell_of(Rbh(12, 0, 0), Fv(13, 0), Rbh(13, 0, 0));
+        let cell = cell_of(rbh(12, 0, 0), Fv { floor: 13, bed: 0 }, rbh(13, 0, 0));
         assert_eq!(cell.as_str(), "(12,0,0):(13,0):(13,0,0)");
-        let mixed = cell_of(Rbh(9, 1, 1), Fv(10, 0), Rbh(10, 1, 1));
+        let mixed = cell_of(rbh(9, 1, 1), Fv { floor: 10, bed: 0 }, rbh(10, 1, 1));
         assert_eq!(mixed.as_str(), "911:(10,0):(10,1,1)");
     }
 }

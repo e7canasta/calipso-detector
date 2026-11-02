@@ -1,6 +1,7 @@
-//! The wire: the published vocabulary of `scene.v4` and `events.v4`. Types
-//! only, with no logic and no domain (ADR 2026-11-02, crates-del-lenguaje).
-//! `scene-core` re-exports each one, so its paths do not change.
+//! The wire: the vocabulary that `scene.v5` and `events.v5` share, and the
+//! versions themselves in `v5`. Types only, with no logic and no domain (ADR
+//! 2026-11-02, crates-del-lenguaje). `scene-core` re-exports each one, so its
+//! paths do not change.
 #![warn(missing_docs)]
 #![warn(unreachable_pub)]
 
@@ -248,49 +249,7 @@ pub struct Progress<T> {
     pub need: T,
 }
 
-// --- moved from scene-core/src/v4.rs
-/// Which schema a v4 message carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[non_exhaustive]
-pub enum SchemaId {
-    /// One scene per sample.
-    #[serde(rename = "calipso.scene.v4")]
-    SceneV4,
-    /// Every event, in order.
-    #[serde(rename = "calipso.events.v4")]
-    EventsV4,
-}
-
-/// The envelope of every v4 message: the usual one, with v4's `SchemaId`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Envelope<T> {
-    /// What the body is: a scene or an event.
-    pub schema: SchemaId,
-    /// Who published it.
-    pub source: Source,
-    /// Contiguous from 1 per run and per schema; a gap is a lost message.
-    pub seq: u64,
-    /// Source time of what is claimed: without a new sample, that of the last
-    /// observed one.
-    pub observed_at: SampleRef,
-    /// Wall clock; set by publishing, never by the core.
-    pub published_at_ms: u64,
-    /// The configuration the engine ran with.
-    pub profile: Profile,
-    /// Events only: unique per event, for deduplication on redelivery.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_id: Option<String>,
-    /// Scenes only: how long the shell took with the sample.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timing: Option<Timing>,
-    /// Scenes only: the `seq` of the last event published before this scene,
-    /// so a consumer knows which events the scene already reflects.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_event_seq: Option<u64>,
-    /// The scene or the event.
-    pub body: T,
-}
-
+// --- shared by every version of the contract
 /// The mode of the layer-0 machine: the name of its state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -318,15 +277,6 @@ pub enum Phase {
     /// Someone climbed into bed from the floor: the bed only rises from it.
     Running,
 }
-
-/// The triple `[R, B, H]`: occupants of the room, of the bed (seen and
-/// retained) and retained. They are counts: `0 ≤ H ≤ B ≤ R`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Rbh(pub u32, pub u32, pub u32);
-
-/// The pair `[F, V]`: admitted bodies seen on the floor and in bed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Fv(pub u32, pub u32);
 
 // --- moved from scene-core/src/conclusion.rs
 /// Why the scene is republished without a new observation.
@@ -551,15 +501,6 @@ pub struct Lying {
 }
 
 // --- moved from scene-core/src/verdict.rs
-/// A head of the second level: who supports a verdict.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum Head {
-    /// The depth disparity of head and shoulders against the pelvis (904, 1604).
-    Disparity,
-}
-
 // --- moved from scene-core/src/verification.rs
 /// How much observation backs a body held in bed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -741,17 +682,6 @@ pub struct Pose {
     pub keypoints: Vec<BodyPoint>,
     /// Taken in this sample, or stable since a sample in which the subject
     /// did not move.
-    pub provenance: Provenance,
-}
-
-/// The subject's depth (the median of its measured points), with its own
-/// provenance. Kept for compatibility.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct SubjectDepth {
-    /// On the depth model's scale (the name says metres, the value is
-    /// relative).
-    pub meters: f32,
-    /// Measured in this sample, or stable with the pose.
     pub provenance: Provenance,
 }
 
@@ -1283,136 +1213,7 @@ impl BedPostureSeen {
     }
 }
 
-// --- moved from scene-core/src/contract/v4.rs (the event's accessor)
-impl Event {
-    /// The fact's sample: the `observed_at` of its envelope.
-    pub fn at(&self) -> SampleRef {
-        match self {
-            Self::Transition(e) => e.at,
-            Self::Parts(e) => e.at,
-            Self::Derived(e) => e.at,
-            Self::Sensor(e) => e.at,
-            Self::Map(e) => e.at,
-            Self::BedPosture(e) => e.at,
-        }
-    }
-}
-
-// --- moved from scene-core/src/v4.rs
-/// The occupancy: a single shape for all of v4 (before, after, each fact).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Occupancy {
-    /// Occupants of the room, of the bed and retained in it.
-    pub rbh: Rbh,
-    /// The machine's state those counts name.
-    pub mode: Mode,
-    /// `unknown` if the geometry does not apply, even with counts.
-    pub bed: BedState,
-    /// Bodies in the bed that are not occupants (rule 6).
-    pub unexplained: u32,
-}
-
-/// What we believed, since when and for how long.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Before {
-    /// The occupancy we believed.
-    #[serde(flatten)]
-    pub occupancy: Occupancy,
-    /// The sample of the previous transition; `None` on the first.
-    pub since: Option<SampleRef>,
-    /// Source seconds since `since`; `None` without `since` or across sessions.
-    pub lasted_secs: Option<f64>,
-}
-
-/// The span that held: from which sample and for how many source seconds.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Span {
-    /// The first sample that saw the new count.
-    pub first: SampleRef,
-    /// Source seconds it held before counting.
-    pub secs: f64,
-}
-
-/// What happened during the span and decided the cell.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Context {
-    /// How many appeared far from the bed.
-    pub far: u32,
-    /// How many appeared in passing.
-    pub passing: u32,
-}
-
-/// What we saw: the count that held, the span and its context.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Seen {
-    /// The bodies seen on the floor and in bed, as they held.
-    pub fv: Fv,
-    /// How long they held before counting.
-    pub span: Span,
-    /// What happened meanwhile, which decided the cell.
-    pub context: Context,
-}
-
-/// A layer-0 fact: what happened to someone, in the order it happened.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum FactBody {
-    /// Someone appeared on the floor: they entered the room.
-    Entered,
-    /// Someone stopped being seen on the floor: they left the room.
-    LeftRoom,
-    /// Someone appeared in bed coming from the floor; with cause `baseline`,
-    /// they were found in bed at startup.
-    LayDown,
-    /// Someone was seen moving from the bed to the floor.
-    LeftBed,
-    /// Someone stopped being seen in bed without leaving: they are retained.
-    HeldInBed {
-        /// The last sample they were seen in.
-        last_seen: SampleRef,
-    },
-    /// Someone retained in bed was seen again.
-    Reappeared {
-        /// The sample since which they were retained.
-        held_since: SampleRef,
-    },
-}
-
-/// A fact within its transition, with the occupancy it leaves.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Fact {
-    /// What happened.
-    #[serde(flatten)]
-    pub body: FactBody,
-    /// Why it happened.
-    pub cause: Cause,
-    /// The occupancy this fact leaves, before the next one.
-    pub after: Occupancy,
-}
-
-/// A layer-0 change: what we believed, what we saw, what we believe and the
-/// facts, in order.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Transition {
-    /// The sample in which the new count held.
-    pub at: SampleRef,
-    /// The row of the layer-0 table this change crossed.
-    pub cell: Cell,
-    /// The phase it was decided with.
-    pub phase: Phase,
-    /// What we believed, and since when.
-    pub before: Before,
-    /// What we saw hold.
-    pub seen: Seen,
-    /// The occupancy we believe at the end of the turn. Its occupants
-    /// (`rbh`, `mode`, `bed`) are those of the last fact; `unexplained` is the
-    /// scene's and may differ, because a body that is nobody comes and goes
-    /// without a fact (rule 6). A transition with no facts still has it.
-    pub after: Occupancy,
-    /// What happened to each person, in order.
-    pub facts: Vec<Fact>,
-}
-
+// --- shared by every version of the contract
 /// A change of the parts' places: the second trama of occupancy, the
 /// complement of a layer-0 transition with its shape (white book, volume I,
 /// ch. 09). The places are written `bed IN.OUT : headboard IN.OUT : BFK`.
@@ -1428,6 +1229,15 @@ pub struct PartsChange {
     pub seen: PartsSeen,
     /// The places we believe.
     pub after: PartsAfter,
+}
+
+/// The span that held: from which sample and for how many source seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Span {
+    /// The first sample that saw the new count.
+    pub first: SampleRef,
+    /// Source seconds it held before counting.
+    pub secs: f64,
 }
 
 /// The parts' places before a change.
@@ -1486,109 +1296,6 @@ pub struct BedPostureBefore {
     pub lasted_secs: Option<f64>,
 }
 
-/// A change in what was published, computed by comparing turns.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum DerivedBody {
-    /// The mode changed.
-    RoomChanged {
-        /// The previous mode.
-        from: Mode,
-        /// The new mode.
-        to: Mode,
-    },
-    /// The bed changed; it goes to `unknown` without a transition.
-    BedChanged {
-        /// The previous state.
-        from: BedState,
-        /// The new state.
-        to: BedState,
-    },
-}
-
-/// What changed in the reception.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum SensorBody {
-    /// The reception changed.
-    SensorChanged {
-        /// The previous state.
-        from: SensorState,
-        /// The new state.
-        to: SensorState,
-    },
-}
-
-/// What the map learned.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum MapBody {
-    /// The map learned the depth of the empty bed.
-    BedCalibrated {
-        /// The empty bed's depth, on the depth model's scale.
-        reference_m: f32,
-    },
-}
-
-/// A change in what was published, with the occupancy at the end of the turn.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DerivedEvent {
-    /// Why it changed.
-    pub cause: Cause,
-    /// The sample in which it changed.
-    pub at: SampleRef,
-    /// What changed.
-    #[serde(flatten)]
-    pub body: DerivedBody,
-    /// The occupancy at the end of the turn.
-    pub after: Occupancy,
-}
-
-/// A reception change, reported by the shell.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct SensorEvent {
-    /// Always `sensor_reported`.
-    pub cause: Cause,
-    /// The sample the shell reported it with.
-    pub at: SampleRef,
-    /// What changed.
-    #[serde(flatten)]
-    pub body: SensorBody,
-    /// The occupancy, which a reception change does not touch.
-    pub after: Occupancy,
-}
-
-/// What the map learned: not an occupancy fact.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct MapEvent {
-    /// Always `map_learned`.
-    pub cause: Cause,
-    /// The sample it was learned in.
-    pub at: SampleRef,
-    /// What was learned.
-    #[serde(flatten)]
-    pub body: MapBody,
-}
-
-/// A message of `events.v4`. Within a turn they come out in order: `sensor`,
-/// `transition`, `map`, `derived`, `parts`, `bed_posture`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Event {
-    /// A layer-0 change, with its facts.
-    Transition(Transition),
-    /// A change of the parts' places: the second trama of occupancy.
-    Parts(PartsChange),
-    /// A change in what was published, by comparing turns.
-    Derived(DerivedEvent),
-    /// A reception change.
-    Sensor(SensorEvent),
-    /// What the map learned.
-    Map(MapEvent),
-    /// A layer-1 change: the bed posture.
-    BedPosture(BedPostureChange),
-}
-
 /// The room: the machine's mode, the phase and the last cell.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Room {
@@ -1630,46 +1337,6 @@ pub struct MapShadow {
     pub headboard_area: Option<Quad>,
 }
 
-/// What is published of the static world.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct MapState {
-    /// Whether the delimited bed applies to this image.
-    pub geometry: Geometry,
-    /// The bed's four corners on the image, clockwise.
-    pub bed: Quad,
-    /// Where faces are looked for when nobody is in sight.
-    pub headboard: Option<Rect>,
-    /// Where the main detector looks while the resident is alone in bed: the
-    /// delimited focus or the bed grown by the focus policy's pad. Absent, and
-    /// not published, when the main detector does not focus.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub focus: Option<Rect>,
-    /// The geometry's shadow: what a geometry that does not decide yet sees
-    /// of the site. Absent, and not published, unless the profile asks for it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shadow: Option<MapShadow>,
-    /// What the map learned about the empty bed.
-    pub calibration: Calibration,
-}
-
-/// The learned bed depth and the sample it came from.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "status", rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum Calibration {
-    /// The empty bed has not been learned.
-    #[default]
-    Unavailable,
-    /// The empty bed was learned.
-    Complete {
-        /// Its depth, on the depth model's scale (the name says metres, the
-        /// value is relative: see `BodyPoint`).
-        reference_m: f32,
-        /// The sample it was learned in; `None` if the profile brought it.
-        since: Option<SampleRef>,
-    },
-}
-
 // --- moved from scene-core/src/posture.rs
 /// The published posture, with its evidence on the depth model's (relative)
 /// scale and the pose's provenance.
@@ -1706,31 +1373,6 @@ pub struct Posture {
 }
 
 // --- moved from scene-core/src/verdict.rs
-/// How the resident is, as the arbiter rules it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum VerdictState {
-    /// In bed, the head and shoulders farther from the camera than the pelvis.
-    LyingInBed,
-    /// In bed, the head and shoulders closer to the camera than the pelvis.
-    SittingUpInBed,
-    /// In bed, but no head knows how.
-    InBed,
-}
-
-/// The published verdict: how the resident is, which heads support it and
-/// since when it holds (a fold of the chronicle, P4).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Verdict {
-    /// How the resident is.
-    pub state: VerdictState,
-    /// The heads that support it; empty when none knows.
-    pub by: Vec<Head>,
-    /// The first sample of this verdict, without interruption.
-    pub since: SampleRef,
-}
-
 // --- moved from scene-core/src/mod.rs
 /// The published bed posture: the state, what was seen in this sample and
 /// since when the state holds (a fold of the chronicle, P4).
@@ -1742,66 +1384,4 @@ pub struct BedPosture {
     pub seen: BedPostureSeen,
     /// The first sample of this state, without interruption.
     pub since: SampleRef,
-}
-
-// --- moved from scene-core/src/common.rs
-/// The subject: the room's only occupant, if there is exactly one.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Subject {
-    /// Where the subject is: in bed or on the floor.
-    pub zone: Zone,
-    /// Their box, in image pixels.
-    pub bbox: Rect,
-    /// The detector's score for that box.
-    pub confidence: f32,
-    /// Whether the box was seen in this turn or is held from before.
-    pub provenance: Provenance,
-    /// The subject's pose, when the policy takes it.
-    pub pose: Option<Pose>,
-    /// The subject's depth, when the policy measures it.
-    pub depth: Option<SubjectDepth>,
-    /// Second level: absent without a pose or without bed geometry.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lying: Option<Lying>,
-    /// Second level: absent without a pose or without per-point depth.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub posture: Option<Posture>,
-    /// Second level: the arbiter's verdict, only in bed for now (R16, 1605).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub verdict: Option<Verdict>,
-    /// Layer 1: the bed posture of the resident left lying, when the profile
-    /// follows it (R18, 1806).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bed_posture: Option<BedPosture>,
-    /// The occupancy of the subject's parts against the bed and the headboard,
-    /// with what is retained unseen (white book, volume I, ch. 09). Absent
-    /// without the bed's geometry.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parts: Option<Parts>,
-}
-
-// --- moved from scene-core/src/v4.rs
-/// The scene of one sample.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Scene {
-    /// The image size the turn worked on; `None` before the first image.
-    pub frame: Option<FrameInfo>,
-    /// What was admitted in this sample.
-    pub evidence: Evidence,
-    /// How many are in the room and the machine's mode.
-    pub room: Room,
-    /// Who is believed in bed.
-    pub bed: Bed,
-    /// Who is seen off the bed.
-    pub floor: Floor,
-    /// The room's only occupant, when there is exactly one.
-    pub subject: Option<Subject>,
-    /// What the core looked at in this turn, and why not the rest.
-    pub attention: Attention,
-    /// The bed geometry and what the map learned.
-    pub map: MapState,
-    /// The reception, as the shell reported it.
-    pub sensor: SensorState,
-    /// Present only if this scene does not come from a new observation (rule 2).
-    pub republished: Option<Republished>,
 }

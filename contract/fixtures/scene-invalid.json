@@ -1,5 +1,5 @@
 {
-  "schema": "calipso.scene.v4",
+  "schema": "calipso.scene.v5",
   "source": {
     "site": "example",
     "camera": "room",

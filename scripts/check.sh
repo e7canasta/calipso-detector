@@ -75,10 +75,10 @@ check_domain_contract() {
             crates/scene-core/src crates/scene-core/tests || true)
   found="$found$(grep -nE '^\s*(pub(\(crate\))? )?mod contract;' crates/scene-core/src/lib.rs || true)"
   [ -z "$found" ] || fail "the core names a contract module of its own: $found"
-  # What no version changes is projected in project/mod.rs without naming a
-  # version: no SchemaId, no SceneV4 or EventsV4, no vN:: path (C2).
-  found=$(grep -nE 'SchemaId|SceneV4|EventsV4|\bv[0-9]+::' crates/scene-core/src/project/mod.rs || true)
-  [ -z "$found" ] || fail "C2: the common projection names a version: $found"
+  # The common projection writes the contract's v5 alone (ADR 2026-11-02-retirar-v4):
+  # no SchemaId, and no v4 name, which the retired schema would bring back.
+  found=$(grep -nE 'SchemaId|SceneV4|EventsV4' crates/scene-core/src/project/mod.rs || true)
+  [ -z "$found" ] || fail "C2: the common projection names a retired version: $found"
   # Only project and cycle name the published scene and its events: the rule is a
   # cargo test, which reads the sources without any tool of the system (F1).
   # Its output is shown when it fails: the name of the guardian that failed is
@@ -88,6 +88,18 @@ check_domain_contract() {
 }
 step "the domain without contract"
 check_domain_contract
+
+# ADR 2026-11-02-retirar-v4: the detector publishes v5 alone. A v4 schema name,
+# the projection that built it or its SchemaId variants are not written again
+# in the detector's code (the `archivo/` of the repository is not code).
+check_no_retired_v4() {
+  local found
+  found=$(grep -rnE 'calipso\.(scene|events)\.v4|project::v4|SchemaId::(SceneV4|EventsV4)' \
+            crates --include='*.rs' || true)
+  [ -z "$found" ] || fail "ADR 2026-11-02-retirar-v4: v4 reappears in the detector: $found"
+}
+step "no retired v4 in the detector"
+check_no_retired_v4
 
 # Rule 11: `cycle` only sequences. Whether a sense is configured is decided by
 # the module that decides with it: the sequencer hands it the whole `Policy`.
