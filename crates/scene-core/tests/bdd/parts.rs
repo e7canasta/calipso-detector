@@ -39,14 +39,14 @@ fn turn(ward: &Ward, n: u32) -> &scene_core::Output {
         .turns
         .iter()
         .rev()
-        .find(|t| t.output.at == at)
+        .find(|t| t.output.at == Some(at))
         .unwrap_or_else(|| panic!("there was no sample {n}"))
         .output
 }
 
 fn change(ward: &Ward, n: u32) -> Option<&scene_contract::PartsChange> {
-    turn(ward, n).events.iter().find_map(|e| match e {
-        scene_contract::Event::Parts(p) => Some(p),
+    turn(ward, n).v5.events.iter().find_map(|e| match e {
+        scene_contract::v5::Event::Parts(p) => Some(p),
         _ => None,
     })
 }

@@ -8,7 +8,6 @@
 //! (C2).
 
 mod parts;
-pub(crate) mod v4;
 pub(crate) mod v5;
 
 use crate::attention::Attention;
@@ -300,34 +299,6 @@ fn pending(occupancy: &Occupancy, dwell_secs: Seconds) -> Option<Pending> {
             need: dwell_secs.get(),
         },
     })
-}
-
-/// What was current becomes retained on republishing: nothing is `Current`
-/// without an observation (rule 2).
-fn retained_subject(subject: Option<&Subject>, projected_at: SampleRef) -> Option<Subject> {
-    let mut subject = subject.cloned();
-    if let Some(s) = subject.as_mut() {
-        let retained = |p: Provenance| match p {
-            Provenance::Current => Provenance::Retained {
-                since: projected_at,
-            },
-            other => other,
-        };
-        s.provenance = retained(s.provenance);
-        if let Some(pose) = s.pose.as_mut() {
-            pose.provenance = retained(pose.provenance);
-        }
-        if let Some(depth) = s.depth.as_mut() {
-            depth.provenance = retained(depth.provenance);
-        }
-        if let Some(lying) = s.lying.as_mut() {
-            lying.provenance = retained(lying.provenance);
-        }
-        if let Some(posture) = s.posture.as_mut() {
-            posture.provenance = retained(posture.provenance);
-        }
-    }
-    subject
 }
 
 /// When what a republished scene claims is from. The last projection may have

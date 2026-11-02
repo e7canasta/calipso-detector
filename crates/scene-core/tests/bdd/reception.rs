@@ -63,7 +63,7 @@ fn the_shell_reports_the_stall(ward: &mut Ward) {
 
 #[then(expr = "the published scene carries the field {string} with the value {string}")]
 fn the_published_field(ward: &mut Ward, field: String, value: String) {
-    let scene = serde_json::to_value(&*ward.last().output.scene).expect("the scene serializes");
+    let scene = serde_json::to_value(&*ward.last().output.v5.scene).expect("the scene serializes");
     assert_eq!(
         scene[field.as_str()],
         Value::from(value),

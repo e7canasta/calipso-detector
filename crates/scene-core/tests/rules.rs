@@ -51,8 +51,9 @@ fn sequences() -> impl Strategy<Value = Vec<Step>> {
     prop::collection::vec(steps(), 0..200)
 }
 
+use scene_contract::v5::Scene;
 use scene_contract::{BedPostureState, Mode};
-use scene_contract::{BedState, FrameInfo, SampleRef, Scene, SessionId, SourceSecs};
+use scene_contract::{BedState, FrameInfo, SampleRef, SessionId, SourceSecs};
 use scene_core::map::SiteMap;
 use scene_core::policy::{BedPosturePolicy, Policy};
 use scene_core::{Input, Monitor, NoFrame, Output};
@@ -165,7 +166,7 @@ fn run_on(
                 .handle(sample(session, index, seconds))
                 .drive(|_| (step.bodies().map(Reading::Bodies), Spent(1.0)));
             published::check(&output);
-            check(&previous.scene, &output, step)?;
+            check(&previous.v5.scene, &output, step)?;
             previous = output;
         }
     }
@@ -176,7 +177,7 @@ proptest! {
     #[test]
     fn re1_occupants_are_the_sum_of_seen_and_held(sequence in sequences()) {
         run(&sequence,|_,output,_| {
-            let scene = &output.scene;
+            let scene = &output.v5.scene;
             prop_assert_eq!(scene.room.occupants,scene.floor.seen+scene.bed.seen+scene.bed.held.len() as u32);
             Ok(())
         })?;
@@ -185,8 +186,8 @@ proptest! {
     #[test]
     fn re2_the_bed_does_not_empty_without_an_exit(sequence in sequences()) {
         run(&sequence,|before,output,_| {
-            if matches!(before.bed.state,BedState::Seen | BedState::Held) && output.scene.bed.state == BedState::Empty {
-                prop_assert!(published::facts(output).iter().any(|fact| matches!(fact.body,Body::LeftBed)), "bed emptied without an exit: before={:?}, after={:?}",before.bed,output.scene.bed);
+            if matches!(before.bed.state,BedState::Seen | BedState::Held) && output.v5.scene.bed.state == BedState::Empty {
+                prop_assert!(published::facts(output).iter().any(|fact| matches!(fact.body,Body::LeftBed)), "bed emptied without an exit: before={:?}, after={:?}",before.bed,output.v5.scene.bed);
             }
             Ok(())
         })?;
@@ -195,7 +196,7 @@ proptest! {
     #[test]
     fn re3_a_held_occupant_is_only_released_on_reappearing(sequence in sequences()) {
         run(&sequence,|before,output,_| {
-            let after = &output.scene.bed.held;
+            let after = &output.v5.scene.bed.held;
             let released = before.bed.held.iter().filter(|held| !after.contains(held)).count();
             let reappeared = published::facts(output).iter().filter(|fact| matches!(fact.body,Body::Reappeared { .. })).count();
             prop_assert!(released <= reappeared,"held released={released}, reappeared={reappeared}; before={:?}, after={:?}",before.bed.held,after);
@@ -207,8 +208,8 @@ proptest! {
     fn re4_a_failure_changes_neither_counts_nor_facts(sequence in sequences()) {
         run(&sequence,|before,output,step| {
             if step.failure.is_some() {
-                prop_assert_eq!(counts(before),counts(&output.scene));
-                prop_assert!(occupation_events(output).is_empty(),"occupancy facts during a failure: {:?}",output.events);
+                prop_assert_eq!(counts(before),counts(&output.v5.scene));
+                prop_assert!(occupation_events(output).is_empty(),"occupancy facts during a failure: {:?}",output.v5.events);
             }
             Ok(())
         })?;
@@ -236,16 +237,16 @@ proptest! {
                 if first_reading { session_without_readings = false; }
                 if let (Some(before), true) = (&previous, first_reading) {
                     let held = |scene: &Scene| scene.bed.held.iter().map(|held| held.bbox).collect::<Vec<_>>();
-                    prop_assert_eq!(counts(before),counts(&output.scene));
-                    prop_assert_eq!(before.bed.state,output.scene.bed.state);
-                    prop_assert_eq!(before.room.mode,output.scene.room.mode);
-                    prop_assert_eq!(held(before),held(&output.scene));
+                    prop_assert_eq!(counts(before),counts(&output.v5.scene));
+                    prop_assert_eq!(before.bed.state,output.v5.scene.bed.state);
+                    prop_assert_eq!(before.room.mode,output.v5.scene.room.mode);
+                    prop_assert_eq!(held(before),held(&output.v5.scene));
                     prop_assert_eq!(occupation_events(&output).len(),0);
-                    if let Some(pending) = &output.scene.room.pending {
+                    if let Some(pending) = &output.v5.scene.room.pending {
                         prop_assert_eq!(pending.duration.have,0.0);
                     }
                 }
-                previous = Some(output.scene);
+                previous = Some(output.v5.scene);
             }
         }
     }
@@ -254,7 +255,7 @@ proptest! {
     fn re6_the_last_domain_after_matches_the_scene(sequence in sequences()) {
         run(&sequence,|_,output,_| {
             if let Some(last) = published::facts(output).into_iter().rev().find(|fact|fact.kind == Kind::Domain) {
-                let scene = &output.scene;
+                let scene = &output.v5.scene;
                 prop_assert_eq!((last.after.bed_seen,last.after.floor_seen,last.after.bed_held as usize,last.after.occupants),counts(scene),"last fact={:?}",last);
             }
             Ok(())
@@ -266,7 +267,7 @@ proptest! {
     #[test]
     fn re7_layer_1_lives_exactly_while_the_resident_is_alone_in_bed(sequence in sequences()) {
         run_on(monitor_with_bed_posture(), &sequence, |_, output, _| {
-            let scene = &output.scene;
+            let scene = &output.v5.scene;
             if bed_posture(scene).is_some() {
                 prop_assert!(alone_in_bed(scene), "bed posture without the resident alone in bed: {:?}", scene.room.mode);
             }
@@ -281,7 +282,7 @@ proptest! {
     #[test]
     fn re8_held_in_bed_is_lying(sequence in sequences()) {
         run_on(monitor_with_bed_posture(), &sequence, |_, output, _| {
-            let scene = &output.scene;
+            let scene = &output.v5.scene;
             if scene.room.mode == Mode::AloneInBedHeld {
                 prop_assert_eq!(bed_posture(scene), Some(BedPostureState::Lying));
             }
@@ -295,8 +296,8 @@ proptest! {
     fn re9_entering_the_bed_is_not_reported(sequence in sequences()) {
         run_on(monitor_with_bed_posture(), &sequence, |before, output, _| {
             if matches!(bed_posture(before), None | Some(BedPostureState::InBed)) {
-                prop_assert!(!matches!(bed_posture(&output.scene), Some(BedPostureState::SittingUp | BedPostureState::GettingOut)),
-                    "from {:?} to {:?}", bed_posture(before), bed_posture(&output.scene));
+                prop_assert!(!matches!(bed_posture(&output.v5.scene), Some(BedPostureState::SittingUp | BedPostureState::GettingOut)),
+                    "from {:?} to {:?}", bed_posture(before), bed_posture(&output.v5.scene));
             }
             Ok(())
         })?;

@@ -13,34 +13,8 @@ use scene_geom::{Quad, Rect};
 use scene_look::Spent;
 use std::path::PathBuf;
 
-/// The envelope the shell puts around each message, with fixed values so the
-/// examples are reproducible.
-fn envelope<T>(
-    schema: SchemaId,
-    seq: u64,
-    at: SampleRef,
-    body: T,
-    last_event_seq: Option<u64>,
-) -> Envelope<T> {
-    Envelope {
-        schema,
-        seq,
-        observed_at: at,
-        body,
-        last_event_seq,
-        source: source(),
-        profile: profile(),
-        published_at_ms: 0,
-        timing: (schema == SchemaId::SceneV4).then_some(Timing {
-            wait_ms: 0.0,
-            processing_ms: 0.0,
-        }),
-        event_id: (schema == SchemaId::EventsV4).then(|| format!("example-v4-{seq}")),
-    }
-}
-
-/// The v5 envelope of the same example: as v4's, with v5's `observed_at` (none
-/// for a reception change) and v5's schema.
+/// The v5 envelope the shell puts around each message, with fixed values so the
+/// examples are reproducible; `observed_at` is none for a reception change.
 fn envelope_v5<T>(
     schema: v5::SchemaId,
     seq: u64,
@@ -142,10 +116,8 @@ fn snapshot(name: &str, content: &str) {
 /// as its golden scene says.
 #[test]
 fn examples_s1_to_s8_are_reproducible() {
-    let scene_schema = validator("calipso.scene.v4");
-    let events_schema = validator("calipso.events.v4");
-    let scene5_schema = validator("calipso.scene.v5");
-    let events5_schema = validator("calipso.events.v5");
+    let scene_schema = validator("calipso.scene.v5");
+    let events_schema = validator("calipso.events.v5");
     for n in 1..=8 {
         let mut policy = Policy::default();
         policy.persistence.dwell_secs = Seconds::TWO;
@@ -154,78 +126,43 @@ fn examples_s1_to_s8_are_reproducible() {
             SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))),
         );
         let (mut scenes, mut events, mut event_seq) = (String::new(), String::new(), 0);
-        // v5 of the same nights, from the same turns (C4), numbered on its own.
-        let (mut scenes5, mut events5, mut event_seq5) = (String::new(), String::new(), 0);
         let mut transitions = 0;
         let mut final_scene = None;
         for (seq, (sequence, script)) in script::episode(n).into_iter().enumerate() {
             let out = observe(&mut monitor, u64::from(sequence), &script);
-            for event in &out.events {
-                if let Event::Transition(t) = event {
+            for event in &out.v5.events {
+                if let v5::Event::Transition(t) = event {
                     transitions += 1;
-                    assert_eq!(out.scene.room.last_cell.as_ref(), Some(&t.cell), "S{n}");
+                    assert_eq!(out.v5.scene.room.last_cell.as_ref(), Some(&t.cell), "S{n}");
                 }
                 event_seq += 1;
-                let message = envelope(
-                    SchemaId::EventsV4,
+                let message = envelope_v5(
+                    v5::SchemaId::Events,
                     event_seq,
-                    event.at(),
+                    v5_event_at(event),
                     event.clone(),
                     None,
                 );
                 let line = serde_json::to_string(&message).unwrap();
                 assert_valid(&events_schema, &line);
                 assert_eq!(
-                    serde_json::from_str::<Envelope<Event>>(&line).unwrap(),
+                    serde_json::from_str::<v5::Envelope<v5::Event>>(&line).unwrap(),
                     message
                 );
                 events.push_str(&line);
                 events.push('\n');
-            }
-            for event in &out.v5.events {
-                event_seq5 += 1;
-                let message = envelope_v5(
-                    v5::SchemaId::Events,
-                    event_seq5,
-                    v5_event_at(event),
-                    event.clone(),
-                    None,
-                );
-                let line = serde_json::to_string(&message).unwrap();
-                assert_valid(&events5_schema, &line);
-                assert_eq!(
-                    serde_json::from_str::<v5::Envelope<v5::Event>>(&line).unwrap(),
-                    message
-                );
-                events5.push_str(&line);
-                events5.push('\n');
             }
             let message = envelope_v5(
                 v5::SchemaId::Scene,
                 seq as u64 + 1,
                 out.v5.observed_at,
                 out.v5.scene.as_ref().clone(),
-                Some(event_seq5),
-            );
-            let line = serde_json::to_string(&message).unwrap();
-            assert_valid(&scene5_schema, &line);
-            assert_eq!(
-                serde_json::from_str::<v5::Envelope<v5::Scene>>(&line).unwrap(),
-                message
-            );
-            scenes5.push_str(&line);
-            scenes5.push('\n');
-            let message = envelope(
-                SchemaId::SceneV4,
-                seq as u64 + 1,
-                out.at,
-                out.scene.as_ref().clone(),
                 Some(event_seq),
             );
             let line = serde_json::to_string(&message).unwrap();
             assert_valid(&scene_schema, &line);
             assert_eq!(
-                serde_json::from_str::<Envelope<Scene>>(&line).unwrap(),
+                serde_json::from_str::<v5::Envelope<v5::Scene>>(&line).unwrap(),
                 message
             );
             scenes.push_str(&line);
@@ -251,21 +188,19 @@ fn examples_s1_to_s8_are_reproducible() {
         if n == 1 {
             let entered: Vec<u32> = events
                 .lines()
-                .map(|line| serde_json::from_str::<Envelope<Event>>(line).unwrap())
+                .map(|line| serde_json::from_str::<v5::Envelope<v5::Event>>(line).unwrap())
                 .filter_map(|e| match e.body {
-                    Event::Transition(t) => Some(t.facts),
+                    v5::Event::Transition(t) => Some(t.facts),
                     _ => None,
                 })
                 .flatten()
-                .filter(|f| f.body == FactBody::Entered)
-                .map(|f| f.after.rbh.0)
+                .filter(|f| f.body == v5::FactBody::Entered)
+                .map(|f| f.after.rbh.room)
                 .collect();
             assert_eq!(entered[..2], [1, 2]);
         }
-        snapshot(&format!("s{n}.scene.v4.jsonl"), &scenes);
-        snapshot(&format!("s{n}.events.v4.jsonl"), &events);
-        snapshot(&format!("s{n}.scene.v5.jsonl"), &scenes5);
-        snapshot(&format!("s{n}.events.v5.jsonl"), &events5);
+        snapshot(&format!("s{n}.scene.v5.jsonl"), &scenes);
+        snapshot(&format!("s{n}.events.v5.jsonl"), &events);
     }
 }
 
@@ -301,13 +236,16 @@ fn a_failed_detector_neither_publishes_a_zero_nor_erases_the_belief() {
         ..Default::default()
     };
     let out = observe(&mut monitor, 4, &failed);
-    assert_eq!(out.scene.evidence.bodies.status, BodiesStatus::Unavailable);
-    assert!(out.scene.evidence.bodies.items.is_empty());
     assert_eq!(
-        (out.scene.bed.state, out.scene.room.occupants),
+        out.v5.scene.evidence.bodies.status,
+        BodiesStatus::Unavailable
+    );
+    assert!(out.v5.scene.evidence.bodies.items.is_empty());
+    assert_eq!(
+        (out.v5.scene.bed.state, out.v5.scene.room.occupants),
         (BedState::Seen, 1)
     );
-    assert!(out.events.is_empty());
+    assert!(out.v5.events.is_empty());
     let at = SampleRef {
         session: SessionId(1),
         sequence: 5,
@@ -320,19 +258,22 @@ fn a_failed_detector_neither_publishes_a_zero_nor_erases_the_belief() {
             state: SensorState::Reconnecting,
         })
         .cancel();
-    let Event::Sensor(sensor) = &out.events[0] else {
+    let v5::Event::Sensor(sensor) = &out.v5.events[0] else {
         panic!("a sensor event")
     };
-    assert_eq!(sensor.after.rbh.0, 1);
+    assert_eq!(sensor.after.rbh.room, 1);
     assert_eq!(
-        out.scene.frame,
+        out.v5.scene.frame,
         Some(FrameInfo {
             width: 640,
             height: 480
         })
     );
-    assert_eq!(out.scene.evidence.bodies.status, BodiesStatus::Unavailable);
-    assert!(out.scene.republished.is_some());
+    assert_eq!(
+        out.v5.scene.evidence.bodies.status,
+        BodiesStatus::Unavailable
+    );
+    assert!(out.v5.scene.republished.is_some());
 }
 
 #[test]
@@ -348,12 +289,12 @@ fn without_geometry_boxes_are_published_with_an_unknown_zone() {
         1,
         &script::Script::bodies(vec![golden::world::in_bed(0)]),
     );
-    assert_eq!(out.scene.evidence.bodies.status, BodiesStatus::Unzoned);
-    let body = &out.scene.evidence.bodies.items[0];
+    assert_eq!(out.v5.scene.evidence.bodies.status, BodiesStatus::Unzoned);
+    let body = &out.v5.scene.evidence.bodies.items[0];
     assert_eq!(body.zone, None);
     assert_eq!(body.bbox, golden::world::in_bed(0).bbox);
-    assert_eq!(out.scene.bed.state, BedState::Unknown);
-    assert_eq!(out.scene.room.occupants, 0);
+    assert_eq!(out.v5.scene.bed.state, BedState::Unknown);
+    assert_eq!(out.v5.scene.room.occupants, 0);
 }
 
 #[test]
@@ -381,12 +322,12 @@ fn faces_say_whether_they_are_on_the_current_subject() {
         ..Default::default()
     };
     let out = observe(&mut monitor, 1, &seen);
-    assert_eq!(out.scene.evidence.faces.status, FacesStatus::Ok);
-    assert!(out.scene.evidence.faces.items[0].on_subject);
+    assert_eq!(out.v5.scene.evidence.faces.status, FacesStatus::Ok);
+    assert!(out.v5.scene.evidence.faces.items[0].on_subject);
     let empty = script::Script::bodies(vec![golden::world::in_bed(0)]);
     let out = observe(&mut monitor, 2, &empty);
-    assert_eq!(out.scene.evidence.faces.status, FacesStatus::Empty);
-    assert!(out.scene.evidence.faces.items.is_empty());
+    assert_eq!(out.v5.scene.evidence.faces.status, FacesStatus::Empty);
+    assert!(out.v5.scene.evidence.faces.items.is_empty());
 }
 
 #[test]
@@ -413,21 +354,21 @@ fn calibration_publishes_its_sample_and_the_map_before_the_first_frame() {
             state: SensorState::Streaming,
         })
         .cancel();
-    assert_eq!(before.scene.frame, None);
-    assert_eq!(before.scene.map.bed, map.bed);
-    assert_eq!(before.scene.map.headboard, map.headboard);
+    assert_eq!(before.v5.scene.frame, None);
+    assert_eq!(before.v5.scene.map.bed, map.bed);
+    assert_eq!(before.v5.scene.map.headboard, map.headboard);
     let out = observe(&mut monitor, 1, &script::Script::default());
     assert_eq!(
-        out.scene.map.calibration,
-        Calibration::Complete {
-            reference_m: 2.0,
-            since: Some(out.at)
+        out.v5.scene.map.calibration,
+        v5::Calibration::Complete {
+            reference: 2.0,
+            since: Some(out.at.unwrap())
         }
     );
-    assert!(out.events.iter().any(|e| matches!(
+    assert!(out.v5.events.iter().any(|e| matches!(
         e,
-        Event::Map(MapEvent {
-            body: MapBody::BedCalibrated { reference_m: 2.0 },
+        v5::Event::Map(v5::MapEvent {
+            body: v5::MapBody::BedCalibrated { reference: 2.0 },
             ..
         })
     )));
@@ -435,12 +376,12 @@ fn calibration_publishes_its_sample_and_the_map_before_the_first_frame() {
 
 #[test]
 fn the_published_examples_validate_and_the_invalid_fixture_does_not() {
-    let scene_schema = validator("calipso.scene.v4");
-    let events_schema = validator("calipso.events.v4");
+    let scene_schema = validator("calipso.scene.v5");
+    let events_schema = validator("calipso.events.v5");
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../contract");
     for n in 1..=8 {
         for (kind, v) in [("scene", &scene_schema), ("events", &events_schema)] {
-            let text = std::fs::read_to_string(dir.join(format!("examples/s{n}.{kind}.v4.jsonl")))
+            let text = std::fs::read_to_string(dir.join(format!("examples/s{n}.{kind}.v5.jsonl")))
                 .unwrap();
             for line in text.lines() {
                 assert_valid(v, line);
@@ -477,7 +418,7 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
     );
     let seen = script::Script::bodies(vec![golden::world::in_bed(0)]);
     let first = observe(&mut monitor, 1, &seen);
-    let subject = first.scene.subject.as_ref().unwrap();
+    let subject = first.v5.scene.subject.as_ref().unwrap();
     assert_eq!(
         subject.pose.as_ref().unwrap().provenance,
         Provenance::Current
@@ -490,6 +431,7 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
     let still = observe(&mut monitor, 2, &seen);
     assert_eq!(
         still
+            .v5
             .scene
             .attention
             .looks
@@ -499,19 +441,23 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
         vec![LookKind::Detect, LookKind::Pose]
     );
     assert_eq!(
-        still.scene.attention.looks[1].outcome,
+        still.v5.scene.attention.looks[1].outcome,
         LookOutcome::Skipped {
             reason: SkipReason::SubjectStill
         }
     );
-    let subject = still.scene.subject.as_ref().unwrap();
+    let subject = still.v5.scene.subject.as_ref().unwrap();
     assert_eq!(
         subject.pose.as_ref().unwrap().provenance,
-        Provenance::Stable { since: first.at }
+        Provenance::Stable {
+            since: first.at.unwrap()
+        }
     );
     assert_eq!(
         subject.depth.as_ref().unwrap().provenance,
-        Provenance::Stable { since: first.at }
+        Provenance::Stable {
+            since: first.at.unwrap()
+        }
     );
 
     let failed = script::Script {
@@ -520,10 +466,11 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
         ..Default::default()
     };
     let failed_output = observe(&mut monitor, 3, &failed);
-    let subject = failed_output.scene.subject.as_ref().unwrap();
+    let subject = failed_output.v5.scene.subject.as_ref().unwrap();
     assert!(subject.pose.is_none() && subject.depth.is_none());
     assert!(
         failed_output
+            .v5
             .scene
             .attention
             .looks
@@ -542,6 +489,7 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
     );
     assert_eq!(
         recovered
+            .v5
             .scene
             .attention
             .looks
@@ -552,6 +500,7 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
     );
     assert_eq!(
         recovered
+            .v5
             .scene
             .subject
             .as_ref()
@@ -583,27 +532,30 @@ fn the_initial_map_keeps_the_reference_and_the_retry_delay() {
     let mut monitor = Monitor::new(policy.clone(), map.clone());
     let waiting = observe(&mut monitor, 8, &script::Script::default());
     assert_eq!(
-        waiting.scene.attention.looks[1].outcome,
+        waiting.v5.scene.attention.looks[1].outcome,
         LookOutcome::Skipped {
             reason: SkipReason::RetryWait
         }
     );
-    assert_eq!(waiting.scene.map.calibration, Calibration::Unavailable);
-    assert!(waiting.events.is_empty());
+    assert_eq!(
+        waiting.v5.scene.map.calibration,
+        v5::Calibration::Unavailable
+    );
+    assert!(waiting.v5.events.is_empty());
     let learned = observe(&mut monitor, 9, &script::Script::default());
     assert_eq!(
-        learned.scene.map.calibration,
-        Calibration::Complete {
-            reference_m: 2.0,
-            since: Some(learned.at)
+        learned.v5.scene.map.calibration,
+        v5::Calibration::Complete {
+            reference: 2.0,
+            since: Some(learned.at.unwrap())
         }
     );
     assert_eq!(
-        learned.events,
-        vec![Event::Map(MapEvent {
+        learned.v5.events,
+        vec![v5::Event::Map(v5::MapEvent {
             cause: Cause::MapLearned,
-            at: learned.at,
-            body: MapBody::BedCalibrated { reference_m: 2.0 },
+            at: learned.at.unwrap(),
+            body: v5::MapBody::BedCalibrated { reference: 2.0 },
         })]
     );
 
@@ -611,12 +563,12 @@ fn the_initial_map_keeps_the_reference_and_the_retry_delay() {
     let mut monitor = Monitor::new(policy, map);
     let seeded = observe(&mut monitor, 8, &script::Script::default());
     assert_eq!(
-        seeded.scene.map.calibration,
-        Calibration::Complete {
-            reference_m: 1.5,
+        seeded.v5.scene.map.calibration,
+        v5::Calibration::Complete {
+            reference: 1.5,
             since: None
         }
     );
-    assert_eq!(seeded.scene.attention.looks.len(), 1);
-    assert!(seeded.events.is_empty());
+    assert_eq!(seeded.v5.scene.attention.looks.len(), 1);
+    assert!(seeded.v5.events.is_empty());
 }

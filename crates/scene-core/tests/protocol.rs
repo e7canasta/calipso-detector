@@ -46,9 +46,9 @@ fn a_shutdown_closes_the_turn_without_moving_the_belief() {
     let out = m
         .handle(sample(4.0))
         .drive(|_| (Err(Failure::Cancelled), Spent(1.0)));
-    assert_eq!(out.scene.room.occupants, 1);
-    assert_eq!(out.scene.bed.state, BedState::Seen);
-    assert!(out.events.is_empty());
+    assert_eq!(out.v5.scene.room.occupants, 1);
+    assert_eq!(out.v5.scene.bed.state, BedState::Seen);
+    assert!(out.v5.events.is_empty());
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn drive_runs_the_whole_turn() {
         (Ok(Reading::Bodies(vec![])), Spent(1.0))
     });
     assert_eq!(probes, 1);
-    assert_eq!(out.scene.room.mode, Mode::Empty);
+    assert_eq!(out.v5.scene.room.mode, Mode::Empty);
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn a_reading_of_another_kind_in_drive_is_a_failing_sense() {
         .handle(sample(1.0))
         .drive(|_| (Ok(Reading::Faces(vec![])), Spent(1.0)));
     assert!(matches!(
-        out.scene.attention.looks[0].result(),
+        out.v5.scene.attention.looks[0].result(),
         Some(LookResult::Failed { .. })
     ));
 }
@@ -85,6 +85,7 @@ fn a_detector_failure_declares_the_last_observation() {
         .handle(sample(2.0))
         .drive(|_| (Ok(Reading::Faces(vec![])), Spent(1.0)));
     let republished = out
+        .v5
         .scene
         .republished
         .expect("the turn is declared republished");
@@ -100,7 +101,7 @@ fn cancel_closes_the_turn_like_a_shutdown() {
     let mut m = monitor();
     let out = m.handle(sample(1.0)).cancel();
     assert!(matches!(
-        out.scene.attention.looks[0].result(),
+        out.v5.scene.attention.looks[0].result(),
         Some(LookResult::Failed { .. })
     ));
 }

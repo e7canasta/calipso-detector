@@ -18,13 +18,13 @@ use scene_core::units::Extension;
 
 #[then(regex = r"^the bed has (\d+) unexplained bod(?:y|ies)$")]
 fn unexplained(ward: &mut Ward, n: u32) {
-    let bed = &ward.last().output.scene.bed;
+    let bed = &ward.last().output.v5.scene.bed;
     assert_eq!(bed.unexplained, n, "{bed:#?}");
 }
 
 #[then("nobody is held in bed")]
 fn nobody_held(ward: &mut Ward) {
-    let bed = &ward.last().output.scene.bed;
+    let bed = &ward.last().output.v5.scene.bed;
     assert!(bed.held.is_empty(), "{bed:#?}");
 }
 
@@ -33,7 +33,7 @@ fn lay_down_after(ward: &mut Ward, n: u32) {
     let limit = ward.sample(n);
     assert!(
         ward.events()
-            .any(|e| matches!(e.body, Body::LayDown) && crate::ward::later(e.at, limit)),
+            .any(|e| matches!(e.body, Body::LayDown) && crate::ward::later(e.at.unwrap(), limit)),
         "nobody lay down after sample {n}: {:?}",
         ward.events().collect::<Vec<_>>()
     );
@@ -68,7 +68,7 @@ fn entry_after(ward: &mut Ward, secs: f64) {
         .events()
         .find(|e| matches!(e.body, Body::Entered))
         .expect("an entry was observed");
-    assert_eq!(entry.at.source_secs.0 - first, secs);
+    assert_eq!(entry.at.unwrap().source_secs.0 - first, secs);
 }
 
 #[then("no entry into the room was observed")]
@@ -125,11 +125,11 @@ fn reinforcements(ward: &Ward) -> Vec<SampleRef> {
     ward.turns
         .iter()
         .filter(|t| {
-            t.output.scene.attention.looks.iter().any(|l| {
+            t.output.v5.scene.attention.looks.iter().any(|l| {
                 l.kind == LookKind::Reinforce && matches!(l.outcome, LookOutcome::Asked { .. })
             })
         })
-        .map(|t| t.output.at)
+        .map(|t| t.output.at.unwrap())
         .collect()
 }
 
@@ -185,6 +185,7 @@ fn declared(ward: &mut Ward, n: u32) {
     let republished = ward
         .last()
         .output
+        .v5
         .scene
         .republished
         .expect("the scene is declared republished");
@@ -194,7 +195,7 @@ fn declared(ward: &mut Ward, n: u32) {
 
 #[then("the scene is an observation of the last sample")]
 fn observed(ward: &mut Ward) {
-    assert_eq!(ward.last().output.scene.republished, None);
+    assert_eq!(ward.last().output.v5.scene.republished, None);
 }
 
 #[when(expr = "sample {int} cannot be decoded")]
@@ -223,7 +224,7 @@ fn sensor_stalls(ward: &mut Ward, n: u32) {
 #[then(expr = "the republished scene keeps the last observation at sample {int}")]
 fn republished_origin(ward: &mut Ward, n: u32) {
     assert_eq!(
-        ward.last().output.scene.republished.unwrap().observed_at,
+        ward.last().output.v5.scene.republished.unwrap().observed_at,
         Some(ward.sample(n)),
     );
 }
@@ -231,7 +232,7 @@ fn republished_origin(ward: &mut Ward, n: u32) {
 #[then("the republished scene declares there were no observations yet")]
 fn no_earlier_observation(ward: &mut Ward) {
     assert_eq!(
-        ward.last().output.scene.republished.unwrap().observed_at,
+        ward.last().output.v5.scene.republished.unwrap().observed_at,
         None
     );
 }

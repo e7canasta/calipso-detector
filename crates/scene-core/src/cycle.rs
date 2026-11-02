@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::attention::{self, Attention};
 use crate::belief::{Belief, Believed, OccupancyRules};
 use crate::chronicle::Chronicle;
-use crate::conclusion::RepublishReason;
+use crate::conclusion::{Conclusion, RepublishReason};
 use crate::evidence::Perceived;
 use crate::look::{Failure, Probe, Reading, Spent};
 use crate::map::{BedCalibrated, CalibrationMemory, FrameInfo, Geometry, Map};
@@ -37,7 +37,6 @@ use crate::room::SpaceRules;
 use crate::time::{SampleRef, SessionId};
 use crate::units::Extension;
 use crate::verification::{Verification, VerifyRules};
-use scene_contract::{Event, Scene};
 
 mod conclude;
 mod engine;
@@ -96,12 +95,8 @@ pub struct Monitor {
     engine: Engine,
     /// The chronicle of the domain: the projection reads it, already folded.
     chronicle: Chronicle,
-    /// The last concluded scene and its sample, for republishing. If it was a
-    /// failure, the scene keeps the observed origin separately.
-    last: Option<(SampleRef, Arc<Scene>)>,
-    /// The last concluded scene in v5, kept apart from v4's: each version
-    /// republishes its own (C4, the versions do not depend on each other).
-    last_v5: Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
+    /// The last concluded scene and its sample, for republishing.
+    last: Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
 }
 
 /// The deterministic engine: the policy, the map, the belief and the reception.
@@ -184,14 +179,10 @@ struct Refined {
 /// explains, in the published contract.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Output {
-    /// The sample the turn was opened for.
-    pub at: SampleRef,
-    /// The scene of the sample.
-    pub scene: Arc<Scene>,
-    /// The events it explains, in order.
-    pub events: Vec<Event>,
-    /// The same turn in the v5 wire (C4): the scene and the events, from the
-    /// same conclusion and chronicle as `scene` and `events`.
+    /// The sample the turn was opened for; `None` for a reception change, which
+    /// observes none.
+    pub at: Option<SampleRef>,
+    /// The turn in the contract: the scene and the events it explains, in order.
     pub v5: crate::project::v5::Projection,
 }
 
@@ -206,18 +197,35 @@ pub struct Output {
 #[derive(Debug)]
 #[must_use = "a turn is closed with drive or cancel (rule 10)"]
 pub struct Turn<'m> {
-    course: Course<'m>,
+    scope: Scope<'m>,
     chronicle: &'m mut Chronicle,
-    last: &'m mut Option<(SampleRef, Arc<Scene>)>,
-    last_v5: &'m mut Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
-    phase: Phase,
+    last: &'m mut Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
     open: Open,
+}
+
+/// What a turn is about: a sample, which is looked at and concluded, or a
+/// reception change, which observes no sample and is only republished.
+#[derive(Debug)]
+enum Scope<'m> {
+    Sample(Box<SampleTurn<'m>>),
+    Reception {
+        engine: &'m mut Engine,
+        changed: Option<SensorChanged>,
+    },
+}
+
+/// A turn over a sample, boxed: the course and where it stands.
+#[derive(Debug)]
+struct SampleTurn<'m> {
+    course: Course<'m>,
+    phase: Phase,
 }
 
 /// What a turn works on while it runs: the engine, the sample and the ledger.
 #[derive(Debug)]
 struct Course<'m> {
     engine: &'m mut Engine,
+    /// The turn's sample.
     at: SampleRef,
     geometry: Geometry,
     /// The room of this turn, built once when it opens: every question of
@@ -252,26 +260,44 @@ impl Turn<'_> {
         mut look: impl FnMut(&Probe) -> (Result<Reading, Failure>, Spent),
     ) -> Output {
         let Turn {
-            mut course,
+            scope,
             chronicle,
             last,
-            last_v5,
-            mut phase,
             open,
         } = self;
-        let conclusion = loop {
-            phase = match phase {
-                Phase::Waiting(pending) => {
-                    let probe = pending.probe();
-                    let (result, spent) = look(&probe);
-                    course.advance(pending, &probe, Outcome { result, spent })
-                }
-                Phase::Concluded { refined } => break course.observed(refined),
-                Phase::Republish { reason, changed } => break course.republished(reason, changed),
-            };
+        let (conclusion, at) = match scope {
+            Scope::Sample(turn) => {
+                let SampleTurn {
+                    mut course,
+                    mut phase,
+                } = *turn;
+                let conclusion = loop {
+                    phase = match phase {
+                        Phase::Waiting(pending) => {
+                            let probe = pending.probe();
+                            let (result, spent) = look(&probe);
+                            course.advance(pending, &probe, Outcome { result, spent })
+                        }
+                        Phase::Concluded { refined } => break course.observed(refined),
+                        Phase::Republish { reason, changed } => {
+                            break course.republished(reason, changed);
+                        }
+                    };
+                };
+                (conclusion, Some(course.at))
+            }
+            Scope::Reception { engine, changed } => (
+                Conclusion::Republish {
+                    reason: RepublishReason::Sensor,
+                    changed,
+                    sensor: engine.sensor_state(),
+                    map: Box::new(engine.map_state(Geometry::Valid)),
+                },
+                None,
+            ),
         };
         std::mem::forget(open);
-        monitor::project(chronicle, last, last_v5, course.at, conclusion)
+        monitor::project(chronicle, last, at, conclusion)
     }
 
     /// The shell cannot complete (shutdown): `Cancelled` for what is pending,
@@ -363,7 +389,14 @@ mod tests {
             | Probe::Keep { .. }
             | Probe::Verify { .. } => (Ok(pose.clone()), Spent(1.0)),
         });
-        let kinds: Vec<_> = out.scene.attention.looks.iter().map(|l| l.kind).collect();
+        let kinds: Vec<_> = out
+            .v5
+            .scene
+            .attention
+            .looks
+            .iter()
+            .map(|l| l.kind)
+            .collect();
         assert_eq!(
             kinds,
             [LookKind::Detect, LookKind::Reinforce, LookKind::Pose]

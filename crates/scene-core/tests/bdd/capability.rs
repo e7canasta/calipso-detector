@@ -69,7 +69,7 @@ fn bed_holds_a_resident(ward: &mut Ward, lay_down_to: u32, unseen: u32, dwell: f
 /// Both are driven with the next sample.
 #[when(regex = r#"^a verifier answers "(yes|no|unsure)" to a question about that body$"#)]
 fn verifier_answers_about_body(ward: &mut Ward, answer: String) {
-    let n = ward.last().output.at.sequence as u32 + 1;
+    let n = ward.last().output.at.unwrap().sequence as u32 + 1;
     ward.verifier.answer = Some(match answer.as_str() {
         "yes" => scene_look::Answer::Yes,
         "no" => scene_look::Answer::No,
@@ -84,7 +84,7 @@ fn verifier_answers_about_body(ward: &mut Ward, answer: String) {
 /// sample are equal with the answer and without it.
 #[then("the room occupants are the same as without the answer")]
 fn occupants_same_as_without(ward: &mut Ward) {
-    let n = ward.last().output.at.sequence as u32;
+    let n = ward.last().output.at.unwrap().sequence as u32;
     let control = ward.control.as_ref().expect("the control run is built");
     assert_eq!(
         published_at(ward, n),
@@ -96,7 +96,7 @@ fn occupants_same_as_without(ward: &mut Ward) {
 /// In the scenario's run and in its control.
 #[then(regex = r"^the published bed state is ([a-z_]+)$")]
 fn published_bed_state(ward: &mut Ward, state: String) {
-    let n = ward.last().output.at.sequence as u32;
+    let n = ward.last().output.at.unwrap().sequence as u32;
     assert_eq!(published_at(ward, n).1, state.as_str(), "with the answer");
     if let Some(control) = &ward.control {
         assert_eq!(

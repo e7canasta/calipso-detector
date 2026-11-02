@@ -104,7 +104,10 @@ fn a_held_occupant_is_verified_through_the_port_and_confirmed() {
     let mut scenes = std::collections::BTreeMap::new();
     for n in 1..=60 {
         for processed in driver.arrive(support::sample(n, 1)) {
-            scenes.insert(processed.output.at.sequence, processed.output.scene);
+            scenes.insert(
+                processed.output.at.unwrap().sequence,
+                processed.output.v5.scene,
+            );
         }
     }
     let held = |n: u64| scenes[&n].bed.held.first().and_then(|h| h.check);

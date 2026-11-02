@@ -116,9 +116,9 @@ fn sequence(ward: &mut Ward, step: &Step) {
             let at = ward.sample(n);
             ward.turn_with(at, script);
         }
-        let scene = &ward.last().output.scene;
+        let scene = &ward.last().output.v5.scene;
         let Samples { from, to } = span.samples;
-        if let Some(difference) = golden::expected::difference(&span.expected, scene) {
+        if let Some(difference) = golden::expected::difference(&span.expected, scene.as_ref()) {
             panic!("at the end of span {from}-{to}, {difference}: {scene:#?}");
         }
     }
@@ -191,7 +191,7 @@ fn split_column(rows: &[Vec<String>], name: &str) -> (Vec<Vec<String>>, Vec<Stri
 /// How many people the room holds, in the words of the scenarios.
 #[then(expr = "the room is {string}")]
 fn the_room(ward: &mut Ward, state: String) {
-    let occupants = ward.last().output.scene.room.occupants;
+    let occupants = ward.last().output.v5.scene.room.occupants;
     let matches = match state.as_str() {
         "Empty" => occupants == 0,
         "One" => occupants == 1,
@@ -206,7 +206,7 @@ fn the_room(ward: &mut Ward, state: String) {
 
 #[then("there is no subject")]
 fn no_subject(ward: &mut Ward) {
-    assert_eq!(ward.last().output.scene.subject, None);
+    assert_eq!(ward.last().output.v5.scene.subject, None);
 }
 
 #[then(regex = r"^there is a subject, (in bed|off the bed)$")]
@@ -219,6 +219,7 @@ fn there_is_a_subject(ward: &mut Ward, where_: String) {
     let subject = ward
         .last()
         .output
+        .v5
         .scene
         .subject
         .as_ref()
@@ -228,7 +229,7 @@ fn there_is_a_subject(ward: &mut Ward, where_: String) {
 
 #[then(expr = "the bed occupant is held since sample {int}")]
 fn held_since(ward: &mut Ward, n: u32) {
-    let held = &ward.last().output.scene.bed.held;
+    let held = &ward.last().output.v5.scene.bed.held;
     assert_eq!(held.len(), 1, "one held: {held:?}");
     assert_eq!(held[0].last_seen, ward.sample(n));
 }
@@ -272,7 +273,7 @@ fn nobody_lay_down_after(ward: &mut Ward, n: u32) {
     let limit = ward.sample(n);
     let late: Vec<_> = observed(ward, event("someone lying down"))
         .into_iter()
-        .filter(|e| later(e.at, limit))
+        .filter(|e| later(e.at.unwrap(), limit))
         .collect();
     assert!(late.is_empty(), "someone lay down: {late:?}");
 }
@@ -282,7 +283,7 @@ fn no_events_after(ward: &mut Ward, n: u32) {
     let limit = ward.sample(n);
     let late: Vec<_> = ward
         .events()
-        .filter(|e| e.kind == Kind::Domain && later(e.at, limit))
+        .filter(|e| e.kind == Kind::Domain && later(e.at.unwrap(), limit))
         .collect();
     assert!(late.is_empty(), "events after sample {n}: {late:?}");
 }
@@ -312,14 +313,23 @@ fn occupants_did_not_change(ward: &mut Ward, n: u32) {
     let at_limit = ward
         .turns
         .iter()
-        .find(|t| t.output.at == limit)
+        .find(|t| t.output.at == Some(limit))
         .expect("a turn at that sample")
         .output
+        .v5
         .scene
         .room
         .occupants;
-    for t in ward.turns.iter().filter(|t| later(t.output.at, limit)) {
-        assert_eq!(t.output.scene.room.occupants, at_limit, "{:?}", t.output.at);
+    for t in ward
+        .turns
+        .iter()
+        .filter(|t| later(t.output.at.unwrap(), limit))
+    {
+        assert_eq!(
+            t.output.v5.scene.room.occupants, at_limit,
+            "{:?}",
+            t.output.at
+        );
     }
 }
 
@@ -336,26 +346,26 @@ fn state_after(ward: &mut Ward, kind: String, bed: String, seen: u32, held: u32)
 
 #[then("the evidence of the last sample has no bodies")]
 fn empty_evidence(ward: &mut Ward) {
-    let scene = serde_json::to_value(ward.last().output.scene.as_ref()).unwrap();
+    let scene = serde_json::to_value(ward.last().output.v5.scene.as_ref()).unwrap();
     assert_eq!(scene["evidence"]["bodies"]["items"], serde_json::json!([]));
 }
 
 #[then(regex = r"^there is a pending change at (\d+(?:\.\d+)?) of (\d+(?:\.\d+)?) seconds$")]
 fn pending(ward: &mut Ward, have: f64, need: f64) {
-    let p = ward.last().output.scene.room.pending.as_ref().unwrap();
+    let p = ward.last().output.v5.scene.room.pending.as_ref().unwrap();
     assert_eq!((p.duration.have, p.duration.need), (have, need));
 }
 
 #[then(expr = "the bed is {string} since sample {int}")]
 fn bed_since(ward: &mut Ward, state: String, n: u32) {
-    let bed = serde_json::to_value(&ward.last().output.scene.bed).unwrap();
+    let bed = serde_json::to_value(&ward.last().output.v5.scene.bed).unwrap();
     assert_eq!(bed["state"], state);
     assert_eq!(bed["since"], serde_json::to_value(ward.sample(n)).unwrap());
 }
 
 #[then(expr = "the held occupant was last seen in sample {int}")]
 fn last_seen(ward: &mut Ward, n: u32) {
-    let bed = serde_json::to_value(&ward.last().output.scene.bed).unwrap();
+    let bed = serde_json::to_value(&ward.last().output.v5.scene.bed).unwrap();
     assert_eq!(
         bed["held"][0]["last_seen"],
         serde_json::to_value(ward.sample(n)).unwrap()

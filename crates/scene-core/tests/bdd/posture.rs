@@ -127,9 +127,9 @@ fn the_median(ward: &mut Ward, n: u32) {
         .and_then(|s| s.depth)
         .expect("the subject has depth");
     assert!(
-        (f64::from(subject.meters) - median).abs() < 1e-5,
+        (f64::from(subject.relative) - median).abs() < 1e-5,
         "{} and {median}",
-        subject.meters
+        subject.relative
     );
 }
 
@@ -328,40 +328,6 @@ fn subject_without_key(ward: &mut Ward, n: u32, key: String) {
         "{}",
         scene["subject"]
     );
-}
-
-// --- The verdict (R16, 1605)
-
-fn verdict(ward: &Ward, n: u32) -> Value {
-    let scene = serde_json::to_value(scene(ward, n)).expect("the scene serializes");
-    scene["subject"]["verdict"].clone()
-}
-
-#[then(expr = "in sample {int} the verdict is {string}, by {string}")]
-fn the_verdict(ward: &mut Ward, n: u32, state: String, by: String) {
-    let v = verdict(ward, n);
-    assert_eq!(v["state"], state.as_str(), "{v}");
-    let heads: Vec<&str> = v["by"]
-        .as_array()
-        .unwrap_or_else(|| panic!("{v}"))
-        .iter()
-        .filter_map(Value::as_str)
-        .collect();
-    assert_eq!(heads.join(", "), by, "{v}");
-}
-
-#[then(expr = "in sample {int} the verdict is {string} since sample {int}")]
-fn verdict_since(ward: &mut Ward, n: u32, state: String, since: u32) {
-    let v = verdict(ward, n);
-    assert_eq!(v["state"], state.as_str(), "{v}");
-    let expected = serde_json::to_value(ward.sample(since)).expect("the sample serializes");
-    assert_eq!(v["since"], expected, "{v}");
-}
-
-#[then(expr = "in sample {int} there is no verdict")]
-fn no_verdict(ward: &mut Ward, n: u32) {
-    let v = verdict(ward, n);
-    assert!(v.is_null(), "{v}");
 }
 
 #[then(expr = "in sample {int} the subject is on the floor")]

@@ -5,8 +5,7 @@
 
 use crate::published::Body;
 use cucumber::{given, then};
-use scene_contract::Calibration;
-use scene_contract::{LookKind, LookOutcome, LookResult, Provenance, Scene, SkipReason, Zone};
+use scene_contract::{LookKind, LookOutcome, LookResult, Provenance, SkipReason, Zone};
 use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
 use scene_geom::Rect;
 
@@ -90,9 +89,9 @@ fn no_reference(ward: &mut Ward) {
 // --- What was decided
 
 /// The scenes in which the pose was requested, with the requested region.
-fn poses_requested(ward: &Ward) -> impl Iterator<Item = (&Scene, Rect)> {
+fn poses_requested(ward: &Ward) -> impl Iterator<Item = (&scene_contract::v5::Scene, Rect)> {
     ward.turns.iter().filter_map(|t| {
-        let scene: &Scene = &t.output.scene;
+        let scene: &scene_contract::v5::Scene = &t.output.v5.scene;
         scene.attention.looks.iter().find_map(|l| match l.outcome {
             LookOutcome::Asked {
                 region: Some(region),
@@ -110,7 +109,7 @@ fn first_pose(ward: &mut Ward) {
     let first = ward
         .turns
         .iter()
-        .map(|t| -> &Scene { &t.output.scene })
+        .map(|t| -> &scene_contract::v5::Scene { t.output.v5.scene.as_ref() })
         .find_map(|s| {
             s.attention
                 .looks
@@ -255,8 +254,8 @@ fn first_pose_after(ward: &mut Ward, m: u32) {
     let (scene, look) = ward
         .turns
         .iter()
-        .filter(|t| later(t.output.at, since))
-        .map(|t| -> &Scene { &t.output.scene })
+        .filter(|t| later(t.output.at.unwrap(), since))
+        .map(|t| -> &scene_contract::v5::Scene { t.output.v5.scene.as_ref() })
         .find_map(|s| {
             s.attention
                 .looks
@@ -280,7 +279,7 @@ fn pose_with_the_main_detector(ward: &mut Ward, n: u32) {
 }
 
 /// The subject's depth in sample `n`.
-fn depth(ward: &Ward, n: u32) -> Option<scene_contract::SubjectDepth> {
+fn depth(ward: &Ward, n: u32) -> Option<scene_contract::v5::SubjectDepth> {
     scene(ward, n).subject.as_ref().and_then(|s| s.depth)
 }
 
@@ -370,11 +369,11 @@ fn calibrations(ward: &Ward) -> Vec<u64> {
     ward.turns
         .iter()
         .filter(|t| {
-            t.output.scene.attention.looks.iter().any(|l| {
+            t.output.v5.scene.attention.looks.iter().any(|l| {
                 l.kind == LookKind::Calibrate && matches!(l.outcome, LookOutcome::Asked { .. })
             })
         })
-        .map(|t| t.output.at.sequence)
+        .map(|t| t.output.at.unwrap().sequence)
         .collect()
 }
 
@@ -382,7 +381,7 @@ fn calibrations(ward: &Ward) -> Vec<u64> {
 fn learned(ward: &Ward) -> Vec<u64> {
     ward.events()
         .filter(|e| matches!(e.body, Body::BedCalibrated { .. }))
-        .map(|e| e.at.sequence)
+        .map(|e| e.at.unwrap().sequence)
         .collect()
 }
 
@@ -417,14 +416,14 @@ fn no_calibration(ward: &mut Ward) {
 #[then("calibration was not requested before the room was left with 0 occupants")]
 fn calibrate_with_the_room_empty(ward: &mut Ward) {
     for t in &ward.turns {
-        let scene = &t.output.scene;
+        let scene = &t.output.v5.scene;
         let asked = scene.attention.looks.iter().any(|l| {
             l.kind == LookKind::Calibrate && matches!(l.outcome, LookOutcome::Asked { .. })
         });
         assert!(
             !asked || scene.room.occupants == 0,
             "calibration was requested in sample {} with {} occupants",
-            t.output.at.sequence,
+            t.output.at.unwrap().sequence,
             scene.room.occupants
         );
     }
@@ -445,9 +444,12 @@ fn not_calibrated(ward: &mut Ward, n: u32, reason: String) {
 
 #[then("the scene publishes the calibrated bed")]
 fn publishes_calibrated(ward: &mut Ward) {
-    let calibration = ward.last().output.scene.map.calibration;
+    let calibration = ward.last().output.v5.scene.map.calibration;
     assert!(
-        matches!(calibration, Calibration::Complete { .. }),
+        matches!(
+            calibration,
+            scene_contract::v5::Calibration::Complete { .. }
+        ),
         "{calibration:?}"
     );
 }

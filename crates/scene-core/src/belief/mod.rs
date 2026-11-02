@@ -21,9 +21,7 @@ use subject::SubjectMemory;
 pub(crate) use bed_posture::{BedPosture, BedPostureState};
 pub(crate) use parts::PartsReading;
 
-pub(crate) use occupancy::{
-    Alone, BedPhase, InBed, Occupancy, OccupancyRules, Room, Tally, Transition,
-};
+pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, OccupancyRules, Room, Transition};
 pub(crate) use subject::{Enrichment, SubjectBody};
 
 /// The occupants layer 0 believes in, by where they are: off the bed, seen in

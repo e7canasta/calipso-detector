@@ -460,7 +460,7 @@ fn retained_subject_v5(
 /// sensor events, from the last v5 scene.
 pub(crate) fn republished(
     reason: RepublishReason,
-    at: SampleRef,
+    at: Option<SampleRef>,
     changed: Option<SensorChanged>,
     sensor: SensorState,
     map: crate::map::MapState,
@@ -471,7 +471,7 @@ pub(crate) fn republished(
     Projection {
         // A reception change observes no sample; the other republications
         // observed the one they were asked about.
-        observed_at: (!matches!(reason, RepublishReason::Sensor)).then_some(at),
+        observed_at: at.filter(|_| !matches!(reason, RepublishReason::Sensor)),
         scene: Arc::new(republish_scene(last, reason, sensor, map)),
         events: sensor_events(changed, previous),
     }

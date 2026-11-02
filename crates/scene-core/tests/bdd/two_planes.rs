@@ -65,6 +65,7 @@ fn sees_and_the_pose_fails(ward: &mut Ward, n: u32, x0: f32, y0: f32, x1: f32, y
 fn pose_body(ward: &Ward) -> Option<LookOutcome> {
     ward.last()
         .output
+        .v5
         .scene
         .attention
         .looks
@@ -123,7 +124,7 @@ fn knee_not_measured(ward: &mut Ward) {
 }
 
 fn body(ward: &Ward) -> BodySeen {
-    let items = &ward.last().output.scene.evidence.bodies.items;
+    let items = &ward.last().output.v5.scene.evidence.bodies.items;
     assert_eq!(items.len(), 1, "a single body: {items:?}");
     items.first().cloned().expect("a body")
 }

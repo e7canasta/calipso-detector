@@ -5,7 +5,7 @@
 
 use cucumber::{given, then};
 use scene_contract::{
-    FrameInfo, LookKind, LookOutcome, LookResult, Provenance, RejectReason, Scene, SkipReason,
+    FrameInfo, LookKind, LookOutcome, LookResult, Provenance, RejectReason, SkipReason,
 };
 use scene_core::policy::{FacePolicy, FocusPolicy};
 use scene_core::units::{Confidence, Seconds};
@@ -87,15 +87,16 @@ fn other_size(ward: &mut Ward) {
 // --- What was looked at
 
 /// The scene of sample `n`.
-pub(crate) fn scene(ward: &Ward, n: u32) -> &Scene {
+pub(crate) fn scene(ward: &Ward, n: u32) -> &scene_contract::v5::Scene {
     let at = ward.sample(n);
     &ward
         .turns
         .iter()
         .rev()
-        .find(|t| t.output.at == at)
+        .find(|t| t.output.at == Some(at))
         .unwrap_or_else(|| panic!("there was no sample {n}"))
         .output
+        .v5
         .scene
 }
 
@@ -199,7 +200,7 @@ fn occupants_between(ward: &mut Ward, occupants: u32, from: u32, to: u32) {
 
 /// The focus the last scene's map carries.
 fn published_focus(ward: &Ward) -> Option<Rect> {
-    ward.turns.last().expect("a turn").output.scene.map.focus
+    ward.turns.last().expect("a turn").output.v5.scene.map.focus
 }
 
 #[then(expr = "the scene's map carries the bed grown by {float} as the focus")]
@@ -280,13 +281,13 @@ fn faces_skipped(ward: &mut Ward, n: u32) {
 
 #[then(regex = r"^the last sample accepted (\d+) faces?$")]
 fn faces_accepted(ward: &mut Ward, n: usize) {
-    let faces = &ward.last().output.scene.evidence.faces;
+    let faces = &ward.last().output.v5.scene.evidence.faces;
     assert_eq!(faces.items.len(), n, "{faces:?}");
 }
 
 #[then("the face of the last sample is on the subject")]
 fn face_on_the_subject(ward: &mut Ward) {
-    let faces = &ward.last().output.scene.evidence.faces;
+    let faces = &ward.last().output.v5.scene.evidence.faces;
     assert!(
         faces.items.iter().any(|f| f.on_subject),
         "no face on the subject: {faces:?}"
@@ -295,7 +296,7 @@ fn face_on_the_subject(ward: &mut Ward) {
 
 #[then("the last sample discarded a face for low confidence")]
 fn face_discarded(ward: &mut Ward) {
-    let scene = &ward.last().output.scene;
+    let scene = &ward.last().output.v5.scene;
     let rejections = scene
         .attention
         .looks

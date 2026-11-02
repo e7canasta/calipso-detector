@@ -64,8 +64,8 @@ fn changes(ward: &Ward, n: u32) -> Vec<Value> {
     let at = ward.sample(n);
     ward.turns
         .iter()
-        .filter(|t| t.output.at == at)
-        .flat_map(|t| &t.output.events)
+        .filter(|t| t.output.at == Some(at))
+        .flat_map(|t| &t.output.v5.events)
         .map(|e| serde_json::to_value(e).expect("an event serializes"))
         .filter(|e| e["kind"] == "bed_posture")
         .collect()
@@ -107,9 +107,9 @@ fn no_changes(ward: &mut Ward, first: u32, last: u32) {
 fn changes_agree(ward: &mut Ward) {
     let mut published = 0;
     for turn in &ward.turns {
-        let scene = serde_json::to_value(&*turn.output.scene).expect("the scene serializes");
+        let scene = serde_json::to_value(&*turn.output.v5.scene).expect("the scene serializes");
         let at = serde_json::to_value(turn.output.at).expect("a sample serializes");
-        for event in &turn.output.events {
+        for event in &turn.output.v5.events {
             let event = serde_json::to_value(event).expect("an event serializes");
             if event["kind"] != "bed_posture" {
                 continue;

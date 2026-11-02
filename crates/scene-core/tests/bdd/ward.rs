@@ -7,7 +7,7 @@ use std::fmt;
 use crate::published::{Body, Fact, Kind};
 pub use crate::script::Script;
 use cucumber::World;
-use scene_contract::{LookKind, LookResult, Provenance, SampleRef, Scene, SessionId, SourceSecs};
+use scene_contract::{LookKind, LookResult, Provenance, SampleRef, SessionId, SourceSecs};
 use scene_core::map::FrameInfo;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
@@ -92,7 +92,7 @@ impl fmt::Debug for Ward {
         f.debug_struct("Ward")
             .field("policy", &self.policy)
             .field("turns", &self.turns.len())
-            .field("last", &self.turns.last().map(|t| &t.output.scene))
+            .field("last", &self.turns.last().map(|t| &t.output.v5.scene))
             .finish()
     }
 }
@@ -197,7 +197,7 @@ impl Ward {
         });
         self.verifier.owed.extend(asked);
         let facts = crate::published::facts(&output);
-        invariants(&output.scene, &facts);
+        invariants(&output.v5.scene, &facts);
         crate::published::check(&output);
         self.recording.push((input, script));
         self.turns.push(Turn { output, facts });
@@ -267,7 +267,7 @@ pub fn later(a: SampleRef, b: SampleRef) -> bool {
 }
 
 /// The rules' guardians, checked on every turn of every scenario.
-fn invariants(scene: &Scene, events: &[Fact]) {
+fn invariants(scene: &scene_contract::v5::Scene, events: &[Fact]) {
     use scene_contract::BedState;
     if scene.bed.state == BedState::Held {
         assert_eq!(scene.bed.seen, 0);

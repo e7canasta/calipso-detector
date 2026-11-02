@@ -43,7 +43,7 @@ fn faces_on_current_resident_are_published_in_frame_coordinates_on_subject() {
     for n in 1..=5 {
         faces.at(n);
         let output = driver.arrive(support::sample(n, 1)).pop().unwrap().output;
-        let items = &output.scene.evidence.faces.items;
+        let items = &output.v5.scene.evidence.faces.items;
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].bbox, Rect::new(32.0, 32.0, 38.0, 38.0));
         if n >= 3 {

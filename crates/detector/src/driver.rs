@@ -266,16 +266,17 @@ mod tests {
             (Ok(None), RepublishReason::DecodeEmpty),
         ] {
             let p = d.frame(at, frame, t, t).pop().unwrap();
-            assert_eq!(p.output.scene.republished.unwrap().reason, reason);
+            assert_eq!(p.output.v5.scene.republished.unwrap().reason, reason);
             assert!(
                 !p.output
+                    .v5
                     .scene
                     .attention
                     .looks
                     .iter()
                     .any(|look| matches!(look.outcome, LookOutcome::Asked { .. }))
             );
-            assert!(p.output.events.is_empty());
+            assert!(p.output.v5.events.is_empty());
         }
     }
     #[test]
@@ -305,15 +306,15 @@ mod tests {
             &clock,
         ));
         let output = &outputs.last().unwrap().output;
-        assert_eq!(output.at, stamp_to_ref(stamp()));
+        assert_eq!(output.at, Some(stamp_to_ref(stamp())));
         assert_eq!(
-            output.scene.frame,
+            output.v5.scene.frame,
             Some(FrameInfo {
                 width: 160,
                 height: 96
             })
         );
-        assert!(output.scene.republished.is_none());
+        assert!(output.v5.scene.republished.is_none());
         // Both clocks are fixed: the wait and the turn measure zero, exactly.
         assert_eq!(outputs.last().unwrap().timing.wait_ms, 0.0);
         assert_eq!(outputs.last().unwrap().timing.processing_ms, 0.0);
@@ -325,17 +326,18 @@ mod tests {
         let first = d
             .on_stream(StreamEvent::Streaming { session: 1 }, t)
             .unwrap();
-        assert_eq!(first.output.scene.sensor, SensorState::Streaming);
-        assert_eq!(first.output.events.len(), 1);
+        assert_eq!(first.output.v5.scene.sensor, SensorState::Streaming);
+        assert_eq!(first.output.v5.events.len(), 1);
         assert!(
             d.on_stream(StreamEvent::Streaming { session: 1 }, t)
                 .unwrap()
                 .output
+                .v5
                 .events
                 .is_empty()
         );
         let stalled = d.poll_stall(t + Duration::from_secs(3)).unwrap();
-        assert_eq!(stalled.output.scene.sensor, SensorState::Stalled);
+        assert_eq!(stalled.output.v5.scene.sensor, SensorState::Stalled);
         assert!(d.poll_stall(t + Duration::from_secs(4)).is_none());
         let recovered = d.frame(
             stamp_to_ref(stamp()),
@@ -344,7 +346,7 @@ mod tests {
             t + Duration::from_secs(4),
         );
         assert_eq!(recovered.len(), 2);
-        assert_eq!(recovered[0].output.scene.sensor, SensorState::Streaming);
+        assert_eq!(recovered[0].output.v5.scene.sensor, SensorState::Streaming);
         let disconnected = d
             .on_stream(
                 StreamEvent::Disconnected {
@@ -354,10 +356,13 @@ mod tests {
                 t,
             )
             .unwrap();
-        assert_eq!(disconnected.output.scene.sensor, SensorState::Reconnecting);
         assert_eq!(
-            disconnected.output.scene.room,
-            recovered[1].output.scene.room
+            disconnected.output.v5.scene.sensor,
+            SensorState::Reconnecting
+        );
+        assert_eq!(
+            disconnected.output.v5.scene.room,
+            recovered[1].output.v5.scene.room
         );
     }
 }

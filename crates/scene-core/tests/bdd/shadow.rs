@@ -39,6 +39,7 @@ fn shadow_on(ward: &mut Ward, near_m: f32) {
 fn shadow(ward: &Ward) -> MapShadow {
     ward.last()
         .output
+        .v5
         .scene
         .map
         .shadow
@@ -53,7 +54,7 @@ fn close(a: Rect, b: Rect) -> bool {
 
 #[then("the scene's map carries no shadow")]
 fn no_shadow(ward: &mut Ward) {
-    assert_eq!(ward.last().output.scene.map.shadow, None);
+    assert_eq!(ward.last().output.v5.scene.map.shadow, None);
 }
 
 #[then(
@@ -120,15 +121,15 @@ fn shadow_decides_nothing(ward: &mut Ward) {
         .collect();
     assert_eq!(without.len(), ward.turns.len());
     for (bare, turn) in without.iter().zip(&ward.turns) {
-        let mut with = turn.output.scene.as_ref().clone();
+        let mut with = turn.output.v5.scene.as_ref().clone();
         assert!(with.map.shadow.is_some(), "the shadow was asked for");
         with.map.shadow = None;
         for body in &mut with.evidence.bodies.items {
             body.shadow = None;
         }
-        assert_eq!(*bare.scene, with, "the scene at {:?} differs", bare.at);
+        assert_eq!(*bare.v5.scene, with, "the scene at {:?} differs", bare.at);
         assert_eq!(
-            bare.events, turn.output.events,
+            bare.v5.events, turn.output.v5.events,
             "the events at {:?} differ",
             bare.at
         );
@@ -148,7 +149,7 @@ fn sees_a_person(ward: &mut Ward, n: u32, x0: f32, y0: f32, x1: f32, y1: f32) {
 }
 
 fn body(ward: &Ward) -> BodySeen {
-    let items = &ward.last().output.scene.evidence.bodies.items;
+    let items = &ward.last().output.v5.scene.evidence.bodies.items;
     assert_eq!(items.len(), 1, "a single body: {items:?}");
     items.first().cloned().expect("a body")
 }

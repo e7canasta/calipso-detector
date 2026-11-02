@@ -5,27 +5,16 @@
 use std::sync::Arc;
 
 use super::pending::Pending;
-use super::{Course, Engine, Input, Monitor, NoFrame, Open, Output, Phase, Turn};
+use super::{
+    Course, Engine, Input, Monitor, NoFrame, Open, Output, Phase, SampleTurn, Scope, Turn,
+};
 use crate::attention::Attention;
 use crate::chronicle::{Chronicle, Entry};
 use crate::conclusion::{Conclusion, RepublishReason};
 use crate::look::Verified;
 use crate::map::{FrameInfo, Geometry, SiteMap};
 use crate::policy::Policy;
-use crate::project::v4;
 use crate::time::SampleRef;
-use scene_contract::Scene;
-
-impl Input {
-    /// The turn's reference: a sample's own, and for a reception change the one
-    /// v4 stamps it with (`project::v4::reference`).
-    fn at(&self) -> SampleRef {
-        match self {
-            Input::Sample { at, .. } | Input::NoFrame { at, .. } => *at,
-            Input::Sensor { session, last, .. } => v4::reference(*session, *last),
-        }
-    }
-}
 
 impl Monitor {
     /// A camera's monitor: its policies and its site. The belief starts empty.
@@ -34,7 +23,6 @@ impl Monitor {
             engine: Engine::new(policy, map),
             chronicle: Chronicle::default(),
             last: None,
-            last_v5: None,
         }
     }
 
@@ -49,43 +37,50 @@ impl Monitor {
     /// that the course gets the engine alone, and the turn keeps the chronicle
     /// and the last scene for its close.
     pub fn handle(&mut self, input: Input) -> Turn<'_> {
-        let at = input.at();
         let Monitor {
             engine,
             chronicle,
             last,
-            last_v5,
         } = self;
-        let mut course = Course {
-            engine,
-            at,
-            geometry: Geometry::Valid,
-            room: None,
-            filled: None,
-            attention: Attention::default(),
-        };
-        let phase = match input {
-            Input::Sample { frame, .. } => course.open(frame),
-            Input::NoFrame { why, .. } => Phase::Republish {
-                reason: match why {
-                    NoFrame::DecodeFailed => RepublishReason::DecodeFailed,
-                    NoFrame::Empty => RepublishReason::DecodeEmpty,
+        let scope = match input {
+            Input::Sample { at, frame } => {
+                let mut course = course(engine, at);
+                let phase = course.open(frame);
+                Scope::Sample(Box::new(SampleTurn { course, phase }))
+            }
+            Input::NoFrame { at, why } => Scope::Sample(Box::new(SampleTurn {
+                course: course(engine, at),
+                phase: Phase::Republish {
+                    reason: match why {
+                        NoFrame::DecodeFailed => RepublishReason::DecodeFailed,
+                        NoFrame::Empty => RepublishReason::DecodeEmpty,
+                    },
+                    changed: None,
                 },
-                changed: None,
-            },
-            Input::Sensor { state, last, .. } => Phase::Republish {
-                reason: RepublishReason::Sensor,
-                changed: course.engine.sensor_reported(at, last, state),
+            })),
+            Input::Sensor { state, last, .. } => Scope::Reception {
+                changed: engine.sensor_reported(last, state),
+                engine,
             },
         };
         Turn {
-            course,
+            scope,
             chronicle,
             last,
-            last_v5,
-            phase,
             open: Open,
         }
+    }
+}
+
+/// A turn over a sample: the course with the engine alone, at its sample.
+fn course(engine: &mut Engine, at: SampleRef) -> Course<'_> {
+    Course {
+        engine,
+        at,
+        geometry: Geometry::Valid,
+        room: None,
+        filled: None,
+        attention: Attention::default(),
     }
 }
 
@@ -95,26 +90,17 @@ impl Monitor {
 /// borrowed apart from the course.
 pub(super) fn project(
     chronicle: &mut Chronicle,
-    last: &mut Option<(SampleRef, Arc<Scene>)>,
-    last_v5: &mut Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
-    at: SampleRef,
+    last: &mut Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
+    at: Option<SampleRef>,
     conclusion: Conclusion,
 ) -> Output {
     match conclusion {
         Conclusion::Observed(observation) => {
             let chronicled = chronicle.record(Entry::of(&observation));
-            // Both versions read the same observation and chronicle (C4): v5
-            // first, by reference, then v4 consumes the observation. v5 never
-            // reads v4's output.
             let v5 = crate::project::v5::observed(&observation, &chronicled);
-            let (scene, events) = v4::observed(*observation, &chronicled);
-            let scene = Arc::new(scene);
-            *last = Some((at, Arc::clone(&scene)));
-            *last_v5 = Some((at, Arc::clone(&v5.scene)));
+            *last = Some((observation.at, Arc::clone(&v5.scene)));
             Output {
-                at,
-                scene,
-                events,
+                at: Some(observation.at),
                 v5,
             }
         }
@@ -124,25 +110,17 @@ pub(super) fn project(
             sensor,
             map,
         } => {
-            let previous = last.as_ref().map(|(at, scene)| (scene.as_ref(), *at));
-            // v5 republishes its own last scene, never v4's (the versions are
-            // independent): `last` holds the v4 scene, so v5 keeps its own copy.
+            // A republished scene is the last one of the contract, never a
+            // turn's own observation.
             let v5 = crate::project::v5::republished(
                 reason,
                 at,
                 changed,
                 sensor,
                 *map.clone(),
-                last_v5.as_ref().map(|(at, scene)| (scene.as_ref(), *at)),
+                last.as_ref().map(|(at, scene)| (scene.as_ref(), *at)),
             );
-            let scene = v4::republish(previous, reason, sensor, *map);
-            let events = v4::sensor_events(changed, previous.map(|(scene, _)| scene));
-            Output {
-                at,
-                scene: Arc::new(scene),
-                events,
-                v5,
-            }
+            Output { at, v5 }
         }
     }
 }
