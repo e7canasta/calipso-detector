@@ -7,7 +7,7 @@ use super::pending::Pending;
 use super::{Course, Observed, Phase, Refined};
 use crate::attention::Consideration::{Decided, Disabled, Inapplicable};
 use crate::attention::{
-    BodyPoseLook, Consideration, Decision, DepthLook, EnrichPlan, Glimpse, SubjectDepthLook,
+    BodyPoseLook, Considered, Decision, DepthLook, EnrichPlan, Glimpse, SubjectDepthLook,
     VerifyLook,
 };
 use crate::belief::Believed;
@@ -32,27 +32,27 @@ impl Course<'_> {
         self.engine.glimpse(self.at, self.geometry, bodies, faces)
     }
 
-    pub(super) fn widen(&self, focused: &Admission) -> Consideration<()> {
+    pub(super) fn widen(&self, focused: &Admission) -> Considered<()> {
         let g = self.glimpse(focused, &FaceEvidence::NotLooked);
         self.engine.widening(&g)
     }
 
-    pub(super) fn reinforce(&self, primary: &Admission) -> Consideration<Rect> {
+    pub(super) fn reinforce(&self, primary: &Admission) -> Considered<Rect> {
         let g = self.glimpse(primary, &FaceEvidence::NotLooked);
         self.engine.reinforcement(&g)
     }
 
-    pub(super) fn faces(&self, bodies: &Admission) -> Consideration<(FaceRegion, FacePolicy)> {
+    pub(super) fn faces(&self, bodies: &Admission) -> Considered<(FaceRegion, FacePolicy)> {
         let g = self.glimpse(bodies, &FaceEvidence::NotLooked);
         self.engine.faces_look(&g)
     }
 
-    pub(super) fn pose_bodies(&self, perceived: &Perceived) -> Consideration<BodyPoseLook> {
+    pub(super) fn pose_bodies(&self, perceived: &Perceived) -> Considered<BodyPoseLook> {
         let g = self.glimpse(&perceived.bodies, &perceived.faces);
         self.engine.pose_look(&g, self.room.as_ref())
     }
 
-    pub(super) fn calibrate(&self, observed: &Observed) -> Consideration<DepthLook<Point>> {
+    pub(super) fn calibrate(&self, observed: &Observed) -> Considered<DepthLook<Point>> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         self.engine.calibration_look(&g, &observed.believed)
@@ -67,7 +67,7 @@ impl Course<'_> {
     /// crop; with one frame it goes out now.
     pub(super) fn ask_verifier(&mut self, refined: Refined) -> Phase {
         let considered = self.verify(&refined);
-        let Some(look) = self.wanted(LookKind::Verify, considered) else {
+        let Some(look) = self.wanted(considered) else {
             return Phase::Concluded { refined };
         };
         match self.engine.issue(self.at, &look) {
@@ -100,10 +100,10 @@ impl Course<'_> {
     /// what gets noted; a doubt that is not there notes nothing.
     pub(super) fn note_busy_doubt(&mut self, refined: &Refined) {
         let considered = self.verify(refined);
-        let _ = self.wanted(LookKind::Verify, considered);
+        let _ = self.wanted(considered);
     }
 
-    pub(super) fn verify(&self, refined: &Refined) -> Consideration<VerifyLook> {
+    pub(super) fn verify(&self, refined: &Refined) -> Considered<VerifyLook> {
         let Perceived { bodies, faces, .. } = &refined.observed.evidence;
         let g = self.glimpse(bodies, faces);
         self.engine.verify_look(
@@ -123,7 +123,7 @@ impl Course<'_> {
         observed: &Observed,
         pose: Option<&[Keypoint]>,
         head: HeadPlace,
-    ) -> Consideration<SubjectDepthLook> {
+    ) -> Considered<SubjectDepthLook> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         self.engine.depth_look(&g, pose, head)
@@ -131,11 +131,11 @@ impl Course<'_> {
 
     /// What attention wants looked at, if anything. A no with its reason goes
     /// to the ledger (rule 12); with nothing to decide, nothing does.
-    pub(super) fn wanted<T>(&mut self, kind: LookKind, considered: Consideration<T>) -> Option<T> {
-        match considered {
+    pub(super) fn wanted<T>(&mut self, considered: Considered<T>) -> Option<T> {
+        match considered.consideration {
             Decided(Decision::Ask(what)) => Some(what),
             Decided(Decision::Skip(reason)) => {
-                self.skipped(kind, reason);
+                self.skipped(considered.kind, reason);
                 None
             }
             Disabled | Inapplicable => None,

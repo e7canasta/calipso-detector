@@ -5,6 +5,7 @@
 
 use crate::evidence::BodyEvidence;
 use crate::evidence::FaceEvidence;
+use crate::look::LookKind;
 use crate::map::{Geometry, Map};
 use crate::time::SampleRef;
 
@@ -48,4 +49,23 @@ pub(crate) enum Consideration<T> {
     Disabled,
     Inapplicable,
     Decided(Decision<T>),
+}
+
+/// One look's consideration, with the look's kind: the question of the engine
+/// names the look once and attaches its kind here (ADR 40, P7), so the sequence
+/// asks by the question and cannot pair a decision with the wrong kind.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Considered<T> {
+    pub(crate) kind: LookKind,
+    pub(crate) consideration: Consideration<T>,
+}
+
+impl<T> Considered<T> {
+    /// The consideration of the look `kind`, as attention decided it.
+    pub(crate) fn of(kind: LookKind, consideration: Consideration<T>) -> Self {
+        Self {
+            kind,
+            consideration,
+        }
+    }
 }

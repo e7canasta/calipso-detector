@@ -60,7 +60,7 @@ impl Course<'_> {
                 // The focus only confirms: otherwise, the whole frame.
                 Reached::Focused(focused) => {
                     let considered = self.widen(&focused);
-                    if self.wanted(LookKind::Detect, considered).is_some() {
+                    if self.wanted(considered).is_some() {
                         return Phase::Waiting(Pending::Detect { region: None });
                     }
                     Reached::Primary(focused)
@@ -68,7 +68,7 @@ impl Course<'_> {
                 // First attention point, before believing: a loss to reinforce?
                 Reached::Primary(primary) => {
                     let considered = self.reinforce(&primary);
-                    if let Some(region) = self.wanted(LookKind::Reinforce, considered) {
+                    if let Some(region) = self.wanted(considered) {
                         return Phase::Waiting(Pending::Reinforce { region, primary });
                     }
                     Reached::Bodies(primary)
@@ -76,7 +76,7 @@ impl Course<'_> {
                 // Where to look for faces?
                 Reached::Bodies(bodies) => {
                     let considered = self.faces(&bodies);
-                    if let Some((region, policy)) = self.wanted(LookKind::Faces, considered) {
+                    if let Some((region, policy)) = self.wanted(considered) {
                         return Phase::Waiting(Pending::Faces {
                             region,
                             policy,
@@ -92,7 +92,7 @@ impl Course<'_> {
                 // A doubtful body to place with its pose, before believing?
                 Reached::Perceived(perceived) => {
                     let considered = self.pose_bodies(&perceived);
-                    if let Some(look) = self.wanted(LookKind::PoseBody, considered) {
+                    if let Some(look) = self.wanted(considered) {
                         return Phase::Waiting(Pending::PoseBody {
                             region: look.region,
                             floor: look.floor,
@@ -114,7 +114,7 @@ impl Course<'_> {
                 // Second attention point, after believing: learn the bed?
                 Reached::Belief(observed) => {
                     let considered = self.calibrate(&observed);
-                    if let Some(look) = self.wanted(LookKind::Calibrate, considered) {
+                    if let Some(look) = self.wanted(considered) {
                         self.engine.calibration_attempted(self.at);
                         return Phase::Waiting(Pending::Calibrate {
                             region: look.region,
@@ -164,7 +164,7 @@ impl Course<'_> {
                 } => {
                     let head = self.head_place(&observed, pose.as_deref());
                     let considered = self.deepen(&observed, pose.as_deref(), head);
-                    match (self.wanted(LookKind::Depth, considered), pose) {
+                    match (self.wanted(considered), pose) {
                         (Some(points), Some(pose)) => {
                             let SubjectDepthLook { look, head } = points;
                             return Phase::Waiting(Pending::Depth {

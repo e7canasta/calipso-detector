@@ -2,14 +2,14 @@
 //! policy that owns it, over what the turn sees through the glimpse.
 
 use crate::attention::{
-    self, BodyPoseLook, Consideration, DepthLook, EnrichPlan, Glimpse, SubjectDepthLook,
+    self, BodyPoseLook, Considered, DepthLook, EnrichPlan, Glimpse, SubjectDepthLook,
 };
 use crate::belief::Believed;
 use crate::body::{HeadPlace, Keypoint};
 use crate::cycle::Engine;
 use crate::evidence::{Admission, FaceEvidence, Perceived};
 use crate::geom::{Point, Rect};
-use crate::look::FaceRegion;
+use crate::look::{FaceRegion, LookKind};
 use crate::map::Geometry;
 use crate::policy::FacePolicy;
 use crate::room::Room;
@@ -56,17 +56,20 @@ impl Engine {
     }
 
     /// Whether the focus must widen to the whole frame.
-    pub(in crate::cycle) fn widening(&self, g: &Glimpse<'_>) -> Consideration<()> {
-        attention::widen(g, &self.belief)
+    pub(in crate::cycle) fn widening(&self, g: &Glimpse<'_>) -> Considered<()> {
+        Considered::of(LookKind::Detect, attention::widen(g, &self.belief))
     }
 
     /// Whether a loss is to be reinforced, over the region it asks for.
-    pub(in crate::cycle) fn reinforcement(&self, g: &Glimpse<'_>) -> Consideration<Rect> {
-        attention::reinforce(
-            g,
-            self.belief.bed_seen(),
-            self.attention_memory.latch(),
-            self.reinforce.as_ref(),
+    pub(in crate::cycle) fn reinforcement(&self, g: &Glimpse<'_>) -> Considered<Rect> {
+        Considered::of(
+            LookKind::Reinforce,
+            attention::reinforce(
+                g,
+                self.belief.bed_seen(),
+                self.attention_memory.latch(),
+                self.reinforce.as_ref(),
+            ),
         )
     }
 
@@ -74,8 +77,8 @@ impl Engine {
     pub(in crate::cycle) fn faces_look(
         &self,
         g: &Glimpse<'_>,
-    ) -> Consideration<(FaceRegion, FacePolicy)> {
-        attention::faces(g, self.faces.as_ref())
+    ) -> Considered<(FaceRegion, FacePolicy)> {
+        Considered::of(LookKind::Faces, attention::faces(g, self.faces.as_ref()))
     }
 
     /// A doubtful body to place with its pose, before believing.
@@ -83,8 +86,11 @@ impl Engine {
         &self,
         g: &Glimpse<'_>,
         room: Option<&Room>,
-    ) -> Consideration<BodyPoseLook> {
-        attention::pose_bodies(g, room, self.enrich.as_ref())
+    ) -> Considered<BodyPoseLook> {
+        Considered::of(
+            LookKind::PoseBody,
+            attention::pose_bodies(g, room, self.enrich.as_ref()),
+        )
     }
 
     /// Whether the empty bed is to be measured to learn it.
@@ -92,14 +98,17 @@ impl Engine {
         &self,
         g: &Glimpse<'_>,
         believed: &Believed,
-    ) -> Consideration<DepthLook<Point>> {
-        attention::calibrate(
-            g,
-            believed,
-            &self.calibration,
-            &self.attention_memory,
-            self.depth_pad,
-            self.calibration_policy.as_ref(),
+    ) -> Considered<DepthLook<Point>> {
+        Considered::of(
+            LookKind::Calibrate,
+            attention::calibrate(
+                g,
+                believed,
+                &self.calibration,
+                &self.attention_memory,
+                self.depth_pad,
+                self.calibration_policy.as_ref(),
+            ),
         )
     }
 
@@ -136,8 +145,11 @@ impl Engine {
         g: &Glimpse<'_>,
         pose: Option<&[Keypoint]>,
         head: HeadPlace,
-    ) -> Consideration<SubjectDepthLook> {
-        attention::deepen(g, pose, head, self.depth_pad, self.enrich.as_ref())
+    ) -> Considered<SubjectDepthLook> {
+        Considered::of(
+            LookKind::Depth,
+            attention::deepen(g, pose, head, self.depth_pad, self.enrich.as_ref()),
+        )
     }
 
     /// A reinforcement look that answered: the loss counts as checked.

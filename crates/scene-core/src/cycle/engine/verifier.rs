@@ -2,10 +2,11 @@
 //! requests are dispatched, and a turn that reaches it moves a burst on. Each
 //! operation answers with what it does, typed: the turn matches on the answer.
 
-use crate::attention::{self, Consideration, LookResult, VerifyLook};
+use crate::attention::{self, Considered, LookResult, VerifyLook};
 use crate::belief::bed_posture;
 use crate::cycle::Engine;
 use crate::look::Failure;
+use crate::look::LookKind;
 use crate::refine::BodyPlaces;
 use crate::time::SampleRef;
 use crate::verification::{AskOut, Event, KeptOut, TurnOut};
@@ -17,13 +18,16 @@ impl Engine {
         g: &attention::Glimpse<'_>,
         layer_1: Option<bed_posture::BedPostureState>,
         places: Option<BodyPlaces>,
-    ) -> Consideration<VerifyLook> {
-        attention::verify(
-            g,
-            &self.verification,
-            layer_1,
-            places,
-            self.verify_policy.as_ref(),
+    ) -> Considered<VerifyLook> {
+        Considered::of(
+            LookKind::Verify,
+            attention::verify(
+                g,
+                &self.verification,
+                layer_1,
+                places,
+                self.verify_policy.as_ref(),
+            ),
         )
     }
 
