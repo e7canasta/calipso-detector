@@ -1,7 +1,9 @@
-//! The harness adapter: a `Script` answers the probes of a turn. What the box
-//! senses see is decided by the scene's world (`golden::world`): a single fake,
-//! with the real sense's region semantics. Only failures and what the
-//! scene does not model (pose, depth) are scripted here.
+//! The harness has two layers, and nothing else answers a probe. The bottom one
+//! is the world (`golden::world`): what the scene sees, with the real sense's
+//! region semantics. The top one is `Script`, which decorates it: it answers the
+//! senses the world does not model (pose, depth, the verifier), and it injects
+//! what a scenario writes (failures, the verifier's refusals and blur). The
+//! harness's turn runs `Script::respond` and nothing in front of it.
 use golden::language::{Expected, InBed, Location, Samples, Span, spans_from_cells};
 use golden::world::{self, Sample};
 use scene_contract::Keypoint;
@@ -38,6 +40,13 @@ pub struct Script {
     pub detect_other_kind: bool,
     /// Reinforcement answers with a reading of another kind than its probe.
     pub reinforce_other_kind: bool,
+    /// The verifier refuses every request it is sent (`Failure::Model`).
+    pub verify_refused: bool,
+    /// The verifier refuses every crop it is asked to keep (`Failure::Model`).
+    pub keep_refused: bool,
+    /// This sample's kept crop is blurred: the shell measures it at 10, against
+    /// 100 for every other.
+    pub keep_blurred: bool,
 }
 
 impl Default for Script {
@@ -55,6 +64,9 @@ impl Default for Script {
             verify: Ok(()),
             detect_other_kind: false,
             reinforce_other_kind: false,
+            verify_refused: false,
+            keep_refused: false,
+            keep_blurred: false,
         }
     }
 }
@@ -78,7 +90,22 @@ impl Script {
     }
 
     /// The scripted senses: the reading the scenario dictates for a probe.
+    /// Whether the verifier refuses this probe.
+    pub fn refuses(&self, probe: &Probe) -> bool {
+        match probe {
+            Probe::Verify { .. } => self.verify_refused,
+            Probe::Keep { .. } => self.keep_refused,
+            _ => false,
+        }
+    }
+
     pub fn respond(&self, probe: &Probe) -> Result<Reading, Failure> {
+        if self.refuses(probe) {
+            return Err(Failure::Model);
+        }
+        if self.keep_blurred && matches!(probe, Probe::Keep { .. }) {
+            return Ok(Reading::Kept { sharpness: 10.0 });
+        }
         let other_kind = match probe {
             Probe::Detect { .. } => self.detect_other_kind,
             Probe::Reinforce { .. } => self.reinforce_other_kind,

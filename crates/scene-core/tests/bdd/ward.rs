@@ -9,7 +9,7 @@ pub use crate::script::Script;
 use cucumber::World;
 use scene_contract::{LookKind, LookResult, Provenance, SampleRef, Scene, SessionId, SourceSecs};
 use scene_core::geom::Quad;
-use scene_core::look::{Failure, Spent};
+use scene_core::look::Spent;
 use scene_core::map::FrameInfo;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
@@ -145,15 +145,18 @@ impl Ward {
     /// Drives a turn with the core's driver (`Turn::drive`): the scripted
     /// senses answer each probe.
     pub fn drive(&mut self, input: Input, script: &Script) {
-        // Whether this sample's kept crop is blurred, before the monitor is borrowed.
-        let blurred = match &input {
+        // The verifier's faults are the scene's: they go into the script that
+        // answers, so the recorded night carries them and its replay gets them
+        // too. Read before the monitor is borrowed.
+        let mut script = script.clone();
+        script.verify_refused = self.verifier.refuses_requests;
+        script.keep_refused = self.verifier.refuses_crops;
+        script.keep_blurred = match &input {
             Input::Sample { at, .. } => {
                 self.verifier.blurred.iter().any(|&n| self.sample(n) == *at)
             }
             _ => false,
         };
-        let (refuses_requests, refuses_crops) =
-            (self.verifier.refuses_requests, self.verifier.refuses_crops);
         let monitor = self.monitor.get_or_insert_with(|| {
             Monitor::new(
                 self.policy.clone(),
@@ -184,22 +187,10 @@ impl Ward {
             _ => None,
         };
         let output = monitor.handle(input.clone()).drive(|request| {
-            match request {
-                scene_core::look::Probe::Verify { .. } if refuses_requests => {
-                    return (Err(Failure::Model), Spent(1.0));
-                }
-                scene_core::look::Probe::Keep { .. } if refuses_crops => {
-                    return (Err(Failure::Model), Spent(1.0));
-                }
-                _ => {}
-            }
-            if blurred && matches!(request, scene_core::look::Probe::Keep { .. }) {
-                return (
-                    Ok(scene_core::look::Reading::Kept { sharpness: 10.0 }),
-                    Spent(1.0),
-                );
-            }
-            if let (scene_core::look::Probe::Verify { ticket, .. }, Some(sent)) = (request, sent) {
+            // A request the verifier took is owed an answer; a refused one is not.
+            if let (scene_core::look::Probe::Verify { ticket, .. }, Some(sent), false) =
+                (request, sent, script.refuses(request))
+            {
                 asked.push((*ticket, sent));
             }
             (script.respond(request), Spent(1.0))
@@ -208,7 +199,7 @@ impl Ward {
         let facts = crate::published::facts(&output);
         invariants(&output.scene, &facts);
         crate::published::check(&output);
-        self.recording.push((input, script.clone()));
+        self.recording.push((input, script));
         self.turns.push(Turn { output, facts });
     }
 
