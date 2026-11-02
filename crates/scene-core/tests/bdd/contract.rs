@@ -206,6 +206,112 @@ fn scene_v4(ward: &mut Ward, n: u64, mode: String, phase: String, last: String) 
     );
 }
 
+// --- v5: the same turn, read from the v5 projection (`Output::v5`)
+
+#[then(
+    expr = "the v5 scene of sample {int} says mode {string}, phase {string} and last cell {string}"
+)]
+fn scene_v5(ward: &mut Ward, n: u64, mode: String, phase: String, last: String) {
+    let scene = serde_json::to_value(&*turn(ward, n).v5.scene).expect("the v5 scene serializes");
+    let room = &scene["room"];
+    assert_eq!(
+        (&room["mode"], &room["phase"], &room["last_cell"]),
+        (&Value::from(mode), &Value::from(phase), &Value::from(last)),
+        "the v5 room at sample {n}: {room}"
+    );
+}
+
+#[then(expr = "the v4 scene of sample {int} has a subject verdict")]
+fn v4_has_verdict(ward: &mut Ward, n: u64) {
+    let scene = serde_json::to_value(&*turn(ward, n).scene).expect("the v4 scene serializes");
+    assert!(
+        !scene["subject"]["verdict"].is_null(),
+        "the v4 scene at sample {n} has no subject verdict: {}",
+        scene["subject"]
+    );
+}
+
+#[then(expr = "the v5 scene of sample {int} has no subject verdict")]
+fn v5_has_no_verdict(ward: &mut Ward, n: u64) {
+    let scene = serde_json::to_value(&*turn(ward, n).v5.scene).expect("the v5 scene serializes");
+    assert!(
+        !scene["subject"].is_null(),
+        "the v5 scene at sample {n} has no subject to say a verdict of: {}",
+        scene["subject"]
+    );
+    assert!(
+        scene["subject"].get("verdict").is_none(),
+        "the v5 scene at sample {n} still names a verdict: {}",
+        scene["subject"]
+    );
+}
+
+#[then(expr = "the v5 subject depth of sample {int} is named {string} and equals the v4 {string}")]
+fn v5_depth_named(ward: &mut Ward, n: u64, name: String, v4_name: String) {
+    let v5 = serde_json::to_value(&*turn(ward, n).v5.scene).expect("the v5 scene serializes");
+    let v4 = serde_json::to_value(&*turn(ward, n).scene).expect("the v4 scene serializes");
+    let depth5 = &v5["subject"]["depth"];
+    let depth4 = &v4["subject"]["depth"];
+    assert_eq!(
+        depth5[&name], depth4[&v4_name],
+        "the v5 depth at sample {n} is named {name}: {depth5}, v4: {depth4}"
+    );
+}
+
+#[then(
+    expr = "the v5 bed calibration of sample {int} is named {string} and equals the v4 {string}"
+)]
+fn v5_calibration_named(ward: &mut Ward, n: u64, name: String, v4_name: String) {
+    let v5 = serde_json::to_value(&*turn(ward, n).v5.scene).expect("the v5 scene serializes");
+    let v4 = serde_json::to_value(&*turn(ward, n).scene).expect("the v4 scene serializes");
+    let cal5 = &v5["map"]["calibration"];
+    let cal4 = &v4["map"]["calibration"];
+    assert_eq!(
+        cal5[&name], cal4[&v4_name],
+        "the v5 calibration at sample {n} is named {name}: {cal5}, v4: {cal4}"
+    );
+}
+
+#[then(expr = "the v5 transition {string} names rbh as room, bed and held with the v4 numbers")]
+fn v5_rbh_named(ward: &mut Ward, cell_: String) {
+    let t = transition5(ward, &cell_);
+    let rbh = &t["after"]["rbh"];
+    let t4 = transition(ward, &cell_);
+    let rbh4 = &t4["after"]["rbh"];
+    assert_eq!(
+        (rbh["room"].clone(), rbh["bed"].clone(), rbh["held"].clone()),
+        (rbh4[0].clone(), rbh4[1].clone(), rbh4[2].clone()),
+        "the v5 rbh of \"{cell_}\": {rbh}; v4: {rbh4}"
+    );
+}
+
+#[then(expr = "the v5 transition {string} names fv as floor and bed with the v4 numbers")]
+fn v5_fv_named(ward: &mut Ward, cell_: String) {
+    let t = transition5(ward, &cell_);
+    let fv = &t["seen"]["fv"];
+    let t4 = transition(ward, &cell_);
+    let fv4 = &t4["seen"]["fv"];
+    assert_eq!(
+        (fv["floor"].clone(), fv["bed"].clone()),
+        (fv4[0].clone(), fv4[1].clone()),
+        "the v5 fv of \"{cell_}\": {fv}; v4: {fv4}"
+    );
+}
+
+/// The v5 transition with `cell`, as its JSON.
+fn transition5(ward: &Ward, cell: &str) -> Value {
+    let events: Vec<Value> = ward
+        .turns
+        .iter()
+        .flat_map(|t| t.output.v5.events.iter())
+        .map(|e| serde_json::to_value(e).expect("the v5 event serializes"))
+        .collect();
+    events
+        .into_iter()
+        .find(|e| e["kind"] == "transition" && e["cell"] == cell)
+        .unwrap_or_else(|| panic!("no v5 transition \"{cell}\""))
+}
+
 /// A version's `room_changed`, as `(from, to)`.
 fn room_changes(events: Vec<Value>) -> Vec<(String, String)> {
     events

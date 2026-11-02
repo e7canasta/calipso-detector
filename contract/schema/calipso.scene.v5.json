@@ -142,6 +142,137 @@
         "unexplained"
       ]
     },
+    "BedPoint": {
+      "description": "A published bed point: which site, where it falls in the image and its\ndepth, read in the same depth map as the body's keypoints.",
+      "type": "object",
+      "properties": {
+        "depth": {
+          "description": "Its depth on the depth model's scale, if it was read.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "name": {
+          "description": "The site.",
+          "$ref": "#/$defs/BedSite"
+        },
+        "x": {
+          "description": "Pixels from the left edge.",
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "description": "Pixels from the top edge.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "name",
+        "x",
+        "y"
+      ]
+    },
+    "BedPosture": {
+      "description": "The published bed posture: the state, what was seen in this sample and\nsince when the state holds (a fold of the chronicle, P4).",
+      "type": "object",
+      "properties": {
+        "seen": {
+          "description": "What was seen in this sample.",
+          "$ref": "#/$defs/BedPostureSeen"
+        },
+        "since": {
+          "description": "The first sample of this state, without interruption.",
+          "$ref": "#/$defs/SampleRef"
+        },
+        "state": {
+          "description": "How the resident in bed is.",
+          "$ref": "#/$defs/BedPostureState"
+        }
+      },
+      "required": [
+        "state",
+        "seen",
+        "since"
+      ]
+    },
+    "BedPostureSeen": {
+      "description": "What a sample brought to layer 1, as published: held in bed when layer 0\nholds the resident (there is nothing of theirs to see), otherwise what\nlayer 1 perceived.",
+      "oneOf": [
+        {
+          "description": "Held in bed, alone: unseen without leaving.",
+          "type": "string",
+          "const": "held"
+        },
+        {
+          "description": "The head seen away from the headboard, but not past the bed's sides:\nby definition, not lying.",
+          "type": "string",
+          "const": "head_away"
+        },
+        {
+          "description": "The head seen past the bed's sides.",
+          "type": "string",
+          "const": "head_side"
+        },
+        {
+          "description": "A foot seen past the bed's sides: getting up from below.",
+          "type": "string",
+          "const": "legs_out"
+        },
+        {
+          "description": "The head at the headboard and the disparity of lying.",
+          "type": "string",
+          "const": "headboard_lying"
+        },
+        {
+          "description": "The head at the headboard and the disparity of sitting up: against the\nheadboard.",
+          "type": "string",
+          "const": "headboard_upright"
+        },
+        {
+          "description": "Nothing that says how they are: the state holds.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "BedPostureState": {
+      "description": "How the resident in bed is, as layer 1 believes it.",
+      "oneOf": [
+        {
+          "description": "In bed, not yet believed lying: they just came in, or were there at\nstartup. From here only lying is reported.",
+          "type": "string",
+          "const": "in_bed"
+        },
+        {
+          "description": "Lying: held in bed, where upright would be seen; or seen with the head\nat the headboard and the disparity of lying.",
+          "type": "string",
+          "const": "lying"
+        },
+        {
+          "description": "Sat up, after lying: the head seen away from the headboard. Sliding\ndown the bed is sitting up too, on purpose: it deserves a look (G-13).",
+          "type": "string",
+          "const": "sitting_up"
+        },
+        {
+          "description": "Getting out, after lying: the head or the feet seen past the bed's\nsides.",
+          "type": "string",
+          "const": "getting_out"
+        }
+      ]
+    },
+    "BedSite": {
+      "description": "A fixed place on the bed where depth is read in the same look as the body:\ncovered, the bed stands in for what the pose does not see (R17).",
+      "oneOf": [
+        {
+          "description": "The middle of the bed: lying, the hips, under the blanket or not.",
+          "type": "string",
+          "const": "centre"
+        }
+      ]
+    },
     "BedState": {
       "description": "Is someone in the bed?",
       "oneOf": [
@@ -206,6 +337,104 @@
           "type": "string",
           "const": "unavailable"
         }
+      ]
+    },
+    "BodyGroup": {
+      "description": "A group of the body's keypoints: the median depth of those seen and\nmeasured, and how many of its keypoints were seen.",
+      "type": "object",
+      "properties": {
+        "depth": {
+          "description": "Median depth of its seen, measured keypoints; `None` if none.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "of": {
+          "description": "How many keypoints the group has.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "seen": {
+          "description": "How many of its keypoints were seen (score at least the minimum).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "seen",
+        "of"
+      ]
+    },
+    "BodyGroups": {
+      "description": "The groups the posture is measured with.",
+      "type": "object",
+      "properties": {
+        "head": {
+          "description": "Nose, eyes and ears.",
+          "$ref": "#/$defs/BodyGroup"
+        },
+        "pelvis": {
+          "description": "Both hips: the reference.",
+          "$ref": "#/$defs/BodyGroup"
+        },
+        "shoulders": {
+          "description": "Both shoulders.",
+          "$ref": "#/$defs/BodyGroup"
+        }
+      },
+      "required": [
+        "head",
+        "shoulders",
+        "pelvis"
+      ]
+    },
+    "BodyPoint": {
+      "description": "A published pose point: where it is, how confident the model is and, if\nmeasured, its depth on the depth model's scale, which is relative and not\nmetres. An unmeasured point carries `depth: null`.",
+      "type": "object",
+      "properties": {
+        "depth": {
+          "description": "Its depth, if it was measured.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "name": {
+          "description": "The COCO-17 joint; `None` beyond the 17th keypoint.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Joint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score": {
+          "description": "The pose model's confidence in this keypoint.",
+          "type": "number",
+          "format": "float"
+        },
+        "x": {
+          "description": "Pixels from the left edge.",
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "description": "Pixels from the top edge.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "score"
       ]
     },
     "BodySeen": {
@@ -432,6 +661,44 @@
         "bed"
       ]
     },
+    "Disparities": {
+      "description": "Each disparity against the pelvis, `(a − pelvis) / mean`: relative,\nwithout scale. `upper_pelvis` (head and shoulders together) decides.",
+      "type": "object",
+      "properties": {
+        "head_pelvis": {
+          "description": "The head alone against the pelvis.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "shoulders_pelvis": {
+          "description": "The shoulders alone against the pelvis.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "upper_bed_centre": {
+          "description": "Head and shoulders against the bed's centre: the stand-in for the\nhips, the baseline when the blanket hides them (R17). Absent in scenes\nrecorded before it, and without the bed's points.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "upper_pelvis": {
+          "description": "Head and shoulders against the pelvis: the one that decides.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      }
+    },
     "Evidence": {
       "description": "What was admitted in this sample, apart from the stabilized belief.",
       "type": "object",
@@ -624,6 +891,75 @@
         }
       ]
     },
+    "HeadEvidence": {
+      "description": "What the head's place was concluded from.",
+      "oneOf": [
+        {
+          "description": "An accepted face.",
+          "type": "string",
+          "const": "face"
+        },
+        {
+          "description": "The pose's head keypoints (nose, eyes, ears) seen.",
+          "type": "string",
+          "const": "pose_head"
+        }
+      ]
+    },
+    "HeadPlace": {
+      "description": "Where the head is, and what said so.",
+      "type": "object",
+      "properties": {
+        "by": {
+          "description": "What it was concluded from; `None` when unknown.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeadEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "At the headboard, elsewhere, or unknown.",
+          "$ref": "#/$defs/HeadPlaceState"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "HeadPlaceState": {
+      "description": "Where the head is.",
+      "oneOf": [
+        {
+          "description": "At the headboard: lying in bed as a bed is used, the hips are at its\ncentre.",
+          "type": "string",
+          "const": "at_headboard"
+        },
+        {
+          "description": "Seen in bed, below the headboard: lying here is not lying as a bed is\nused (R18, 1807).",
+          "type": "string",
+          "const": "below_headboard"
+        },
+        {
+          "description": "Seen past the bed's sides (`u < 0` or `u > 1`): on the way out.",
+          "type": "string",
+          "const": "at_side"
+        },
+        {
+          "description": "Seen, but neither at the headboard, in bed nor past its sides; or seen\nwithout the bed's plane.",
+          "type": "string",
+          "const": "elsewhere"
+        },
+        {
+          "description": "Without the headboard delimited, or without a face or a head in sight.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
     "Held": {
       "description": "Someone who stopped being seen in bed without an observed exit.",
       "type": "object",
@@ -706,6 +1042,29 @@
           "type": "string",
           "const": "not_confirmed"
         }
+      ]
+    },
+    "Joint": {
+      "description": "A body joint per COCO-17: the keypoint's index in the pose gives its\nname.",
+      "type": "string",
+      "enum": [
+        "nose",
+        "left_eye",
+        "right_eye",
+        "left_ear",
+        "right_ear",
+        "left_shoulder",
+        "right_shoulder",
+        "left_elbow",
+        "right_elbow",
+        "left_wrist",
+        "right_wrist",
+        "left_hip",
+        "right_hip",
+        "left_knee",
+        "right_knee",
+        "left_ankle",
+        "right_ankle"
       ]
     },
     "LayerRef": {
@@ -942,6 +1301,108 @@
         }
       ]
     },
+    "Lying": {
+      "description": "What the second level concludes from the pose over the bed plane, with that\npose's provenance.",
+      "type": "object",
+      "properties": {
+        "provenance": {
+          "description": "That of the pose it was concluded from.",
+          "$ref": "#/$defs/Provenance"
+        },
+        "state": {
+          "description": "Confirmed, assumed, no or unknown.",
+          "$ref": "#/$defs/LyingState"
+        }
+      },
+      "required": [
+        "state",
+        "provenance"
+      ]
+    },
+    "LyingState": {
+      "description": "Is the subject truly lying down? Second level: it changes no count.",
+      "oneOf": [
+        {
+          "description": "Torso, hips, most keypoints and the visible feet inside the bed.",
+          "type": "string",
+          "const": "confirmed"
+        },
+        {
+          "description": "Torso, hips and most keypoints inside; the feet are not visible.",
+          "type": "string",
+          "const": "assumed"
+        },
+        {
+          "description": "The torso, the hips, most keypoints or a visible foot outside the bed.",
+          "type": "string",
+          "const": "no"
+        },
+        {
+          "description": "The torso or the hips are not visible.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "MapShadow": {
+      "description": "The geometry's shadow over the site (white book, volume VII, ch. 11): it\ndecides nothing; it is published to choose with data. Temporary.",
+      "type": "object",
+      "properties": {
+        "bed_floor": {
+          "description": "Where the bed stands on the floor, if delimited.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bed_size_m": {
+          "description": "The bed's width and length in metres, if known.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "headboard_area": {
+          "description": "The headboard as a quadrilateral, if it was drawn as one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "near": {
+          "description": "Near the bed in metres: the footprint (the mattress, without one) grown\nby the shadow's distance in its own coordinates. Absent without the\nbed's size.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "near_today": {
+          "description": "Near the bed as decided today: the bed's bounding box grown by the\nadmission's margin.",
+          "$ref": "#/$defs/Rect"
+        }
+      },
+      "required": [
+        "near_today"
+      ]
+    },
     "MapState": {
       "description": "The map's state, as v5 publishes it: as in v4, with `calibration` named for\nits scale (change 4).",
       "type": "object",
@@ -974,6 +1435,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Rect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shadow": {
+          "description": "The geometry's shadow, as v4 publishes it (unchanged: re-exported).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapShadow"
             },
             {
               "type": "null"
@@ -1014,6 +1486,121 @@
           "description": "More than one occupant.",
           "type": "string",
           "const": "accompanied"
+        }
+      ]
+    },
+    "Parts": {
+      "description": "The occupancy of the subject's parts: the second trama of occupancy, the\ncomplement of layer 0 with its shape. In its notation: the positions\n`cfhsaip` against the bed, `fhs` against the headboard and the flags `BFK`\n(whole boxes inside), two bits each (IN, OUT; both: split); `-` where the\nsense did not look; HELD where not seen now, kept from where it was last\nseen (white book, volume I, ch. 09).",
+      "type": "object",
+      "properties": {
+        "last_cell": {
+          "description": "The cell of the last change: `before | seen | after`, the places\nwithout HELD.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pending": {
+          "description": "New places that have not held long enough yet.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PartsPending"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reading": {
+          "description": "What we believe of the resident from the places: the semantic reading\nof the trama (white book, volume I, ch. 10).",
+          "$ref": "#/$defs/PartsReading"
+        },
+        "reading_since": {
+          "description": "Since when the reading holds.",
+          "$ref": "#/$defs/SampleRef"
+        },
+        "seen": {
+          "description": "What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`. E.g.\n`1-11111.0-00000:-10.-01:1--`.",
+          "type": "string"
+        },
+        "since": {
+          "description": "Since when the stable places hold: the sample of their last change;\n`None` before the first.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :\nBFK.HELD`. E.g. `1011111.0000000.0011111:010.001.011:100.000`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "seen",
+        "reading",
+        "reading_since"
+      ]
+    },
+    "PartsPending": {
+      "description": "New places of the parts, waiting to hold.",
+      "type": "object",
+      "properties": {
+        "duration": {
+          "description": "Source seconds they have held, against the required dwell.",
+          "$ref": "#/$defs/Progress"
+        },
+        "places": {
+          "description": "The places waiting: `bed IN.OUT : headboard IN.OUT : BFK`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "places",
+        "duration"
+      ]
+    },
+    "PartsReading": {
+      "description": "What we believe of the resident from the places of their parts.",
+      "oneOf": [
+        {
+          "description": "Neither the box nor the groin in the bed.",
+          "type": "string",
+          "const": "out_of_bed"
+        },
+        {
+          "description": "The groin in the bed, the box out: getting in or out.",
+          "type": "string",
+          "const": "on_the_edge"
+        },
+        {
+          "description": "The shoulders and the face or the head at the headboard, nothing out.",
+          "type": "string",
+          "const": "lying"
+        },
+        {
+          "description": "Something out of the bed while some of the torso is still at the\nheadboard: leaving from lying.",
+          "type": "string",
+          "const": "trying_to_leave"
+        },
+        {
+          "description": "Everything in the bed, the whole boxes in it, nothing at the headboard.",
+          "type": "string",
+          "const": "sitting_up"
+        },
+        {
+          "description": "Not everything in the bed, nothing at the headboard.",
+          "type": "string",
+          "const": "sitting_in_bed"
+        },
+        {
+          "description": "The places match no rule.",
+          "type": "string",
+          "const": "undecided"
         }
       ]
     },
@@ -1100,6 +1687,137 @@
       "required": [
         "x",
         "y"
+      ]
+    },
+    "Pose": {
+      "description": "The subject's pose, with its own provenance (rule 2).",
+      "type": "object",
+      "properties": {
+        "keypoints": {
+          "description": "In COCO-17 order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BodyPoint"
+          }
+        },
+        "provenance": {
+          "description": "Taken in this sample, or stable since a sample in which the subject\ndid not move.",
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "keypoints",
+        "provenance"
+      ]
+    },
+    "Posture": {
+      "description": "The published posture, with its evidence on the depth model's (relative)\nscale and the pose's provenance.",
+      "type": "object",
+      "properties": {
+        "bed_points": {
+          "description": "The bed's points, read in the same depth map as the keypoints: covered,\nthe bed's centre is the blanket over the hips (R17). Absent in scenes\nrecorded before them, and without the bed's geometry.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BedPoint"
+          }
+        },
+        "disparities": {
+          "description": "Each disparity against the pelvis; `upper_pelvis` is `disparity`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Disparities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disparity": {
+          "description": "`(upper − lower) / mean`: relative, without scale.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "groups": {
+          "description": "Head, shoulders and pelvis apart. Absent in scenes recorded before R16.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BodyGroups"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head_place": {
+          "description": "Where the head was when the bed's points were decided: they are read\nonly with it at the headboard (1707). Absent in scenes recorded before.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeadPlace"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lower": {
+          "description": "Median of the measured hips: the feet do not vote.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "provenance": {
+          "description": "That of the pose it was concluded from.",
+          "$ref": "#/$defs/Provenance"
+        },
+        "state": {
+          "description": "Lying, upright or unknown.",
+          "$ref": "#/$defs/PostureState"
+        },
+        "tolerance": {
+          "description": "Above it, lying: the profile's `posture_tolerance`.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "upper": {
+          "description": "Median of the measured head and shoulders.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      },
+      "required": [
+        "state",
+        "provenance"
+      ]
+    },
+    "PostureState": {
+      "description": "The posture by how head, torso and hips are ordered in depth.\nMonocular depth separates lying from upright by the magnitude of the\ndisparity, not by its sign (measured on real nights): sitting and standing are not\ndistinguished and are published together.",
+      "oneOf": [
+        {
+          "description": "The hips clearly closer to the camera than the head and shoulders.",
+          "type": "string",
+          "const": "lying"
+        },
+        {
+          "description": "Sitting, getting up or standing. Also reads `sitting` and `standing`,\nthe values published before 904-5, so nights recorded with them can be\nreplayed; publishes only `upright`.",
+          "type": "string",
+          "const": "upright"
+        },
+        {
+          "description": "One of the two groups has no measured keypoints.",
+          "type": "string",
+          "const": "unknown"
+        }
       ]
     },
     "Profile": {
@@ -1730,15 +2448,31 @@
       "format": "double"
     },
     "Subject": {
-      "description": "The subject: as in v4, without `verdict` (change 3).",
+      "description": "The subject: as in v4, without `verdict` (change 3). Every other field is\nv4's; `depth` is the relative one (change 4).",
       "type": "object",
       "properties": {
         "bbox": {
-          "description": "The subject's box, in image pixels.",
+          "description": "Their box, in image pixels.",
           "$ref": "#/$defs/Rect"
         },
+        "bed_posture": {
+          "description": "Layer 1: the bed posture of the resident left lying.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BedPosture"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "confidence": {
+          "description": "The detector's score for that box.",
+          "type": "number",
+          "format": "float"
+        },
         "depth": {
-          "description": "The subject's depth, when measured.",
+          "description": "The subject's depth, when the policy measures it: relative (change 4).",
           "anyOf": [
             {
               "$ref": "#/$defs/SubjectDepth"
@@ -1747,10 +2481,65 @@
               "type": "null"
             }
           ]
+        },
+        "lying": {
+          "description": "Second level: absent without a pose or without bed geometry.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Lying"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parts": {
+          "description": "The occupancy of the subject's parts against the bed and the headboard.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Parts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pose": {
+          "description": "The subject's pose, when the policy takes it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pose"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "posture": {
+          "description": "Second level: absent without a pose or without per-point depth.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Posture"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "description": "Whether the box was seen in this turn or is held from before.",
+          "$ref": "#/$defs/Provenance"
+        },
+        "zone": {
+          "description": "Where the subject is: in bed or on the floor.",
+          "$ref": "#/$defs/Zone"
         }
       },
       "required": [
-        "bbox"
+        "zone",
+        "bbox",
+        "confidence",
+        "provenance"
       ]
     },
     "SubjectDepth": {

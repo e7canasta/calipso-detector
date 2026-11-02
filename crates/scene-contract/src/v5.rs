@@ -54,13 +54,34 @@ pub struct SubjectDepth {
     pub provenance: Provenance,
 }
 
-/// The subject: as in v4, without `verdict` (change 3).
+/// The subject: as in v4, without `verdict` (change 3). Every other field is
+/// v4's; `depth` is the relative one (change 4).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Subject {
-    /// The subject's box, in image pixels.
+    /// Where the subject is: in bed or on the floor.
+    pub zone: crate::Zone,
+    /// Their box, in image pixels.
     pub bbox: Rect,
-    /// The subject's depth, when measured.
+    /// The detector's score for that box.
+    pub confidence: f32,
+    /// Whether the box was seen in this turn or is held from before.
+    pub provenance: Provenance,
+    /// The subject's pose, when the policy takes it.
+    pub pose: Option<crate::Pose>,
+    /// The subject's depth, when the policy measures it: relative (change 4).
     pub depth: Option<SubjectDepth>,
+    /// Second level: absent without a pose or without bed geometry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lying: Option<crate::Lying>,
+    /// Second level: absent without a pose or without per-point depth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posture: Option<crate::Posture>,
+    /// Layer 1: the bed posture of the resident left lying.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bed_posture: Option<crate::BedPosture>,
+    /// The occupancy of the subject's parts against the bed and the headboard.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parts: Option<crate::Parts>,
 }
 
 /// The empty bed's calibration: as in v4, with the depth named for its scale
@@ -136,6 +157,9 @@ pub struct MapState {
     /// The main detector's focus, when the policy has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus: Option<Rect>,
+    /// The geometry's shadow, as v4 publishes it (unchanged: re-exported).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<crate::MapShadow>,
     /// What the map learned about the empty bed.
     pub calibration: Calibration,
 }

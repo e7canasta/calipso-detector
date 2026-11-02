@@ -108,3 +108,72 @@ fn rejections_are_published_grouped_by_reason() {
     );
     assert_eq!(serde_json::from_value::<LookResult>(json).unwrap(), result);
 }
+
+/// The guardian of v5 (rule 13, C5): every type v4 and v5 share keeps every
+/// property, in the scene and in the events, except the ones the five changes
+/// take out on purpose. A property that v5 loses without being in this list fails
+/// the test: that is how a removed field (as `map.shadow` was) cannot pass in
+/// silence.
+#[test]
+fn v5_keeps_every_property_of_v4_except_what_it_changes_on_purpose() {
+    // (type, property) that v5 takes out on purpose (ADR "Lo que espera el contrato v5").
+    const CHANGED_ON_PURPOSE: &[(&str, &str)] = &[
+        // change 3: the subject has no verdict.
+        ("Subject", "verdict"),
+        // change 4: the depth is relative.
+        ("SubjectDepth", "meters"),
+    ];
+    // Types that v5 takes out or renames on purpose: the verdict and its state
+    // (change 3), and the occupancy's rbh and the seen's fv, which v4 writes as
+    // tuples and v5 names (change 5).
+    const TYPES_CHANGED_ON_PURPOSE: &[&str] = &["Head", "Verdict", "VerdictState", "Rbh", "Fv"];
+
+    let mut lost = Vec::new();
+    for snapshot in ["scene", "events"] {
+        let v4 = schema_defs(&format!("calipso.{snapshot}.v4"));
+        let v5 = schema_defs(&format!("calipso.{snapshot}.v5"));
+        for (name, def) in &v4 {
+            if TYPES_CHANGED_ON_PURPOSE.contains(&name.as_str()) {
+                continue;
+            }
+            let Some(other) = v5.get(name) else {
+                lost.push(format!("{snapshot}: type {name} is gone from v5"));
+                continue;
+            };
+            for prop in properties(def) {
+                if !properties(other).contains(&prop)
+                    && !CHANGED_ON_PURPOSE.contains(&(name.as_str(), prop.as_str()))
+                {
+                    lost.push(format!("{snapshot}: {name}.{prop} is lost in v5"));
+                }
+            }
+        }
+    }
+    assert!(
+        lost.is_empty(),
+        "v5 loses properties of v4 that are not in the list of changes on purpose: {lost:?}"
+    );
+}
+
+/// The `$defs` of a snapshot, as name → definition.
+fn schema_defs(name: &str) -> std::collections::BTreeMap<String, serde_json::Value> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../contract/schema")
+        .join(format!("{name}.json"));
+    let text = std::fs::read_to_string(&path).expect("the snapshot is readable");
+    let json: serde_json::Value = serde_json::from_str(&text).expect("the snapshot is JSON");
+    json["$defs"]
+        .as_object()
+        .expect("a scene schema has $defs")
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect()
+}
+
+/// The property names of a definition.
+fn properties(def: &serde_json::Value) -> Vec<String> {
+    def["properties"]
+        .as_object()
+        .map(|p| p.keys().cloned().collect())
+        .unwrap_or_default()
+}

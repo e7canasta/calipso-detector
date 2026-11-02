@@ -4,11 +4,11 @@
 //! after and the facts, each with the occupancy it leaves.
 
 use super::{
-    bed, bed_state, cell_of, empty_bed, pending, project_evidence, publish_bed, publish_subject,
-    republished_at, retained_subject, unobserved,
+    bed, bed_state, cell_of, empty_bed, pending, project_evidence, publish_bed, publish_room,
+    publish_subject, republished_at, retained_subject, unobserved,
 };
 use crate::belief::total;
-use crate::belief::{self, Alone, BedPhase, Fact, InBed, Occupants, Tally};
+use crate::belief::{self, BedPhase, Fact, Occupants, Tally};
 use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::map::BedCalibrated;
@@ -25,16 +25,6 @@ pub(crate) use scene_contract::{Event, Scene};
 /// The machine's mode, said in v4.
 pub(super) fn mode(occupants: Occupants) -> Mode {
     publish_room(RoomName::of(occupants))
-}
-
-pub(super) fn publish_room(name: RoomName) -> Mode {
-    match name {
-        RoomName::Empty => Mode::Empty,
-        RoomName::Alone(Alone::Out) => Mode::AloneOut,
-        RoomName::Alone(Alone::InBed(InBed::Seen)) => Mode::AloneInBedSeen,
-        RoomName::Alone(Alone::InBed(InBed::Held)) => Mode::AloneInBedHeld,
-        RoomName::Accompanied => Mode::Accompanied,
-    }
 }
 
 fn phase(phase: BedPhase) -> Phase {

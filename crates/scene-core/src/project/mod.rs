@@ -9,16 +9,17 @@
 
 mod parts;
 pub(crate) mod v4;
+pub(crate) mod v5;
 
 use crate::attention::Attention;
 use crate::belief::BedPosture;
 use crate::belief::bed_posture::BedPostureSeen;
 use crate::belief::bed_posture::Concluded;
-use crate::belief::{Believed, Occupancy, Occupants, Subject as BelievedSubject};
+use crate::belief::{Alone, Believed, InBed, Occupancy, Occupants, Subject as BelievedSubject};
 use crate::body::{
     BedPoint, BodyPoint, HeadEvidence, HeadPlace, HeadPlaceState, Pose, SubjectDepth,
 };
-use crate::chronicle::{BedKind, Chronicled};
+use crate::chronicle::{BedKind, Chronicled, RoomName};
 use crate::conclusion::RepublishReason;
 use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
 use crate::look::Detection;
@@ -34,7 +35,7 @@ use scene_contract::{
     FacesStatus, Held, LookKind, LookOutcome, Pending, Progress, Provenance, Republished,
     SampleRef, SkipReason, Subject, Zone,
 };
-use scene_contract::{Cell, Fv, Rbh};
+use scene_contract::{Cell, Fv, Mode, Rbh};
 
 impl From<BedPostureSeen> for scene_contract::BedPostureSeen {
     fn from(seen: BedPostureSeen) -> Self {
@@ -549,6 +550,18 @@ fn part(counts: &[u32]) -> String {
         digits.concat()
     } else {
         format!("({})", digits.join(","))
+    }
+}
+
+/// The room's mode as the published vocabulary names it: the same in every
+/// version (the domain's room name, no wire shape).
+pub(crate) fn publish_room(name: RoomName) -> Mode {
+    match name {
+        RoomName::Empty => Mode::Empty,
+        RoomName::Alone(Alone::Out) => Mode::AloneOut,
+        RoomName::Alone(Alone::InBed(InBed::Seen)) => Mode::AloneInBedSeen,
+        RoomName::Alone(Alone::InBed(InBed::Held)) => Mode::AloneInBedHeld,
+        RoomName::Accompanied => Mode::Accompanied,
     }
 }
 

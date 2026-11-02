@@ -96,6 +96,9 @@ pub struct Monitor {
     /// The last concluded scene and its sample, for republishing. If it was a
     /// failure, the scene keeps the observed origin separately.
     last: Option<(SampleRef, Arc<Scene>)>,
+    /// The last concluded scene in v5, kept apart from v4's: each version
+    /// republishes its own (C4, the versions do not depend on each other).
+    last_v5: Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
 }
 
 /// The deterministic engine: the policy, the map, the belief and the reception.
@@ -184,6 +187,9 @@ pub struct Output {
     pub scene: Arc<Scene>,
     /// The events it explains, in order.
     pub events: Vec<Event>,
+    /// The same turn in the v5 wire (C4): the scene and the events, from the
+    /// same conclusion and chronicle as `scene` and `events`.
+    pub v5: crate::project::v5::Projection,
 }
 
 /// A turn of the loop. It holds the belief exclusively: the compiler prevents
@@ -200,6 +206,7 @@ pub struct Turn<'m> {
     course: Course<'m>,
     chronicle: &'m mut Chronicle,
     last: &'m mut Option<(SampleRef, Arc<Scene>)>,
+    last_v5: &'m mut Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
     phase: Phase,
     open: Open,
 }
@@ -245,6 +252,7 @@ impl Turn<'_> {
             mut course,
             chronicle,
             last,
+            last_v5,
             mut phase,
             open,
         } = self;
@@ -260,7 +268,7 @@ impl Turn<'_> {
             };
         };
         std::mem::forget(open);
-        monitor::project(chronicle, last, course.at, conclusion)
+        monitor::project(chronicle, last, last_v5, course.at, conclusion)
     }
 
     /// The shell cannot complete (shutdown): `Cancelled` for what is pending,

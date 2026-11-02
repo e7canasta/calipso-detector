@@ -31,6 +31,7 @@ impl Monitor {
             engine: Engine::new(policy, map),
             chronicle: Chronicle::default(),
             last: None,
+            last_v5: None,
         }
     }
 
@@ -50,6 +51,7 @@ impl Monitor {
             engine,
             chronicle,
             last,
+            last_v5,
         } = self;
         let mut course = Course {
             engine,
@@ -77,6 +79,7 @@ impl Monitor {
             course,
             chronicle,
             last,
+            last_v5,
             phase,
             open: Open,
         }
@@ -90,16 +93,27 @@ impl Monitor {
 pub(super) fn project(
     chronicle: &mut Chronicle,
     last: &mut Option<(SampleRef, Arc<Scene>)>,
+    last_v5: &mut Option<(SampleRef, Arc<scene_contract::v5::Scene>)>,
     at: SampleRef,
     conclusion: Conclusion,
 ) -> Output {
     match conclusion {
         Conclusion::Observed(observation) => {
             let chronicled = chronicle.record(Entry::of(&observation));
+            // Both versions read the same observation and chronicle (C4): v5
+            // first, by reference, then v4 consumes the observation. v5 never
+            // reads v4's output.
+            let v5 = crate::project::v5::observed(&observation, &chronicled);
             let (scene, events) = v4::observed(*observation, &chronicled);
             let scene = Arc::new(scene);
             *last = Some((at, Arc::clone(&scene)));
-            Output { at, scene, events }
+            *last_v5 = Some((at, Arc::clone(&v5.scene)));
+            Output {
+                at,
+                scene,
+                events,
+                v5,
+            }
         }
         Conclusion::Republish {
             reason,
@@ -108,10 +122,22 @@ pub(super) fn project(
             map,
         } => {
             let previous = last.as_ref().map(|(at, scene)| (scene.as_ref(), *at));
+            // v5 republishes its own last scene, never v4's (the versions are
+            // independent): `last` holds the v4 scene, so v5 keeps its own copy.
+            let v5 = crate::project::v5::republished(
+                reason,
+                changed,
+                sensor,
+                *map.clone(),
+                last_v5.as_ref().map(|(at, scene)| (scene.as_ref(), *at)),
+            );
+            let scene = v4::republish(previous, reason, sensor, *map);
+            let events = v4::sensor_events(changed, previous.map(|(scene, _)| scene));
             Output {
                 at,
-                scene: Arc::new(v4::republish(previous, reason, sensor, *map)),
-                events: v4::sensor_events(changed, previous.map(|(scene, _)| scene)),
+                scene: Arc::new(scene),
+                events,
+                v5,
             }
         }
     }
