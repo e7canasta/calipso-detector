@@ -238,7 +238,8 @@ fn a_failed_detector_neither_publishes_a_zero_nor_erases_the_belief() {
     };
     let out = monitor
         .handle(Input::Sensor {
-            at,
+            session: at.session,
+            last: Some(at),
             state: SensorState::Reconnecting,
         })
         .cancel();
@@ -330,7 +331,8 @@ fn calibration_publishes_its_sample_and_the_map_before_the_first_frame() {
     };
     let before = monitor
         .handle(Input::Sensor {
-            at,
+            session: at.session,
+            last: Some(at),
             state: SensorState::Streaming,
         })
         .cancel();

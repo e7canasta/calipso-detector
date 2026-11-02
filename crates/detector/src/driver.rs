@@ -82,16 +82,18 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>, C: Clock> Driver<S, V, C>
             processing_ms: now.saturating_duration_since(started).as_secs_f64() * 1000.0,
         }
     }
-    fn sensor_at(&self) -> SampleRef {
-        self.last_at.unwrap_or(SampleRef {
-            session: SessionId(self.session),
-            sequence: 0,
-            source_secs: SourceSecs(0.0),
-        })
-    }
-    fn report(&mut self, at: SampleRef, state: SensorState) -> Processed {
+    /// A reception change, with what the shell knows: the session it reports
+    /// and the last sample it saw. The core names no sample it did not see.
+    fn report(&mut self, state: SensorState, session: u64, last: Option<SampleRef>) -> Processed {
         let started = self.clock.now();
-        let output = self.monitor.handle(Input::Sensor { at, state }).cancel();
+        let output = self
+            .monitor
+            .handle(Input::Sensor {
+                state,
+                session: SessionId(session),
+                last,
+            })
+            .cancel();
         let now = self.clock.now();
         Processed {
             output,
@@ -108,12 +110,13 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>, C: Clock> Driver<S, V, C>
         {
             self.session = *session;
         }
-        stream_watch::translate(&event).map(|state| self.report(self.sensor_at(), state))
+        let (session, last) = (self.session, self.last_at);
+        stream_watch::translate(&event).map(|state| self.report(state, session, last))
     }
     fn poll_stall(&mut self, now: Instant) -> Option<Processed> {
         self.watch
             .poll(now, self.stall_timeout)
-            .then(|| self.report(self.sensor_at(), SensorState::Stalled))
+            .then(|| self.report(SensorState::Stalled, self.session, self.last_at))
     }
     /// What arrives from the source: a sample or a transport change.
     pub fn arrive(&mut self, arrival: Arrival<S::Frame>) -> Vec<Processed> {
@@ -142,7 +145,8 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>, C: Clock> Driver<S, V, C>
             tracing::info_span!("turn", session = at.session.0, sequence = at.sequence).entered();
         let mut outputs = Vec::with_capacity(2);
         if self.watch.on_sample(started) {
-            outputs.push(self.report(at, SensorState::Streaming));
+            // The shell sees this sample arrive, so it is the last one it saw.
+            outputs.push(self.report(SensorState::Streaming, at.session.0, Some(at)));
         }
         self.settle_verified();
         let output = self.turn_for(at, frame);

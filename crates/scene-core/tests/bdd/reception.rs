@@ -17,7 +17,8 @@ fn streaming(ward: &mut Ward) {
     ward.bed();
     ward.drive(
         Input::Sensor {
-            at: ward.sample(1),
+            session: ward.sample(1).session,
+            last: Some(ward.sample(1)),
             state: SensorState::Streaming,
         },
         &Script::default(),
@@ -40,7 +41,8 @@ fn a_stream_with_no_samples(ward: &mut Ward) {
 fn the_shell_reports_the_change(ward: &mut Ward) {
     ward.drive(
         Input::Sensor {
-            at: ward.sample(2),
+            session: ward.sample(2).session,
+            last: Some(ward.sample(2)),
             state: SensorState::Reconnecting,
         },
         &Script::default(),
@@ -51,7 +53,8 @@ fn the_shell_reports_the_change(ward: &mut Ward) {
 fn the_shell_reports_the_stall(ward: &mut Ward) {
     ward.drive(
         Input::Sensor {
-            at: ward.sample(2),
+            session: ward.sample(2).session,
+            last: Some(ward.sample(2)),
             state: SensorState::Stalled,
         },
         &Script::default(),

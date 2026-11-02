@@ -5,7 +5,12 @@ use crate::time::SampleRef;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct SensorChanged {
+    /// v4's reference: the last sample, or the session's first one (see
+    /// `project::v4::reference`).
     pub at: SampleRef,
+    /// The last sample the shell saw, `None` before the first one: v5 names
+    /// nothing it did not see.
+    pub observed: Option<SampleRef>,
     pub from: SensorState,
     pub to: SensorState,
 }
@@ -29,10 +34,16 @@ impl Memory {
     }
 
     /// The shell reports a state; if it changed, that is an event.
-    pub(crate) fn report(&mut self, at: SampleRef, state: SensorState) -> Option<SensorChanged> {
+    pub(crate) fn report(
+        &mut self,
+        at: SampleRef,
+        last: Option<SampleRef>,
+        state: SensorState,
+    ) -> Option<SensorChanged> {
         let from = std::mem::replace(&mut self.state, state);
         (from != state).then_some(SensorChanged {
             at,
+            observed: last,
             from,
             to: state,
         })

@@ -72,7 +72,8 @@ impl Config {
         self.validate_policy()?;
         self.validate_map()?;
         self.validate_bed_posture()?;
-        self.validate_verify()
+        self.validate_verify()?;
+        self.publish.validate()
     }
 
     /// The verifier's two sections together: the sense and the policy come

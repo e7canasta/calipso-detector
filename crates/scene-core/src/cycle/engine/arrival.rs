@@ -11,13 +11,14 @@ use crate::verification::Event;
 
 impl Engine {
     /// The shell reports a reception change: the engine notes it and says
-    /// whether it changed.
+    /// whether it changed. `at` is v4's reference, `last` the sample v5 may name.
     pub(in crate::cycle) fn sensor_reported(
         &mut self,
         at: SampleRef,
+        last: Option<SampleRef>,
         state: SensorState,
     ) -> Option<SensorChanged> {
-        self.reception.report(at, state)
+        self.reception.report(at, last, state)
     }
 
     /// A sample opens with its frame: the engine keeps its size and says what

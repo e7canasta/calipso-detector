@@ -25,7 +25,7 @@
       "minimum": 0
     },
     "observed_at": {
-      "description": "Source time of what is claimed. `None` for a message that observes no\nsample (a reception change).",
+      "description": "Source time of what is claimed. `null` for a message that observes no\nsample (a reception change).",
       "anyOf": [
         {
           "$ref": "#/$defs/SampleRef"
@@ -1111,8 +1111,15 @@
           "$ref": "#/$defs/Occupancy"
         },
         "at": {
-          "description": "The sample the shell reported it with.",
-          "$ref": "#/$defs/SampleRef"
+          "description": "The last sample the shell saw, `null` before the first one: v5 names no\nsample it did not see (change 2).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "cause": {
           "description": "Always `sensor_reported`.",
@@ -1146,7 +1153,6 @@
       ],
       "required": [
         "cause",
-        "at",
         "after"
       ]
     },

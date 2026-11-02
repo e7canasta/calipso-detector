@@ -13,7 +13,7 @@ use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
 use crate::map::BedCalibrated;
 use crate::reception::SensorChanged;
-use crate::time::SourceTime;
+use crate::time::{SessionId, SourceTime};
 use scene_contract::{
     Attention, BedPostureBefore, BedPostureChange, Before, Cause, Cell, Context, DerivedBody,
     DerivedEvent, Evidence, Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState,
@@ -330,6 +330,18 @@ fn empty() -> Occupancy {
         },
         true,
     )
+}
+
+/// The reference v4 stamps a reception change with: the last sample the shell
+/// saw, or, before any, sequence 0 of the session. v4 has no message without a
+/// sample, so this is the only place that names one for a reception change; v4
+/// retires with it. v5 names `None` instead (`SensorChanged::observed`).
+pub(crate) fn reference(session: SessionId, last: Option<SampleRef>) -> SampleRef {
+    last.unwrap_or(SampleRef {
+        session,
+        sequence: 0,
+        source_secs: scene_contract::SourceSecs(0.0),
+    })
 }
 
 pub(crate) fn sensor_events(

@@ -111,9 +111,8 @@ pub struct Envelope<T> {
     pub source: Source,
     /// Contiguous from 1 per run and per schema; a gap is a lost message.
     pub seq: u64,
-    /// Source time of what is claimed. `None` for a message that observes no
+    /// Source time of what is claimed. `null` for a message that observes no
     /// sample (a reception change).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub observed_at: Option<SampleRef>,
     /// Wall clock; set by publishing, never by the core.
     pub published_at_ms: u64,
@@ -348,8 +347,9 @@ pub enum DerivedBody {
 pub struct SensorEvent {
     /// Always `sensor_reported`.
     pub cause: Cause,
-    /// The sample the shell reported it with.
-    pub at: SampleRef,
+    /// The last sample the shell saw, `null` before the first one: v5 names no
+    /// sample it did not see (change 2).
+    pub at: Option<SampleRef>,
     /// What changed.
     #[serde(flatten)]
     pub body: SensorBody,

@@ -34,7 +34,7 @@ use crate::reception::{self, SensorChanged, SensorState};
 use crate::refine::BodyPlaces;
 use crate::room::Room;
 use crate::room::SpaceRules;
-use crate::time::SampleRef;
+use crate::time::{SampleRef, SessionId};
 use crate::units::Extension;
 use crate::verification::{Verification, VerifyRules};
 use scene_contract::{Event, Scene};
@@ -65,12 +65,15 @@ pub enum Input {
         /// Why there is no image.
         why: NoFrame,
     },
-    /// The shell reports a reception change.
+    /// The shell reports a reception change. It observes no sample: it says the
+    /// session its transport reports, and the last sample it saw, if it saw one.
     Sensor {
-        /// The last sample's reference, for the record.
-        at: SampleRef,
         /// The new reception state.
         state: SensorState,
+        /// The session the transport reports.
+        session: SessionId,
+        /// The last sample the shell saw; `None` before the first one.
+        last: Option<SampleRef>,
     },
 }
 

@@ -17,9 +17,12 @@ use crate::time::SampleRef;
 use scene_contract::Scene;
 
 impl Input {
+    /// The turn's reference: a sample's own, and for a reception change the one
+    /// v4 stamps it with (`project::v4::reference`).
     fn at(&self) -> SampleRef {
         match self {
-            Input::Sample { at, .. } | Input::NoFrame { at, .. } | Input::Sensor { at, .. } => *at,
+            Input::Sample { at, .. } | Input::NoFrame { at, .. } => *at,
+            Input::Sensor { session, last, .. } => v4::reference(*session, *last),
         }
     }
 }
@@ -70,9 +73,9 @@ impl Monitor {
                 },
                 changed: None,
             },
-            Input::Sensor { state, .. } => Phase::Republish {
+            Input::Sensor { state, last, .. } => Phase::Republish {
                 reason: RepublishReason::Sensor,
-                changed: course.engine.sensor_reported(at, state),
+                changed: course.engine.sensor_reported(at, last, state),
             },
         };
         Turn {
@@ -126,6 +129,7 @@ pub(super) fn project(
             // independent): `last` holds the v4 scene, so v5 keeps its own copy.
             let v5 = crate::project::v5::republished(
                 reason,
+                at,
                 changed,
                 sensor,
                 *map.clone(),

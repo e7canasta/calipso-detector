@@ -31,6 +31,9 @@ pub struct Projection {
     pub scene: Arc<Scene>,
     /// The events the turn explains, in v5, in order.
     pub events: Vec<Event>,
+    /// The envelope's `observed_at`: the sample the turn observed, or `None` for
+    /// a reception change, which observes none (change 2).
+    pub observed_at: Option<SampleRef>,
 }
 
 /// The v5 projection of an observed turn: the scene and its events, from the
@@ -38,6 +41,7 @@ pub struct Projection {
 pub(crate) fn observed(observation: &Observation, chronicled: &Chronicled) -> Projection {
     let (scene, events) = scene_and_events(observation, chronicled);
     Projection {
+        observed_at: Some(observation.at),
         scene: Arc::new(scene),
         events,
     }
@@ -404,7 +408,7 @@ fn sensor_events(changed: Option<SensorChanged>, previous: Option<&Scene>) -> Ve
         .map(|fact| {
             Event::Sensor(v5::SensorEvent {
                 cause: Cause::SensorReported,
-                at: fact.at,
+                at: fact.observed,
                 body: v5::SensorBody::SensorChanged {
                     from: fact.from,
                     to: fact.to,
@@ -456,6 +460,7 @@ fn retained_subject_v5(
 /// sensor events, from the last v5 scene.
 pub(crate) fn republished(
     reason: RepublishReason,
+    at: SampleRef,
     changed: Option<SensorChanged>,
     sensor: SensorState,
     map: crate::map::MapState,
@@ -464,6 +469,9 @@ pub(crate) fn republished(
     let map = map_v5(&map);
     let previous = last.map(|(scene, _)| scene);
     Projection {
+        // A reception change observes no sample; the other republications
+        // observed the one they were asked about.
+        observed_at: (!matches!(reason, RepublishReason::Sensor)).then_some(at),
         scene: Arc::new(republish_scene(last, reason, sensor, map)),
         events: sensor_events(changed, previous),
     }

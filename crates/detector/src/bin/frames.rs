@@ -61,7 +61,8 @@ fn main() -> Result<()> {
     };
     tracing::info!(run_id = %run.run_id, build = ?run.build, frames = source.len(), "runs over frames");
     let prefix = config.prefix();
-    let (mut publisher, _rx) = PublisherHandle::channel(run, profile);
+    let (mut publisher, _rx) =
+        PublisherHandle::channel_with(run, profile, &config.publish.versions());
     let mut file = std::fs::File::create(&args.out)
         .with_context(|| format!("create {}", args.out.display()))?;
     let senses = detector::load_senses(&config)?;
@@ -86,7 +87,7 @@ fn main() -> Result<()> {
                     writeln!(
                         file,
                         r#"{{"subject":"{}","body":{body}}}"#,
-                        m.kind.subject(&prefix)
+                        m.subject(&prefix)
                     )?;
                 }
                 Ok(())

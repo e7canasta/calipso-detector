@@ -9,6 +9,7 @@ use super::detect::Detect;
 use super::faces::Faces;
 use super::occupancy::OccupancyConfig;
 use super::pose::Pose;
+use super::publish::PublishConfig;
 use super::reinforce::Reinforce;
 use super::shadow::ShadowConfig;
 use super::verify::{VerifyConfig, VerifySense};
@@ -43,6 +44,9 @@ pub struct Config {
     /// it was. Left out of the hash when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub occupancy: Option<OccupancyConfig>,
+    /// The contract versions the shell publishes. Without the section, v4 only.
+    #[serde(default)]
+    pub publish: PublishConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]

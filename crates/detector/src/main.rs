@@ -57,7 +57,8 @@ async fn main() -> Result<()> {
         build: build_info(),
     };
     tracing::info!(run_id=%source.run_id,build=?source.build,profile=?profile,"detector starts");
-    let (mut publisher, rx) = PublisherHandle::channel(source, profile);
+    let (mut publisher, rx) =
+        PublisherHandle::channel_with(source, profile, &config.publish.versions());
     let token = CancellationToken::new();
     let mailbox = Arc::new(Mailbox::<Sample>::default());
     let (events_tx, events_rx) = mpsc::channel();

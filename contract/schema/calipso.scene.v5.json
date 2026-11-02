@@ -25,7 +25,7 @@
       "minimum": 0
     },
     "observed_at": {
-      "description": "Source time of what is claimed. `None` for a message that observes no\nsample (a reception change).",
+      "description": "Source time of what is claimed. `null` for a message that observes no\nsample (a reception change).",
       "anyOf": [
         {
           "$ref": "#/$defs/SampleRef"

@@ -108,12 +108,125 @@ fn reinforces_resident(w: &mut Shell) {
 #[when(regex = r"^samples (\d+) to (\d+) arrive$")]
 fn samples(w: &mut Shell, first: u64, last: u64) {
     let config = w.config().clone();
-    for (n, json) in publish_samples(w, &config, first, last) {
+    for (n, json) in publish_samples(w, &config, first, last, false) {
         if json["schema"] == "calipso.scene.v4" {
             w.scenes.insert(n, json.clone());
         }
         w.messages.push(json);
     }
+}
+
+#[when(regex = r"^samples (\d+) to (\d+) arrive and then the stream disconnects$")]
+fn samples_then_disconnect(w: &mut Shell, first: u64, last: u64) {
+    let config = w.config().clone();
+    for (n, json) in publish_samples(w, &config, first, last, true) {
+        if json["schema"] == "calipso.scene.v4" {
+            w.scenes.insert(n, json.clone());
+        }
+        w.messages.push(json);
+    }
+}
+
+#[when("the stream disconnects before any sample")]
+fn disconnects_before_any_sample(w: &mut Shell) {
+    let config = w.config().clone();
+    for (_, json) in publish_samples(w, &config, 1, 0, true) {
+        w.messages.push(json);
+    }
+}
+
+#[then(expr = "the reception change event of v5 says at of sample {int}")]
+fn v5_reception_event_at(w: &mut Shell, sample: u64) {
+    let event = reception_event_v5(w);
+    assert_eq!(event["at"]["sequence"], sample, "{event}");
+}
+
+#[then("the reception change event of v5 has no at")]
+fn v5_reception_event_without_at(w: &mut Shell) {
+    let event = reception_event_v5(w);
+    assert!(event["at"].is_null(), "{event}");
+}
+
+/// The v5 event of the reception change, as its body.
+fn reception_event_v5(w: &Shell) -> serde_json::Value {
+    published(w, "calipso.events.v5")
+        .into_iter()
+        .map(|m| m["body"].clone())
+        .find(|body| body["kind"] == "sensor")
+        .expect("a v5 reception change event")
+}
+
+#[given(
+    expr = "a detector with reinforcement and scripted models and publish versions {string} and {string}"
+)]
+fn reinforce_driver_with_versions(w: &mut Shell, first: String, second: String) {
+    detector_profile(
+        w,
+        &format!(
+            "[senses.reinforce]\nmodel = \"yolo26l.onnx\"\nbed_padding = 0.15\n[publish]\nversions = [\"{first}\", \"{second}\"]\n"
+        ),
+    );
+}
+
+#[given(expr = "a profile with publish versions {string}")]
+fn publish_versions(w: &mut Shell, version: String) {
+    w.parse_config(&format!("[publish]\nversions = [\"{version}\"]\n"));
+}
+
+/// The published messages of one schema, in the order the shell sent them.
+fn published(w: &Shell, schema: &str) -> Vec<serde_json::Value> {
+    w.messages
+        .iter()
+        .filter(|m| m["schema"] == schema)
+        .cloned()
+        .collect()
+}
+
+#[then("every published message is of contract v4")]
+fn only_v4(w: &mut Shell) {
+    assert!(!w.messages.is_empty());
+    for message in &w.messages {
+        let schema = message["schema"].as_str().expect("schema");
+        assert!(schema.ends_with(".v4"), "{message}");
+    }
+}
+
+#[then("the messages of contract v4 and of contract v5 are both published")]
+fn both_versions(w: &mut Shell) {
+    assert!(!published(w, "calipso.scene.v4").is_empty());
+    assert!(!published(w, "calipso.scene.v5").is_empty());
+    assert!(!published(w, "calipso.events.v5").is_empty());
+}
+
+#[then("the event numbers of v5 start at 1 and are contiguous")]
+fn v5_numbers(w: &mut Shell) {
+    let events = published(w, "calipso.events.v5");
+    assert!(!events.is_empty());
+    for (i, event) in events.iter().enumerate() {
+        assert_eq!(event["seq"], i as u64 + 1, "{event}");
+    }
+}
+
+#[then("the scene of v5 says last_event_seq equal to the number of its last event")]
+fn v5_last_event_seq(w: &mut Shell) {
+    let events = published(w, "calipso.events.v5");
+    let scene = published(w, "calipso.scene.v5");
+    let scene = scene.last().expect("a v5 scene");
+    assert_eq!(scene["last_event_seq"], events.len() as u64, "{scene}");
+}
+
+#[then("the reception change of v5 has no observed_at")]
+fn v5_reception_without_at(w: &mut Shell) {
+    let scene = published(w, "calipso.scene.v5");
+    let scene = scene.last().expect("a v5 scene");
+    assert!(scene["observed_at"].is_null(), "{scene}");
+}
+
+#[then(expr = "the reception change of v4 says observed_at of sample {int}")]
+fn v4_reception_at(w: &mut Shell, sample: u64) {
+    let scene = published(w, "calipso.scene.v4");
+    let scene = scene.last().expect("a v4 scene");
+    assert_eq!(scene["observed_at"]["sequence"], sample, "{scene}");
 }
 
 /// Drives the samples with the scripted models and returns, for each, the
@@ -123,6 +236,7 @@ pub fn publish_samples(
     config: &Config,
     first: u64,
     last: u64,
+    disconnect: bool,
 ) -> Vec<(u64, serde_json::Value)> {
     let mut driver = Driver::new(
         config.policy().expect("a valid profile"),
@@ -137,7 +251,11 @@ pub fn publish_samples(
         run_id: "bdd-capability".into(),
         build: detector::build_info(),
     };
-    let (mut publisher, _receiver) = PublisherHandle::channel(source, config.profile().unwrap());
+    let (mut publisher, _receiver) = PublisherHandle::channel_with(
+        source,
+        config.profile().unwrap(),
+        &config.publish.versions(),
+    );
     let mut published = Vec::new();
     for n in first..=last {
         for model in [&w.main, &w.reinforce, &w.faces].into_iter().flatten() {
@@ -153,6 +271,18 @@ pub fn publish_samples(
             let publication = publisher.prepare(processed.output, processed.timing);
             for message in publication.messages().unwrap() {
                 published.push((n, serde_json::from_slice(&message.bytes).unwrap()));
+            }
+        }
+    }
+    if disconnect {
+        let stream = ingest::StreamEvent::Disconnected {
+            session: 1,
+            reason: ingest::IngestError::Protocol("the camera went away".into()),
+        };
+        if let Some(processed) = driver.on_stream(stream, std::time::Instant::now()) {
+            let publication = publisher.prepare(processed.output, processed.timing);
+            for message in publication.messages().unwrap() {
+                published.push((last, serde_json::from_slice(&message.bytes).unwrap()));
             }
         }
     }
@@ -189,10 +319,15 @@ fn valid_publications(w: &mut Shell) {
         let schema = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         jsonschema::validator_for(&schema).unwrap()
     };
-    let validators: std::collections::HashMap<&str, _> = ["calipso.scene.v4", "calipso.events.v4"]
-        .into_iter()
-        .map(|name| (name, validator(name)))
-        .collect();
+    let validators: std::collections::HashMap<&str, _> = [
+        "calipso.scene.v4",
+        "calipso.events.v4",
+        "calipso.scene.v5",
+        "calipso.events.v5",
+    ]
+    .into_iter()
+    .map(|name| (name, validator(name)))
+    .collect();
     for json in &w.messages {
         let schema = json["schema"].as_str().expect("schema");
         assert!(validators[schema].is_valid(json), "{json}");

@@ -212,7 +212,8 @@ fn decode_fails(ward: &mut Ward, n: u32) {
 fn sensor_stalls(ward: &mut Ward, n: u32) {
     ward.drive(
         scene_core::Input::Sensor {
-            at: ward.sample(n),
+            session: ward.sample(n).session,
+            last: Some(ward.sample(n)),
             state: scene_contract::SensorState::Stalled,
         },
         &Script::default(),
