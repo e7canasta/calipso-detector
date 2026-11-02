@@ -4,9 +4,9 @@
 
 use cucumber::{given, then, when};
 use scene_contract::{BodySeen, LookKind, LookOutcome, LookResult, Zone};
-use scene_core::geom::Rect;
-use scene_core::look::{Detection, Failure, Label};
 use scene_core::policy::TwoPlanesPolicy;
+use scene_geom::Rect;
+use scene_look::{Detection, Failure, Label};
 
 use crate::script::Script;
 use crate::ward::Ward;

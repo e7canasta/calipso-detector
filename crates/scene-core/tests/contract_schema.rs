@@ -64,7 +64,7 @@ fn the_v4_transition_is_the_specs() {
     };
     assert_eq!(
         transition.cell,
-        scene_core::project::cell_of(
+        scene_core::cell_of(
             transition.before.occupancy.rbh,
             transition.seen.fv,
             transition.after.rbh

@@ -3,10 +3,8 @@
 use crate::driver::{detector_profile, scene};
 use crate::world::{Shell, models::DepthModel};
 use cucumber::{given, then, when};
-use scene_core::{
-    geom::{Point, Rect},
-    look::{DepthPurpose, Probe, Reading},
-};
+use scene_geom::{Point, Rect};
+use scene_look::{DepthPurpose, Probe, Reading};
 use sense::DepthMap;
 
 impl Shell {

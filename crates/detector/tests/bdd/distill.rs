@@ -1,7 +1,7 @@
 //! Drive the core and publish its data before trying to distill them.
 use crate::world::Shell;
 use cucumber::{given, then, when};
-use detector::publish::{Kind, PublisherHandle};
+use detector::{Kind, PublisherHandle};
 use golden::{distill::distill, language::Sense, world};
 use scene_contract::{
     Build, Profile, ProfileHash, SampleRef, SessionId, Source, SourceSecs, Timing,
@@ -9,11 +9,11 @@ use scene_contract::{
 use scene_core::units::Confidence;
 use scene_core::{
     Input, Monitor,
-    geom::Quad,
-    look::{Failure, Probe, Reading, Spent},
     map::SiteMap,
     policy::{FacePolicy, Policy, ReinforcePolicy},
 };
+use scene_geom::Quad;
+use scene_look::{Failure, Probe, Reading, Spent};
 
 fn site() -> SiteMap {
     let mut map = SiteMap::new(Quad::from_rect(world::BED));

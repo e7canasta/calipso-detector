@@ -4,7 +4,7 @@
 
 use crate::world::Shell;
 use cucumber::{given, then, when};
-use detector::config::Config;
+use detector::Config;
 use std::path::Path;
 
 /// The hash the test profile has: pinned here, as a constant, from its

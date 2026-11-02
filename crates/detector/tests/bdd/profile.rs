@@ -210,7 +210,7 @@ fn map_focus(w: &mut Shell, x0: u32, y0: u32, x1: u32, y1: u32) {
         &format!("[map]\nfocus = [{x0}, {y0}, {x1}, {y1}]\n"),
     );
     w.config = Some(
-        detector::config::Config::parse(&format!("{base}{}", focus_section(0.25, 3, 3)))
+        detector::Config::parse(&format!("{base}{}", focus_section(0.25, 3, 3)))
             .map_err(|e| e.to_string()),
     );
 }
@@ -244,7 +244,7 @@ fn focus_policy(w: &mut Shell, pad: f32, wide_every_secs: u32) {
 fn site_focus(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
     assert_eq!(
         w.config().site_map().focus,
-        Some(scene_core::geom::Rect::new(x0, y0, x1, y1))
+        Some(scene_geom::Rect::new(x0, y0, x1, y1))
     );
 }
 
@@ -257,7 +257,7 @@ fn bed_posture_profile(w: &mut Shell, headboard: bool, pose: bool, section: &str
     }
     let pose = if pose { POSE } else { "" };
     w.config = Some(
-        detector::config::Config::parse(&format!("{base}{pose}\n[bed_posture]\n{section}"))
+        detector::Config::parse(&format!("{base}{pose}\n[bed_posture]\n{section}"))
             .map_err(|e| e.to_string()),
     );
 }

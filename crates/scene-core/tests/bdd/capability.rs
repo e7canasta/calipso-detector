@@ -71,9 +71,9 @@ fn bed_holds_a_resident(ward: &mut Ward, lay_down_to: u32, unseen: u32, dwell: f
 fn verifier_answers_about_body(ward: &mut Ward, answer: String) {
     let n = ward.last().output.at.sequence as u32 + 1;
     ward.verifier.answer = Some(match answer.as_str() {
-        "yes" => scene_core::look::Answer::Yes,
-        "no" => scene_core::look::Answer::No,
-        _ => scene_core::look::Answer::Unsure,
+        "yes" => scene_look::Answer::Yes,
+        "no" => scene_look::Answer::No,
+        _ => scene_look::Answer::Unsure,
     });
     ward.turn_with(ward.sample(n), Script::default());
     let control = ward.control.as_mut().expect("the control run is built");

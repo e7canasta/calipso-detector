@@ -102,13 +102,13 @@ fn sequence(ward: &mut Ward, step: &Step) {
                 script.bed = None;
             }
             if depth_fails {
-                script.depth = Err(scene_core::look::Failure::Model);
+                script.depth = Err(scene_look::Failure::Model);
             }
             if shift {
                 ward.shifted = !ward.shifted;
             }
             if pose_fails {
-                script.pose = Err(scene_core::look::Failure::Model);
+                script.pose = Err(scene_look::Failure::Model);
             }
             if figure.is_some() {
                 script.figure = figure;

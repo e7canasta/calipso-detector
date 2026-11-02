@@ -7,7 +7,7 @@
 use golden::language::{Expected, InBed, Location, Samples, Span, spans_from_cells};
 use golden::world::{self, Sample};
 use scene_contract::Keypoint;
-use scene_core::look::{DepthPurpose, Detection, Failure, Probe, Reading};
+use scene_look::{DepthPurpose, Detection, Failure, Probe, Reading};
 
 /// What each sense answers in a turn.
 #[derive(Debug, Clone)]
@@ -350,7 +350,7 @@ impl Figure {
 
 /// The scripted depth of a point, when the pose has configured keypoints:
 /// different for each place, to check that each keypoint carries its own.
-pub fn depth_at(p: scene_core::geom::Point) -> f32 {
+pub fn depth_at(p: scene_geom::Point) -> f32 {
     1.0 + p.x / 1_000.0 + p.y / 100_000.0
 }
 

@@ -58,18 +58,20 @@ mod conclusion;
 mod cycle;
 mod estimation;
 mod evidence;
-// Geometry is a crate of its own (ADR 2026-11-02, crates-del-lenguaje): the
-// core re-exports it under its old path, so `scene_core::geom::Rect` is the same.
-pub use scene_geom as geom;
+// Geometry is a crate of its own (ADR 2026-11-02, crates-del-lenguaje). Consumers
+// import `scene_geom` directly; the core keeps this private alias for its own
+// modules, which spell `crate::geom`.
+use scene_geom as geom;
 #[cfg(test)]
 mod golden;
-// The perception language is a crate of its own (ADR 2026-11-02, crates-del-lenguaje):
-// the core re-exports it under its old path, `scene_core::look`.
-pub use scene_look as look;
+// The perception language is a crate of its own (ADR 2026-11-02, crates-del-lenguaje).
+// Consumers import `scene_look` directly; this private alias serves the core's
+// own modules, which spell `crate::look`.
+use scene_look as look;
 pub mod map;
 mod outcome;
 pub mod policy;
-pub mod project;
+mod project;
 mod provenance;
 mod reception;
 mod refine;
@@ -80,3 +82,4 @@ mod verification;
 mod zone;
 
 pub use cycle::{Input, Monitor, NoFrame, Output, Turn};
+pub use project::cell_of;

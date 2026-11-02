@@ -7,15 +7,10 @@
 //! says whether it sees someone in bed.
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
-use detector::{
-    config::Config,
-    source::{Arrival, SampleSource, rtsp::RtspSource},
-};
+use detector::{Arrival, Config, RtspSource, SampleSource};
 use ingest::{Mailbox, Sample};
-use scene_core::{
-    geom::Point,
-    look::{Label, Probe, Reading},
-};
+use scene_geom::Point;
+use scene_look::{Label, Probe, Reading};
 use sense::{DepthPort, Senses, ultralytics::DepthEstimator};
 use std::{
     collections::BTreeMap,
@@ -210,7 +205,7 @@ async fn main() -> Result<()> {
         Arc::clone(&mailbox),
         events_tx,
         shutdown.clone(),
-        detector::clock::SystemClock,
+        detector::SystemClock,
     );
     let interval = Duration::from_millis(config.stream.sample_interval_ms);
     let seconds = args.seconds;
@@ -224,8 +219,7 @@ async fn main() -> Result<()> {
     let (spans, scale, times) = tokio::task::block_in_place({
         let mailbox = Arc::clone(&mailbox);
         || -> Result<_> {
-            let mut source =
-                RtspSource::new(mailbox, events_rx, interval, detector::clock::SystemClock);
+            let mut source = RtspSource::new(mailbox, events_rx, interval, detector::SystemClock);
             let deadline = Instant::now() + Duration::from_secs(seconds);
             let mut spans: BTreeMap<&'static str, Span> = BTreeMap::new();
             let mut scale = Vec::new();

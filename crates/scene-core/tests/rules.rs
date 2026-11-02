@@ -5,8 +5,8 @@ mod published;
 
 use proptest::prelude::*;
 use published::{Body, Fact, Kind};
-use scene_core::geom::Rect;
-use scene_core::look::{Detection, Failure, Label};
+use scene_geom::Rect;
+use scene_look::{Detection, Failure, Label};
 
 #[derive(Debug, Clone)]
 struct Step {
@@ -53,11 +53,11 @@ fn sequences() -> impl Strategy<Value = Vec<Step>> {
 
 use scene_contract::{BedPostureState, Mode};
 use scene_contract::{BedState, FrameInfo, SampleRef, Scene, SessionId, SourceSecs};
-use scene_core::geom::Quad;
-use scene_core::look::{Reading, Spent};
 use scene_core::map::SiteMap;
 use scene_core::policy::{BedPosturePolicy, Policy};
 use scene_core::{Input, Monitor, NoFrame, Output};
+use scene_geom::Quad;
+use scene_look::{Reading, Spent};
 
 fn monitor() -> Monitor {
     Monitor::new(

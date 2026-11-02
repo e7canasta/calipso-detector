@@ -7,10 +7,10 @@ use cucumber::{given, then};
 use scene_contract::{
     FrameInfo, LookKind, LookOutcome, LookResult, Provenance, RejectReason, Scene, SkipReason,
 };
-use scene_core::geom::Rect;
 use scene_core::policy::{FacePolicy, FocusPolicy};
 use scene_core::units::{Confidence, Seconds};
 use scene_core::{Monitor, Output};
+use scene_geom::Rect;
 
 use crate::ward::{BED, FRAME, Ward};
 use golden::world::{HEADBOARD, in_bed};
@@ -100,7 +100,7 @@ pub(crate) fn scene(ward: &Ward, n: u32) -> &Scene {
 }
 
 /// The region looked at with `kind` in sample `n`.
-fn region(ward: &Ward, n: u32, kind: LookKind) -> scene_core::geom::Rect {
+fn region(ward: &Ward, n: u32, kind: LookKind) -> scene_geom::Rect {
     let scene = scene(ward, n);
     scene
         .attention
@@ -325,7 +325,7 @@ fn replays(ward: &mut Ward) {
         .map(|(input, script)| {
             monitor
                 .handle(input.clone())
-                .drive(|request| (script.respond(request), scene_core::look::Spent(1.0)))
+                .drive(|request| (script.respond(request), scene_look::Spent(1.0)))
         })
         .collect();
     let original: Vec<&Output> = ward.turns.iter().map(|t| &t.output).collect();

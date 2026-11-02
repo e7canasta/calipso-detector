@@ -267,7 +267,7 @@ fn a_transition(ward: &mut Ward, before: String, seen: String, after: String) {
         _ => panic!("\"{seen}\": a pair"),
     };
     ward.cell = Some(
-        scene_core::project::cell_of(rbh(&before), fv, rbh(&after))
+        scene_core::cell_of(rbh(&before), fv, rbh(&after))
             .as_str()
             .to_string(),
     );

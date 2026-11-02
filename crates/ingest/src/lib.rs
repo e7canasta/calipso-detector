@@ -6,20 +6,20 @@
 // What is `pub` is reachable from outside; the rest says `pub(crate)`.
 #![warn(unreachable_pub)]
 
-pub mod clock;
-pub mod decode;
+mod clock;
+mod decode;
 mod error;
-pub mod mailbox;
+mod mailbox;
 mod rtsp;
-pub use error::IngestError;
 
 use std::time::{Duration, Instant};
 
+// The facade: each item by one path from this root.
 pub use clock::Clock;
+pub use decode::{FrameDecoder, Picture};
+pub use error::IngestError;
 pub use mailbox::{Mailbox, Take};
 pub use rtsp::spawn;
-
-pub use decode::Picture;
 
 #[derive(Debug)]
 pub struct Sample {
@@ -65,8 +65,6 @@ pub struct Stamp {
     pub sequence: u64,
     pub source_secs: f64,
 }
-
-pub use decode::FrameDecoder;
 
 impl Default for IngestConfig {
     fn default() -> Self {

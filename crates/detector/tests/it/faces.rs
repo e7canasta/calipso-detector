@@ -1,14 +1,14 @@
 use crate::{models, support};
-use detector::clock::FixedClock;
-use detector::driver::Driver;
+use detector::Driver;
+use detector::FixedClock;
 use models::Model;
 use scene_core::units::Confidence;
 use scene_core::{
-    geom::{Quad, Rect},
-    look::{Detection, Label},
     map::SiteMap,
     policy::{FacePolicy, Policy},
 };
+use scene_geom::{Quad, Rect};
+use scene_look::{Detection, Label};
 use std::time::Duration;
 
 #[test]

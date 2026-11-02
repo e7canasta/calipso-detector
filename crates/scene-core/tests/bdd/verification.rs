@@ -4,8 +4,8 @@
 
 use cucumber::{given, then};
 use scene_contract::{HeldCheckState, LookKind, LookOutcome, LookResult, SkipReason, Verifier};
-use scene_core::look::Answer;
 use scene_core::policy::{Band, Burst, HeldVerifyPolicy, SharpnessPolicy, VerifyPolicy};
+use scene_look::Answer;
 
 use crate::attention::scene;
 use crate::ward::Ward;

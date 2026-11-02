@@ -21,6 +21,8 @@ path = "src/bin/frames.rs"
 [dependencies]
 scene-contract = { path = "../scene-contract" }
 scene-core = { path = "../scene-core" }
+scene-geom = { path = "../scene-geom" }
+scene-look = { path = "../scene-look" }
 ingest = { path = "../ingest" }
 sense = { path = "../sense", features = ["onnx"] }
 tokio = { version = "1", features = ["full"] }

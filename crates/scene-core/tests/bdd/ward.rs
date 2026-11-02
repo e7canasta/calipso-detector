@@ -8,12 +8,12 @@ use crate::published::{Body, Fact, Kind};
 pub use crate::script::Script;
 use cucumber::World;
 use scene_contract::{LookKind, LookResult, Provenance, SampleRef, Scene, SessionId, SourceSecs};
-use scene_core::geom::Quad;
-use scene_core::look::Spent;
 use scene_core::map::FrameInfo;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
 use scene_core::{Input, Monitor, Output};
+use scene_geom::Quad;
+use scene_look::Spent;
 
 /// Every scenario's geometry is that of the golden scenes: a single one.
 pub use golden::world::{BED, FRAME};
@@ -73,11 +73,11 @@ pub struct Ward {
 /// source time, before the first sample at or past it.
 #[derive(Debug, Default)]
 pub struct Verifier {
-    pub answer: Option<scene_core::look::Answer>,
+    pub answer: Option<scene_look::Answer>,
     pub latency_secs: f64,
     /// Each request still owed, with the sample it went out at: the latency
     /// counts from there, as a burst goes out after its first sample.
-    pub owed: Vec<(scene_core::look::Ticket, SampleRef)>,
+    pub owed: Vec<(scene_look::Ticket, SampleRef)>,
     /// The samples whose kept crop is blurred: the shell measures it at 10,
     /// against 100 for every other.
     pub blurred: Vec<u32>,
@@ -121,13 +121,13 @@ impl Ward {
     /// A decoded sample with what the script dictates.
     pub fn turn_with(&mut self, at: SampleRef, mut script: Script) {
         if self.reinforcement_fails {
-            script.reinforce = Err(scene_core::look::Failure::Model);
+            script.reinforce = Err(scene_look::Failure::Model);
         }
         if self.reinforcement_other_kind {
             script.reinforce_other_kind = true;
         }
         if self.wide_fails.iter().any(|&n| u64::from(n) == at.sequence) {
-            script.wide = Err(scene_core::look::Failure::Model);
+            script.wide = Err(scene_look::Failure::Model);
         }
         if self.shifted {
             shift_in_bed(&mut script, SHIFT);
@@ -175,7 +175,7 @@ impl Ward {
                 });
             self.verifier.owed = owed;
             for (ticket, _) in due {
-                monitor.verified(scene_core::look::Verified {
+                monitor.verified(scene_look::Verified {
                     ticket,
                     answer: Some(answer),
                 });
@@ -188,7 +188,7 @@ impl Ward {
         };
         let output = monitor.handle(input.clone()).drive(|request| {
             // A request the verifier took is owed an answer; a refused one is not.
-            if let (scene_core::look::Probe::Verify { ticket, .. }, Some(sent), false) =
+            if let (scene_look::Probe::Verify { ticket, .. }, Some(sent), false) =
                 (request, sent, script.refuses(request))
             {
                 asked.push((*ticket, sent));
@@ -220,7 +220,7 @@ pub const SHIFT: f32 = 40.0;
 /// Shifts by `dx` the body boxes whose centre is in bed, in what the main
 /// detector and reinforcement see: the resident changed place on the mattress.
 fn shift_in_bed(script: &mut Script, dx: f32) {
-    let shift = |bodies: &mut Vec<scene_core::look::Detection>| {
+    let shift = |bodies: &mut Vec<scene_look::Detection>| {
         for d in bodies.iter_mut() {
             let c = d.bbox.centroid();
             if c.x >= BED.x0 && c.x <= BED.x1 && c.y >= BED.y0 && c.y <= BED.y1 {
@@ -241,7 +241,7 @@ fn shift_in_bed(script: &mut Script, dx: f32) {
 /// bed, without moving the centre: the width changes by 40 %, more than the
 /// threshold.
 fn reshape_in_bed(script: &mut Script) {
-    let reshape = |bodies: &mut Vec<scene_core::look::Detection>| {
+    let reshape = |bodies: &mut Vec<scene_look::Detection>| {
         for d in bodies.iter_mut() {
             let c = d.bbox.centroid();
             if c.x >= BED.x0 && c.x <= BED.x1 && c.y >= BED.y0 && c.y <= BED.y1 {

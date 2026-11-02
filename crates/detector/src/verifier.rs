@@ -6,10 +6,8 @@
 //! crop goes to the local verifier and is dropped.
 use crate::clock::Clock;
 use image::{DynamicImage, codecs::jpeg::JpegEncoder};
-use scene_core::{
-    geom::{Quad, Rect},
-    look::{Answer, Failure, Question, Ticket, Verified},
-};
+use scene_geom::{Quad, Rect};
+use scene_look::{Answer, Failure, Question, Ticket, Verified};
 use std::marker::PhantomData;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -74,7 +72,7 @@ impl<F> VerifierPort for NoVerifier<F> {
 /// them: `x,y x,y x,y x,y`, headboard left, headboard right, foot right, foot
 /// left. The verifier can rectify the crop to the bed with them; the crop sent
 /// stays the natural one.
-pub fn bed_in_crop(frame: &DynamicImage, region: Rect, bed: &Quad) -> String {
+pub(crate) fn bed_in_crop(frame: &DynamicImage, region: Rect, bed: &Quad) -> String {
     let x0 = region.x0.clamp(0.0, frame.width() as f32).floor();
     let y0 = region.y0.clamp(0.0, frame.height() as f32).floor();
     bed.0
@@ -118,7 +116,7 @@ pub fn jpeg_crop(frame: &DynamicImage, region: Rect) -> Result<Vec<u8>, Failure>
 /// crop in grey, resized to 256 px across, so every crop of a camera is
 /// measured on the same scale (white book, volume III, ch. 12). About a
 /// millisecond.
-pub fn sharpness(frame: &DynamicImage, region: Rect) -> Result<f32, Failure> {
+pub(crate) fn sharpness(frame: &DynamicImage, region: Rect) -> Result<f32, Failure> {
     let (x, y, width, height) = pixels(frame, region, 2)?;
     let grey = frame.crop_imm(x, y, width, height).to_luma8();
     let height = (256 * grey.height() / grey.width().max(1)).max(3);
@@ -139,7 +137,7 @@ pub fn sharpness(frame: &DynamicImage, region: Rect) -> Result<f32, Failure> {
 
 /// What the verifier said, from its reply: `yes`, `no` or anything else, which
 /// is unsure. The reply is JSON with an `answer` field, or the bare word.
-pub fn read_answer(reply: &[u8]) -> Answer {
+pub(crate) fn read_answer(reply: &[u8]) -> Answer {
     let text = serde_json::from_slice::<serde_json::Value>(reply)
         .ok()
         .and_then(|v| v.get("answer").and_then(|a| a.as_str()).map(str::to_owned))
@@ -169,7 +167,7 @@ struct Request {
 /// The payload and the `Calipso-Frame-Lengths` header of a request: the crops
 /// one after the other, and each one's length in bytes. One crop goes alone
 /// and without the header, as before bursts.
-pub fn frames_payload(jpegs: &[Vec<u8>]) -> (Vec<u8>, Option<String>) {
+pub(crate) fn frames_payload(jpegs: &[Vec<u8>]) -> (Vec<u8>, Option<String>) {
     let payload = jpegs.concat();
     let lengths = (jpegs.len() > 1).then(|| {
         jpegs
@@ -492,7 +490,7 @@ mod tests {
         Ticket {
             id,
             looked: at,
-            target: scene_core::look::Target::Held { since: at },
+            target: scene_look::Target::Held { since: at },
         }
     }
 

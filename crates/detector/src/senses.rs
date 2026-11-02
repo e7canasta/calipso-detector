@@ -4,10 +4,8 @@
 use crate::config::Config;
 use anyhow::{Context, Result};
 use image::DynamicImage;
-use scene_core::{
-    look::{Failure, Reading, SenseProbe},
-    map::FrameInfo,
-};
+use scene_core::map::FrameInfo;
+use scene_look::{Failure, Reading, SenseProbe};
 
 /// What can be looked at in a sample. It knows its size: the core needs it to
 /// know whether the bed geometry applies.

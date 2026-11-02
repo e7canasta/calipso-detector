@@ -1,12 +1,12 @@
 #[path = "../support/models.rs"]
 pub mod models;
 use cucumber::{World, given, then, when};
-use detector::verifier::VerifierPort;
+use detector::VerifierPort;
 use image::DynamicImage;
 use models::{Call, DepthModel, Model, PoseModel};
-use scene_core::{
-    geom::Rect,
-    look::{Detection, FaceRegion, Failure, Label, Probe, Reading, SenseProbe, Spent, Ticket},
+use scene_geom::Rect;
+use scene_look::{
+    Detection, FaceRegion, Failure, Label, Probe, Reading, SenseProbe, Spent, Ticket,
 };
 use sense::{DetectorPort, ModelError};
 use std::time::Duration;
@@ -40,14 +40,14 @@ impl VerifierPort for Verifier {
         _: &DynamicImage,
         _: Ticket,
         _: Rect,
-        _: &scene_core::geom::Quad,
-        _: scene_core::look::Question,
+        _: &scene_geom::Quad,
+        _: scene_look::Question,
         _: &[u8],
     ) -> Result<(), Failure> {
         self.asks += 1;
         Ok(())
     }
-    fn answers(&mut self) -> Vec<scene_core::look::Verified> {
+    fn answers(&mut self) -> Vec<scene_look::Verified> {
         Vec::new()
     }
     fn keep(&mut self, _: &DynamicImage, _: Ticket, _: Rect) -> Result<f32, Failure> {
@@ -73,7 +73,7 @@ pub struct Shell {
     /// The map the depth model sees, while the scenario builds it.
     pub depth_map: sense::DepthMap,
     pub reading: Option<Result<Reading, Failure>>,
-    pub config: Option<Result<detector::config::Config, String>>,
+    pub config: Option<Result<detector::Config, String>>,
     pub scenes: std::collections::BTreeMap<u64, serde_json::Value>,
     pub messages: Vec<serde_json::Value>,
     /// The samples the last "When" drove, to replay them with another profile.
@@ -88,14 +88,14 @@ pub struct Shell {
 impl Shell {
     pub fn parse_config(&mut self, extra: &str) {
         self.config = Some(
-            detector::config::Config::parse(&format!(
+            detector::Config::parse(&format!(
                 "{}{extra}",
                 include_str!("../support/profile.toml")
             ))
             .map_err(|e| e.to_string()),
         );
     }
-    pub fn config(&self) -> &detector::config::Config {
+    pub fn config(&self) -> &detector::Config {
         self.config
             .as_ref()
             .unwrap()
@@ -339,7 +339,7 @@ fn invalid_reinforce(w: &mut Shell, section: String, backend: f32, minimum: f32)
             &format!("[senses.detect]\nbackend_confidence = {backend}"),
         );
         w.config = Some(
-            detector::config::Config::parse(&format!(
+            detector::Config::parse(&format!(
                 "{profile}\n[policy]\nmin_confidence = {minimum}\n"
             ))
             .map_err(|e| e.to_string()),

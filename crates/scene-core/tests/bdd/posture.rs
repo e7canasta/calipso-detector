@@ -78,7 +78,7 @@ fn each_its_own(ward: &mut Ward, n: u32) {
         .collect();
     assert!(!measured.is_empty(), "no keypoint measured");
     for p in measured {
-        let point = scene_core::geom::Point {
+        let point = scene_geom::Point {
             x: p["x"].as_f64().expect("x") as f32,
             y: p["y"].as_f64().expect("y") as f32,
         };

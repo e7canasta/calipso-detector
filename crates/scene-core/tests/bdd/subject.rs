@@ -7,8 +7,8 @@ use crate::published::Body;
 use cucumber::{given, then};
 use scene_contract::Calibration;
 use scene_contract::{LookKind, LookOutcome, LookResult, Provenance, Scene, SkipReason, Zone};
-use scene_core::geom::Rect;
 use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
+use scene_geom::Rect;
 
 use crate::attention::{scene, skipped};
 use crate::ward::{BED, Ward, later};

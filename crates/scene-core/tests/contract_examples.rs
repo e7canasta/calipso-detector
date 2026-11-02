@@ -4,13 +4,13 @@
 mod script;
 
 use scene_contract::*;
-use scene_core::geom::{Quad, Rect};
-use scene_core::look::Spent;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
 use scene_core::units::{Confidence, Seconds};
 use scene_core::units::{DiagonalFraction, Extension, RelativeDepth};
 use scene_core::{Input, Monitor};
+use scene_geom::{Quad, Rect};
+use scene_look::Spent;
 use std::path::PathBuf;
 
 /// The envelope the shell puts around each message, with fixed values so the
@@ -210,7 +210,7 @@ fn observe(monitor: &mut Monitor, sequence: u64, script: &script::Script) -> sce
 
 #[test]
 fn a_failed_detector_neither_publishes_a_zero_nor_erases_the_belief() {
-    use scene_core::look::Failure;
+    use scene_look::Failure;
     let mut monitor = Monitor::new(
         Policy::default(),
         SiteMap::new(Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))),
@@ -280,8 +280,8 @@ fn without_geometry_boxes_are_published_with_an_unknown_zone() {
 
 #[test]
 fn faces_say_whether_they_are_on_the_current_subject() {
-    use scene_core::look::{Detection, Label};
     use scene_core::policy::FacePolicy;
+    use scene_look::{Detection, Label};
     let mut policy = Policy::default();
     policy.persistence.dwell_secs = Seconds::ZERO;
     policy.faces = Some(FacePolicy {
@@ -380,8 +380,8 @@ fn the_published_examples_validate_and_the_invalid_fixture_does_not() {
 
 #[test]
 fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
-    use scene_core::look::Failure;
     use scene_core::policy::EnrichPolicy;
+    use scene_look::Failure;
     let mut policy = Policy::default();
     policy.persistence.dwell_secs = Seconds::ZERO;
     policy.enrich = Some(EnrichPolicy {

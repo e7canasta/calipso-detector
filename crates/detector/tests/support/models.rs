@@ -1,6 +1,6 @@
 //! Scripted model per role: what it returns belongs to the image it received.
 use image::DynamicImage;
-use scene_core::look::Detection;
+use scene_look::Detection;
 use sense::{DepthMap, DepthPort, DetectorPort, ModelError, PersonPose, PosePort};
 use std::{
     collections::VecDeque,

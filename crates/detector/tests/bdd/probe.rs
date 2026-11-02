@@ -5,14 +5,12 @@
 use crate::driver::publish_samples;
 use crate::world::{Shell, models::Model};
 use cucumber::{given, then, when};
-use detector::clock::SystemClock;
-use detector::router;
+use detector::SystemClock;
+use detector::answer as route;
 use image::DynamicImage;
 use scene_contract::{SampleRef, SessionId, SourceSecs};
-use scene_core::{
-    geom::{Quad, Rect},
-    look::{Failure, PosePurpose, Probe, Question, Reading, Target, Ticket},
-};
+use scene_geom::{Quad, Rect};
+use scene_look::{Failure, PosePurpose, Probe, Question, Reading, Target, Ticket};
 
 fn sample(n: u64) -> SampleRef {
     SampleRef {
@@ -109,7 +107,7 @@ fn routes(w: &mut Shell) {
     // The one test that measures real time: "the time is measured by the
     // router" sleeps inside the answerer and needs the system's clock. Every
     // other driver test uses FixedClock (ADR 2026-11-02-reloj-inyectado).
-    let answer = router::answer(&SystemClock, &mut senses, &mut verifier, &frame, &probe);
+    let answer = route(&SystemClock, &mut senses, &mut verifier, &frame, &probe);
     w.verifier = verifier;
     w.answer = Some(answer);
 }
@@ -146,7 +144,7 @@ fn verifier_keeps(w: &mut Shell) {
 }
 
 /// The answer the router returned, as the last "When" left it.
-fn answer(w: &Shell) -> &(Result<Reading, Failure>, scene_core::look::Spent) {
+fn answer(w: &Shell) -> &(Result<Reading, Failure>, scene_look::Spent) {
     w.answer.as_ref().expect("the router answered")
 }
 

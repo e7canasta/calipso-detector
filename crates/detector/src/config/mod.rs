@@ -24,19 +24,16 @@ mod tests;
 mod validate;
 mod verify;
 
-pub use bed_posture::BedPostureConfig;
-pub use calibration::CalibrationConfig;
-pub use depth::Depth;
-pub use detect::{Detect, Focus};
-pub use faces::Faces;
-pub use occupancy::{KneeConfig, OccupancyConfig, RoomGeometry, TwoPlanesConfig};
-pub use pose::Pose;
-pub use reinforce::Reinforce;
-pub use schema::*;
-pub use shadow::ShadowConfig;
-pub use verify::{
-    BurstConfig, FramesConfig, HeldVerifyConfig, SharpnessConfig, VerifyConfig, VerifySense,
-};
+pub(crate) use bed_posture::BedPostureConfig;
+pub(crate) use calibration::CalibrationConfig;
+pub(crate) use detect::Focus;
+pub(crate) use faces::Faces;
+pub(crate) use occupancy::OccupancyConfig;
+pub(crate) use reinforce::Reinforce;
+pub(crate) use schema::*;
+pub use schema::{Config, NatsConfig};
+pub(crate) use shadow::ShadowConfig;
+pub(crate) use verify::VerifyConfig;
 
 fn resolve_model_path(model: &Path, base: Option<&Path>) -> PathBuf {
     match base {

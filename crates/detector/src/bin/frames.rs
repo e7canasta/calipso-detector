@@ -5,10 +5,9 @@
 //! the same clip frame by frame (white book, volume VII, ch. 12).
 use anyhow::{Context, Result};
 use clap::Parser;
-use detector::source::frames::FramesSource;
-use detector::{
-    build, clock::SystemClock, config::Config, driver::Driver, publish::PublisherHandle,
-};
+use detector::FramesSource;
+use detector::build_info;
+use detector::{Config, Driver, PublisherHandle, SystemClock};
 use scene_contract::Source;
 use std::{io::Write, path::PathBuf, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -58,14 +57,14 @@ fn main() -> Result<()> {
         site: config.camera.site.clone(),
         camera: config.camera.id.clone(),
         run_id: ulid::Ulid::new().to_string(),
-        build: build::current(),
+        build: build_info(),
     };
     tracing::info!(run_id = %run.run_id, build = ?run.build, frames = source.len(), "runs over frames");
     let prefix = config.prefix();
     let (mut publisher, _rx) = PublisherHandle::channel(run, profile);
     let mut file = std::fs::File::create(&args.out)
         .with_context(|| format!("create {}", args.out.display()))?;
-    let senses = detector::senses::load(&config)?;
+    let senses = detector::load_senses(&config)?;
     let mut driver = Driver::new(
         config.policy()?,
         config.site_map(),

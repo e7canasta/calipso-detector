@@ -1,11 +1,9 @@
 use crate::world::Shell;
 use cucumber::{given, then, when};
-use detector::{clock::FixedClock, config::Config, driver::Driver, publish::PublisherHandle};
+use detector::{Config, Driver, FixedClock, PublisherHandle};
 use scene_contract::Source;
-use scene_core::{
-    geom::Rect,
-    look::{Detection, Label},
-};
+use scene_geom::Rect;
+use scene_look::{Detection, Label};
 use std::time::Duration;
 
 /// The profile of the synthetic testsrc frame (160×96) the driver decodes,
@@ -137,7 +135,7 @@ pub fn publish_samples(
         site: config.camera.site.clone(),
         camera: config.camera.id.clone(),
         run_id: "bdd-capability".into(),
-        build: detector::build::current(),
+        build: detector::build_info(),
     };
     let (mut publisher, _receiver) = PublisherHandle::channel(source, config.profile().unwrap());
     let mut published = Vec::new();

@@ -5,8 +5,8 @@
 use crate::published::Body;
 use cucumber::{given, then, when};
 use scene_contract::{Cause, LookKind, LookOutcome, LookResult, RepublishReason, SampleRef};
-use scene_core::look::Failure;
 use scene_core::policy::ReinforcePolicy;
+use scene_look::Failure;
 
 use crate::script::Script;
 use crate::ward::Ward;

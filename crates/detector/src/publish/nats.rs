@@ -168,12 +168,8 @@ mod tests {
     use super::*;
     use crate::{build, publish::PublisherHandle};
     use scene_contract::*;
-    use scene_core::{
-        Input, Monitor,
-        geom::{Quad, Rect},
-        map::SiteMap,
-        policy::Policy,
-    };
+    use scene_core::{Input, Monitor, map::SiteMap, policy::Policy};
+    use scene_geom::{Quad, Rect};
     #[test]
     fn fifo_1024_keeps_the_front_and_drops_the_newest() {
         let (mut handle, _) = PublisherHandle::channel(

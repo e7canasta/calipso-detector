@@ -217,19 +217,19 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>, C: Clock> Driver<S, V, C>
 mod tests {
     use super::*;
     use crate::clock::FixedClock;
-    use crate::source::rtsp::SampleDecoder;
+    use crate::source::SampleDecoder;
     use image::DynamicImage;
     use ingest::{Payload, Sample};
     use scene_contract::{LookOutcome, RepublishReason};
-    use scene_core::geom::{Quad, Rect};
     use scene_core::map::FrameInfo;
+    use scene_geom::{Quad, Rect};
     use sense::Senses;
     struct Empty;
     impl sense::DetectorPort for Empty {
         fn detect(
             &mut self,
             _: &DynamicImage,
-        ) -> Result<Vec<scene_core::look::Detection>, sense::ModelError> {
+        ) -> Result<Vec<scene_look::Detection>, sense::ModelError> {
             Ok(vec![])
         }
     }

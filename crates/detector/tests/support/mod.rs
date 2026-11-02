@@ -1,15 +1,12 @@
 #![allow(dead_code)]
-use detector::clock::FixedClock;
-use detector::driver::Driver;
-use detector::source::{Arrival, rtsp::SampleDecoder};
+use detector::Driver;
+use detector::FixedClock;
+use detector::{Arrival, SampleDecoder};
 use image::DynamicImage;
 use ingest::{Clock, Payload, Sample, Stamp};
-use scene_core::{
-    geom::{Quad, Rect},
-    look::Detection,
-    map::SiteMap,
-    policy::Policy,
-};
+use scene_core::{map::SiteMap, policy::Policy};
+use scene_geom::{Quad, Rect};
+use scene_look::Detection;
 use std::{collections::VecDeque, time::Duration};
 
 pub struct Script(pub VecDeque<Vec<Detection>>);
@@ -18,7 +15,7 @@ impl sense::DetectorPort for Script {
         Ok(self.0.pop_front().expect("one reading per sample"))
     }
 }
-pub fn driver() -> Driver<sense::Senses, detector::verifier::NoVerifier<DynamicImage>, FixedClock> {
+pub fn driver() -> Driver<sense::Senses, detector::NoVerifier<DynamicImage>, FixedClock> {
     const S1: &str = include_str!("../../../../../calipso-golden/scenes/s1-staff-put-to-bed.md");
     let script = golden::language::Scene::parse(S1)
         .unwrap()

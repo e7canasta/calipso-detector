@@ -1,14 +1,9 @@
 //! Per-camera composition: each resource is born and dies in its thread.
 use anyhow::{Context, Result};
 use clap::Parser;
+use detector::build_info;
 use detector::{
-    build,
-    clock::SystemClock,
-    config::Config,
-    driver::Driver,
-    publish::{PublisherHandle, nats},
-    source::rtsp::RtspSource,
-    verifier::{DeadlineVerifier, NatsVerifier},
+    Config, DeadlineVerifier, Driver, NatsVerifier, PublisherHandle, RtspSource, SystemClock, nats,
 };
 use ingest::{Mailbox, Sample};
 use scene_contract::Source;
@@ -59,7 +54,7 @@ async fn main() -> Result<()> {
         site: config.camera.site.clone(),
         camera: config.camera.id.clone(),
         run_id: ulid::Ulid::new().to_string(),
-        build: build::current(),
+        build: build_info(),
     };
     tracing::info!(run_id=%source.run_id,build=?source.build,profile=?profile,"detector starts");
     let (mut publisher, rx) = PublisherHandle::channel(source, profile);
@@ -98,7 +93,7 @@ async fn main() -> Result<()> {
         let mailbox = Arc::clone(&mailbox);
         let token = token.clone();
         move || -> Result<()> {
-            let senses = detector::senses::load(&config)?;
+            let senses = detector::load_senses(&config)?;
             let driver = Driver::new(
                 config.policy()?,
                 config.site_map(),
@@ -112,7 +107,7 @@ async fn main() -> Result<()> {
                 Duration::from_millis(config.stream.sample_interval_ms),
                 SystemClock,
             );
-            let emit = |processed: detector::driver::Processed| {
+            let emit = |processed: detector::Processed| {
                 publisher.send(processed.output, processed.timing);
             };
             match verifier {

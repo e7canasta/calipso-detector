@@ -1,7 +1,10 @@
 //! The source port: where samples come from and what happens to the transport.
 //! Live, RTSP with decode; for the loop test, frames from a directory.
-pub mod frames;
-pub mod rtsp;
+mod frames;
+mod rtsp;
+
+pub use frames::FramesSource;
+pub use rtsp::{RtspSource, SampleDecoder};
 
 use ingest::{IngestError, StreamEvent};
 use scene_contract::SampleRef;

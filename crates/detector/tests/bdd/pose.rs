@@ -4,10 +4,8 @@ use crate::driver::{RESIDENT, detector_profile, scene};
 use crate::world::{Shell, models::PoseModel};
 use cucumber::{given, then, when};
 use scene_contract::Keypoint;
-use scene_core::{
-    geom::Rect,
-    look::{PosePurpose, Probe, Reading},
-};
+use scene_geom::Rect;
+use scene_look::{PosePurpose, Probe, Reading};
 use sense::PersonPose;
 
 fn person(confidence: f32, keypoints: Vec<Keypoint>) -> PersonPose {

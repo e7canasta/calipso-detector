@@ -7,7 +7,7 @@
 use crate::clock::Clock;
 use crate::senses::SensesPort;
 use crate::verifier::VerifierPort;
-use scene_core::look::{Failure, Probe, Reading, Route, Spent, VerifierProbe};
+use scene_look::{Failure, Probe, Reading, Route, Spent, VerifierProbe};
 
 /// Answers `probe` over the sample's `frame`, and measures the answer in
 /// milliseconds of `clock`. The answerers return no time: this is the only one.

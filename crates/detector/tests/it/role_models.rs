@@ -1,10 +1,8 @@
 use crate::models;
 use image::DynamicImage;
 use models::Model;
-use scene_core::{
-    geom::Rect,
-    look::{Detection, Label},
-};
+use scene_geom::Rect;
+use scene_look::{Detection, Label};
 use sense::DetectorPort;
 
 #[test]

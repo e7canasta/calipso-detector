@@ -1,9 +1,6 @@
 use crate::support;
-use detector::{
-    build,
-    config::NatsConfig,
-    publish::{PublisherHandle, nats},
-};
+use detector::build_info;
+use detector::{NatsConfig, PublisherHandle, nats};
 use futures::StreamExt;
 use scene_contract::{Profile, ProfileHash, Source, Timing};
 use std::{
@@ -44,14 +41,14 @@ fn certificate_error(error: &async_nats::ConnectError) -> &async_nats::rustls::C
 }
 fn handle() -> (
     PublisherHandle,
-    tokio::sync::mpsc::Receiver<detector::publish::Publication>,
+    tokio::sync::mpsc::Receiver<detector::Publication>,
 ) {
     PublisherHandle::channel(
         Source {
             site: "test".into(),
             camera: "room-local".into(),
             run_id: "nats-test".into(),
-            build: build::current(),
+            build: build_info(),
         },
         Profile {
             camera: None,

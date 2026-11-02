@@ -7,10 +7,10 @@ use super::validate::{confidence, seconds};
 use super::*;
 use scene_core::units::{Extension, Proportion, Ratio};
 use scene_core::{
-    geom::{Point, Quad, Rect},
     map::{FrameInfo, SiteMap},
     policy::Policy,
 };
+use scene_geom::{Point, Quad, Rect};
 
 impl Config {
     pub fn policy(&self) -> Result<Policy> {

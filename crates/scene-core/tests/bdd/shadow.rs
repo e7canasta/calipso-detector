@@ -4,11 +4,11 @@
 
 use cucumber::{given, then, when};
 use scene_contract::{BodySeen, ShadowPlane, Zone};
-use scene_core::geom::{Quad, Rect};
-use scene_core::look::{Detection, Label};
 use scene_core::map::MapShadow;
 use scene_core::policy::ShadowPolicy;
 use scene_core::{Monitor, Output};
+use scene_geom::{Quad, Rect};
+use scene_look::{Detection, Label};
 
 use crate::script::Script;
 use crate::ward::Ward;
@@ -115,7 +115,7 @@ fn shadow_decides_nothing(ward: &mut Ward) {
         .map(|(input, script)| {
             monitor
                 .handle(input.clone())
-                .drive(|request| (script.respond(request), scene_core::look::Spent(1.0)))
+                .drive(|request| (script.respond(request), scene_look::Spent(1.0)))
         })
         .collect();
     assert_eq!(without.len(), ward.turns.len());

@@ -173,7 +173,7 @@ pub fn check(output: &Output) {
         if let Event::Transition(t) = event {
             assert_eq!(
                 t.cell,
-                scene_core::project::cell_of(t.before.occupancy.rbh, t.seen.fv, t.after.rbh),
+                scene_core::cell_of(t.before.occupancy.rbh, t.seen.fv, t.after.rbh),
                 "{at:?}: the cell"
             );
             // The occupants are those of the last fact; the bodies that are

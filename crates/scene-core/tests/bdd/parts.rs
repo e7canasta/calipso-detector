@@ -93,7 +93,7 @@ fn parts_since(ward: &mut Ward, n: u32, since: u32) {
 #[given("the bed's headboard delimited down to the shoulders")]
 fn headboard_to_the_shoulders(ward: &mut Ward) {
     ward.map.as_mut().expect("the bed first").headboard =
-        Some(scene_core::geom::Rect::new(100.0, 100.0, 500.0, 210.0));
+        Some(scene_geom::Rect::new(100.0, 100.0, 500.0, 210.0));
 }
 
 #[then(expr = "in sample {int} the parts read {string}")]

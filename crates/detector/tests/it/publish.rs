@@ -1,20 +1,18 @@
 use crate::support;
-use detector::{
-    build,
-    publish::{CHANNEL_BUFFER, Kind, PublisherHandle},
-};
+use detector::build_info;
+use detector::{CHANNEL_BUFFER, Kind, PublisherHandle};
 use scene_contract::{Profile, ProfileHash, Source, Timing};
 
 fn handle() -> (
     PublisherHandle,
-    tokio::sync::mpsc::Receiver<detector::publish::Publication>,
+    tokio::sync::mpsc::Receiver<detector::Publication>,
 ) {
     PublisherHandle::channel(
         Source {
             site: "test".into(),
             camera: "room-local".into(),
             run_id: "run-test".into(),
-            build: build::current(),
+            build: build_info(),
         },
         Profile {
             camera: None,

@@ -13,8 +13,8 @@ pub(crate) const EVENT_BUFFER: usize = 1024;
 pub const CHANNEL_BUFFER: usize = 64;
 /// The contract version the shell publishes: the last token of each subject.
 pub(crate) const VERSION: &str = "v4";
-pub type ScenePublication = Envelope<Arc<Scene>>;
-pub type EventPublication = Envelope<Event>;
+pub(crate) type ScenePublication = Envelope<Arc<Scene>>;
+pub(crate) type EventPublication = Envelope<Event>;
 
 /// A numbered turn: its events and, after them, its scene.
 #[derive(Debug)]

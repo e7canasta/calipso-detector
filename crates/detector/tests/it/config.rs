@@ -1,4 +1,4 @@
-use detector::config::Config;
+use detector::Config;
 use std::{fs, process::Command};
 
 #[test]

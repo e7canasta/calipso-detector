@@ -3,11 +3,11 @@
 use scene_contract::{
     BedState, LookResult, Mode, RepublishReason, SampleRef, SessionId, SourceSecs,
 };
-use scene_core::geom::{Quad, Rect};
-use scene_core::look::{Detection, Failure, Label, Reading, Spent};
 use scene_core::map::{FrameInfo, SiteMap};
 use scene_core::policy::Policy;
 use scene_core::{Input, Monitor};
+use scene_geom::{Quad, Rect};
+use scene_look::{Detection, Failure, Label, Reading, Spent};
 
 fn monitor() -> Monitor {
     Monitor::new(

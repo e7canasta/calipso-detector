@@ -4,15 +4,15 @@
 //! the held occupant in that sample's scene.
 use crate::support;
 
-use detector::clock::FixedClock;
-use detector::driver::Driver;
-use detector::verifier::{VerifierPort, jpeg_crop};
+use detector::Driver;
+use detector::FixedClock;
+use detector::{VerifierPort, jpeg_crop};
 use image::DynamicImage;
-use scene_core::geom::{Quad, Rect};
-use scene_core::look::{Answer, Detection, Failure, Label, Question, Ticket, Verified};
 use scene_core::map::SiteMap;
 use scene_core::policy::{HeldVerifyPolicy, Policy, VerifyPolicy};
 use scene_core::units::Seconds;
+use scene_geom::{Quad, Rect};
+use scene_look::{Answer, Detection, Failure, Label, Question, Ticket, Verified};
 use std::time::Duration;
 use support::Script;
 
@@ -31,7 +31,7 @@ impl VerifierPort for Scripted {
         frame: &DynamicImage,
         ticket: Ticket,
         region: Rect,
-        _bed: &scene_core::geom::Quad,
+        _bed: &scene_geom::Quad,
         question: Question,
         _crops: &[u8],
     ) -> Result<(), Failure> {
@@ -134,7 +134,7 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
             sequence: 43,
             source_secs: scene_contract::SourceSecs(43.0),
         },
-        target: scene_core::look::Target::Held {
+        target: scene_look::Target::Held {
             since: scene_contract::SampleRef {
                 session: scene_contract::SessionId(1),
                 sequence: 10,
@@ -147,7 +147,7 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
             &frame,
             ticket,
             Rect::new(8.0, 11.0, 112.0, 89.0),
-            &scene_core::geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
+            &scene_geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
             Question::HeldInBed,
             &[],
         )
@@ -165,7 +165,7 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
 #[test]
 #[ignore = "needs nats-server and calipso-verifier running"]
 fn the_live_verifier_answers_over_nats() {
-    use detector::verifier::NatsVerifier;
+    use detector::NatsVerifier;
     let url = std::env::var("CALIPSO_NATS_URL").unwrap_or_else(|_| "nats://127.0.0.1:4222".into());
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut verifier = NatsVerifier::spawn(
@@ -184,7 +184,7 @@ fn the_live_verifier_answers_over_nats() {
     let ticket = Ticket {
         id: 7,
         looked,
-        target: scene_core::look::Target::Held { since: looked },
+        target: scene_look::Target::Held { since: looked },
     };
     std::thread::sleep(Duration::from_millis(500));
     verifier
@@ -192,7 +192,7 @@ fn the_live_verifier_answers_over_nats() {
             &frame,
             ticket,
             Rect::new(8.0, 11.0, 112.0, 89.0),
-            &scene_core::geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
+            &scene_geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
             Question::HeldInBed,
             &[],
         )

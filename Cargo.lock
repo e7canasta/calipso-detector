@@ -780,6 +780,8 @@ dependencies = [
  "jsonschema",
  "scene-contract",
  "scene-core",
+ "scene-geom",
+ "scene-look",
  "sense",
  "serde",
  "serde_json",
@@ -1305,6 +1307,8 @@ version = "0.1.0"
 dependencies = [
  "scene-contract",
  "scene-core",
+ "scene-geom",
+ "scene-look",
  "serde_json",
 ]
 
