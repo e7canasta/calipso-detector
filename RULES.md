@@ -108,7 +108,12 @@ is in the wrong place.
 
 *Guardian:* `cycle` never asks which senses are configured: it hands the
 whole `Policy` to the module that decides (`scripts/check.sh`); review by its
-owner.
+owner. And the sequence does not reach into the engine: outside
+`cycle/engine.rs`, no file of `cycle/` reads a field of `Engine`; it asks the
+engine, which answers with its own slices (`tests/guardians.rs`, with its
+mutation). `Course` borrows the engine, not the `Monitor`, so the engine cannot
+read the chronicle (P4) by construction.
+*Amended:* ADR 2026-11-02, la secuencia ordena, el motor responde.
 
 ### 12. Every attention decision has a reason
 
@@ -126,8 +131,17 @@ nothing of it except through `project`; consumers depend on `scene-contract`
 and never on the core to read the wire. An incompatible change is a major
 contract version, with an ADR.
 
-*Guardian:* the contract and schema snapshots in CI; `contract-depends-on-core`.
-*Amended:* ADR 2026-11-02, crates del lenguaje y del cable (S7).
+What a rule or a machine of the core computes is the core's own type, and
+`project` copies it to the wire. From `scene-contract` the core uses only the
+**shared kernel**: the instant, the zone and the count, the provenance, the
+body's points, the reception and frame states the shell reports, and the
+attention ledger, which is published as it is written (rule 12).
+
+*Guardian:* the contract and schema snapshots in CI; `contract-depends-on-core`;
+`tests/guardians.rs` reads the shared kernel's list and fails on any other
+`scene_contract` name outside `project/` and `cycle/`.
+*Amended:* ADR 2026-11-02, crates del lenguaje y del cable (S7); ADR
+2026-11-02, el dominio es dueño de lo que decide.
 
 ### 21. The core does not panic
 
@@ -151,6 +165,29 @@ posture) belongs to that layer.
 *Guardian:* `scripts/check.sh`: the bed's plane (`BedPlane`) only in `map`
 and `room` (fixture `space-outside-room`), and `room` imports no layer above
 it (fixture `room-reads-a-layer`).
+
+### 24. The business is written in the code
+
+What the engine decides is code that names the domain: the conservation
+rules, the order of the turn, the layers and their tables, the heads of the
+second level. Data configures numbers, switches a capability on or off and
+describes the site; it never expresses a rule, a step or an order. The golden
+tables are **oracles**: the code decides and the table checks it; nothing
+interprets a table at run time. Composition is of concrete, named parts,
+assembled once (`Monitor::new`, `main.rs`), never a graph read at run time.
+
+A look, a layer or a head is added by name: a variant, a function, a line in
+`Course::next`, a row set in its table. There is no generic step, node or
+context that every piece reads from.
+
+*Guardian:* `tests/guardians.rs`: the core puts no decision behind a dynamic
+object (`Box<dyn …>`, `Vec<Box<dyn …>>`, `Rc`/`Arc<dyn …>`; local `&dyn Fn`
+predicates are allowed), no string-keyed map in the policy or the evidence, and
+does not read the order of the turn from data. Each with its mutation. Review
+for the rest.
+*Why:* ADR 2026-11-02, el negocio se escribe en el código: generic workflows,
+graphs and attribute maps turn the business into something nobody can read or
+change.
 
 ## Part III — How we work
 
