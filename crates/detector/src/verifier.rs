@@ -306,21 +306,22 @@ impl<V: VerifierPort, C: Clock> VerifierPort for DeadlineVerifier<V, C> {
         Ok(())
     }
     fn answers(&mut self) -> Vec<Verified> {
-        // An answer that arrives in time is delivered as it is. One that arrives
-        // after its deadline is dropped: the core has already taken the request
-        // as expired.
+        // The deadline decides before the answer is read: an answer that arrives
+        // within its deadline is delivered as it is; one that arrives after it is
+        // dropped, and the expiry below stands (the core has already taken the
+        // request as expired).
+        let now = self.clock.now();
         let mut answers = Vec::new();
         for verified in self.inner.answers() {
             if let Some(at) = self
                 .sent
                 .iter()
-                .position(|(t, _)| t.id == verified.ticket.id)
+                .position(|(t, deadline)| t.id == verified.ticket.id && now < *deadline)
             {
                 self.sent.remove(at);
                 answers.push(verified);
             }
         }
-        let now = self.clock.now();
         let mut expired = Vec::new();
         self.sent.retain(|(ticket, deadline)| {
             let due = now >= *deadline;
@@ -441,5 +442,112 @@ mod tests {
         let decoded = image::load_from_memory(&jpeg).unwrap();
         assert_eq!((decoded.width(), decoded.height()), (32, 22));
         assert!(jpeg_crop(&frame, Rect::new(70.0, 50.0, 90.0, 60.0)).is_err());
+    }
+
+    /// A clock the test moves by hand: no real time runs, and every reading is
+    /// the one the test set.
+    #[derive(Debug)]
+    struct ManualClock(std::cell::Cell<Instant>);
+
+    impl Clock for &ManualClock {
+        fn now(&self) -> Instant {
+            self.0.get()
+        }
+    }
+
+    /// A verifier that takes every request and answers only what the test
+    /// hands it, when the test hands it.
+    #[derive(Debug, Default)]
+    struct Fake {
+        pending: Vec<Verified>,
+    }
+
+    impl VerifierPort for Fake {
+        type Frame = ();
+        fn ask(
+            &mut self,
+            _: &(),
+            _: Ticket,
+            _: Rect,
+            _: &Quad,
+            _: Question,
+            _: &[u8],
+        ) -> Result<(), Failure> {
+            Ok(())
+        }
+        fn answers(&mut self) -> Vec<Verified> {
+            std::mem::take(&mut self.pending)
+        }
+        fn keep(&mut self, _: &(), _: Ticket, _: Rect) -> Result<f32, Failure> {
+            Err(Failure::Model)
+        }
+    }
+
+    fn ticket(id: u64) -> Ticket {
+        let at = scene_contract::SampleRef {
+            session: scene_contract::SessionId(1),
+            sequence: 12,
+            source_secs: scene_contract::SourceSecs(12.0),
+        };
+        Ticket {
+            id,
+            looked: at,
+            target: scene_core::look::Target::Held { since: at },
+        }
+    }
+
+    fn ask(v: &mut DeadlineVerifier<Fake, &ManualClock>, ticket: Ticket) {
+        let region = Rect::new(0.0, 0.0, 10.0, 10.0);
+        v.ask(
+            &(),
+            ticket,
+            region,
+            &Quad::from_rect(region),
+            Question::HeldInBed,
+            &[],
+        )
+        .expect("the fake takes the request");
+    }
+
+    #[test]
+    fn a_request_with_no_answer_within_its_wall_timeout_is_answered_with_no_answer() {
+        let clock = ManualClock(std::cell::Cell::new(Instant::now()));
+        let mut v = DeadlineVerifier::new(Fake::default(), Duration::from_secs(4), &clock);
+        let asked = ticket(1);
+        ask(&mut v, asked);
+        assert!(v.answers().is_empty(), "nothing is due at the send");
+        clock.0.set(clock.0.get() + Duration::from_millis(3_999));
+        assert!(v.answers().is_empty(), "nothing is due before the deadline");
+        clock.0.set(clock.0.get() + Duration::from_millis(1));
+        assert_eq!(
+            v.answers(),
+            vec![Verified {
+                ticket: asked,
+                answer: None,
+            }],
+            "due at the deadline: no answer"
+        );
+        assert!(v.answers().is_empty(), "delivered once");
+    }
+
+    #[test]
+    fn a_late_answer_after_its_deadline_is_dropped_and_the_expiry_stands() {
+        let clock = ManualClock(std::cell::Cell::new(Instant::now()));
+        let mut v = DeadlineVerifier::new(Fake::default(), Duration::from_secs(4), &clock);
+        let asked = ticket(1);
+        ask(&mut v, asked);
+        clock.0.set(clock.0.get() + Duration::from_secs(5));
+        v.inner.pending.push(Verified {
+            ticket: asked,
+            answer: Some(Answer::Yes),
+        });
+        assert_eq!(
+            v.answers(),
+            vec![Verified {
+                ticket: asked,
+                answer: None,
+            }],
+            "the answer that came after the deadline does not replace the expiry"
+        );
     }
 }
