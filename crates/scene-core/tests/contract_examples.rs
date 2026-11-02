@@ -3,7 +3,7 @@
 #![allow(clippy::disallowed_methods, clippy::disallowed_types)]
 mod script;
 
-use scene_core::contract::*;
+use scene_contract::*;
 use scene_core::geom::{Quad, Rect};
 use scene_core::look::Spent;
 use scene_core::map::SiteMap;

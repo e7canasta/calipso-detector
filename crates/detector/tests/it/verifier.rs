@@ -107,10 +107,10 @@ fn a_held_occupant_is_verified_through_the_port_and_confirmed() {
     let held = |n: u64| scenes[&n].bed.held.first().and_then(|h| h.check);
     assert_eq!(
         held(42).map(|c| c.state),
-        Some(scene_core::contract::HeldCheckState::Unverified)
+        Some(scene_contract::HeldCheckState::Unverified)
     );
     let check = held(46).expect("a check on the held occupant");
-    assert_eq!(check.state, scene_core::contract::HeldCheckState::Confirmed);
+    assert_eq!(check.state, scene_contract::HeldCheckState::Confirmed);
     assert_eq!(check.looked.map(|l| l.sequence), Some(43));
     assert_eq!(scenes[&46].room.occupants, 1);
 }
@@ -126,16 +126,16 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
     };
     let ticket = Ticket {
         id: 1,
-        looked: scene_core::contract::SampleRef {
-            session: scene_core::contract::SessionId(1),
+        looked: scene_contract::SampleRef {
+            session: scene_contract::SessionId(1),
             sequence: 43,
-            source_secs: scene_core::contract::SourceSecs(43.0),
+            source_secs: scene_contract::SourceSecs(43.0),
         },
         target: scene_core::look::Target::Held {
-            since: scene_core::contract::SampleRef {
-                session: scene_core::contract::SessionId(1),
+            since: scene_contract::SampleRef {
+                session: scene_contract::SessionId(1),
                 sequence: 10,
-                source_secs: scene_core::contract::SourceSecs(10.0),
+                source_secs: scene_contract::SourceSecs(10.0),
             },
         },
     };
@@ -174,10 +174,10 @@ fn the_live_verifier_answers_over_nats() {
         Duration::from_secs(30),
     );
     let frame = DynamicImage::new_rgb8(128, 96);
-    let looked = scene_core::contract::SampleRef {
-        session: scene_core::contract::SessionId(1),
+    let looked = scene_contract::SampleRef {
+        session: scene_contract::SessionId(1),
         sequence: 43,
-        source_secs: scene_core::contract::SourceSecs(43.0),
+        source_secs: scene_contract::SourceSecs(43.0),
     };
     let ticket = Ticket {
         id: 7,

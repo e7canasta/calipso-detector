@@ -19,6 +19,7 @@ name = "calipso-detector-frames"
 path = "src/bin/frames.rs"
 
 [dependencies]
+scene-contract = { path = "../scene-contract" }
 scene-core = { path = "../scene-core" }
 ingest = { path = "../ingest" }
 sense = { path = "../sense", features = ["onnx"] }

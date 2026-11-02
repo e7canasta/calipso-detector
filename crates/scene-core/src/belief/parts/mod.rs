@@ -21,7 +21,7 @@ mod reading;
 mod rules;
 
 pub(crate) use machine::Machine;
-pub use reading::PartsReading;
+pub(crate) use reading::PartsReading;
 
 use crate::time::SampleRef;
 

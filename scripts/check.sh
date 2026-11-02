@@ -63,42 +63,29 @@ check_sense_deps() {
 step "sense dependencies (with ONNX)"
 check_sense_deps
 
-# The language of perception (scene-look) is below the core and has no IO: the
-# core re-exports it, nothing imports the core back (ADR 2026-11-02, crates del
-# lenguaje y del cable). The sense is a client of the language: it does not
-# depend on the core either. Its IO (image, ONNX) is its job, so only the
-# transport is checked, in check_sense_deps above.
-check_language_deps() {
-  local tree found
-  tree=$(cargo tree -p scene-look -e normal --prefix none --format '{p}') \
-    || fail "could not read the scene-look tree"
-  found=$(printf '%s\n' "$tree" | awk '{print $1}' \
-    | grep -Ex "$FORBIDDEN_CORE_DEPS" | sort -u || true)
-  [ -z "$found" ] || fail "scene-look depends on IO: $found"
-  for crate in scene-look sense; do
-    tree=$(cargo tree -p "$crate" -e normal --prefix none --format '{p}') \
-      || fail "could not read the $crate tree"
-    if printf '%s\n' "$tree" | awk '{print $1}' | grep -qx scene-core; then
-      fail "$crate depends on scene-core: the language is below the core"
-    fi
-  done
-}
-step "language and sense do not depend on the core"
-check_language_deps
-
 # The domain does not speak contract (DESIGN.md §2): it decides with its own
 # vocabulary and `contract` re-exports it. Only `project` translates, and
 # `cycle` names the contract because `Output` carries it. The chronicle
 # remembers the domain.
 check_domain_contract() {
   local found
-  found=$(grep -rl 'crate::contract' crates/scene-core/src \
-            | grep -vE '^crates/scene-core/src/(contract/|project/|cycle\.rs$)' \
-            || true)
-  [ -z "$found" ] || fail "the domain imports the contract: $found"
-  # What no version changes is projected into `contract::common`: a next
-  # version shares it without depending on v4 (C2).
-  found=$(grep -nE 'contract::v[0-9]|v[0-9]+::' crates/scene-core/src/project/mod.rs || true)
+  # The core has no contract module of its own (phase 2 of S7): what is
+  # published is named as scene-contract names it. Its tests too.
+  found=$(grep -rnE 'crate::contract|scene_core::contract' \
+            crates/scene-core/src crates/scene-core/tests || true)
+  found="$found$(grep -nE '^\s*(pub(\(crate\))? )?mod contract;' crates/scene-core/src/lib.rs || true)"
+  [ -z "$found" ] || fail "the core names a contract module of its own: $found"
+  # Only project and cycle name the published scene and its events: the domain
+  # speaks its own vocabulary and the wire's shared types, not the publication.
+  found=$(for f in $(grep -rl 'scene_contract' crates/scene-core/src \
+            | grep -vE '^crates/scene-core/src/(project/|cycle\.rs$)' || true); do
+            perl -0777 -ne 'while (/use scene_contract::(\{[^}]*\}|\w+)\s*;/g) {
+              if ($1 =~ /\b(Scene|Event|Envelope|SchemaId)\b/) { print "$ARGV\n"; last } }
+              print "$ARGV\n" if /scene_contract::(Scene|Event|Envelope|SchemaId)\b/' "$f"; done | sort -u)
+  [ -z "$found" ] || fail "the domain names the published scene or events: $found"
+  # What no version changes is projected in project/mod.rs without naming a
+  # version: no SchemaId, no SceneV4 or EventsV4, no vN:: path (C2).
+  found=$(grep -nE 'SchemaId|SceneV4|EventsV4|\bv[0-9]+::' crates/scene-core/src/project/mod.rs || true)
   [ -z "$found" ] || fail "C2: the common projection names a version: $found"
 }
 step "the domain without contract"

@@ -13,8 +13,8 @@ use crate::map::{BedPlane, Geometry, Map};
 use crate::policy::{Policy, ShadowPolicy};
 use crate::zone::Zone;
 
-pub use scene_contract::PlanePoint;
-pub use scene_contract::{BodyShadow, ShadowPlane};
+pub(crate) use scene_contract::PlanePoint;
+pub(crate) use scene_contract::{BodyShadow, ShadowPlane};
 /// What the shadow measures bodies against: the mattress, the footprint if
 /// delimited, the bed's size if known, and the policy.
 #[derive(Debug, Clone, Copy)]

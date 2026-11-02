@@ -5,9 +5,9 @@
 
 use crate::belief::parts::{ByPart, Concluded, Look, PartsTransition, Place};
 use crate::chronicle::Chronicled;
-use crate::contract::common::{Parts, PartsPending, Progress};
 use crate::time::SampleRef;
 use crate::time::secs_since;
+use scene_contract::{Parts, PartsPending, Progress};
 
 /// The scene's block of the parts, in this turn.
 pub(super) fn parts(

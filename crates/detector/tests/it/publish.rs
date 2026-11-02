@@ -3,7 +3,7 @@ use detector::{
     build,
     publish::{CHANNEL_BUFFER, Kind, PublisherHandle},
 };
-use scene_core::contract::{Profile, ProfileHash, Source, Timing};
+use scene_contract::{Profile, ProfileHash, Source, Timing};
 
 fn handle() -> (
     PublisherHandle,

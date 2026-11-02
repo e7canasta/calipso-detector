@@ -1,5 +1,5 @@
 use crate::support;
-use scene_core::contract::{BedState, Envelope, Event, FactBody, Mode};
+use scene_contract::{BedState, Envelope, Event, FactBody, Mode};
 
 /// The layer-0 facts of some events, in order.
 fn facts(events: &[Event]) -> Vec<FactBody> {
@@ -44,7 +44,7 @@ fn s1_end_to_end_matches_the_approved_events() {
 #[test]
 fn a_reconnection_in_s1_only_reports_the_sensor_and_keeps_the_held() {
     use ingest::{IngestError, StreamEvent};
-    use scene_core::contract::SensorState;
+    use scene_contract::SensorState;
     use std::time::Instant;
     let mut driver = support::driver();
     driver.on_stream(StreamEvent::Streaming { session: 1 }, Instant::now());

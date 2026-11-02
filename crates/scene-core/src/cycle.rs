@@ -16,7 +16,6 @@ use crate::attention::{self, Attention};
 use crate::belief::{Belief, Believed, OccupancyRules};
 use crate::chronicle::Chronicle;
 use crate::conclusion::RepublishReason;
-use crate::contract::v4::{Event, Scene};
 use crate::evidence::Perceived;
 use crate::look::{Failure, Probe, Reading, Spent};
 use crate::map::{BedCalibrated, CalibrationMemory, FrameInfo, Geometry, Map};
@@ -26,6 +25,7 @@ use crate::reception::{self, SensorChanged, SensorState};
 use crate::room::Room;
 use crate::time::SampleRef;
 use crate::verification::{Verification, VerifyRules};
+use scene_contract::{Event, Scene};
 
 mod engine;
 mod monitor;
@@ -235,7 +235,8 @@ mod tests {
     use crate::geom::{Quad, Rect};
     use crate::look::{LookKind, Probe, Reading, Spent};
     use crate::map::SiteMap;
-    use crate::time::{SessionId, SourceSecs};
+    use crate::time::SessionId;
+    use scene_contract::SourceSecs;
 
     fn sample(secs: f64) -> Input {
         Input::Sample {

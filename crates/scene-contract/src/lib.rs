@@ -33,6 +33,7 @@ pub struct SampleRef {
 /// Where a claim comes from (rule 2).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Provenance {
     /// Observed in this sample.
     Current,
@@ -52,6 +53,7 @@ pub enum Provenance {
 /// The reception state, as the shell reports it. It says nothing about the bed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum SensorState {
     /// Opening the stream.
     Connecting,
@@ -97,6 +99,7 @@ pub struct Counts {
 /// What was asked to be looked at.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum LookKind {
     /// The main person detector.
     Detect,
@@ -147,6 +150,7 @@ impl std::fmt::Display for LookKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[schemars(rename = "FailureKind")]
+#[non_exhaustive]
 pub enum Failure {
     /// The shell could not complete the probe (shutdown).
     Cancelled,
@@ -245,6 +249,7 @@ pub struct Progress<T> {
 // --- moved from scene-core/src/v4.rs
 /// Which schema a v4 message carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub enum SchemaId {
     /// One scene per sample.
     #[serde(rename = "calipso.scene.v4")]
@@ -304,6 +309,7 @@ pub enum Mode {
 /// it is adopted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Phase {
     /// The bed has no history yet: whoever is clearly seen in it is adopted.
     Booting,
@@ -324,6 +330,7 @@ pub struct Fv(pub u32, pub u32);
 /// Why the scene is republished without a new observation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum RepublishReason {
     /// The sample did not decode.
     DecodeFailed,
@@ -339,6 +346,7 @@ pub enum RepublishReason {
 /// Why nothing was looked at (rule 12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum SkipReason {
     /// This sense was not requested.
     NotRequested,
@@ -380,6 +388,7 @@ pub enum SkipReason {
 /// Which detector the admitted body came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BodySource {
     /// The main detector, over the whole frame.
     Primary,
@@ -390,6 +399,7 @@ pub enum BodySource {
 /// Why a candidate did not count as evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum RejectReason {
     /// Another class than a person.
     NotPerson,
@@ -430,6 +440,7 @@ pub struct Republished {
 /// Why an event happened.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Cause {
     /// The zone count stabilized at a new value.
     Stabilized,
@@ -446,6 +457,7 @@ pub enum Cause {
 /// Who looked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Verifier {
     /// The slow verifier: a vision-language model over a crop of the bed.
     Vlm,
@@ -536,6 +548,7 @@ pub enum PostureState {
 /// Is the subject truly lying down? Second level: it changes no count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum LyingState {
     /// Torso, hips, most keypoints and the visible feet inside the bed.
     Confirmed,
@@ -561,6 +574,7 @@ pub struct Lying {
 /// A head of the second level: who supports a verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Head {
     /// The depth disparity of head and shoulders against the pelvis (904, 1604).
     Disparity,
@@ -584,6 +598,7 @@ pub enum HeldCheckState {
 /// What the head's place was concluded from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum HeadEvidence {
     /// An accepted face.
     Face,
@@ -595,6 +610,7 @@ pub enum HeadEvidence {
 /// Whether the delimited bed matches the incoming image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Geometry {
     /// The image has the resolution the bed was delimited for.
     Valid,
@@ -667,6 +683,7 @@ pub struct Keypoint {
 #[serde(rename_all = "snake_case")]
 // The COCO-17 names document themselves.
 #[allow(missing_docs)]
+#[non_exhaustive]
 pub enum Joint {
     Nose,
     LeftEye,
@@ -825,6 +842,7 @@ impl HeadPlace {
 /// What a look returned.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum LookResult {
     /// The sense read: how many candidates, and why those that did not count
     /// were discarded.
@@ -865,6 +883,7 @@ pub struct Look {
 /// What came of a look.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum LookOutcome {
     /// A look was requested.
     Asked {
@@ -1020,6 +1039,7 @@ pub struct Parts {
 /// Is someone in the bed?
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BedState {
     /// Nobody in the bed.
     Empty,
@@ -1071,6 +1091,7 @@ pub struct Floor {
 /// What happened with faces in this sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FacesStatus {
     /// Looked for, and at least one admitted.
     Ok,
@@ -1109,6 +1130,7 @@ pub struct FaceSeen {
 /// The plane a point was measured on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ShadowPlane {
     /// The bed's footprint on the floor.
     Floor,
@@ -1154,6 +1176,7 @@ pub struct Evidence {
 /// Whether this sample has bodies to show.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BodiesStatus {
     /// The detector read and each body has its zone.
     Seen,
@@ -1235,6 +1258,7 @@ impl BedPostureState {
 /// layer 1 perceived.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BedPostureSeen {
     /// Held in bed, alone: unseen without leaving.
     Held,
@@ -1641,6 +1665,7 @@ pub struct MapState {
 /// The learned bed depth and the sample it came from.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "status", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Calibration {
     /// The empty bed has not been learned.
     #[default]
@@ -1694,6 +1719,7 @@ pub struct Posture {
 /// How the resident is, as the arbiter rules it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum VerdictState {
     /// In bed, the head and shoulders farther from the camera than the pelvis.
     LyingInBed,

@@ -1,8 +1,8 @@
 use crate::world::Shell;
 use cucumber::{given, then, when};
 use detector::{config::Config, driver::Driver, publish::PublisherHandle};
+use scene_contract::Source;
 use scene_core::{
-    contract::Source,
     geom::Rect,
     look::{Detection, Label},
 };

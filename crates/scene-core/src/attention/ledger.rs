@@ -2,4 +2,4 @@
 //! language (rule 12): the contract re-exports these types. Nothing here decides
 //! anything; the decisions about what to look at live in `attention`.
 
-pub use scene_contract::{Attention, Look, LookOutcome, LookResult, SkipReason};
+pub(crate) use scene_contract::{Attention, Look, LookOutcome, LookResult, SkipReason};

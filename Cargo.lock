@@ -778,6 +778,7 @@ dependencies = [
  "image",
  "ingest",
  "jsonschema",
+ "scene-contract",
  "scene-core",
  "sense",
  "serde",

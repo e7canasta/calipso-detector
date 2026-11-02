@@ -9,8 +9,8 @@
 use super::PostureState;
 use crate::zone::Zone;
 
-pub use scene_contract::Head;
-pub use scene_contract::{Verdict, VerdictState};
+pub(crate) use scene_contract::Head;
+pub(crate) use scene_contract::{Verdict, VerdictState};
 /// The arbiter's ruling: the verdict and the heads that support it.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Ruling {

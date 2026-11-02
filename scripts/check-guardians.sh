@@ -30,6 +30,7 @@ fixtures=(
   scripts/fixtures/core-reads-the-clock.sh
   scripts/fixtures/core-undocumented.sh
   scripts/fixtures/cycle-consults-a-policy.sh
+  scripts/fixtures/domain-names-the-publication.sh
   scripts/fixtures/geom-depends-on-tokio.sh
   scripts/fixtures/occupancy-reads-verify.sh
   scripts/fixtures/room-reads-a-layer.sh

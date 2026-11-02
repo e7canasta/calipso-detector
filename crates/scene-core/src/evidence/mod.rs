@@ -158,7 +158,7 @@ impl Admission {
     }
 }
 
-pub use scene_contract::{BodySource, RejectReason};
+pub(crate) use scene_contract::{BodySource, RejectReason};
 /// Ledger quantities are `u32`; no sense returns that many.
 fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)

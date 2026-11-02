@@ -49,7 +49,7 @@ pub(super) fn classify(points: &[BodyPoint], room: &Room, min_score: f32) -> Lyi
     }
 }
 
-pub use scene_contract::{Lying, LyingState};
+pub(crate) use scene_contract::{Lying, LyingState};
 #[cfg(test)]
 mod tests {
     use super::*;

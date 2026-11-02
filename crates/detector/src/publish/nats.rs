@@ -167,9 +167,9 @@ async fn publish(
 mod tests {
     use super::*;
     use crate::{build, publish::PublisherHandle};
+    use scene_contract::*;
     use scene_core::{
         Input, Monitor,
-        contract::*,
         geom::{Quad, Rect},
         map::SiteMap,
         policy::Policy,

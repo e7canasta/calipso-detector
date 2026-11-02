@@ -21,7 +21,7 @@
 use super::{ByPart, Place};
 use serde::Serialize;
 
-pub use scene_contract::PartsReading;
+pub(crate) use scene_contract::PartsReading;
 /// What is at the headboard, of the face, the head and the shoulders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

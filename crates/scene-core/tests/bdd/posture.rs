@@ -226,9 +226,7 @@ fn never_expired(ward: &mut Ward, from: u32, to: u32, secs: u32) {
             .and_then(|s| s.pose.as_ref())
             .unwrap_or_else(|| panic!("in sample {n} there is no pose"));
         let age = match pose.provenance {
-            scene_core::contract::Provenance::Stable { since } => {
-                now.source_secs.0 - since.source_secs.0
-            }
+            scene_contract::Provenance::Stable { since } => now.source_secs.0 - since.source_secs.0,
             _ => 0.0,
         };
         assert!(
@@ -240,7 +238,7 @@ fn never_expired(ward: &mut Ward, from: u32, to: u32, secs: u32) {
 
 #[then(expr = "between samples {int} and {int} the pose was requested {int} times")]
 fn poses_requested_in(ward: &mut Ward, from: u32, to: u32, times: usize) {
-    use scene_core::contract::{LookKind, LookOutcome};
+    use scene_contract::{LookKind, LookOutcome};
     let requested: Vec<u32> =
         (from..=to)
             .filter(|&n| {

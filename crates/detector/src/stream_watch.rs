@@ -23,8 +23,8 @@ impl Stall {
 }
 
 /// Translates transport states; the core decides whether the reception changed.
-pub(crate) fn translate(event: &ingest::StreamEvent) -> Option<scene_core::contract::SensorState> {
-    use scene_core::contract::SensorState;
+pub(crate) fn translate(event: &ingest::StreamEvent) -> Option<scene_contract::SensorState> {
+    use scene_contract::SensorState;
     match event {
         ingest::StreamEvent::Connecting => Some(SensorState::Connecting),
         ingest::StreamEvent::Streaming { .. } => Some(SensorState::Streaming),
@@ -99,7 +99,7 @@ mod tests {
     }
     #[test]
     fn stream_is_translated_without_deduplicating() {
-        use scene_core::contract::SensorState;
+        use scene_contract::SensorState;
         assert_eq!(
             translate(&ingest::StreamEvent::Connecting),
             Some(SensorState::Connecting)

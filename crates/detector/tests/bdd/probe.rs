@@ -7,8 +7,8 @@ use crate::world::{Shell, models::Model};
 use cucumber::{given, then, when};
 use detector::router;
 use image::DynamicImage;
+use scene_contract::{SampleRef, SessionId, SourceSecs};
 use scene_core::{
-    contract::{SampleRef, SessionId, SourceSecs},
     geom::{Quad, Rect},
     look::{Failure, PosePurpose, Probe, Question, Reading, Target, Ticket},
 };

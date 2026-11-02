@@ -2,7 +2,7 @@
 //! the only switches of `Policy.enrich` and `Policy.calibration`.
 use crate::world::Shell;
 use cucumber::{given, then};
-use scene_core::contract::LookKind;
+use scene_contract::LookKind;
 
 #[given(
     regex = r#"^a profile with "\[senses.pose\]" of model "([^"]+)", motion threshold (-?[\d.]+) and minimum score (-?[\d.]+)$"#

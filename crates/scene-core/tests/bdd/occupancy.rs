@@ -4,7 +4,7 @@
 
 use crate::published::Body;
 use cucumber::{given, then, when};
-use scene_core::contract::{Cause, LookKind, LookOutcome, RepublishReason, SampleRef};
+use scene_contract::{Cause, LookKind, LookOutcome, RepublishReason, SampleRef};
 use scene_core::look::Failure;
 use scene_core::policy::ReinforcePolicy;
 
@@ -172,7 +172,7 @@ fn sensor_stalls(ward: &mut Ward, n: u32) {
     ward.drive(
         scene_core::Input::Sensor {
             at: ward.sample(n),
-            state: scene_core::contract::SensorState::Stalled,
+            state: scene_contract::SensorState::Stalled,
         },
         &Script::default(),
     );

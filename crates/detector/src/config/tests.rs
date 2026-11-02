@@ -135,7 +135,7 @@ fn reinforce_section_enables_policy_and_rejects_invalid_parameters() {
 
 #[test]
 fn reinforcement_preserves_the_baseline_hash_and_comes_after_detection() {
-    use scene_core::contract::LookKind;
+    use scene_contract::LookKind;
     let legacy = Config::parse(VALID).unwrap().profile().unwrap();
     assert_eq!(legacy.hash.0, "sha256:239a5803f0c15901");
     let text =
@@ -176,7 +176,7 @@ fn model_paths_resolve_relative_and_absolute_paths_for_every_role() {
 
 #[test]
 fn faces_section_enables_policy_names_roles_and_preserves_legacy_hash() {
-    use scene_core::contract::LookKind;
+    use scene_contract::LookKind;
     let baseline = Config::parse(VALID).unwrap();
     assert!(baseline.policy().faces.is_none());
     assert_eq!(
@@ -223,7 +223,7 @@ fn faces_section_enables_policy_names_roles_and_preserves_legacy_hash() {
 
 #[test]
 fn pose_section_enables_enrich_validates_and_preserves_legacy_hash() {
-    use scene_core::contract::LookKind;
+    use scene_contract::LookKind;
     let baseline = Config::parse(VALID).unwrap();
     assert!(baseline.policy().enrich.is_none());
     let section = "\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\nbackend_confidence = 0.25\nmove_threshold = 0.1\nmin_keypoint_score = 0.3\n";
@@ -452,7 +452,7 @@ fn the_knee_needs_two_planes_and_the_pose_validates_and_leaves_the_hash_when_abs
 
 #[test]
 fn depth_and_calibration_enable_policies_validate_together_and_keep_legacy_hash() {
-    use scene_core::contract::LookKind;
+    use scene_contract::LookKind;
     let baseline = Config::parse(VALID).unwrap();
     assert_eq!(
         baseline.profile().unwrap().hash.0,

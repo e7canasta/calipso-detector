@@ -51,8 +51,8 @@ fn sequences() -> impl Strategy<Value = Vec<Step>> {
     prop::collection::vec(steps(), 0..200)
 }
 
-use scene_core::contract::{BedPostureState, Mode};
-use scene_core::contract::{BedState, FrameInfo, SampleRef, Scene, SessionId, SourceSecs};
+use scene_contract::{BedPostureState, Mode};
+use scene_contract::{BedState, FrameInfo, SampleRef, Scene, SessionId, SourceSecs};
 use scene_core::geom::Quad;
 use scene_core::look::{Reading, Spent};
 use scene_core::map::SiteMap;

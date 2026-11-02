@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use detector::source::frames::FramesSource;
 use detector::{build, config::Config, driver::Driver, publish::PublisherHandle};
-use scene_core::contract::Source;
+use scene_contract::Source;
 use std::{io::Write, path::PathBuf, time::Duration};
 use tokio_util::sync::CancellationToken;
 

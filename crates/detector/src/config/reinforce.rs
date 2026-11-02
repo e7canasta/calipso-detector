@@ -6,10 +6,8 @@ use super::profile::sense_profile;
 use super::schema::defaults;
 use super::validate::{fraction, model, not_negative};
 use anyhow::{Result, ensure};
-use scene_core::{
-    contract::{LookKind, SenseProfile},
-    policy::ReinforcePolicy,
-};
+use scene_contract::{LookKind, SenseProfile};
+use scene_core::policy::ReinforcePolicy;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

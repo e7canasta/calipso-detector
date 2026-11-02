@@ -16,7 +16,7 @@ mod machine;
 mod rules;
 
 pub(crate) use machine::Machine;
-pub use scene_contract::{BedPostureSeen, BedPostureState};
+pub(crate) use scene_contract::{BedPostureSeen, BedPostureState};
 
 use crate::belief::InBed;
 
@@ -46,7 +46,7 @@ pub(crate) struct Concluded {
     pub seen: BedPostureSeen,
 }
 
-pub use scene_contract::BedPosture;
+pub(crate) use scene_contract::BedPosture;
 /// The row's input, as published: layer 0's state and what layer 1
 /// perceived.
 pub(crate) fn bed_posture_seen_of(l0: InBed, sighting: Sighting) -> BedPostureSeen {

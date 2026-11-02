@@ -2,7 +2,7 @@
 //! only clock (rule 9). Shared vocabulary: the domain decides with it and
 //! `contract` publishes it as is.
 
-pub use scene_contract::{SampleRef, SessionId, SourceSecs};
+pub(crate) use scene_contract::{SampleRef, SessionId};
 
 /// Source seconds since an earlier sample. `None` across sessions: source time
 /// is not compared between sessions (rule 9).

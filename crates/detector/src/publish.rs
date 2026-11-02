@@ -1,8 +1,6 @@
 //! The handle numbers before sending; the network has its own owner.
-use scene_core::{
-    Output,
-    contract::{Envelope, Event, Profile, Scene, SchemaId, Source, Timing},
-};
+use scene_contract::{Envelope, Event, Profile, Scene, SchemaId, Source, Timing};
+use scene_core::Output;
 use serde::Serialize;
 use std::{
     sync::Arc,

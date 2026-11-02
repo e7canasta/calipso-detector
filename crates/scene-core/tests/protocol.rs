@@ -1,6 +1,6 @@
 //! The loop protocol, through the public API: `handle` opens a turn and
 //! `drive` or `cancel` closes it. There is no other way through.
-use scene_core::contract::{
+use scene_contract::{
     BedState, LookResult, Mode, RepublishReason, SampleRef, SessionId, SourceSecs,
 };
 use scene_core::geom::{Quad, Rect};

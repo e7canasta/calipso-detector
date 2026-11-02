@@ -1,5 +1,5 @@
 //! The binary's identification in the published contract.
-use scene_core::contract::Build;
+use scene_contract::Build;
 
 pub fn current() -> Build {
     Build {

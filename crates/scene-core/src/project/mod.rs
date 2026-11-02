@@ -16,14 +16,15 @@ use crate::belief::bed_posture::Concluded;
 use crate::belief::{Believed, Occupancy, Occupants, Subject as BelievedSubject};
 use crate::chronicle::{BedKind, Chronicled};
 use crate::conclusion::RepublishReason;
-use crate::contract::common::{
+use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
+use crate::look::Detection;
+use crate::refine::{Refinement, Verdict};
+use scene_contract::{
     Bed, BedState, BodiesEvidence, BodiesStatus, BodySeen, Evidence, FaceSeen, FacesEvidence,
     FacesStatus, Held, LookKind, LookOutcome, Pending, Progress, Provenance, Republished,
     SampleRef, SkipReason, Subject, Zone,
 };
-use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
-use crate::look::Detection;
-use crate::refine::{Refinement, Verdict};
+use scene_contract::{Cell, Fv, Rbh};
 
 /// The bed as layer 0 believes it, dated by the chronicle.
 fn bed(
@@ -279,5 +280,49 @@ fn faces(
                 })
                 .collect(),
         },
+    }
+}
+
+/// The cell of a change from `before`, seeing `seen`, to `after`: the natural
+/// key of the row, `before:seen:after`. The same in every version; the
+/// integration tests use it as their oracle.
+pub fn cell_of(before: Rbh, seen: Fv, after: Rbh) -> Cell {
+    let Rbh(r0, b0, h0) = before;
+    let Fv(f, v) = seen;
+    let Rbh(r1, b1, h1) = after;
+    Cell(format!(
+        "{}:{}:{}",
+        part(&[r0, b0, h0]),
+        part(&[f, v]),
+        part(&[r1, b1, h1])
+    ))
+}
+
+fn part(counts: &[u32]) -> String {
+    let digits: Vec<String> = counts.iter().map(u32::to_string).collect();
+    if counts.iter().all(|&count| count < 10) {
+        digits.concat()
+    } else {
+        format!("({})", digits.join(","))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cell_of;
+    use scene_contract::{Fv, Rbh};
+
+    #[test]
+    fn a_cell_is_written_in_digits_if_all_counts_are_below_ten() {
+        let cell = cell_of(Rbh(2, 1, 0), Fv(0, 0), Rbh(1, 1, 1));
+        assert_eq!(cell.as_str(), "210:00:111");
+    }
+
+    #[test]
+    fn a_part_with_two_digit_counts_is_written_as_a_tuple() {
+        let cell = cell_of(Rbh(12, 0, 0), Fv(13, 0), Rbh(13, 0, 0));
+        assert_eq!(cell.as_str(), "(12,0,0):(13,0):(13,0,0)");
+        let mixed = cell_of(Rbh(9, 1, 1), Fv(10, 0), Rbh(10, 1, 1));
+        assert_eq!(mixed.as_str(), "911:(10,0):(10,1,1)");
     }
 }

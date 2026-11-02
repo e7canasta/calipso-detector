@@ -50,4 +50,4 @@ pub(crate) struct Observation {
     pub dwell_secs: f64,
 }
 
-pub use scene_contract::RepublishReason;
+pub(crate) use scene_contract::RepublishReason;

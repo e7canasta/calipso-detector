@@ -8,7 +8,7 @@
 use super::{Arrival, SampleSource};
 use image::DynamicImage;
 use ingest::{IngestError, StreamEvent};
-use scene_core::contract::{SampleRef, SessionId, SourceSecs};
+use scene_contract::{SampleRef, SessionId, SourceSecs};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

@@ -17,12 +17,12 @@ use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::SampleRef;
 use crate::time::secs_since;
 
-pub use scene_contract::HeldCheckState;
-pub use scene_contract::Verifier;
+pub(crate) use scene_contract::HeldCheckState;
+pub(crate) use scene_contract::Verifier;
 /// An hour of source time: the budget's window.
 pub(crate) const HOUR_SECS: f64 = 3600.0;
 
-pub use scene_contract::HeldCheck;
+pub(crate) use scene_contract::HeldCheck;
 /// The check of a body held in bed that nobody has looked at yet: the domain's
 /// starting state, not a property of the wire.
 const UNVERIFIED_HELD_CHECK: HeldCheck = HeldCheck {

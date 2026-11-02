@@ -257,7 +257,7 @@ fn counts(text: &str) -> Vec<u32> {
 
 #[given(expr = "a transition from {string} seeing {string} to {string}")]
 fn a_transition(ward: &mut Ward, before: String, seen: String, after: String) {
-    use scene_core::contract::v4::{Fv, Rbh};
+    use scene_contract::{Fv, Rbh};
     let rbh = |text: &str| match counts(text)[..] {
         [r, b, h] => Rbh(r, b, h),
         _ => panic!("\"{text}\": a triple"),
@@ -267,7 +267,7 @@ fn a_transition(ward: &mut Ward, before: String, seen: String, after: String) {
         _ => panic!("\"{seen}\": a pair"),
     };
     ward.cell = Some(
-        scene_core::contract::v4::cell_of(rbh(&before), fv, rbh(&after))
+        scene_core::project::cell_of(rbh(&before), fv, rbh(&after))
             .as_str()
             .to_string(),
     );

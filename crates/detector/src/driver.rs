@@ -7,12 +7,8 @@ use crate::source::{Arrival, SampleSource};
 use crate::stream_watch::{self, StreamWatch};
 use crate::verifier::{NoVerifier, VerifierPort};
 use ingest::{IngestError, Stamp, StreamEvent};
-use scene_core::{
-    Input, Monitor, NoFrame, Output,
-    contract::{SampleRef, SensorState, SessionId, SourceSecs, Timing},
-    map::SiteMap,
-    policy::Policy,
-};
+use scene_contract::{SampleRef, SensorState, SessionId, SourceSecs, Timing};
+use scene_core::{Input, Monitor, NoFrame, Output, map::SiteMap, policy::Policy};
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
@@ -209,11 +205,9 @@ mod tests {
     use crate::source::rtsp::SampleDecoder;
     use image::DynamicImage;
     use ingest::{Payload, Sample};
+    use scene_contract::{LookOutcome, RepublishReason};
+    use scene_core::geom::{Quad, Rect};
     use scene_core::map::FrameInfo;
-    use scene_core::{
-        contract::{LookOutcome, RepublishReason},
-        geom::{Quad, Rect},
-    };
     use sense::Senses;
     struct Empty;
     impl sense::DetectorPort for Empty {

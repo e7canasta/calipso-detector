@@ -18,8 +18,8 @@ use crate::zone::Zone;
 use occupancy::Machine;
 use subject::SubjectMemory;
 
-pub use bed_posture::{BedPosture, BedPostureSeen, BedPostureState};
-pub use parts::PartsReading;
+pub(crate) use bed_posture::{BedPosture, BedPostureState};
+pub(crate) use parts::PartsReading;
 
 pub(crate) use occupancy::{
     Alone, BedPhase, InBed, Occupancy, OccupancyRules, Room, Tally, Transition,

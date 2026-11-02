@@ -3,8 +3,8 @@
 use crate::driver::{RESIDENT, detector_profile, scene};
 use crate::world::{Shell, models::PoseModel};
 use cucumber::{given, then, when};
+use scene_contract::Keypoint;
 use scene_core::{
-    contract::Keypoint,
     geom::Rect,
     look::{PosePurpose, Probe, Reading},
 };

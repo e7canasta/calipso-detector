@@ -19,8 +19,7 @@ fn check_prints_the_profile_and_opens_no_models() {
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
-        let profile: scene_core::contract::Profile =
-            serde_json::from_slice(&output.stdout).unwrap();
+        let profile: scene_contract::Profile = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(profile, Config::parse(text).unwrap().profile().unwrap());
         fs::write(
             &file,

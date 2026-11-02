@@ -44,9 +44,9 @@ fn turn(ward: &Ward, n: u32) -> &scene_core::Output {
         .output
 }
 
-fn change(ward: &Ward, n: u32) -> Option<&scene_core::contract::v4::PartsChange> {
+fn change(ward: &Ward, n: u32) -> Option<&scene_contract::PartsChange> {
     turn(ward, n).events.iter().find_map(|e| match e {
-        scene_core::contract::Event::Parts(p) => Some(p),
+        scene_contract::Event::Parts(p) => Some(p),
         _ => None,
     })
 }

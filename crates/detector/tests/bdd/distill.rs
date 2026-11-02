@@ -3,9 +3,11 @@ use crate::world::Shell;
 use cucumber::{given, then, when};
 use detector::publish::{Kind, PublisherHandle};
 use golden::{distill::distill, language::Sense, world};
+use scene_contract::{
+    Build, Profile, ProfileHash, SampleRef, SessionId, Source, SourceSecs, Timing,
+};
 use scene_core::{
     Input, Monitor,
-    contract::{Build, Profile, ProfileHash, SampleRef, SessionId, Source, SourceSecs, Timing},
     geom::Quad,
     look::{Failure, Probe, Reading, Spent},
     map::SiteMap,

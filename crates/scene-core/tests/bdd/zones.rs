@@ -4,7 +4,7 @@
 
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when};
-use scene_core::contract::Zone;
+use scene_contract::Zone;
 
 use crate::published::{Body, Fact, Kind};
 use crate::ward::{Ward, later};

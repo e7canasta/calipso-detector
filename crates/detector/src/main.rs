@@ -10,7 +10,7 @@ use detector::{
     verifier::NatsVerifier,
 };
 use ingest::{Mailbox, Sample};
-use scene_core::contract::Source;
+use scene_contract::Source;
 use std::{
     path::PathBuf,
     sync::{Arc, mpsc},

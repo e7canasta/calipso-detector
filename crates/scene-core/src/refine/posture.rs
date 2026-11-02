@@ -112,8 +112,8 @@ pub(super) fn relative_disparity(a: Option<f32>, b: Option<f32>) -> Option<f32> 
         .filter(|d| d.is_finite())
 }
 
-pub use scene_contract::Posture;
-pub use scene_contract::{BodyGroup, BodyGroups, Disparities, PostureState};
+pub(crate) use scene_contract::Posture;
+pub(crate) use scene_contract::{BodyGroup, BodyGroups, Disparities, PostureState};
 #[cfg(test)]
 mod tests {
     use super::*;

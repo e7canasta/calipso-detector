@@ -8,11 +8,11 @@
 //! its before, seen and after; its after is its last fact's; the scene links
 //! its cell; and a layer-0 fact is never the sensor's.
 
-use scene_core::Output;
-use scene_core::contract::{
+use scene_contract::{
     BedState, Cause, DerivedBody, Event, FactBody, MapBody, Mode, Occupancy, Rbh, SampleRef, Scene,
     SensorBody, SensorState,
 };
+use scene_core::Output;
 
 /// Which kind of row: a fact of the domain (layer 0 or the map), a change
 /// derived by comparing turns, or the sensor.
@@ -173,7 +173,7 @@ pub fn check(output: &Output) {
         if let Event::Transition(t) = event {
             assert_eq!(
                 t.cell,
-                scene_core::contract::v4::cell_of(t.before.occupancy.rbh, t.seen.fv, t.after.rbh),
+                scene_core::project::cell_of(t.before.occupancy.rbh, t.seen.fv, t.after.rbh),
                 "{at:?}: the cell"
             );
             // The occupants are those of the last fact; the bodies that are

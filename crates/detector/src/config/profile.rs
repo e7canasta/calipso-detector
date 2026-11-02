@@ -7,12 +7,12 @@ use std::path::Path;
 
 /// One line of the published profile: the sense's model by its file name.
 pub(super) fn sense_profile(
-    kind: scene_core::contract::LookKind,
+    kind: scene_contract::LookKind,
     model: &Path,
     backend_confidence: f32,
     min_confidence: Option<f32>,
-) -> scene_core::contract::SenseProfile {
-    scene_core::contract::SenseProfile {
+) -> scene_contract::SenseProfile {
+    scene_contract::SenseProfile {
         kind,
         model: model.file_name().map_or_else(
             || model.display().to_string(),
@@ -26,8 +26,8 @@ pub(super) fn sense_profile(
 
 impl Config {
     /// Fixed field order and normalized defaults: independent of the TOML.
-    pub fn profile(&self) -> Result<scene_core::contract::Profile> {
-        use scene_core::contract::{LayerRef, LookKind, Profile, ProfileHash};
+    pub fn profile(&self) -> Result<scene_contract::Profile> {
+        use scene_contract::{LayerRef, LookKind, Profile, ProfileHash};
         use sha2::{Digest, Sha256};
         // Calibration and the bed posture enter the hash only if present:
         // without them, the previous one.

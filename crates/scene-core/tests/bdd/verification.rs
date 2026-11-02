@@ -3,9 +3,7 @@
 //! ward delivers the answer before the first sample at or past it.
 
 use cucumber::{given, then};
-use scene_core::contract::{
-    HeldCheckState, LookKind, LookOutcome, LookResult, SkipReason, Verifier,
-};
+use scene_contract::{HeldCheckState, LookKind, LookOutcome, LookResult, SkipReason, Verifier};
 use scene_core::look::Answer;
 use scene_core::policy::{Band, Burst, HeldVerifyPolicy, SharpnessPolicy, VerifyPolicy};
 

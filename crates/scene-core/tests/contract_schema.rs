@@ -6,7 +6,7 @@
 // library, not its tests.
 #![allow(clippy::disallowed_methods, clippy::disallowed_types)]
 
-use scene_core::contract::{Envelope, Event, Scene};
+use scene_contract::{Envelope, Event, Scene};
 use std::path::PathBuf;
 
 fn snapshot(name: &str, schema: schemars::Schema) {
@@ -39,7 +39,7 @@ fn events_v4() {
 /// A v4 transition, as is: it reads and writes back the same.
 #[test]
 fn the_v4_transition_is_the_specs() {
-    use scene_core::contract::v4::Event;
+    use scene_contract::Event;
     let at = |sequence: u64, secs: f64| serde_json::json!({ "session": 1, "sequence": sequence, "source_secs": secs });
     let json = serde_json::json!({
         "kind": "transition",
@@ -64,7 +64,7 @@ fn the_v4_transition_is_the_specs() {
     };
     assert_eq!(
         transition.cell,
-        scene_core::contract::v4::cell_of(
+        scene_core::project::cell_of(
             transition.before.occupancy.rbh,
             transition.seen.fv,
             transition.after.rbh
@@ -75,7 +75,7 @@ fn the_v4_transition_is_the_specs() {
 
 #[test]
 fn rejections_are_published_grouped_by_reason() {
-    use scene_core::contract::{LookResult, RejectReason};
+    use scene_contract::{LookResult, RejectReason};
     let result = LookResult::Read {
         candidates: 4,
         rejected: vec![

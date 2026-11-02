@@ -3,7 +3,7 @@
 //! where a body is.
 
 use cucumber::{given, then, when};
-use scene_core::contract::{BodySeen, LookKind, LookOutcome, LookResult, Zone};
+use scene_contract::{BodySeen, LookKind, LookOutcome, LookResult, Zone};
 use scene_core::geom::Rect;
 use scene_core::look::{Detection, Failure, Label};
 use scene_core::policy::TwoPlanesPolicy;

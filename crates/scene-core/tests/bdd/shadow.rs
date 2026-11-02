@@ -3,7 +3,7 @@
 //! published next to what is decided.
 
 use cucumber::{given, then, when};
-use scene_core::contract::{BodySeen, ShadowPlane, Zone};
+use scene_contract::{BodySeen, ShadowPlane, Zone};
 use scene_core::geom::{Quad, Rect};
 use scene_core::look::{Detection, Label};
 use scene_core::map::MapShadow;

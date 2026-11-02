@@ -4,23 +4,23 @@
 //! after and the facts, each with the occupancy it leaves.
 
 use super::{
-    bed, bed_state, empty_bed, pending, project_evidence, publish_bed, publish_subject,
+    bed, bed_state, cell_of, empty_bed, pending, project_evidence, publish_bed, publish_subject,
     republished_at, retained_subject, unobserved,
 };
 use crate::belief::total;
 use crate::belief::{self, Alone, BedPhase, Fact, InBed, Occupants, Tally};
 use crate::chronicle::{Chronicled, RoomName, TransitionKey};
 use crate::conclusion::{Observation, RepublishReason};
-use crate::contract::v4::{
+use crate::map::BedCalibrated;
+use crate::reception::SensorChanged;
+use crate::time::secs_since;
+use scene_contract::{
     Attention, BedPostureBefore, BedPostureChange, Before, Cause, Cell, Context, DerivedBody,
     DerivedEvent, Evidence, Fact as Published, FactBody, Floor, Fv, MapBody, MapEvent, MapState,
     Mode, Occupancy, PartsAfter, PartsBefore, PartsChange, PartsSeen, Phase, Rbh, Republished,
     Room, SampleRef, Seen, SensorBody, SensorEvent, SensorState, Span, Transition,
 };
-pub(crate) use crate::contract::v4::{Event, Scene};
-use crate::map::BedCalibrated;
-use crate::reception::SensorChanged;
-use crate::time::secs_since;
+pub(crate) use scene_contract::{Event, Scene};
 
 /// The machine's mode, said in v4.
 pub(super) fn mode(occupants: Occupants) -> Mode {
@@ -407,28 +407,5 @@ pub(crate) fn republish(
             reason,
             observed_at: republished_at(scene.republished, projected_at),
         }),
-    }
-}
-
-/// The cell of a change from `before`, seeing `seen`, to `after`: the natural
-/// key of the row, `before:seen:after`.
-pub fn cell_of(before: Rbh, seen: Fv, after: Rbh) -> Cell {
-    let Rbh(r0, b0, h0) = before;
-    let Fv(f, v) = seen;
-    let Rbh(r1, b1, h1) = after;
-    Cell(format!(
-        "{}:{}:{}",
-        part(&[r0, b0, h0]),
-        part(&[f, v]),
-        part(&[r1, b1, h1])
-    ))
-}
-
-fn part(counts: &[u32]) -> String {
-    let digits: Vec<String> = counts.iter().map(u32::to_string).collect();
-    if counts.iter().all(|&count| count < 10) {
-        digits.concat()
-    } else {
-        format!("({})", digits.join(","))
     }
 }

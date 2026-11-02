@@ -5,7 +5,7 @@ use detector::{
     publish::{PublisherHandle, nats},
 };
 use futures::StreamExt;
-use scene_core::contract::{Profile, ProfileHash, Source, Timing};
+use scene_contract::{Profile, ProfileHash, Source, Timing};
 use std::{
     net::TcpListener,
     path::PathBuf,

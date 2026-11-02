@@ -85,7 +85,8 @@ impl<T: Copy + Eq> Stabilizer<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::time::{SessionId, SourceSecs};
+    use crate::time::SessionId;
+    use scene_contract::SourceSecs;
 
     fn at(secs: f64) -> SampleRef {
         SampleRef {

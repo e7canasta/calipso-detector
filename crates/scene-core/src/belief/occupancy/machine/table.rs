@@ -15,7 +15,8 @@ use crate::evidence::BodySource;
 use crate::evidence::{Body, FloorBody};
 use crate::geom::Rect;
 use crate::look::Label;
-use crate::time::{SessionId, SourceSecs};
+use crate::time::SessionId;
+use scene_contract::SourceSecs;
 
 const GOLDEN: &str = include_str!("../../../../../../contract/layer-0-table.txt");
 const PERSISTENCE: Persistence = Persistence { dwell_secs: 1.0 };

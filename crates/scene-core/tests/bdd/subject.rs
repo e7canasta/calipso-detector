@@ -5,10 +5,8 @@
 
 use crate::published::Body;
 use cucumber::{given, then};
-use scene_core::contract::Calibration;
-use scene_core::contract::{
-    LookKind, LookOutcome, LookResult, Provenance, Scene, SkipReason, Zone,
-};
+use scene_contract::Calibration;
+use scene_contract::{LookKind, LookOutcome, LookResult, Provenance, Scene, SkipReason, Zone};
 use scene_core::geom::Rect;
 use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
 
@@ -280,7 +278,7 @@ fn pose_with_the_main_detector(ward: &mut Ward, n: u32) {
 }
 
 /// The subject's depth in sample `n`.
-fn depth(ward: &Ward, n: u32) -> Option<scene_core::contract::SubjectDepth> {
+fn depth(ward: &Ward, n: u32) -> Option<scene_contract::SubjectDepth> {
     scene(ward, n).subject.as_ref().and_then(|s| s.depth)
 }
 

@@ -4,10 +4,8 @@
 use super::profile::sense_profile;
 use super::validate::{fraction, model, not_negative, positive};
 use anyhow::{Result, ensure};
-use scene_core::{
-    contract::{LookKind, SenseProfile},
-    policy::FocusPolicy,
-};
+use scene_contract::{LookKind, SenseProfile};
+use scene_core::policy::FocusPolicy;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

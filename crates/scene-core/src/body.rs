@@ -3,7 +3,7 @@
 //! seen under the profile's minimum, where a joint is, where a bed site falls,
 //! and whether the head is at the headboard.
 
-pub use scene_contract::{
+pub(crate) use scene_contract::{
     BedPoint, BedSite, BodyPoint, HeadEvidence, HeadPlace, HeadPlaceState, Joint, Keypoint, Pose,
     SubjectDepth,
 };

@@ -4,7 +4,7 @@
 //! scene does not model (pose, depth) are scripted here.
 use golden::language::{Expected, InBed, Location, Samples, Span, spans_from_cells};
 use golden::world::{self, Sample};
-use scene_core::contract::Keypoint;
+use scene_contract::Keypoint;
 use scene_core::look::{DepthPurpose, Detection, Failure, Probe, Reading};
 
 /// What each sense answers in a turn.

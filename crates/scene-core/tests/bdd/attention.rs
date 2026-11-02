@@ -4,7 +4,7 @@
 //! checked here.
 
 use cucumber::{given, then};
-use scene_core::contract::{
+use scene_contract::{
     FrameInfo, LookKind, LookOutcome, LookResult, Provenance, RejectReason, Scene, SkipReason,
 };
 use scene_core::geom::Rect;

@@ -7,9 +7,7 @@ use std::fmt;
 use crate::published::{Body, Fact, Kind};
 pub use crate::script::Script;
 use cucumber::World;
-use scene_core::contract::{
-    LookKind, LookResult, Provenance, SampleRef, Scene, SessionId, SourceSecs,
-};
+use scene_contract::{LookKind, LookResult, Provenance, SampleRef, Scene, SessionId, SourceSecs};
 use scene_core::geom::Quad;
 use scene_core::look::Spent;
 use scene_core::map::FrameInfo;
@@ -255,7 +253,7 @@ pub fn later(a: SampleRef, b: SampleRef) -> bool {
 
 /// The rules' guardians, checked on every turn of every scenario.
 fn invariants(scene: &Scene, events: &[Fact]) {
-    use scene_core::contract::BedState;
+    use scene_contract::BedState;
     if scene.bed.state == BedState::Held {
         assert_eq!(scene.bed.seen, 0);
         assert!(!scene.bed.held.is_empty());
@@ -264,7 +262,7 @@ fn invariants(scene: &Scene, events: &[Fact]) {
         assert!(scene.bed.seen > 0);
     }
     // Rule 2: a scene without observed bodies declares it did not observe.
-    if scene.evidence.bodies.status == scene_core::contract::BodiesStatus::Unavailable {
+    if scene.evidence.bodies.status == scene_contract::BodiesStatus::Unavailable {
         assert!(
             scene.republished.is_some(),
             "rule 2: scene without a body observation that does not declare it"

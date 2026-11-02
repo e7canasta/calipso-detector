@@ -5,8 +5,8 @@
 use crate::script::Script;
 use crate::ward::Ward;
 use cucumber::{given, then, when};
+use scene_contract::{Envelope, Scene, SensorState};
 use scene_core::Input;
-use scene_core::contract::{Envelope, Scene, SensorState};
 use serde_json::Value;
 use std::path::PathBuf;
 

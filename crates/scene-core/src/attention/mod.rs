@@ -19,7 +19,7 @@ mod verify;
 pub(crate) use body::{BodyPoseLook, EnrichPlan, enrich, pose_bodies};
 pub(crate) use depth::{DepthLook, SubjectDepthLook, calibrate, deepen};
 pub(crate) use faces::faces;
-pub use ledger::{Attention, Look, LookOutcome, LookResult, SkipReason};
+pub(crate) use ledger::{Attention, Look, LookOutcome, LookResult, SkipReason};
 pub(crate) use memory::{LatchState, Memory};
 pub(crate) use primary::{primary_region, reinforce, widen};
 pub(crate) use verify::{BurstStep, VerifyLook, burst, burst_ready, verify};

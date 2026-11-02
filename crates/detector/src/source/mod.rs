@@ -4,7 +4,7 @@ pub mod frames;
 pub mod rtsp;
 
 use ingest::{IngestError, StreamEvent};
-use scene_core::contract::SampleRef;
+use scene_contract::SampleRef;
 use std::time::{Duration, Instant};
 
 /// What arrives from a source.

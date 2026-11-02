@@ -54,7 +54,7 @@ mod belief;
 mod body;
 mod chronicle;
 mod conclusion;
-pub mod contract;
+
 mod cycle;
 mod estimation;
 mod evidence;
@@ -69,7 +69,7 @@ pub use scene_look as look;
 pub mod map;
 mod outcome;
 pub mod policy;
-mod project;
+pub mod project;
 mod provenance;
 mod reception;
 mod refine;

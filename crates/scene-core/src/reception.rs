@@ -39,4 +39,4 @@ impl Memory {
     }
 }
 
-pub use scene_contract::SensorState;
+pub(crate) use scene_contract::SensorState;
