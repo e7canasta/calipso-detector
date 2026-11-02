@@ -2,8 +2,10 @@
 //! and the site map. Each capability translates its own section; this file
 //! only composes them.
 
+use super::validate::measured;
 use super::validate::{confidence, seconds};
 use super::*;
+use scene_core::units::{Extension, Proportion, Ratio};
 use scene_core::{
     geom::{Point, Quad, Rect},
     map::{FrameInfo, SiteMap},
@@ -18,18 +20,35 @@ impl Config {
             "policy.min_confidence",
             self.policy.min_confidence,
         )?;
-        p.admission.same_body_iou = self.policy.same_body_iou;
-        p.admission.near_bed_margin = self.policy.near_bed_margin;
-        p.admission.bed_frame = self.policy.bed_frame;
-        p.shadow = self.shadow.as_ref().map(ShadowConfig::policy);
+        p.admission.same_body_iou = measured(
+            "policy.same_body_iou",
+            Proportion::new(self.policy.same_body_iou),
+        )?;
+        p.admission.near_bed_margin = measured(
+            "policy.near_bed_margin",
+            Extension::new(self.policy.near_bed_margin),
+        )?;
+        p.admission.bed_frame = self
+            .policy
+            .bed_frame
+            .map(|share| measured("policy.bed_frame", Ratio::new(share)))
+            .transpose()?;
+        p.shadow = self.shadow.as_ref().map(ShadowConfig::policy).transpose()?;
         p.two_planes = self
             .occupancy
             .as_ref()
-            .and_then(OccupancyConfig::two_planes);
+            .map(OccupancyConfig::two_planes)
+            .transpose()?
+            .flatten();
         p.held_left = self.occupancy.as_ref().is_some_and(|o| o.held_left);
         p.near_first = self.occupancy.as_ref().is_some_and(|o| o.near_first);
         p.persistence.dwell_secs = seconds("policy", "policy.dwell_secs", self.policy.dwell_secs)?;
-        p.reinforce = self.senses.reinforce.as_ref().map(Reinforce::policy);
+        p.reinforce = self
+            .senses
+            .reinforce
+            .as_ref()
+            .map(Reinforce::policy)
+            .transpose()?;
         p.focus = self
             .senses
             .detect
@@ -49,7 +68,13 @@ impl Config {
             .as_ref()
             .map(CalibrationConfig::policy)
             .transpose()?;
-        p.depth_pad = self.senses.depth.as_ref().and_then(|d| d.crop_pad);
+        p.depth_pad = self
+            .senses
+            .depth
+            .as_ref()
+            .and_then(|d| d.crop_pad)
+            .map(|pad| measured("senses.depth.crop_pad", Extension::new(pad)))
+            .transpose()?;
         p.bed_posture = self
             .bed_posture
             .as_ref()

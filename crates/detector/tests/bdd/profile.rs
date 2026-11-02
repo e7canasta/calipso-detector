@@ -28,7 +28,8 @@ fn pose_margin(w: &mut Shell, pad: f32) {
             .expect("a valid profile")
             .enrich
             .expect("pose policy")
-            .crop_pad,
+            .crop_pad
+            .get(),
         pad
     );
 }
@@ -41,7 +42,7 @@ fn enrich_policy(w: &mut Shell, threshold: f32) {
         .expect("a valid profile")
         .enrich
         .expect("pose policy");
-    assert_eq!(enrich.move_threshold, threshold);
+    assert_eq!(enrich.move_threshold.get(), threshold);
 }
 
 #[then(expr = "the published pose sense counts keypoints from score {float}")]
@@ -110,7 +111,11 @@ fn depth_crop_profile(w: &mut Shell, pad: f32) {
 #[then(expr = "the core measures depth over the bed grown by {float}")]
 fn depth_over_the_bed(w: &mut Shell, pad: f32) {
     assert_eq!(
-        w.config().policy().expect("a valid profile").depth_pad,
+        w.config()
+            .policy()
+            .expect("a valid profile")
+            .depth_pad
+            .map(|d| d.get()),
         Some(pad)
     );
 }
@@ -231,7 +236,7 @@ fn focus_policy(w: &mut Shell, pad: f32, wide_every_secs: u32) {
         .expect("a valid profile")
         .focus
         .expect("focus policy");
-    assert_eq!(focus.pad, pad);
+    assert_eq!(focus.pad.get(), pad);
     assert_eq!(focus.wide_every_secs.get(), f64::from(wide_every_secs));
 }
 

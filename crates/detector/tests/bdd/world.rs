@@ -365,7 +365,8 @@ fn reinforce_policy(w: &mut Shell, padding: f32) {
             .expect("a valid profile")
             .reinforce
             .unwrap()
-            .bed_padding,
+            .bed_padding
+            .get(),
         padding
     );
 }
@@ -464,7 +465,8 @@ fn faces_margin(w: &mut Shell, pad: f32) {
             .expect("a valid profile")
             .faces
             .unwrap()
-            .headboard_pad,
+            .headboard_pad
+            .get(),
         pad
     );
 }

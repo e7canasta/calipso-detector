@@ -10,15 +10,16 @@ use scene_core::policy::TwoPlanesPolicy;
 
 use crate::script::Script;
 use crate::ward::Ward;
+use scene_core::units::{Degrees, Metres, PositiveMetres, Ratio};
 
 #[given(
     regex = r"^the room is measured in two planes: in bed with (\d+(?:\.\d+)?) of the box over the mattress and its support within (\d+(?:\.\d+)?) metres, near the bed within (\d+(?:\.\d+)?) metres$"
 )]
 fn two_planes(ward: &mut Ward, share: f32, support_m: f32, near_m: f32) {
     ward.policy.two_planes = Some(TwoPlanesPolicy {
-        share,
-        support_m,
-        near_m,
+        share: Ratio::new(share).expect("a share in (0, 1]"),
+        support_m: Metres::new(support_m).expect("a distance"),
+        near_m: PositiveMetres::new(near_m).expect("a positive distance"),
         knee_bent_deg: None,
     });
 }
@@ -31,7 +32,7 @@ fn knee(ward: &mut Ward, bent_deg: f32) {
         .two_planes
         .as_mut()
         .expect("\"the room is measured in two planes\" first")
-        .knee_bent_deg = Some(bent_deg);
+        .knee_bent_deg = Some(Degrees::new(bent_deg).expect("an angle in (0, 180)"));
 }
 
 fn person(x0: f32, y0: f32, x1: f32, y1: f32) -> Script {

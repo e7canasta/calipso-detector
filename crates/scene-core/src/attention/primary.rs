@@ -25,7 +25,7 @@ pub(crate) fn primary_region(
     focus: Option<&FocusPolicy>,
 ) -> Option<Rect> {
     let focus = focus?;
-    let region = map.focus_region(geometry, focus.pad)?;
+    let region = map.focus_region(geometry, focus.pad.get())?;
     let alone_in_bed = matches!(belief.room(), Room::Alone(Alone::InBed(_)));
     let sentinel = memory.lens.wide_due(at, focus.wide_every_secs);
     (alone_in_bed && belief.settled() && !sentinel).then_some(region)
@@ -79,6 +79,6 @@ pub(crate) fn reinforce(
     Consideration::Decided(match latch {
         LatchState::Disarmed => Decision::Skip(SkipReason::NoSubjectInBed),
         LatchState::Spent => Decision::Skip(SkipReason::LatchSpent),
-        LatchState::Armed => Decision::Ask(bed.bounds().expand(policy.bed_padding)),
+        LatchState::Armed => Decision::Ask(bed.bounds().expand(policy.bed_padding.get())),
     })
 }

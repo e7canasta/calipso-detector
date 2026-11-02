@@ -67,7 +67,7 @@ pub(crate) fn refine(
         provenance,
         groups: Some(r.groups),
         disparities: Some(r.disparities),
-        tolerance: Some(enrich.posture_tolerance),
+        tolerance: Some(enrich.posture_tolerance.get()),
         bed_points: body.bed_points.clone(),
         head_place: Some(body.head_place),
     });

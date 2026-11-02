@@ -5,10 +5,12 @@
 use super::depth::Depth;
 use super::profile::sense_profile;
 use super::schema::defaults;
+use super::validate::measured;
 use super::validate::{confidence, fraction, model, not_negative, seconds};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
 use scene_core::policy::EnrichPolicy;
+use scene_core::units::{DiagonalFraction, Extension, RelativeDepth};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -57,20 +59,30 @@ impl Pose {
     /// the keypoints measure it, and the bed's posture tolerance is its own.
     pub(super) fn policy(&self, depth: Option<&Depth>) -> Result<EnrichPolicy> {
         Ok(EnrichPolicy {
-            move_threshold: self.move_threshold,
+            move_threshold: measured(
+                "senses.pose.move_threshold",
+                DiagonalFraction::new(self.move_threshold),
+            )?,
             depth: depth.is_some(),
             min_keypoint_score: confidence(
                 "pose",
                 "senses.pose.min_keypoint_score",
                 self.min_keypoint_score,
             )?,
-            posture_tolerance: depth
-                .map_or_else(defaults::posture_tolerance, |d| d.posture_tolerance),
+            posture_tolerance: measured(
+                "senses.depth.posture_tolerance",
+                RelativeDepth::new(
+                    depth.map_or_else(defaults::posture_tolerance, |d| d.posture_tolerance),
+                ),
+            )?,
             max_pose_age_secs: self
                 .max_age_secs
                 .map(|s| seconds("pose", "senses.pose.max_age_secs", s))
                 .transpose()?,
-            crop_pad: self.crop_pad.unwrap_or(0.0),
+            crop_pad: measured(
+                "senses.pose.crop_pad",
+                Extension::new(self.crop_pad.unwrap_or(0.0)),
+            )?,
         })
     }
 

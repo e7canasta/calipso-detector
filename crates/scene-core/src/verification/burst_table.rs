@@ -14,6 +14,7 @@ use crate::look::{Answer, Question, Target, Verified};
 use crate::policy::{Burst, Frames, SharpnessPolicy};
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::{SampleRef, SessionId};
+use crate::units::Ratio;
 use crate::units::Seconds;
 use scene_contract::SourceSecs;
 
@@ -67,7 +68,7 @@ fn look(target: Target, question: Question, places: Option<BodyPlaces>) -> Verif
 }
 fn sharp() -> SharpnessPolicy {
     SharpnessPolicy {
-        min_ratio: 0.5,
+        min_ratio: Ratio::new(0.5).expect("a constant ratio"),
         window: 3,
         max_wait_secs: sec(2.0),
     }

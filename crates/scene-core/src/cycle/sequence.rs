@@ -537,7 +537,7 @@ impl Course<'_> {
             &observed.believed,
             &engine.calibration,
             &engine.attention_memory,
-            engine.policy.depth_pad,
+            engine.policy.depth_pad.map(|d| d.get()),
             engine.policy.calibration.as_ref(),
         )
     }
@@ -626,7 +626,13 @@ impl Course<'_> {
         let Perceived { bodies, faces, .. } = &observed.evidence;
         let g = self.glimpse(bodies, faces);
         let policy = &self.monitor.engine.policy;
-        attention::deepen(&g, pose, head, policy.depth_pad, policy.enrich.as_ref())
+        attention::deepen(
+            &g,
+            pose,
+            head,
+            policy.depth_pad.map(|d| d.get()),
+            policy.enrich.as_ref(),
+        )
     }
 
     /// What attention wants looked at, if anything. A no with its reason goes

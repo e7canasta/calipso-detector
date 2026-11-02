@@ -111,10 +111,10 @@ impl Default for PolicyConfig {
         } = Policy::default();
         Self {
             min_confidence: admission.min_confidence.get(),
-            same_body_iou: admission.same_body_iou,
-            near_bed_margin: admission.near_bed_margin,
+            same_body_iou: admission.same_body_iou.get(),
+            near_bed_margin: admission.near_bed_margin.get(),
             dwell_secs: persistence.dwell_secs.get(),
-            bed_frame: admission.bed_frame,
+            bed_frame: admission.bed_frame.map(|share| share.get()),
         }
     }
 }

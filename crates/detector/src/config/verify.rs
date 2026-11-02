@@ -3,9 +3,11 @@
 //! Each stream pays only for what matters to it (white book, volume III).
 
 use super::schema::defaults;
+use super::validate::measured;
 use super::validate::{not_negative, positive, seconds};
 use anyhow::{Result, ensure};
 use scene_core::policy::{Band, Burst, Frames, HeldVerifyPolicy, SharpnessPolicy, VerifyPolicy};
+use scene_core::units::{FeetMargin, Ratio, RelativeDepth};
 use serde::{Deserialize, Serialize};
 
 /// `VerifyPolicy`: what this stream verifies, and nothing else. Each stream
@@ -189,14 +191,25 @@ impl VerifyConfig {
                 .map(|s| seconds("verify", "verify.timeout_secs", s))
                 .transpose()?,
             max_per_hour: self.max_per_hour,
-            doubtful_disparity: self.doubtful_disparity.map(|[lo, hi]| Band { lo, hi }),
-            doubtful_feet_margin: self.doubtful_feet_margin,
+            doubtful_disparity: self
+                .doubtful_disparity
+                .map(|[lo, hi]| -> Result<Band> {
+                    Ok(Band {
+                        lo: measured("verify.doubtful_disparity", RelativeDepth::new(lo))?,
+                        hi: measured("verify.doubtful_disparity", RelativeDepth::new(hi))?,
+                    })
+                })
+                .transpose()?,
+            doubtful_feet_margin: self
+                .doubtful_feet_margin
+                .map(|m| measured("verify.doubtful_feet_margin", FeetMargin::new(m)))
+                .transpose()?,
             frames: self.frames_policy()?,
             sharpness: self
                 .sharpness
                 .map(|s| -> Result<SharpnessPolicy> {
                     Ok(SharpnessPolicy {
-                        min_ratio: s.min_ratio,
+                        min_ratio: measured("verify.sharpness.min_ratio", Ratio::new(s.min_ratio))?,
                         window: s.window,
                         max_wait_secs: seconds(
                             "verify",

@@ -14,6 +14,7 @@ use scene_core::{Monitor, Output};
 
 use crate::ward::{BED, FRAME, Ward};
 use golden::world::{HEADBOARD, in_bed};
+use scene_core::units::Extension;
 
 // --- Background
 
@@ -31,7 +32,7 @@ fn no_headboard(ward: &mut Ward) {
 fn faces(ward: &mut Ward, min_confidence: f32) {
     ward.policy.faces = Some(FacePolicy {
         min_confidence: Confidence::new(min_confidence).expect("a confidence between 0 and 1"),
-        headboard_pad: 0.0,
+        headboard_pad: Extension::new(0.0).expect("a constant extension"),
     });
 }
 
@@ -41,7 +42,7 @@ fn faces_margin(ward: &mut Ward, pad: f32) {
         .faces
         .as_mut()
         .expect("a face detector first")
-        .headboard_pad = pad;
+        .headboard_pad = Extension::new(pad).expect("a non-negative pad");
 }
 
 #[given("there is no reinforcement detector")]
@@ -54,7 +55,7 @@ fn no_reinforcement(ward: &mut Ward) {
 )]
 fn focus(ward: &mut Ward, pad: f32, wide_every_secs: u32) {
     ward.policy.focus = Some(FocusPolicy {
-        pad,
+        pad: Extension::new(pad).expect("a non-negative pad"),
         wide_every_secs: Seconds::new(f64::from(wide_every_secs)).expect("whole seconds"),
     });
 }
@@ -173,7 +174,7 @@ fn looked_at(ward: &mut Ward, n: u32, x0: f32, y0: f32, x1: f32, y1: f32) {
 
 #[then(expr = "in sample {int} the main detector looked at the focus and then at the whole frame")]
 fn widened(ward: &mut Ward, n: u32) {
-    let pad = ward.policy.focus.expect("there is a focus").pad;
+    let pad = ward.policy.focus.expect("there is a focus").pad.get();
     assert_eq!(detect_regions(ward, n), [Some(BED.expand(pad)), None]);
 }
 
@@ -228,7 +229,10 @@ fn reinforcement_on_the_bed(ward: &mut Ward, n: u32) {
         .reinforce
         .expect("there is reinforcement")
         .bed_padding;
-    assert_eq!(region(ward, n, LookKind::Reinforce), BED.expand(padding));
+    assert_eq!(
+        region(ward, n, LookKind::Reinforce),
+        BED.expand(padding.get())
+    );
 }
 
 #[then(

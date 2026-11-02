@@ -129,6 +129,7 @@ mod tests {
     use super::*;
     use crate::geom::{Quad, Rect};
     use crate::policy::{Persistence, SharpnessPolicy, VerifyPolicy};
+    use crate::units::Ratio;
     use crate::units::Seconds;
 
     /// The slices are read once, from the same policy the engine keeps: a
@@ -141,7 +142,7 @@ mod tests {
             },
             verify: Some(VerifyPolicy {
                 sharpness: Some(SharpnessPolicy {
-                    min_ratio: 0.8,
+                    min_ratio: Ratio::new(0.8).expect("a constant ratio"),
                     window: 4,
                     max_wait_secs: Seconds::TWO,
                 }),

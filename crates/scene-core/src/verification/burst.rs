@@ -371,7 +371,7 @@ impl Verification {
                 let mut recent: Vec<f32> = self.sharpness.iter().copied().collect();
                 recent.sort_by(f32::total_cmp);
                 let median = recent.get(recent.len() / 2).copied();
-                let counted = median.is_none_or(|m| sharpness >= p.min_ratio * m);
+                let counted = median.is_none_or(|m| sharpness >= p.min_ratio.get() * m);
                 self.sharpness.push_back(sharpness);
                 while self.sharpness.len() > usize::from(p.window.max(1)) {
                     self.sharpness.pop_front();
@@ -475,6 +475,7 @@ mod tests {
     use crate::look::Answer;
     use crate::look::Question;
     use crate::time::SessionId;
+    use crate::units::Ratio;
     use crate::units::Seconds;
     use scene_contract::SourceSecs;
 
@@ -516,7 +517,7 @@ mod tests {
 
     fn sharp() -> Option<SharpnessPolicy> {
         Some(SharpnessPolicy {
-            min_ratio: 0.5,
+            min_ratio: Ratio::new(0.5).expect("a constant ratio"),
             window: 3,
             max_wait_secs: Seconds::TWO,
         })

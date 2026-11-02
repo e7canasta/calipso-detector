@@ -6,8 +6,14 @@
 
 use super::*;
 use anyhow::{Context, Result, anyhow, ensure};
-use scene_core::units::{Confidence, Seconds};
+use scene_core::units::{Confidence, Seconds, UnitError};
 use std::path::Path;
+
+/// A geometry measure, built by its constructor in the core: its refusal names
+/// the field, as the other checks do.
+pub(super) fn measured<T>(name: &str, value: std::result::Result<T, UnitError>) -> Result<T> {
+    value.map_err(|e| anyhow!("{name} {e}"))
+}
 
 /// A score or a ratio: finite and between 0 and 1.
 pub(super) fn fraction(name: &str, value: f32) -> Result<()> {

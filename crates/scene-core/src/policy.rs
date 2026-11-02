@@ -2,7 +2,10 @@
 //! reads them from nowhere (rule 8). Durations are [`Seconds`] and scores that
 //! are confidences or thresholds are [`Confidence`] (ADR unidades-en-el-tipo).
 
-use crate::units::{Confidence, Seconds};
+use crate::units::{
+    Confidence, Degrees, DiagonalFraction, Extension, FeetMargin, Metres, PositiveMetres,
+    Proportion, Ratio, RelativeDepth, Seconds,
+};
 
 /// Which body counts as evidence, and in which zone.
 #[derive(Debug, Clone, PartialEq)]
@@ -10,10 +13,10 @@ pub struct AdmissionPolicy {
     /// Minimum confidence of a person detection.
     pub min_confidence: Confidence,
     /// Two boxes with an IoU from this value up are the same body.
-    pub same_body_iou: f32,
+    pub same_body_iou: Proportion,
     /// A body on the floor is "near the bed" if its box touches the bed grown
     /// by this fraction of its width and height on each side.
-    pub near_bed_margin: f32,
+    pub near_bed_margin: Extension,
     /// `Some`: the bed's zones in its own coordinates, for a camera that sees
     /// the bed at an angle. Near the bed is the bed grown by
     /// `near_bed_margin` across and along it, not its bounding box grown; and
@@ -21,14 +24,14 @@ pub struct AdmissionPolicy {
     /// bed. A body lying on the diagonal of a narrow bed spills its box's
     /// corners far past the rails: corners say nothing there, the share does.
     /// `None`: in the image's axes, the box's four corners in the bed.
-    pub bed_frame: Option<f32>,
+    pub bed_frame: Option<Ratio>,
 }
 
 /// Look at the bed again with a finer detector when someone is lost.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ReinforcePolicy {
     /// How much the bed grows, as a fraction of its width and height, on each side.
-    pub bed_padding: f32,
+    pub bed_padding: Extension,
 }
 
 /// Look at the bed up close with the main detector while the resident is alone
@@ -38,7 +41,7 @@ pub struct FocusPolicy {
     /// How much the bed grows, as a fraction of its width and height, on each
     /// side. It is not reinforcement's: the focus must reach whoever stands
     /// next to the bed.
-    pub pad: f32,
+    pub pad: Extension,
     /// Source seconds after which the whole frame is looked at again, even if
     /// the focus confirms: whoever comes in far from the bed is seen at most
     /// this late (rule 9). It must be no longer than staff take to walk from
@@ -65,7 +68,7 @@ pub struct FacePolicy {
     /// With nobody in sight, the headboard is grown by this fraction of its
     /// width and height on each side to look for faces: a head that left it
     /// is still found. Where the head is is decided against the exact one.
-    pub headboard_pad: f32,
+    pub headboard_pad: Extension,
 }
 
 /// The subject's pose and depth, only when worth it.
@@ -73,21 +76,21 @@ pub struct FacePolicy {
 pub struct EnrichPolicy {
     /// Centroid shift, as a fraction of the reference box diagonal, from which
     /// the subject moved.
-    pub move_threshold: f32,
+    pub move_threshold: DiagonalFraction,
     /// Is there a depth model?
     pub depth: bool,
     /// Minimum score of a pose keypoint to measure depth at it.
     pub min_keypoint_score: Confidence,
     /// Relative disparity between top and bottom within which the posture is
     /// "sitting".
-    pub posture_tolerance: f32,
+    pub posture_tolerance: RelativeDepth,
     /// Age from which a still pose is requested again, in source seconds.
     /// `None`: while still, it holds forever.
     pub max_pose_age_secs: Option<Seconds>,
     /// Margin around the subject's box where the pose is looked for, as a
     /// fraction of its width and height on each side: the pose model needs
     /// the head, hands and feet the detector's box cuts. `0`: the box itself.
-    pub crop_pad: f32,
+    pub crop_pad: Extension,
 }
 
 /// Learn the depth of the empty bed.
@@ -131,7 +134,7 @@ pub struct Policy {
     /// `None`, the whole frame; a pad, the bed's box grown by that fraction of
     /// its width and height on each side, centred on the bed. The depth is
     /// relative to what the model sees, so both measure through the same crop.
-    pub depth_pad: Option<f32>,
+    pub depth_pad: Option<Extension>,
     /// `None`: layer 1 does not exist; nothing follows the bed posture.
     pub bed_posture: Option<BedPosturePolicy>,
     /// `None`: there is no verifier; nothing is verified.
@@ -159,10 +162,10 @@ pub struct Policy {
 pub struct ShadowPolicy {
     /// Near the bed, in metres: the footprint grown by this much in its own
     /// coordinates. It needs the bed's size.
-    pub near_m: f32,
+    pub near_m: PositiveMetres,
     /// A body's support within this many metres of the bed is in bed for the
     /// shadow; past it, on the floor.
-    pub support_margin_m: f32,
+    pub support_margin_m: Metres,
 }
 
 /// The room measured in two planes, the mattress and the bed's footprint on
@@ -174,17 +177,17 @@ pub struct ShadowPolicy {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TwoPlanesPolicy {
     /// The share of the box over the mattress, from this on, to be in bed.
-    pub share: f32,
+    pub share: Ratio,
     /// The support, at most this many metres from the footprint, to be in bed.
-    pub support_m: f32,
+    pub support_m: Metres,
     /// On the floor, the support within this many metres of the footprint is
     /// near the bed.
-    pub near_m: f32,
+    pub near_m: PositiveMetres,
     /// `Some`: a doubtful body (on the floor by its support, with enough of
     /// its box over the mattress) has its pose asked before believing, and a
     /// knee bent to this many degrees or less puts it in bed (white book,
     /// volume VII, ch. 15). `None`: the box alone decides.
-    pub knee_bent_deg: Option<f32>,
+    pub knee_bent_deg: Option<Degrees>,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume
@@ -209,7 +212,7 @@ pub struct VerifyPolicy {
     /// an ankle that close to a side, inside or outside, is doubtful (P2, P3).
     /// Without an answer in time it is taken as out, on the safe side.
     /// `None`: the feet are never doubtful.
-    pub doubtful_feet_margin: Option<f32>,
+    pub doubtful_feet_margin: Option<FeetMargin>,
     /// How many crops each question sends, and how far apart (white book,
     /// volume III, ch. 12). By default one: the looked sample's.
     pub frames: Frames,
@@ -223,7 +226,7 @@ pub struct VerifyPolicy {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SharpnessPolicy {
     /// Sharp: at least this fraction of the median of the last crops.
-    pub min_ratio: f32,
+    pub min_ratio: Ratio,
     /// How many of the camera's last kept crops the median looks at.
     pub window: u16,
     /// Source seconds from the burst's first crop: then it asks with the
@@ -283,15 +286,15 @@ impl Frames {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Band {
     /// The lower threshold.
-    pub lo: f32,
+    pub lo: RelativeDepth,
     /// The upper threshold.
-    pub hi: f32,
+    pub hi: RelativeDepth,
 }
 
 impl Band {
     /// Is the value in the band?
     pub fn contains(self, value: f32) -> bool {
-        (self.lo..=self.hi).contains(&value)
+        (self.lo.get()..=self.hi.get()).contains(&value)
     }
 }
 
@@ -311,8 +314,8 @@ impl Default for Policy {
         Self {
             admission: AdmissionPolicy {
                 min_confidence: Confidence::HALF,
-                same_body_iou: 0.5,
-                near_bed_margin: 0.10,
+                same_body_iou: Proportion::HALF,
+                near_bed_margin: Extension::TENTH,
                 bed_frame: None,
             },
             persistence: Persistence {

@@ -37,11 +37,13 @@ impl TwoPlanes {
     /// with the support within the policy's distance.
     pub(super) fn body_zone(&self, bbox: &Rect) -> BodyZone {
         let distance = self.support_m(bbox);
-        if self.mattress.share(bbox) >= self.policy.share && distance <= self.policy.support_m {
+        if self.mattress.share(bbox) >= self.policy.share.get()
+            && distance <= self.policy.support_m.get()
+        {
             return BodyZone::Bed;
         }
         BodyZone::Floor {
-            near_bed: distance <= self.policy.near_m,
+            near_bed: distance <= self.policy.near_m.get(),
         }
     }
 
@@ -50,7 +52,7 @@ impl TwoPlanes {
     pub(super) fn doubtful(&self, bbox: &Rect) -> Option<Doubt> {
         self.policy.knee_bent_deg?;
         let share = self.mattress.share(bbox);
-        (share >= self.policy.share && self.support_m(bbox) > self.policy.support_m)
+        (share >= self.policy.share.get() && self.support_m(bbox) > self.policy.support_m.get())
             .then_some(Doubt { share })
     }
 
@@ -61,7 +63,7 @@ impl TwoPlanes {
         let zone = self.body_zone(bbox);
         let knee_deg = knee_deg(pose, min_score);
         let bent = matches!(
-            (self.policy.knee_bent_deg, knee_deg),
+            (self.policy.knee_bent_deg.map(|d| d.get()), knee_deg),
             (Some(bent), Some(knee)) if knee <= bent
         );
         Posed {

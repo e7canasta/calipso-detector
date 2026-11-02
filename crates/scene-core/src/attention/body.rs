@@ -64,7 +64,7 @@ pub(crate) fn pose_bodies(
         .map_or(Consideration::Inapplicable, |(floor, b, _)| {
             Consideration::Decided(Decision::Ask(BodyPoseLook {
                 floor,
-                region: b.detection.bbox.expand(enrich.crop_pad),
+                region: b.detection.bbox.expand(enrich.crop_pad.get()),
             }))
         })
 }
@@ -101,13 +101,13 @@ pub(crate) fn enrich(
             .is_none_or(|age| age >= max.get())
     });
     if let Some(r) = reference
-        && !estimation::moved(&r, &subject.bbox, policy.move_threshold)
+        && !estimation::moved(&r, &subject.bbox, policy.move_threshold.get())
         && !expired
     {
         return EnrichPlan::Keep(SkipReason::SubjectStill);
     }
     EnrichPlan::Ask {
         bbox: subject.bbox,
-        region: subject.bbox.expand(policy.crop_pad),
+        region: subject.bbox.expand(policy.crop_pad.get()),
     }
 }

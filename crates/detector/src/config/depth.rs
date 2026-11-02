@@ -36,6 +36,10 @@ impl Depth {
             not_negative("senses.depth.crop_pad", f64::from(pad))?;
         }
         ensure!(
+            self.posture_tolerance.is_finite() && self.posture_tolerance >= 0.0,
+            "senses.depth.posture_tolerance must be finite and not negative"
+        );
+        ensure!(
             asked,
             "senses.depth: nobody asks for depth; [senses.pose] or [calibration] is needed"
         );

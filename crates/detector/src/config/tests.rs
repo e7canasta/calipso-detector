@@ -1,5 +1,6 @@
 use super::*;
 use scene_core::policy::{Band, Burst, ShadowPolicy, TwoPlanesPolicy};
+use scene_core::units::{FeetMargin, Metres, PositiveMetres, Ratio, RelativeDepth};
 
 /// Every profile in the repository loads and builds what the detector
 /// builds when it starts: the policy, the site map, the ingest and the
@@ -28,6 +29,28 @@ fn every_profile_in_the_repository_loads() {
     }
 }
 pub(super) const VALID: &str = include_str!("../../tests/support/profile.toml");
+
+/// `text` is refused, and the error names `field`.
+fn refused(text: &str, field: &str) {
+    let error = Config::parse(text).unwrap_err();
+    assert!(error.to_string().contains(field), "{error}");
+}
+
+/// Each `(from, to, field)` case is applied to `section`, which follows the
+/// valid profile: the result is refused, and the error names `field`.
+fn refused_section(section: &str, cases: &[(&str, &str, &str)]) {
+    for (from, to, field) in cases {
+        refused(&format!("{VALID}{}", section.replace(from, to)), field);
+    }
+}
+
+/// Each `(from, to, field)` case is applied to the whole `text`: the result is
+/// refused, and the error names `field`.
+fn refused_text(text: &str, cases: &[(&str, &str, &str)]) {
+    for (from, to, field) in cases {
+        refused(&text.replace(from, to), field);
+    }
+}
 /// The verifier: the policy maps one to one; the sense and the policy come
 /// together; the bands are checked; a profile without it keeps its hash.
 #[test]
@@ -45,8 +68,17 @@ fn verify_section_becomes_the_policy_and_is_checked() {
     let policy = config.policy().expect("a valid profile").verify.unwrap();
     assert_eq!(policy.max_per_hour, Some(20));
     assert_eq!(policy.timeout_secs.map(|s| s.get()), Some(8.0));
-    assert_eq!(policy.doubtful_disparity, Some(Band { lo: 0.03, hi: 0.12 }));
-    assert_eq!(policy.doubtful_feet_margin, Some(0.06));
+    assert_eq!(
+        policy.doubtful_disparity,
+        Some(Band {
+            lo: RelativeDepth::new(0.03).expect("a threshold"),
+            hi: RelativeDepth::new(0.12).expect("a threshold"),
+        })
+    );
+    assert_eq!(
+        policy.doubtful_feet_margin,
+        Some(FeetMargin::new(0.06).expect("a margin"))
+    );
     assert_eq!(
         (
             policy.frames.sitting.frames,
@@ -57,7 +89,11 @@ fn verify_section_becomes_the_policy_and_is_checked() {
     assert_eq!(policy.frames.held, Burst::ONE);
     let sharp = policy.sharpness.unwrap();
     assert_eq!(
-        (sharp.min_ratio, sharp.window, sharp.max_wait_secs.get()),
+        (
+            sharp.min_ratio.get(),
+            sharp.window,
+            sharp.max_wait_secs.get()
+        ),
         (0.5, 20, 4.0)
     );
     let held = policy.held.unwrap();
@@ -130,7 +166,8 @@ fn reinforce_section_enables_policy_and_rejects_invalid_parameters() {
             .expect("a valid profile")
             .reinforce
             .unwrap()
-            .bed_padding,
+            .bed_padding
+            .get(),
         0.15
     );
     assert!(
@@ -141,20 +178,20 @@ fn reinforce_section_enables_policy_and_rejects_invalid_parameters() {
             .reinforce
             .is_none()
     );
-    for (from, to, field) in [
-        ("yolo26l.onnx", "", "model"),
-        ("0.25", "-0.1", "backend_confidence"),
-        ("0.25", "1.1", "backend_confidence"),
-        ("0.25", "nan", "backend_confidence"),
-        ("0.25", "inf", "backend_confidence"),
-        ("0.25", "0.60", "backend_confidence"),
-        ("0.15", "-0.1", "bed_padding"),
-        ("0.15", "nan", "bed_padding"),
-        ("0.15", "inf", "bed_padding"),
-    ] {
-        let error = Config::parse(&format!("{VALID}{}", section.replace(from, to))).unwrap_err();
-        assert!(error.to_string().contains(field), "{error}");
-    }
+    refused_section(
+        section,
+        &[
+            ("yolo26l.onnx", "", "model"),
+            ("0.25", "-0.1", "backend_confidence"),
+            ("0.25", "1.1", "backend_confidence"),
+            ("0.25", "nan", "backend_confidence"),
+            ("0.25", "inf", "backend_confidence"),
+            ("0.25", "0.60", "backend_confidence"),
+            ("0.15", "-0.1", "bed_padding"),
+            ("0.15", "nan", "bed_padding"),
+            ("0.15", "inf", "bed_padding"),
+        ],
+    );
     assert!(Config::parse(&format!("{VALID}{section}unknown = 1\n")).is_err());
 }
 
@@ -237,21 +274,21 @@ fn faces_section_enables_policy_names_roles_and_preserves_legacy_hash() {
         both.senses.iter().map(|s| s.kind).collect::<Vec<_>>(),
         vec![LookKind::Detect, LookKind::Reinforce, LookKind::Faces]
     );
-    for (from, to, field) in [
-        ("face/yolov12l-face.onnx", "", "model"),
-        ("0.25", "-0.1", "backend_confidence"),
-        ("0.25", "1.1", "backend_confidence"),
-        ("0.25", "nan", "backend_confidence"),
-        ("0.25", "inf", "backend_confidence"),
-        ("0.25", "0.40", "backend_confidence"),
-        ("0.30", "-0.1", "min_confidence"),
-        ("0.30", "1.1", "min_confidence"),
-        ("0.30", "nan", "min_confidence"),
-        ("0.30", "inf", "min_confidence"),
-    ] {
-        let error = Config::parse(&format!("{VALID}{}", section.replace(from, to))).unwrap_err();
-        assert!(error.to_string().contains(field), "{error}");
-    }
+    refused_section(
+        section,
+        &[
+            ("face/yolov12l-face.onnx", "", "model"),
+            ("0.25", "-0.1", "backend_confidence"),
+            ("0.25", "1.1", "backend_confidence"),
+            ("0.25", "nan", "backend_confidence"),
+            ("0.25", "inf", "backend_confidence"),
+            ("0.25", "0.40", "backend_confidence"),
+            ("0.30", "-0.1", "min_confidence"),
+            ("0.30", "1.1", "min_confidence"),
+            ("0.30", "nan", "min_confidence"),
+            ("0.30", "inf", "min_confidence"),
+        ],
+    );
     assert!(Config::parse(&format!("{VALID}{section}unknown = 1\n")).is_err());
 }
 
@@ -265,7 +302,7 @@ fn pose_section_enables_enrich_validates_and_preserves_legacy_hash() {
     let enrich = config.policy().expect("a valid profile").enrich.unwrap();
     assert_eq!(
         (
-            enrich.move_threshold,
+            enrich.move_threshold.get(),
             enrich.depth,
             enrich.min_keypoint_score.get()
         ),
@@ -288,18 +325,18 @@ fn pose_section_enables_enrich_validates_and_preserves_legacy_hash() {
     assert_eq!(profile.senses[1].kind, LookKind::Pose);
     assert_eq!(profile.senses[1].model, "yolo26s-pose.onnx");
     assert_eq!(profile.senses[1].min_confidence, None);
-    for (from, to, field) in [
-        ("yolo26s-pose.onnx", "", "model"),
-        ("0.25", "1.1", "backend_confidence"),
-        ("0.25", "nan", "backend_confidence"),
-        ("0.1\n", "-0.1\n", "move_threshold"),
-        ("0.1\n", "inf\n", "move_threshold"),
-        ("0.3\n", "-0.1\n", "min_keypoint_score"),
-        ("0.3\n", "1.5\n", "min_keypoint_score"),
-    ] {
-        let error = Config::parse(&format!("{VALID}{}", section.replace(from, to))).unwrap_err();
-        assert!(error.to_string().contains(field), "{error}");
-    }
+    refused_section(
+        section,
+        &[
+            ("yolo26s-pose.onnx", "", "model"),
+            ("0.25", "1.1", "backend_confidence"),
+            ("0.25", "nan", "backend_confidence"),
+            ("0.1\n", "-0.1\n", "move_threshold"),
+            ("0.1\n", "inf\n", "move_threshold"),
+            ("0.3\n", "-0.1\n", "min_keypoint_score"),
+            ("0.3\n", "1.5\n", "min_keypoint_score"),
+        ],
+    );
     assert!(Config::parse(&format!("{VALID}{section}unknown = 1\n")).is_err());
 }
 
@@ -316,8 +353,8 @@ fn the_shadow_needs_the_bed_size_validates_and_leaves_the_hash_when_absent() {
     assert_eq!(
         config.policy().expect("a valid profile").shadow,
         Some(ShadowPolicy {
-            near_m: 0.6,
-            support_margin_m: 0.0
+            near_m: PositiveMetres::new(0.6).expect("a distance"),
+            support_margin_m: Metres::new(0.0).expect("a distance"),
         })
     );
     let site = config.site_map();
@@ -330,17 +367,16 @@ fn the_shadow_needs_the_bed_size_validates_and_leaves_the_hash_when_absent() {
         map_only.profile().unwrap().hash,
         config.profile().unwrap().hash
     );
-    let error = Config::parse(&format!("{VALID}{shadow}")).unwrap_err();
-    assert!(error.to_string().contains("bed_size_m"), "{error}");
-    for (from, to, field) in [
-        ("near_m = 0.6", "near_m = 0", "shadow.near_m"),
-        ("near_m = 0.6", "near_m = nan", "shadow.near_m"),
-        ("[0.9, 2.0]", "[0.9, -2.0]", "map.bed_size_m"),
-        ("[490, 430]", "[990, 430]", "map.bed_floor"),
-    ] {
-        let error = Config::parse(&format!("{with_map}{shadow}").replace(from, to)).unwrap_err();
-        assert!(error.to_string().contains(field), "{error}");
-    }
+    refused(&format!("{VALID}{shadow}"), "bed_size_m");
+    refused_text(
+        &format!("{with_map}{shadow}"),
+        &[
+            ("near_m = 0.6", "near_m = 0", "shadow.near_m"),
+            ("near_m = 0.6", "near_m = nan", "shadow.near_m"),
+            ("[0.9, 2.0]", "[0.9, -2.0]", "map.bed_size_m"),
+            ("[490, 430]", "[990, 430]", "map.bed_floor"),
+        ],
+    );
     assert!(Config::parse(&format!("{with_map}{shadow}unknown = 1\n")).is_err());
 }
 
@@ -362,9 +398,9 @@ fn two_planes_needs_its_geometry_validates_and_leaves_the_hash_when_absent() {
     assert_eq!(
         config.policy().expect("a valid profile").two_planes,
         Some(TwoPlanesPolicy {
-            share: 0.45,
-            support_m: 0.10,
-            near_m: 0.60,
+            share: Ratio::new(0.45).expect("a share"),
+            support_m: Metres::new(0.10).expect("a distance"),
+            near_m: PositiveMetres::new(0.60).expect("a distance"),
             knee_bent_deg: None,
         })
     );
@@ -385,48 +421,21 @@ fn two_planes_needs_its_geometry_validates_and_leaves_the_hash_when_absent() {
         map_only.profile().unwrap().hash,
         config.profile().unwrap().hash
     );
-    for (base, from, to, field) in [
-        (VALID.to_string(), "", "", "map.bed_floor"),
-        (
-            with_map.clone(),
-            "share = 0.45",
-            "share = 0",
-            "two_planes.share",
-        ),
-        (
-            with_map.clone(),
-            "share = 0.45",
-            "share = 1.5",
-            "two_planes.share",
-        ),
-        (
-            with_map.clone(),
-            "support_m = 0.10",
-            "support_m = -1",
-            "two_planes.support_m",
-        ),
-        (
-            with_map.clone(),
-            "near_m = 0.60",
-            "near_m = 0",
-            "two_planes.near_m",
-        ),
-        (
-            with_map.clone(),
-            "geometry = \"two_planes\"",
-            "geometry = \"frontal\"",
-            "needs occupancy.geometry",
-        ),
-    ] {
-        let text = format!("{base}{occupancy}");
-        let text = if from.is_empty() {
-            text
-        } else {
-            text.replace(from, to)
-        };
-        let error = Config::parse(&text).unwrap_err();
-        assert!(error.to_string().contains(field), "{error}");
-    }
+    refused(&format!("{VALID}{occupancy}"), "map.bed_floor");
+    refused_text(
+        &format!("{with_map}{occupancy}"),
+        &[
+            ("share = 0.45", "share = 0", "two_planes.share"),
+            ("share = 0.45", "share = 1.5", "two_planes.share"),
+            ("support_m = 0.10", "support_m = -1", "two_planes.support_m"),
+            ("near_m = 0.60", "near_m = 0", "two_planes.near_m"),
+            (
+                "geometry = \"two_planes\"",
+                "geometry = \"frontal\"",
+                "needs occupancy.geometry",
+            ),
+        ],
+    );
 }
 
 #[test]
@@ -481,27 +490,23 @@ fn the_knee_needs_two_planes_and_the_pose_validates_and_leaves_the_hash_when_abs
             .expect("a valid profile")
             .two_planes
             .unwrap()
-            .knee_bent_deg,
+            .knee_bent_deg
+            .map(|d| d.get()),
         Some(150.0)
     );
     assert_ne!(
         without.profile().unwrap().hash,
         with.profile().unwrap().hash
     );
-    for (text, field) in [
-        (format!("{with_map}{occupancy}{knee}"), "[senses.pose]"),
-        (
-            format!("{with_map}{pose}\n[occupancy]\ngeometry = \"frontal\"\n{knee}"),
-            "occupancy.knee needs occupancy.geometry",
-        ),
-        (
-            format!("{with_map}{pose}{occupancy}{}", knee.replace("150", "180")),
-            "occupancy.knee.bent_deg",
-        ),
-    ] {
-        let error = Config::parse(&text).unwrap_err();
-        assert!(error.to_string().contains(field), "{error}");
-    }
+    refused(&format!("{with_map}{occupancy}{knee}"), "[senses.pose]");
+    refused(
+        &format!("{with_map}{pose}\n[occupancy]\ngeometry = \"frontal\"\n{knee}"),
+        "occupancy.knee needs occupancy.geometry",
+    );
+    refused(
+        &format!("{with_map}{pose}{occupancy}{}", knee.replace("150", "180")),
+        "occupancy.knee.bent_deg",
+    );
     let sizeless = with_map.replace("bed_size_m = [0.9, 2.0]\n", "");
     let error = Config::parse(&format!("{sizeless}{occupancy}")).unwrap_err();
     assert!(error.to_string().contains("bed_size_m"), "{error}");
@@ -571,25 +576,20 @@ fn depth_and_calibration_enable_policies_validate_together_and_keep_legacy_hash(
         assert_ne!(hash.0, "sha256:239a5803f0c15901");
     }
     assert_ne!(with_calibration, other_retry);
-    for (text, field) in [
-        (calibration.to_string(), "calibration"),
-        (depth.to_string(), "senses.depth"),
-        (
-            format!("{pose}{}", depth.replace("yolo26s-depth.onnx", "")),
-            "senses.depth.model",
-        ),
-        (
-            format!("{depth}\n[calibration]\nretry_secs = -1.0\n"),
-            "calibration.retry_secs",
-        ),
-        (
-            format!("{depth}\n[calibration]\nretry_secs = nan\n"),
-            "calibration.retry_secs",
-        ),
-    ] {
-        let error = Config::parse(&format!("{VALID}{text}")).unwrap_err();
-        assert!(error.to_string().contains(field), "{error}");
-    }
+    refused(&format!("{VALID}{calibration}"), "calibration");
+    refused(&format!("{VALID}{depth}"), "senses.depth");
+    refused(
+        &format!("{VALID}{pose}{}", depth.replace("yolo26s-depth.onnx", "")),
+        "senses.depth.model",
+    );
+    refused(
+        &format!("{VALID}{depth}\n[calibration]\nretry_secs = -1.0\n"),
+        "calibration.retry_secs",
+    );
+    refused(
+        &format!("{VALID}{depth}\n[calibration]\nretry_secs = nan\n"),
+        "calibration.retry_secs",
+    );
     assert!(Config::parse(&format!("{VALID}{pose}{depth}unknown = 1\n")).is_err());
     assert!(Config::parse(&format!("{VALID}{depth}{calibration}unknown = 1\n")).is_err());
 }
@@ -678,4 +678,20 @@ fn rejects_invalid_policies_and_v2_options() {
     }
     assert!(Config::parse(&format!("{VALID}\n[stability]\nobservations = 3")).is_err());
     assert!(Config::parse(&VALID.replace("[800, 600]", "[0, 600]")).is_err());
+}
+
+#[test]
+fn a_posture_tolerance_that_is_negative_or_not_finite_is_refused_by_name() {
+    let pose = "\n[senses.pose]\nmodel = \"yolo26s-pose.onnx\"\n";
+    for value in ["-0.05", "nan"] {
+        let depth = format!(
+            "\n[senses.depth]\nmodel = \"yolo26s-depth.onnx\"\nposture_tolerance = {value}\n"
+        );
+        refused(
+            &format!("{VALID}{pose}{depth}"),
+            "senses.depth.posture_tolerance",
+        );
+    }
+    let depth = "\n[senses.depth]\nmodel = \"yolo26s-depth.onnx\"\nposture_tolerance = 0.05\n";
+    assert!(Config::parse(&format!("{VALID}{pose}{depth}")).is_ok());
 }

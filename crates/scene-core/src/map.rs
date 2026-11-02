@@ -241,7 +241,7 @@ impl Map {
         let site = &self.site;
         let near = site.bed_size_m.and_then(|[width, length]| {
             let plane = site.bed_floor.unwrap_or(site.bed);
-            let metres = f64::from(shadow.near_m);
+            let metres = f64::from(shadow.near_m.get());
             grown(
                 &plane,
                 metres / f64::from(width),
@@ -287,8 +287,8 @@ impl Map {
         calibration: &CalibrationMemory,
     ) -> MapState {
         MapState {
-            focus: focus.and_then(|f| self.focus_region(geometry, f.pad)),
-            shadow: shadow.map(|shadow| self.shadow(*shadow, admission.near_bed_margin)),
+            focus: focus.and_then(|f| self.focus_region(geometry, f.pad.get())),
+            shadow: shadow.map(|shadow| self.shadow(*shadow, admission.near_bed_margin.get())),
             geometry,
             bed: self.site.bed,
             headboard: self.headboard().map(|headboard| headboard.bounds()),

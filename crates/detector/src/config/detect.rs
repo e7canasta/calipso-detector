@@ -2,10 +2,12 @@
 //! focuses on the bed while the resident is alone in it (`[senses.detect.focus]`).
 
 use super::profile::sense_profile;
+use super::validate::measured;
 use super::validate::{fraction, model, not_negative, positive, seconds};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
 use scene_core::policy::FocusPolicy;
+use scene_core::units::Extension;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -77,7 +79,7 @@ impl Focus {
     /// `Policy::focus`.
     pub(super) fn policy(&self) -> Result<FocusPolicy> {
         Ok(FocusPolicy {
-            pad: self.pad,
+            pad: measured("senses.detect.focus.pad", Extension::new(self.pad))?,
             wide_every_secs: seconds(
                 "detect",
                 "senses.detect.focus.wide_every_secs",

@@ -237,6 +237,7 @@ mod tests {
     use crate::map::SiteMap;
     use crate::time::SessionId;
     use crate::units::Confidence;
+    use crate::units::{DiagonalFraction, Extension, RelativeDepth};
     use scene_contract::SourceSecs;
 
     fn sample(secs: f64) -> Input {
@@ -259,14 +260,16 @@ mod tests {
         use crate::policy::{EnrichPolicy, ReinforcePolicy};
         let mut m = Monitor::new(
             Policy {
-                reinforce: Some(ReinforcePolicy { bed_padding: 0.1 }),
+                reinforce: Some(ReinforcePolicy {
+                    bed_padding: Extension::new(0.1).expect("a constant extension"),
+                }),
                 enrich: Some(EnrichPolicy {
-                    move_threshold: 0.1,
+                    move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
                     depth: false,
                     min_keypoint_score: Confidence::new(0.3).expect("a score"),
-                    posture_tolerance: 0.05,
+                    posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
                     max_pose_age_secs: None,
-                    crop_pad: 0.0,
+                    crop_pad: Extension::new(0.0).expect("a constant extension"),
                 }),
                 ..Policy::default()
             },

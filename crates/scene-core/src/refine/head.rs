@@ -95,6 +95,7 @@ mod tests {
     use crate::look::{Detection, Label};
     use crate::policy::AdmissionPolicy;
     use crate::units::Confidence;
+    use crate::units::{Extension, Proportion};
 
     const HEADBOARD: Rect = Rect {
         x0: 100.0,
@@ -128,8 +129,8 @@ mod tests {
             Some(Zone::Box(HEADBOARD)),
             &AdmissionPolicy {
                 min_confidence: Confidence::HALF,
-                same_body_iou: 0.5,
-                near_bed_margin: 0.1,
+                same_body_iou: Proportion::new(0.5).expect("a constant proportion"),
+                near_bed_margin: Extension::new(0.1).expect("a constant extension"),
                 bed_frame: None,
             },
         )

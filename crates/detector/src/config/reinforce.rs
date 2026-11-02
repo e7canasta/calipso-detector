@@ -4,10 +4,12 @@
 
 use super::profile::sense_profile;
 use super::schema::defaults;
+use super::validate::measured;
 use super::validate::{fraction, model, not_negative};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
 use scene_core::policy::ReinforcePolicy;
+use scene_core::units::Extension;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -37,10 +39,13 @@ impl Reinforce {
     }
 
     /// `Policy::reinforce`.
-    pub(super) fn policy(&self) -> ReinforcePolicy {
-        ReinforcePolicy {
-            bed_padding: self.bed_padding,
-        }
+    pub(super) fn policy(&self) -> Result<ReinforcePolicy> {
+        Ok(ReinforcePolicy {
+            bed_padding: measured(
+                "senses.reinforce.bed_padding",
+                Extension::new(self.bed_padding),
+            )?,
+        })
     }
 
     /// Its line in the published profile.

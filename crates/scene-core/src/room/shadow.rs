@@ -53,14 +53,14 @@ impl Site {
         let support_at = point_on(&plane, support);
         let distance = self.size.map(|size| distance_m(support_at, size));
         let zone = distance.map(|d| {
-            if d <= self.policy.support_margin_m {
+            if d <= self.policy.support_margin_m.get() {
                 Zone::Bed
             } else {
                 Zone::Floor
             }
         });
         let near_bed = match (zone, distance) {
-            (Some(Zone::Floor), Some(d)) => Some(d <= self.policy.near_m),
+            (Some(Zone::Floor), Some(d)) => Some(d <= self.policy.near_m.get()),
             (Some(Zone::Floor), None) | (Some(Zone::Bed), _) | (None, _) => None,
         };
         BodyShadow {
@@ -96,6 +96,7 @@ fn distance_m(p: PlanePoint, size: [f32; 2]) -> f32 {
 mod tests {
     use super::*;
     use crate::geom::Quad;
+    use crate::units::{Metres, PositiveMetres};
 
     /// The scenes' bed, 100..500 x 100..400, and its footprint 40 px lower.
     fn site(floor: bool) -> Site {
@@ -106,8 +107,8 @@ mod tests {
             floor: floor.then(|| BedPlane::of(&footprint).unwrap()),
             size: Some([0.9, 2.0]),
             policy: ShadowPolicy {
-                near_m: 0.6,
-                support_margin_m: 0.0,
+                near_m: PositiveMetres::new(0.6).expect("a constant distance"),
+                support_margin_m: Metres::new(0.0).expect("a constant distance"),
             },
         }
     }

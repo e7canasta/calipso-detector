@@ -9,6 +9,7 @@ use scene_core::look::Spent;
 use scene_core::map::SiteMap;
 use scene_core::policy::Policy;
 use scene_core::units::{Confidence, Seconds};
+use scene_core::units::{DiagonalFraction, Extension, RelativeDepth};
 use scene_core::{Input, Monitor};
 use std::path::PathBuf;
 
@@ -285,7 +286,7 @@ fn faces_say_whether_they_are_on_the_current_subject() {
     policy.persistence.dwell_secs = Seconds::ZERO;
     policy.faces = Some(FacePolicy {
         min_confidence: Confidence::HALF,
-        headboard_pad: 0.0,
+        headboard_pad: Extension::new(0.0).expect("a constant extension"),
     });
     let mut monitor = Monitor::new(
         policy,
@@ -384,12 +385,12 @@ fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
     let mut policy = Policy::default();
     policy.persistence.dwell_secs = Seconds::ZERO;
     policy.enrich = Some(EnrichPolicy {
-        move_threshold: 0.1,
+        move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
         depth: true,
         min_keypoint_score: Confidence::new(0.3).expect("a score"),
-        posture_tolerance: 0.05,
+        posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
         max_pose_age_secs: None,
-        crop_pad: 0.0,
+        crop_pad: Extension::new(0.0).expect("a constant extension"),
     });
     let mut monitor = Monitor::new(
         policy,

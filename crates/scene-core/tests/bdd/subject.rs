@@ -13,18 +13,19 @@ use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
 use crate::attention::{scene, skipped};
 use crate::ward::{BED, Ward, later};
 use scene_core::units::{Confidence, Seconds};
+use scene_core::units::{DiagonalFraction, Extension, RelativeDepth};
 
 // --- Background
 
 #[given("there is a pose model")]
 fn pose_model(ward: &mut Ward) {
     ward.policy.enrich = Some(EnrichPolicy {
-        move_threshold: 0.1,
+        move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
         depth: false,
         min_keypoint_score: Confidence::new(0.3).expect("a score"),
-        posture_tolerance: 0.05,
+        posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
         max_pose_age_secs: None,
-        crop_pad: 0.0,
+        crop_pad: Extension::new(0.0).expect("a constant extension"),
     });
 }
 
@@ -39,7 +40,7 @@ fn threshold(ward: &mut Ward, move_threshold: f32) {
         .enrich
         .as_mut()
         .expect("\"there is a pose model\" first")
-        .move_threshold = move_threshold;
+        .move_threshold = DiagonalFraction::new(move_threshold).expect("a non-negative fraction");
 }
 
 #[given(expr = "the pose crop grows the subject's box by {float}")]
@@ -48,7 +49,7 @@ fn pose_crop_pad(ward: &mut Ward, crop_pad: f32) {
         .enrich
         .as_mut()
         .expect("\"there is a pose model\" first")
-        .crop_pad = crop_pad;
+        .crop_pad = Extension::new(crop_pad).expect("a non-negative pad");
 }
 
 #[given("there is a depth model")]
@@ -307,7 +308,7 @@ fn no_depth_in(ward: &mut Ward, n: u32) {
 
 #[given(expr = "depth is measured over the bed grown by {float}")]
 fn depth_crop(ward: &mut Ward, pad: f32) {
-    ward.policy.depth_pad = Some(pad);
+    ward.policy.depth_pad = Some(Extension::new(pad).expect("a non-negative pad"));
 }
 
 /// The region of the depth look (`depth`, the subject's; `calibration`, the

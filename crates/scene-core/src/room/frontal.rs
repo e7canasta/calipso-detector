@@ -40,17 +40,17 @@ impl Frontal {
         let margin = admission.near_bed_margin;
         let near = match admission
             .bed_frame
-            .and_then(|_| crate::map::grown_bed(bed, f64::from(margin)))
+            .and_then(|_| crate::map::grown_bed(bed, f64::from(margin.get())))
         {
             Some(grown) => Near::Grown(grown),
-            None => Near::Bounds(bed.bounds().expand(margin)),
+            None => Near::Bounds(bed.bounds().expand(margin.get())),
         };
         Self {
             bed: *bed,
             plane: BedPlane::of(bed),
             headboard,
             near,
-            box_share: admission.bed_frame,
+            box_share: admission.bed_frame.map(|r| r.get()),
         }
     }
 
@@ -149,18 +149,20 @@ fn corners(r: &Rect) -> [Point; 4] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::units::Confidence;
+    use crate::units::{Confidence, Extension, Proportion, Ratio};
 
-    const ADMISSION: AdmissionPolicy = AdmissionPolicy {
-        min_confidence: Confidence::HALF,
-        same_body_iou: 0.5,
-        near_bed_margin: 0.10,
-        bed_frame: None,
-    };
+    fn admission() -> AdmissionPolicy {
+        AdmissionPolicy {
+            min_confidence: Confidence::HALF,
+            same_body_iou: Proportion::new(0.5).expect("a constant proportion"),
+            near_bed_margin: Extension::new(0.10).expect("a constant extension"),
+            bed_frame: None,
+        }
+    }
 
     /// A bed twice as long as wide seen from the corner, at 45°: headboard
     /// up and to the right, foot down and to the left.
-    fn diagonal(bed_frame: Option<f32>) -> Frontal {
+    fn diagonal(bed_frame: Option<Ratio>) -> Frontal {
         let bed = Quad([
             Point { x: 370.0, y: 88.0 },
             Point { x: 512.0, y: 230.0 },
@@ -172,7 +174,7 @@ mod tests {
             None,
             &AdmissionPolicy {
                 bed_frame,
-                ..ADMISSION
+                ..admission()
             },
         )
     }
@@ -183,17 +185,17 @@ mod tests {
         // the rails, most of the box is in bed.
         let lying = Rect::new(180.0, 180.0, 420.0, 420.0);
         assert!(!diagonal(None).box_in_bed(&lying));
-        assert!(diagonal(Some(0.7)).box_in_bed(&lying));
+        assert!(diagonal(Some(Ratio::new(0.7).expect("a ratio"))).box_in_bed(&lying));
         // Standing beside the bed, at its side: little of the box is in it.
         let beside = Rect::new(400.0, 300.0, 470.0, 500.0);
-        assert!(!diagonal(Some(0.7)).box_in_bed(&beside));
+        assert!(!diagonal(Some(Ratio::new(0.7).expect("a ratio"))).box_in_bed(&beside));
     }
 
     #[test]
     fn without_the_beds_plane_nothing_is_in_bed_and_the_head_is_elsewhere() {
         let p = Point { x: 1.0, y: 1.0 };
         let headboard = Zone::Box(Rect::new(0.0, 0.0, 10.0, 10.0));
-        let room = Frontal::new(&Quad([p; 4]), Some(headboard), &ADMISSION);
+        let room = Frontal::new(&Quad([p; 4]), Some(headboard), &admission());
         assert!(!room.has_plane());
         assert!(!room.in_bed(p) && !room.past_the_sides(p));
         assert!(!room.box_in_bed(&Rect::new(0.0, 0.0, 2.0, 2.0)));

@@ -36,7 +36,7 @@ const PELVIS: [Joint; 2] = [Joint::LeftHip, Joint::RightHip];
 /// the same look: the baseline, there even when the hips are not. With no
 /// measured keypoint, nothing.
 pub(super) fn classify(body: &SubjectBody, policy: &EnrichPolicy) -> Option<Reading> {
-    let tolerance = policy.posture_tolerance;
+    let tolerance = policy.posture_tolerance.get();
     let seen: Vec<&BodyPoint> = body
         .pose
         .keypoints
@@ -119,6 +119,7 @@ mod tests {
     use super::*;
     use crate::body::HeadPlace;
     use crate::units::Confidence;
+    use crate::units::{DiagonalFraction, Extension, RelativeDepth};
 
     fn body(upper: Option<f32>, lower: Option<f32>) -> SubjectBody {
         let keypoints = (0..17)
@@ -147,12 +148,12 @@ mod tests {
 
     fn policy() -> EnrichPolicy {
         EnrichPolicy {
-            move_threshold: 0.1,
+            move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
             depth: true,
             min_keypoint_score: Confidence::new(0.3).expect("a score"),
-            posture_tolerance: 0.05,
+            posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
             max_pose_age_secs: None,
-            crop_pad: 0.0,
+            crop_pad: Extension::new(0.0).expect("a constant extension"),
         }
     }
 

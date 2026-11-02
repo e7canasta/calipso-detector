@@ -3,10 +3,12 @@
 
 use super::profile::sense_profile;
 use super::schema::defaults;
+use super::validate::measured;
 use super::validate::{confidence, fraction, model, not_negative};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
 use scene_core::policy::FacePolicy;
+use scene_core::units::Extension;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -50,7 +52,10 @@ impl Faces {
                 "senses.faces.min_confidence",
                 self.min_confidence,
             )?,
-            headboard_pad: self.headboard_pad.unwrap_or(0.0),
+            headboard_pad: measured(
+                "senses.faces.headboard_pad",
+                Extension::new(self.headboard_pad.unwrap_or(0.0)),
+            )?,
         })
     }
 

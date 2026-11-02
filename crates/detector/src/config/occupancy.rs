@@ -2,8 +2,10 @@
 //! (white book, volume VII, ch. 14), and the rules of the room that come with
 //! it. Its section, its checks and its policy.
 
+use super::validate::measured;
 use anyhow::{Result, ensure};
 use scene_core::policy::TwoPlanesPolicy;
+use scene_core::units::{Degrees, Metres, PositiveMetres, Ratio};
 use serde::{Deserialize, Serialize};
 
 /// Which room geometry answers the questions of space, and its thresholds.
@@ -118,15 +120,32 @@ impl OccupancyConfig {
 
     /// `Policy::two_planes`: only with the two-plane geometry, and with the
     /// knee when there is one.
-    pub(super) fn two_planes(&self) -> Option<TwoPlanesPolicy> {
+    pub(super) fn two_planes(&self) -> Result<Option<TwoPlanesPolicy>> {
         if self.geometry != RoomGeometry::TwoPlanes {
-            return None;
+            return Ok(None);
         }
-        self.two_planes.as_ref().map(|two| TwoPlanesPolicy {
-            share: two.share,
-            support_m: two.support_m,
-            near_m: two.near_m,
-            knee_bent_deg: self.knee.as_ref().map(|knee| knee.bent_deg),
-        })
+        self.two_planes
+            .as_ref()
+            .map(|two| -> Result<TwoPlanesPolicy> {
+                Ok(TwoPlanesPolicy {
+                    share: measured("occupancy.two_planes.share", Ratio::new(two.share))?,
+                    support_m: measured(
+                        "occupancy.two_planes.support_m",
+                        Metres::new(two.support_m),
+                    )?,
+                    near_m: measured(
+                        "occupancy.two_planes.near_m",
+                        PositiveMetres::new(two.near_m),
+                    )?,
+                    knee_bent_deg: self
+                        .knee
+                        .as_ref()
+                        .map(|knee| {
+                            measured("occupancy.knee.bent_deg", Degrees::new(knee.bent_deg))
+                        })
+                        .transpose()?,
+                })
+            })
+            .transpose()
     }
 }

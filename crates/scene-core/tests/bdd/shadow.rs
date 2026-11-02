@@ -12,6 +12,7 @@ use scene_core::{Monitor, Output};
 
 use crate::script::Script;
 use crate::ward::Ward;
+use scene_core::units::{Metres, PositiveMetres};
 
 /// Within a pixel: the expectations are written rounded.
 const PIXEL: f32 = 1.0;
@@ -30,8 +31,8 @@ fn size(ward: &mut Ward, width: f32, length: f32) {
 #[given(expr = "the geometry's shadow measures near the bed within {float} metres")]
 fn shadow_on(ward: &mut Ward, near_m: f32) {
     ward.policy.shadow = Some(ShadowPolicy {
-        near_m,
-        support_margin_m: 0.0,
+        near_m: PositiveMetres::new(near_m).expect("a positive distance"),
+        support_margin_m: Metres::new(0.0).expect("a constant distance"),
     });
 }
 

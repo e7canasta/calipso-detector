@@ -2,8 +2,10 @@
 //! decided, deciding nothing (white book, volume VII, ch. 11). Its section, its
 //! checks and its policy.
 
+use super::validate::measured;
 use anyhow::{Result, ensure};
 use scene_core::policy::ShadowPolicy;
+use scene_core::units::{Metres, PositiveMetres};
 use serde::{Deserialize, Serialize};
 
 /// `ShadowPolicy`: what the shadow measures.
@@ -37,10 +39,13 @@ impl ShadowConfig {
     }
 
     /// `Policy::shadow`.
-    pub(super) fn policy(&self) -> ShadowPolicy {
-        ShadowPolicy {
-            near_m: self.near_m,
-            support_margin_m: self.support_margin_m,
-        }
+    pub(super) fn policy(&self) -> Result<ShadowPolicy> {
+        Ok(ShadowPolicy {
+            near_m: measured("shadow.near_m", PositiveMetres::new(self.near_m))?,
+            support_margin_m: measured(
+                "shadow.support_margin_m",
+                Metres::new(self.support_margin_m),
+            )?,
+        })
     }
 }

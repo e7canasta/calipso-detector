@@ -28,7 +28,7 @@ fn faces_on_current_resident_are_published_in_frame_coordinates_on_subject() {
     let policy = Policy {
         faces: Some(FacePolicy {
             min_confidence: Confidence::new(0.3).expect("a score"),
-            headboard_pad: 0.0,
+            headboard_pad: scene_core::units::Extension::new(0.0).expect("a constant extension"),
         }),
         ..Policy::default()
     };

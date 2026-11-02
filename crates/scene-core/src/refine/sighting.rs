@@ -111,7 +111,7 @@ pub(super) fn places_of(
             room,
             enrich,
             verify.and_then(|v| v.doubtful_disparity),
-            verify.and_then(|v| v.doubtful_feet_margin),
+            verify.and_then(|v| v.doubtful_feet_margin.map(|m| m.get())),
         )
     })
 }

@@ -51,7 +51,9 @@ fn night(
 
 fn reinforcement() -> Policy {
     Policy {
-        reinforce: Some(ReinforcePolicy { bed_padding: 0.1 }),
+        reinforce: Some(ReinforcePolicy {
+            bed_padding: scene_core::units::Extension::new(0.1).expect("a constant extension"),
+        }),
         ..Policy::default()
     }
 }
@@ -88,7 +90,8 @@ fn sense_fails(w: &mut Shell, sense: String) {
         Policy {
             faces: Some(FacePolicy {
                 min_confidence: Confidence::new(0.3).expect("a score"),
-                headboard_pad: 0.0,
+                headboard_pad: scene_core::units::Extension::new(0.0)
+                    .expect("a constant extension"),
             }),
             ..Policy::default()
         }
@@ -126,7 +129,7 @@ fn empty_faces(w: &mut Shell) {
     let policy = Policy {
         faces: Some(FacePolicy {
             min_confidence: Confidence::new(0.3).expect("a score"),
-            headboard_pad: 0.0,
+            headboard_pad: scene_core::units::Extension::new(0.0).expect("a constant extension"),
         }),
         ..Policy::default()
     };

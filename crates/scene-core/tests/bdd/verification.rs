@@ -10,6 +10,7 @@ use scene_core::policy::{Band, Burst, HeldVerifyPolicy, SharpnessPolicy, VerifyP
 use crate::attention::scene;
 use crate::ward::Ward;
 use scene_core::units::Seconds;
+use scene_core::units::{FeetMargin, Ratio, RelativeDepth};
 
 #[given(expr = "held occupants are verified after {int} seconds")]
 fn held_verified_after(ward: &mut Ward, secs: u32) {
@@ -27,7 +28,10 @@ fn doubtful_disparity(ward: &mut Ward, lo: f32, hi: f32) {
     ward.policy
         .verify
         .get_or_insert_with(VerifyPolicy::default)
-        .doubtful_disparity = Some(Band { lo, hi });
+        .doubtful_disparity = Some(Band {
+        lo: RelativeDepth::new(lo).expect("a finite threshold"),
+        hi: RelativeDepth::new(hi).expect("a finite threshold"),
+    });
 }
 
 #[given(expr = "feet within {float} of the bed's sides are doubtful")]
@@ -35,7 +39,7 @@ fn doubtful_feet(ward: &mut Ward, margin: f32) {
     ward.policy
         .verify
         .get_or_insert_with(VerifyPolicy::default)
-        .doubtful_feet_margin = Some(margin);
+        .doubtful_feet_margin = Some(FeetMargin::new(margin).expect("a margin in (0, 0.5)"));
 }
 
 fn burst(frames: u8, every_secs: f64) -> Burst {
@@ -86,7 +90,7 @@ fn sharpness_policy(ward: &mut Ward, ratio: f32, window: u16, wait: u32) {
         .verify
         .get_or_insert_with(VerifyPolicy::default)
         .sharpness = Some(SharpnessPolicy {
-        min_ratio: ratio,
+        min_ratio: Ratio::new(ratio).expect("a ratio in (0, 1]"),
         window,
         max_wait_secs: Seconds::new(f64::from(wait)).expect("whole seconds"),
     });

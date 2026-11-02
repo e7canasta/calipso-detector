@@ -49,7 +49,7 @@ fn admit_from(
         }
     }
     admitted.sort_by(|a, b| b.detection.confidence.total_cmp(&a.detection.confidence));
-    let admitted = one_per_body(admitted, policy.same_body_iou);
+    let admitted = one_per_body(admitted, policy.same_body_iou.get());
     let result = LookResult::Read {
         candidates: count(detections.len()),
         rejected,
@@ -100,13 +100,13 @@ pub(crate) fn consolidate(
             for f in b.floor {
                 let same = floor
                     .iter()
-                    .any(|k| same_body(&k.detection, &f.detection, policy.same_body_iou));
+                    .any(|k| same_body(&k.detection, &f.detection, policy.same_body_iou.get()));
                 if !same {
                     floor.push(f);
                 }
             }
             BodyEvidence::Seen(Bodies {
-                bed: one_per_body(beds, policy.same_body_iou),
+                bed: one_per_body(beds, policy.same_body_iou.get()),
                 floor,
             })
         }
@@ -158,11 +158,12 @@ mod tests {
     use crate::geom::{Point, Quad, Rect};
     use crate::look::Failure;
     use crate::units::Confidence;
+    use crate::units::{Extension, Proportion, Ratio};
     use crate::zone::Counts;
 
     fn bed() -> Room {
         let bed = Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
-        Room::new(&bed, None, &POLICY)
+        Room::new(&bed, None, &policy())
     }
 
     fn person(x0: f32, confidence: f32) -> Detection {
@@ -173,12 +174,14 @@ mod tests {
         }
     }
 
-    const POLICY: AdmissionPolicy = AdmissionPolicy {
-        min_confidence: Confidence::HALF,
-        same_body_iou: 0.5,
-        near_bed_margin: 0.10,
-        bed_frame: None,
-    };
+    fn policy() -> AdmissionPolicy {
+        AdmissionPolicy {
+            min_confidence: Confidence::HALF,
+            same_body_iou: Proportion::new(0.5).expect("a constant proportion"),
+            near_bed_margin: Extension::new(0.10).expect("a constant extension"),
+            bed_frame: None,
+        }
+    }
 
     fn seen(a: Admission) -> Bodies {
         match a.bodies {
@@ -192,7 +195,7 @@ mod tests {
         let b = seen(admit(
             Ok(&[person(200.0, 0.8), person(505.0, 0.9), person(560.0, 0.7)]),
             Some(&bed()),
-            &POLICY,
+            &policy(),
         ));
         assert_eq!(b.counts(), Counts { floor: 2, bed: 1 });
         assert!(b.floor[0].near_bed, "next to the bed");
@@ -224,10 +227,10 @@ mod tests {
             let b = seen(admit(Ok(&[in_the_corner, beside]), Some(&room), policy));
             (b.floor[0].near_bed, b.floor[1].near_bed)
         };
-        assert_eq!(near(&POLICY), (true, true), "image axes: the box grown");
+        assert_eq!(near(&policy()), (true, true), "image axes: the box grown");
         let bed_frame = AdmissionPolicy {
-            bed_frame: Some(0.7),
-            ..POLICY
+            bed_frame: Some(Ratio::new(0.7).expect("a constant ratio")),
+            ..policy()
         };
         assert_eq!(
             near(&bed_frame),
@@ -243,7 +246,7 @@ mod tests {
         let b = seen(admit(
             Ok(&[inner, person(200.0, 0.8)]),
             Some(&bed()),
-            &POLICY,
+            &policy(),
         ));
         assert_eq!(b.bed.len(), 1);
         assert_eq!(b.bed[0].detection.confidence, 0.8);
@@ -251,29 +254,29 @@ mod tests {
 
     #[test]
     fn without_geometry_there_are_no_zones() {
-        let a = admit(Ok(&[person(200.0, 0.8)]), None, &POLICY);
+        let a = admit(Ok(&[person(200.0, 0.8)]), None, &policy());
         assert!(matches!(a.bodies, BodyEvidence::Unzoned(ref b) if b.len() == 1));
     }
 
     #[test]
     fn reinforcement_seeing_the_same_body_adds_no_body() {
-        let primary = admit(Ok(&[person(200.0, 0.8)]), Some(&bed()), &POLICY);
-        let (c, _) = consolidate(primary, Ok(&[person(205.0, 0.7)]), Some(&bed()), &POLICY);
+        let primary = admit(Ok(&[person(200.0, 0.8)]), Some(&bed()), &policy());
+        let (c, _) = consolidate(primary, Ok(&[person(205.0, 0.7)]), Some(&bed()), &policy());
         assert_eq!(c.primary, Counts { floor: 0, bed: 1 });
         assert_eq!(seen(c).bed.len(), 1);
     }
 
     #[test]
     fn if_reinforcement_fails_the_main_detector_holds() {
-        let primary = admit(Ok(&[]), Some(&bed()), &POLICY);
-        let (c, result) = consolidate(primary, Err(Failure::Model), Some(&bed()), &POLICY);
+        let primary = admit(Ok(&[]), Some(&bed()), &policy());
+        let (c, result) = consolidate(primary, Err(Failure::Model), Some(&bed()), &policy());
         assert!(seen(c).is_empty());
         assert!(matches!(result, LookResult::Failed { .. }));
     }
 
     #[test]
     fn a_failure_proves_nothing() {
-        let a = admit(Err(Failure::Cancelled), Some(&bed()), &POLICY);
+        let a = admit(Err(Failure::Cancelled), Some(&bed()), &policy());
         assert_eq!(a.bodies, BodyEvidence::Unavailable(Failure::Cancelled));
     }
 
@@ -281,7 +284,7 @@ mod tests {
     fn every_rejection_has_a_reason() {
         let mut other = person(200.0, 0.9);
         other.label = Label::Other;
-        let a = admit(Ok(&[other, person(200.0, 0.3)]), Some(&bed()), &POLICY);
+        let a = admit(Ok(&[other, person(200.0, 0.3)]), Some(&bed()), &policy());
         assert_eq!(
             a.result,
             LookResult::Read {
@@ -297,13 +300,14 @@ mod source_tests {
     use super::*;
     use crate::geom::{Quad, Rect};
     use crate::units::Confidence;
+    use crate::units::{Extension, Proportion};
     #[test]
     fn the_winning_box_keeps_its_source_detector() {
         let bed = Quad::from_rect(Rect::new(0.0, 0.0, 100.0, 100.0));
         let p = AdmissionPolicy {
             min_confidence: Confidence::HALF,
-            same_body_iou: 0.5,
-            near_bed_margin: 0.1,
+            same_body_iou: Proportion::new(0.5).expect("a constant proportion"),
+            near_bed_margin: Extension::new(0.1).expect("a constant extension"),
             bed_frame: None,
         };
         let d = |confidence| Detection {

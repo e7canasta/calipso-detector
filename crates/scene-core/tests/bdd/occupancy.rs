@@ -12,6 +12,7 @@ use crate::script::Script;
 use crate::ward::Ward;
 use golden::language::Location;
 use golden::world::on_floor;
+use scene_core::units::Extension;
 
 // --- 501: the bed only rises from the floor
 
@@ -83,7 +84,9 @@ fn no_entry(ward: &mut Ward) {
 
 #[given("there is a reinforcement detector")]
 fn reinforcement(ward: &mut Ward) {
-    ward.policy.reinforce = Some(ReinforcePolicy { bed_padding: 0.1 });
+    ward.policy.reinforce = Some(ReinforcePolicy {
+        bed_padding: Extension::new(0.1).expect("a constant extension"),
+    });
 }
 
 #[given("reinforcement fails")]
