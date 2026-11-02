@@ -33,6 +33,12 @@ Feature: The shell publishes the contract versions its profile chooses
     Given a profile with publish versions "v9"
     Then the profile is rejected with a reason that names "publish.versions"
 
+  # Transitorio (C2): un perfil que lista solo v5 es válido. C4 quita la sección
+  # [publish] y este escenario sale con ella.
+  Scenario: A profile that lists v5 alone is accepted
+    Given a profile with publish versions "v5"
+    Then the profile is accepted
+
   Scenario: A reception change has no observed_at in v5, and v4 keeps the last sample's
     Given a detector with reinforcement and scripted models and publish versions "v4" and "v5"
     And a scripted main model

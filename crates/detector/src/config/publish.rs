@@ -1,7 +1,6 @@
-//! `[publish]`: which contract versions the shell publishes. v4 is always there,
-//! since consumers still read it (C2); v5 goes beside it when the profile lists
-//! it. The section is the shell's choice, not the engine's: it stays out of the
-//! profile's hash.
+//! `[publish]`: which contract versions the shell publishes. v4 is the default;
+//! a profile may list v5 alone, or both. The section is the shell's choice, not
+//! the engine's: it stays out of the profile's hash.
 use anyhow::{Result, bail};
 use serde::Deserialize;
 
@@ -35,7 +34,7 @@ impl PublishConfig {
             .collect()
     }
 
-    /// Each version is one the shell knows, once, and v4 is among them.
+    /// Each version is one the shell knows, and each is listed once.
     pub(super) fn validate(&self) -> Result<()> {
         for (i, version) in self.versions.iter().enumerate() {
             if !matches!(version.as_str(), "v4" | "v5") {
@@ -44,9 +43,6 @@ impl PublishConfig {
             if self.versions[..i].contains(version) {
                 bail!("publish.versions: {version:?} is listed twice");
             }
-        }
-        if !self.versions.iter().any(|v| v == "v4") {
-            bail!("publish.versions must list \"v4\": consumers still read it");
         }
         Ok(())
     }

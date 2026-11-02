@@ -236,7 +236,7 @@ impl PublisherHandle {
         Self::channel_with(source, profile, &[Version::V4])
     }
 
-    /// The versions the profile lists. v4 is always among them.
+    /// The versions the profile lists; the caller says which.
     pub fn channel_with(
         source: Source,
         profile: Profile,

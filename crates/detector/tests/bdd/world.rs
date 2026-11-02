@@ -377,6 +377,13 @@ fn rejected_profile(w: &mut Shell, field: String) {
     assert!(error.contains(&field), "{error}");
 }
 
+#[then("the profile is accepted")]
+fn accepted_profile(w: &mut Shell) {
+    if let Err(error) = w.config.as_ref().unwrap() {
+        panic!("el perfil se rechazo: {error}");
+    }
+}
+
 #[given(expr = "a profile without {string}")]
 fn no_section(w: &mut Shell, _section: String) {
     w.parse_config("");
