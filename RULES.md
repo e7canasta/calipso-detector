@@ -120,11 +120,14 @@ looked at and what was not, and why.
 
 ### 13. One contract, one source
 
-The published contract is defined **once**, in `scene_core::contract`, with the
-JSON Schema generated from the types. Consumers validate against the schema. An
-incompatible change is a major contract version, with an ADR.
+The published contract is defined **once**, in `scene-contract` (the wire: data
+types only), with the JSON Schema generated from the types. The core re-exports
+nothing of it except through `project`; consumers depend on `scene-contract`
+and never on the core to read the wire. An incompatible change is a major
+contract version, with an ADR.
 
-*Guardian:* the contract and schema snapshots in CI.
+*Guardian:* the contract and schema snapshots in CI; `contract-depends-on-core`.
+*Amended:* ADR 2026-11-02, crates del lenguaje y del cable (S7).
 
 ### 21. The core does not panic
 

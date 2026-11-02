@@ -433,8 +433,8 @@ sentido (mesa de refactor, F-6 y F-7).
 - `ingest` no conoce el dominio, `sense` no conoce el transporte asíncrono ni
   recibe políticas (regla 6), y `detector` no depende de `golden` en su build
   normal. Los cuatro árboles los vigila `check.sh`.
-- Los consumidores en Rust usan `scene_core::contract::v4`. Un crate de solo
-  tipos del cable sigue siendo deuda (DESIGN §11).
+- Los consumidores en Rust leen el cable desde `scene_contract`, el crate de
+  solo tipos del cable (ADR 2026-11-02, crates del lenguaje y del cable).
 - La flecha punteada a `golden` es de desarrollo: sin ciclo en producción.
 
 ### Lo que vigila el diseño
