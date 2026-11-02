@@ -83,3 +83,6 @@ bed = [[746,139], [1068,136], [1170,778], [652,743]]
 [nats]
 url = "nats://127.0.0.1:4222"
 # prefix = "vision.north-residence.room-12"
+
+[publish]
+versions = ["v4", "v5"]
