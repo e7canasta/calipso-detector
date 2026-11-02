@@ -40,7 +40,7 @@ impl Frontal {
         let margin = admission.near_bed_margin;
         let near = match admission
             .bed_frame
-            .and_then(|_| crate::map::grown_bed(bed, f64::from(margin.get())))
+            .and_then(|_| crate::map::grown_bed(bed, margin))
         {
             Some(grown) => Near::Grown(grown),
             None => Near::Bounds(bed.bounds().expand(margin.get())),

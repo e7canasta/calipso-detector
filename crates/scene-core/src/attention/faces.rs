@@ -18,7 +18,7 @@ pub(crate) fn faces(
     Consideration::Decided(
         match (
             g.bodies.seen().and_then(|b| b.best()),
-            g.map.faces_region(g.geometry, policy.headboard_pad.get()),
+            g.map.faces_region(g.geometry, policy.headboard_pad),
         ) {
             (Some(best), _) => Decision::Ask((FaceRegion::Subject(best.bbox), policy)),
             (_, Some(headboard)) => Decision::Ask((FaceRegion::Headboard(headboard), policy)),

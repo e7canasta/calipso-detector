@@ -8,6 +8,7 @@ use crate::attention::LookResult;
 use crate::look::{Detection, Label};
 use crate::policy::AdmissionPolicy;
 use crate::room::{BodyZone, Room};
+use crate::units::Proportion;
 
 /// Admits the bodies: people with enough confidence, each in its zone.
 /// Nobody is rejected for being off the bed.
@@ -49,7 +50,7 @@ fn admit_from(
         }
     }
     admitted.sort_by(|a, b| b.detection.confidence.total_cmp(&a.detection.confidence));
-    let admitted = one_per_body(admitted, policy.same_body_iou.get());
+    let admitted = one_per_body(admitted, policy.same_body_iou);
     let result = LookResult::Read {
         candidates: count(detections.len()),
         rejected,
@@ -100,13 +101,13 @@ pub(crate) fn consolidate(
             for f in b.floor {
                 let same = floor
                     .iter()
-                    .any(|k| same_body(&k.detection, &f.detection, policy.same_body_iou.get()));
+                    .any(|k| same_body(&k.detection, &f.detection, policy.same_body_iou));
                 if !same {
                     floor.push(f);
                 }
             }
             BodyEvidence::Seen(Bodies {
-                bed: one_per_body(beds, policy.same_body_iou.get()),
+                bed: one_per_body(beds, policy.same_body_iou),
                 floor,
             })
         }
@@ -125,7 +126,7 @@ pub(crate) fn consolidate(
 
 /// One body per person: two boxes are the same if one contains the other or
 /// they overlap from `iou` up. The most confident stays (they come sorted).
-fn one_per_body(sorted: Vec<Body>, iou: f32) -> Vec<Body> {
+fn one_per_body(sorted: Vec<Body>, iou: Proportion) -> Vec<Body> {
     let mut kept: Vec<Body> = Vec::new();
     for d in sorted {
         if !kept
@@ -138,7 +139,8 @@ fn one_per_body(sorted: Vec<Body>, iou: f32) -> Vec<Body> {
     kept
 }
 
-fn same_body(a: &Detection, b: &Detection, iou: f32) -> bool {
+fn same_body(a: &Detection, b: &Detection, iou: Proportion) -> bool {
+    let iou = iou.get();
     a.bbox.contains_rect(&b.bbox) || b.bbox.contains_rect(&a.bbox) || a.bbox.iou(&b.bbox) >= iou
 }
 

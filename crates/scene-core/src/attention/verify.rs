@@ -9,11 +9,12 @@ use crate::look::{Question, Target};
 use crate::policy::VerifyPolicy;
 use crate::refine::{BodyPlaces, DisparitySide, FeetPlace};
 use crate::time::secs_since;
+use crate::units::Extension;
 use crate::verification::{HOUR_SECS, HeldCheckState, Verification};
 
 /// The crop the verifier looks at: the bed grown by this fraction of its width
 /// and height on each side (white book, volume III, ch. 05).
-const VERIFY_PAD: f32 = 0.15;
+const VERIFY_PAD: Extension = Extension::VERIFY_CROP;
 
 /// What to ask the verifier: about what, over which crop, with which question,
 /// and, for a doubtful digit, the places the answer fills.
@@ -128,7 +129,7 @@ fn ask(
     let Some(bed) = g
         .map
         .bed_for(g.geometry)
-        .and_then(|bed| crate::map::grown_bed(bed, f64::from(VERIFY_PAD)))
+        .and_then(|bed| crate::map::grown_bed(bed, VERIFY_PAD))
     else {
         return Consideration::Decided(Decision::Skip(SkipReason::NoBedGeometry));
     };

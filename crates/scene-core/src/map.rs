@@ -16,8 +16,8 @@ pub fn bed_points(bed: &crate::geom::Quad, uv: &[(f64, f64)]) -> Option<Vec<crat
 /// The bed grown by `margin` in its own coordinates, as a quadrilateral in the
 /// image, in `Quad`'s order: headboard left, headboard right, foot right, foot
 /// left. `None` if the bed is degenerate.
-pub(crate) fn grown_bed(bed: &crate::geom::Quad, margin: f64) -> Option<crate::geom::Quad> {
-    grown(bed, margin, margin)
+pub(crate) fn grown_bed(bed: &crate::geom::Quad, margin: Extension) -> Option<crate::geom::Quad> {
+    grown(bed, f64::from(margin.get()), f64::from(margin.get()))
 }
 
 /// The bed grown by `across` on each side and by `along` at each end, in its
@@ -35,6 +35,7 @@ use crate::body::bed_site_at;
 use crate::geom::{Point, Quad, Rect, Zone};
 use crate::policy::{AdmissionPolicy, FocusPolicy, ShadowPolicy};
 use crate::time::SampleRef;
+use crate::units::Extension;
 
 /// Internal fact: the projection adds the context of the published event.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -214,30 +215,35 @@ impl Map {
     /// Where faces are looked for with nobody in sight, if the geometry
     /// applies: the headboard grown by `pad`. The search grows, the headboard
     /// does not: where the head is is still decided against it.
-    pub(crate) fn faces_region(&self, geometry: Geometry, pad: f32) -> Option<Rect> {
+    pub(crate) fn faces_region(&self, geometry: Geometry, pad: Extension) -> Option<Rect> {
         self.headboard_for(geometry)
-            .map(|headboard| headboard.bounds().expand(pad))
+            .map(|headboard| headboard.bounds().expand(pad.get()))
     }
 
     /// Where the main detector looks while focusing, if the geometry applies:
     /// the delimited focus, or else the bed grown by `pad`. The look and the
     /// published map read it here: they cannot differ.
-    pub(crate) fn focus_region(&self, geometry: Geometry, pad: f32) -> Option<Rect> {
+    pub(crate) fn focus_region(&self, geometry: Geometry, pad: Extension) -> Option<Rect> {
         let bed = self.bed_for(geometry)?;
-        Some(self.site.focus.unwrap_or_else(|| bed.bounds().expand(pad)))
+        Some(
+            self.site
+                .focus
+                .unwrap_or_else(|| bed.bounds().expand(pad.get())),
+        )
     }
 
     /// Where depth is measured with a pad: the bed's box grown by it, centred
     /// on the bed. Without the geometry, nowhere.
-    pub(crate) fn depth_region(&self, geometry: Geometry, pad: f32) -> Option<Rect> {
-        self.bed_for(geometry).map(|bed| bed.bounds().expand(pad))
+    pub(crate) fn depth_region(&self, geometry: Geometry, pad: Extension) -> Option<Rect> {
+        self.bed_for(geometry)
+            .map(|bed| bed.bounds().expand(pad.get()))
     }
 
     /// The geometry's shadow over the site, which decides nothing (white
     /// book, volume VII, ch. 11): near the bed in metres, on the footprint if
     /// it is delimited and on the mattress if not, next to near as decided
     /// today.
-    fn shadow(&self, shadow: ShadowPolicy, near_bed_margin: f32) -> MapShadow {
+    fn shadow(&self, shadow: ShadowPolicy, near_bed_margin: Extension) -> MapShadow {
         let site = &self.site;
         let near = site.bed_size_m.and_then(|[width, length]| {
             let plane = site.bed_floor.unwrap_or(site.bed);
@@ -252,7 +258,7 @@ impl Map {
             bed_floor: site.bed_floor,
             bed_size_m: site.bed_size_m,
             near,
-            near_today: site.bed.bounds().expand(near_bed_margin),
+            near_today: site.bed.bounds().expand(near_bed_margin.get()),
             headboard_area: site.headboard_area,
         }
     }
@@ -287,8 +293,8 @@ impl Map {
         calibration: &CalibrationMemory,
     ) -> MapState {
         MapState {
-            focus: focus.and_then(|f| self.focus_region(geometry, f.pad.get())),
-            shadow: shadow.map(|shadow| self.shadow(*shadow, admission.near_bed_margin.get())),
+            focus: focus.and_then(|f| self.focus_region(geometry, f.pad)),
+            shadow: shadow.map(|shadow| self.shadow(*shadow, admission.near_bed_margin)),
             geometry,
             bed: self.site.bed,
             headboard: self.headboard().map(|headboard| headboard.bounds()),
@@ -328,7 +334,7 @@ mod tests {
     fn the_grown_bed_of_a_rectangle_is_the_grown_rectangle() {
         use crate::geom::{Quad, Rect};
         let bed = Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
-        let grown = super::grown_bed(&bed, 0.15).unwrap();
+        let grown = super::grown_bed(&bed, crate::units::Extension::VERIFY_CROP).unwrap();
         let b = grown.bounds();
         let near = |a: f32, e: f32| (a - e).abs() < 0.01;
         assert!(near(b.x0, 40.0) && near(b.x1, 560.0), "{b:?}");

@@ -11,6 +11,7 @@
 use crate::geom::{Point, Rect};
 use crate::map::{BedPlane, Geometry, Map};
 use crate::policy::ShadowPolicy;
+use crate::units::PositiveMetres;
 use crate::zone::Zone;
 
 pub(crate) use scene_contract::PlanePoint;
@@ -21,7 +22,7 @@ pub(crate) use scene_contract::{BodyShadow, ShadowPlane};
 pub(crate) struct Site {
     mattress: BedPlane,
     floor: Option<BedPlane>,
-    size: Option<[f32; 2]>,
+    size: Option<[PositiveMetres; 2]>,
     policy: ShadowPolicy,
 }
 
@@ -34,7 +35,7 @@ impl Site {
         Some(Self {
             mattress,
             floor: map.site.bed_floor.as_ref().and_then(BedPlane::of),
-            size: map.site.bed_size_m,
+            size: map.site.bed_size_m.and_then(crate::room::bed_sizes),
             policy: shadow,
         })
     }
@@ -88,7 +89,7 @@ fn point_on(plane: &BedPlane, p: Point) -> PlanePoint {
 
 /// How far a point in bed coordinates is from the bed, in metres: the room's
 /// own measure, so the shadow and the room in two planes agree.
-fn distance_m(p: PlanePoint, size: [f32; 2]) -> f32 {
+fn distance_m(p: PlanePoint, size: [PositiveMetres; 2]) -> f32 {
     crate::room::distance_m(p.u, p.v, size)
 }
 
@@ -105,7 +106,7 @@ mod tests {
         Site {
             mattress: BedPlane::of(&bed).unwrap(),
             floor: floor.then(|| BedPlane::of(&footprint).unwrap()),
-            size: Some([0.9, 2.0]),
+            size: crate::room::bed_sizes([0.9, 2.0]),
             policy: ShadowPolicy {
                 near_m: PositiveMetres::new(0.6).expect("a constant distance"),
                 support_margin_m: Metres::new(0.0).expect("a constant distance"),
@@ -140,6 +141,11 @@ mod tests {
             u: -0.5,
             v: 1.15,
         };
-        assert!((distance_m(p, [0.9, 2.0]) - 0.45_f32.hypot(0.3)).abs() < 1e-6);
+        assert!(
+            (distance_m(p, crate::room::bed_sizes([0.9, 2.0]).expect("a bed size"))
+                - 0.45_f32.hypot(0.3))
+            .abs()
+                < 1e-6
+        );
     }
 }

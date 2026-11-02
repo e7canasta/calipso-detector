@@ -293,8 +293,8 @@ pub struct Band {
 
 impl Band {
     /// Is the value in the band?
-    pub fn contains(self, value: f32) -> bool {
-        (self.lo.get()..=self.hi.get()).contains(&value)
+    pub fn contains(self, value: RelativeDepth) -> bool {
+        (self.lo.get()..=self.hi.get()).contains(&value.get())
     }
 }
 

@@ -17,6 +17,7 @@ use crate::geom::{Point, Rect};
 use crate::geom::{Quad, Zone};
 use crate::map::{Geometry, Map};
 use crate::policy::{AdmissionPolicy, ShadowPolicy, TwoPlanesPolicy};
+use crate::units::PositiveMetres;
 
 mod frontal;
 pub(crate) mod shadow;
@@ -188,7 +189,16 @@ impl Room {
 
 /// How far a point in bed coordinates is from the bed, in metres: past a side
 /// by `u`, past an end by `v`, both when past a corner. Zero inside.
-pub(crate) fn distance_m(u: f32, v: f32, [width, length]: [f32; 2]) -> f32 {
+pub(crate) fn distance_m(u: f32, v: f32, [width, length]: [PositiveMetres; 2]) -> f32 {
     let past = |c: f32| (-c).max(c - 1.0).max(0.0);
-    (past(u) * width).hypot(past(v) * length)
+    (past(u) * width.get()).hypot(past(v) * length.get())
+}
+
+/// The bed's size in metres, as the map publishes it, if both sides are
+/// positive: the profile validates them, so `None` only for a map built by hand.
+pub(crate) fn bed_sizes([width, length]: [f32; 2]) -> Option<[PositiveMetres; 2]> {
+    Some([
+        PositiveMetres::new(width).ok()?,
+        PositiveMetres::new(length).ok()?,
+    ])
 }

@@ -18,6 +18,7 @@ use crate::policy::EnrichPolicy;
 use crate::policy::{Band, VerifyPolicy};
 use crate::provenance::Provenance;
 use crate::room::Room;
+use crate::units::{FeetMargin, RelativeDepth};
 
 /// Where each part of the body layer 1 reads is, in one sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,7 +112,7 @@ pub(super) fn places_of(
             room,
             enrich,
             verify.and_then(|v| v.doubtful_disparity),
-            verify.and_then(|v| v.doubtful_feet_margin.map(|m| m.get())),
+            verify.and_then(|v| v.doubtful_feet_margin),
         )
     })
 }
@@ -136,16 +137,16 @@ fn places(
     room: Option<&Room>,
     enrich: &EnrichPolicy,
     doubtful: Option<Band>,
-    feet_margin: Option<f32>,
+    feet_margin: Option<FeetMargin>,
 ) -> BodyPlaces {
     let past_the_sides = |p: Point| room.is_some_and(|room| room.foot_out(p));
     // How far out of the bed, in bed widths: negative inside.
     let beyond_side = |p: Point| room.and_then(|room| room.foot_beyond(p));
     let near_a_side = |p: Point| {
-        feet_margin.is_some_and(|m| beyond_side(p).is_some_and(|b| b.abs() <= f64::from(m)))
+        feet_margin.is_some_and(|m| beyond_side(p).is_some_and(|b| b.abs() <= f64::from(m.get())))
     };
     let clearly_past = |p: Point| match feet_margin {
-        Some(m) => beyond_side(p).is_some_and(|b| b > f64::from(m)),
+        Some(m) => beyond_side(p).is_some_and(|b| b > f64::from(m.get())),
         None => past_the_sides(p),
     };
     let ankles: Vec<Point> = body
@@ -171,7 +172,9 @@ fn places(
         head: body.head_place.state,
         feet,
         disparity: posture.map_or(DisparitySide::Unknown, |p| match (p.disparity, doubtful) {
-            (Some(d), Some(band)) if band.contains(d) => DisparitySide::Doubtful,
+            (Some(d), Some(band)) if RelativeDepth::new(d).is_ok_and(|d| band.contains(d)) => {
+                DisparitySide::Doubtful
+            }
             _ => DisparitySide::of(p.state),
         }),
     }

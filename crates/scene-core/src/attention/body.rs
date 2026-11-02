@@ -101,7 +101,7 @@ pub(crate) fn enrich(
             .is_none_or(|age| age >= max.get())
     });
     if let Some(r) = reference
-        && !estimation::moved(&r, &subject.bbox, policy.move_threshold.get())
+        && !estimation::moved(&r, &subject.bbox, policy.move_threshold)
         && !expired
     {
         return EnrichPlan::Keep(SkipReason::SubjectStill);

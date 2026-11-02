@@ -7,6 +7,7 @@ use crate::body::{Joint, Keypoint};
 use crate::geom::{Point, Rect};
 use crate::map::{BedPlane, Map};
 use crate::policy::TwoPlanesPolicy;
+use crate::units::PositiveMetres;
 
 /// The camera that sees the bed on the diagonal (volume VII, ch. 14): where a
 /// body is by the share of its box over the mattress and by its support (the
@@ -16,7 +17,7 @@ use crate::policy::TwoPlanesPolicy;
 pub(super) struct TwoPlanes {
     mattress: BedPlane,
     floor: BedPlane,
-    size: [f32; 2],
+    size: [PositiveMetres; 2],
     policy: TwoPlanesPolicy,
 }
 
@@ -27,7 +28,7 @@ impl TwoPlanes {
         Some(Self {
             mattress: frontal.plane?,
             floor: BedPlane::of(map.site.bed_floor.as_ref()?)?,
-            size: map.site.bed_size_m?,
+            size: crate::room::bed_sizes(map.site.bed_size_m?)?,
             policy,
         })
     }
@@ -83,7 +84,7 @@ impl TwoPlanes {
     pub(super) fn foot_beyond(&self, p: Point) -> f64 {
         let (u, v) = self.floor.project(p);
         let [width, length] = self.size;
-        let along = f64::from(length / width);
+        let along = f64::from(length.get() / width.get());
         (-u).max(u - 1.0).max(-v * along).max((v - 1.0) * along)
     }
 

@@ -259,6 +259,9 @@ impl Proportion {
 impl Extension {
     /// A tenth of the reference: the default margin of a near-bed test.
     pub const TENTH: Self = Self(0.1);
+    /// The verifier's crop: the bed grown by 15% of its width and height on
+    /// each side (white book, volume III, ch. 05).
+    pub const VERIFY_CROP: Self = Self(0.15);
 }
 
 measure!(

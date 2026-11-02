@@ -12,6 +12,7 @@ use crate::map::CalibrationMemory;
 use crate::outcome::DepthTarget;
 use crate::policy::{CalibrationPolicy, EnrichPolicy};
 use crate::time::secs_since;
+use crate::units::Extension;
 
 /// A depth look: through the lens (`region`; `None`, the whole frame), at
 /// these points. The subject's carry each keypoint's index; the bed's, just
@@ -25,7 +26,7 @@ pub(crate) struct DepthLook<P> {
 /// Where depth is measured: the whole frame (`None`) or, with the policy's
 /// pad, the bed's box grown by it. The subject and the empty bed measure
 /// through the same lens; without the bed's geometry there is no crop to use.
-fn depth_lens(g: &Glimpse<'_>, depth_pad: Option<f32>) -> Result<Option<Rect>, SkipReason> {
+fn depth_lens(g: &Glimpse<'_>, depth_pad: Option<Extension>) -> Result<Option<Rect>, SkipReason> {
     match depth_pad {
         None => Ok(None),
         Some(pad) => g
@@ -45,7 +46,7 @@ pub(crate) fn deepen(
     g: &Glimpse<'_>,
     pose: Option<&[Keypoint]>,
     head: HeadPlace,
-    depth_pad: Option<f32>,
+    depth_pad: Option<Extension>,
     enrich: Option<&EnrichPolicy>,
 ) -> Consideration<SubjectDepthLook> {
     let lens = depth_lens(g, depth_pad);
@@ -92,7 +93,7 @@ pub(crate) fn calibrate(
     believed: &Believed,
     calibration: &CalibrationMemory,
     memory: &Memory,
-    depth_pad: Option<f32>,
+    depth_pad: Option<Extension>,
     calibration_policy: Option<&CalibrationPolicy>,
 ) -> Consideration<DepthLook<Point>> {
     let lens = depth_lens(g, depth_pad);
