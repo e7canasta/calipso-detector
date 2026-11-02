@@ -24,7 +24,7 @@ lee en este orden:
 ## Estado y superficies
 
 - Estado del trabajo: `calipso-roadmap`, no este repo.
-- Contratos publicados: `contract/`. Los vigentes son `scene.v4` y `events.v4`.
+- Contratos publicados: `contract/`. El detector publica `scene.v4` y `events.v4` siempre; `scene.v5` y `events.v5` cuando el perfil los lista en `[publish] versions`. `v3` está retirado ([ADR](../calipso-docs/adr/2026-10-11-retirar-v3.md)).
 - Lo que no está en este repo: ver `docs/README.md`, sección de consumidores.
 
 ## Pendientes conocidos

@@ -23,7 +23,7 @@ Los repositorios hermanos están en `../..`:
 | ¿Qué invariantes no se negocian? | [`../RULES.md`](../RULES.md) | Cada regla tiene su guardián en `scripts/` o `features/` |
 | ¿Cómo se comporta el núcleo? | [`../crates/scene-core/DESIGN.md`](../crates/scene-core/DESIGN.md) y `features/` | Los `.feature` son ejecutables |
 | ¿Cómo se configura y corre un sitio? | [`onboarding.md`](onboarding.md) (procedimientos A–E) y [`../RUN.md`](../RUN.md) | `RUN.md` tiene rutas de la máquina de desarrollo; ver «Pendientes» |
-| ¿Qué contrato sale a NATS? | [`../contract/`](../contract) | JSON schema; `scene.v4` y `events.v4` son los vigentes |
+| ¿Qué contrato sale a NATS? | [`../contract/`](../contract) | JSON schema; el detector publica `scene.v4` y `events.v4` siempre, y `scene.v5` y `events.v5` si el perfil los lista en `[publish] versions` |
 | ¿Cómo se verifica un cambio? | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) y la regla 17 de `RULES.md` | `scripts/quick.sh` por commit, `scripts/check.sh` por versión |
 | ¿Por qué es así? | [`../../calipso-docs/adr/`](../../calipso-docs/adr) | Las ADR no se reescriben; se reemplazan |
 | ¿Cómo se diseña el sistema completo? | [`../arquitectura-c4.md`](../arquitectura-c4.md) (canon) y [`../../calipso-docs/big-picture.md`](../../calipso-docs/big-picture.md) (canon de la visión general) | — |

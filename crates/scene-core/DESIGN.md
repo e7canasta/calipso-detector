@@ -586,7 +586,7 @@ geometry are crates of their own (`scene-contract`, `scene-look`, `scene-geom`);
 | `units` | Units in the type: `Seconds`, `Confidence`. `serde` on purpose: the profile reads them with `try_from` (ADR unidades-en-el-tipo) | a geometry fraction |
 | `estimation` | Estimates over the subject's motion and depth | knows a rule |
 | `scene-look` (crate) | The perception language: `Probe` and its views `SenseProbe` and `VerifierProbe`, `Reading`, `Failure`, `Spent`, `Ticket`, `Verified` | contains pixels |
-| `scene-contract` (crate) | The wire: the published types of `scene.v4` and `events.v4`, types only | has logic or decisions |
+| `scene-contract` (crate) | The wire: the published types of `scene.v4` and `events.v4` (in `lib.rs`) and of `scene.v5` and `events.v5` (`v5.rs`), types only | has logic or decisions |
 | `scene-geom` (crate) | Pure geometry (`Point`, `Rect`, `Quad`) | knows a rule |
 
 ### 8.1 How to add a look

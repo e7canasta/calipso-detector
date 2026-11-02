@@ -32,9 +32,10 @@ RTSP de `sample1`. Antes de confiar en una salida, volver a correr el comando.
 
 - **El motor** (`scene-core`) es puro: no hace IO, decide con lo que ve y
   devuelve la transición. Todo lo demás observa.
-- **El contrato** es lo que sale a NATS: `calipso.scene.v3`/`events.v3` (los
-  consumidores de hoy) y, al lado, `calipso.scene.v4`/`events.v4`, donde cada
-  cambio de la capa 0 es una **transición** con su celda `antes:vimos:después`.
+- **El contrato** es lo que sale a NATS: `calipso.scene.v4`/`events.v4`, donde
+  cada cambio de la capa 0 es una **transición** con su celda
+  `antes:vimos:después`, y, al lado, `calipso.scene.v5`/`events.v5` cuando el
+  perfil lo lista en `[publish] versions`. `v3` está retirado.
 - **La trama** graba cada transición como una línea de texto: la fila de la
   tabla de la capa 0. **trama-resumen** la verifica y la resume.
 
@@ -155,10 +156,11 @@ propósito) se corre aparte con `scripts/wip.sh`.
      calipso-detector --config mi-perfil.toml
    ```
 
-   Publica en `vision.{site}.{camera}.{scene,events}.{v3,v4}` (para sample1:
-   `vision.local.sample1.events.v4`). Cada versión tiene su propia numeración
-   y su `last_event_seq`; los eventos llevan `Nats-Msg-Id` (`{run}-{seq}` en
-   v3, `{run}-v4-{seq}` en v4).
+   Publica en `vision.{site}.{camera}.{scene,events}.v4` siempre (para sample1:
+   `vision.local.sample1.events.v4`), y en `.v5` cuando el perfil lo lista en
+   `[publish] versions`. Cada versión tiene su propia numeración y su
+   `last_event_seq`; los eventos llevan `Nats-Msg-Id` (`{run}-v4-{seq}` en v4,
+   `{run}-v5-{seq}` en v5).
 
 ## 7. Procedimiento C — Grabar la noche (la trama)
 
@@ -291,7 +293,7 @@ abre el inspector de una transición; `f` deja solo las transiciones.
 
 ## 8.2 Procedimiento D″ — Ver la noche en Rerun
 
-El puente dibuja `scene.v4`/`events.v4` en Rerun **0.37.2** (el visor tiene que
+El puente dibuja `scene.v5`/`events.v5` (y convierte las grabaciones `v4`) en Rerun **0.37.2** (el visor tiene que
 ser de la misma versión que el SDK: `uv run --no-project --with rerun-sdk==0.37.2 rerun`).
 Con el perfil por defecto, el detector ya publica v4:
 
