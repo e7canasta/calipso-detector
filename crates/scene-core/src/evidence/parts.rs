@@ -118,12 +118,18 @@ pub(crate) fn decide(
             return;
         };
         near.push(matches!(verdict.zone, BodyZone::Floor { near_bed: true }));
-        let zone = proven(verdict.step)
-            .or_else(|| inherited.get(i).copied().flatten())
-            .unwrap_or(match verdict.step {
-                Step::PoseNotLooked => i < beds,
-                _ => false,
-            });
+        let remembered = inherited.get(i).copied().flatten();
+        let zone = match remembered {
+            // In bed by memory, only a step 1 (the box leaves the mattress) releases
+            // it: a standing reading (E2) or no fresh proof keeps the bed (F4.1b).
+            Some(true) => !matches!(verdict.step, Step::PastNear | Step::Cut | Step::NoTouch),
+            _ => proven(verdict.step)
+                .or(remembered)
+                .unwrap_or(match verdict.step {
+                    Step::PoseNotLooked => i < beds,
+                    _ => false,
+                }),
+        };
         in_bed.push(zone);
     }
     // Move the bodies whose zone changed, keeping each one's fields.

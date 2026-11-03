@@ -42,17 +42,40 @@ Feature: The parts decide the zone, with memory (behind a switch)
     And in sample 2 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying, feet covered"
     Then the body is in the "bed"
 
+  # F4.1b (spec: f4-1b-salir-hay-que-probarlo.md). Standing (E2) with the box
+  # still over the mattress is not proof of leaving: the memory of bed holds.
   # The figure's ankles sit 90 px under the box's centre: the box 150,180 to
-  # 450,450 puts them at y 405, past the mattress's foot (400), on the floor;
-  # the box's support stays within the footprint (box in bed by the box). The
-  # hips are a mattress height and a half over the ankles: standing, whatever
-  # the memory says.
-  Scenario: With the parts deciding, a body that got up with its feet on the floor leaves the bed despite memory
+  # 450,450 puts them at y 405, past the mattress's foot (400), so E2 reads
+  # "standing" (the hips a mattress height and a half over the ankles), while
+  # the box is still over the mattress. This is also a sitting body with its
+  # legs forward (dig1, seconds 22-27): E2 reads it standing.
+  Scenario: With the parts deciding, a body that E2 reads standing, with its box still over the mattress, stays in bed by memory
     Given the parts decide the zone
     When in sample 1 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying"
     And in sample 2 the camera sees a person at 150,180 to 450,450 and the pose sees them "standing tall"
-    Then the body is on the "floor"
+    Then the body is in the "bed"
     And the body's parts are on the "floor", by the step "standing"
+
+  # Several turns of standing with the box over the mattress: each turn keeps the
+  # memory of bed (dig1, seconds 31-48, the bed trapped by the layer 0).
+  Scenario: With the parts deciding, a body that stays standing over the mattress for several turns stays in bed
+    Given the parts decide the zone
+    When in sample 1 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying"
+    And in sample 2 the camera sees a person at 150,180 to 450,450 and the pose sees them "standing tall"
+    And in sample 3 the camera sees a person at 150,180 to 450,450 and the pose sees them "standing tall"
+    And in sample 4 the camera sees a person at 150,180 to 450,450 and the pose sees them "standing tall"
+    Then the body is in the "bed"
+    And the body's parts are on the "floor", by the step "standing"
+
+  # The box leaves the mattress (below its foot, no touch) and no memory matches
+  # it (no overlap with the box of sample 1): the step 1c decides alone, the body
+  # is on the floor. The release with memory is the one of the bed posture (F4.1b).
+  Scenario: With the parts deciding, a body that got up and whose box leaves the mattress is on the floor
+    Given the parts decide the zone
+    When in sample 1 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying"
+    And in sample 2 the camera sees a person at 150,420 to 450,470 and the pose sees them "standing tall"
+    Then the body is on the "floor"
+    And the body's parts are on the "floor", by the step "no_touch"
 
   # Sitting on the edge: the feet on the floor under the knees, the pelvis a
   # mattress height above them (E2).
@@ -61,6 +84,24 @@ Feature: The parts decide the zone, with memory (behind a switch)
     When in sample 1 the camera sees a person at 200,250 to 300,480 and the pose sees them "sitting on the edge, feet below"
     Then the body is in the "bed"
     And the body's parts are on the "bed", by the step "pelvis_at_edge"
+
+  # The step 1 with memory (F4.1b): the resident lies in bed, then gets up and
+  # leaves by the near side (the left edge, x 100 in the test world), a little at
+  # a time. Each box overlaps the last by an IoU of at least 0.5 and moves at
+  # most a third of its width, so the memory is inherited turn after turn. While
+  # the box is over the mattress E2 reads "standing" and the memory holds; at the
+  # last turn the box has left the mattress (its points are off it, share 0.31 <
+  # 0.45): the step 1c, no_touch, releases it and the body is on the floor.
+  Scenario: With the parts deciding, a resident who gets up and leaves by the near side, a little at a time, is released by the step 1 with memory
+    Given the parts decide the zone
+    When in sample 1 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying"
+    And in sample 2 the camera sees a person at 150,180 to 450,450 and the pose sees them "standing tall"
+    And in sample 3 the camera sees a person at 100,180 to 400,450 and the pose sees them "standing tall"
+    And in sample 4 the camera sees a person at 50,180 to 350,450 and the pose sees them "standing tall"
+    And in sample 5 the camera sees a person at 0,180 to 300,450 and the pose sees them "standing tall"
+    And in sample 6 the camera sees a person at 0,180 to 160,450 and the pose sees them "standing tall"
+    Then the body is on the "floor"
+    And the body's parts are on the "floor", by the step "no_touch"
 
   # One pose per turn: the bigger body is asked; the other is not looked at, and
   # without memory it is where its box puts it (F4.1 (a)).
