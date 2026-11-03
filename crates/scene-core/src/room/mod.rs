@@ -21,6 +21,9 @@ use crate::units::PositiveMetres;
 
 mod frontal;
 pub(crate) mod shadow;
+// The frame of three planes: the cascade (F2.2) is its first caller.
+#[cfg_attr(not(test), allow(dead_code))]
+mod three_planes;
 mod two_planes;
 
 use frontal::Frontal;
