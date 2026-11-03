@@ -1,11 +1,12 @@
 //! The camera that sees the bed on the diagonal: the mattress and the
 //! footprint answer where a body is.
 
-use super::{BodyZone, Doubt, Frontal, Posed, distance_m};
+use super::three_planes::ThreePlanes;
+use super::{BodyZone, Doubt, Posed};
 use crate::body::is_seen;
 use crate::body::{Joint, Keypoint};
 use crate::geom::{Point, Rect};
-use crate::map::{BedPlane, Map};
+use crate::map::BedPlane;
 use crate::policy::TwoPlanesPolicy;
 use crate::units::PositiveMetres;
 
@@ -24,11 +25,11 @@ pub(super) struct TwoPlanes {
 impl TwoPlanes {
     /// With the mattress, the footprint and the bed's size; without any of
     /// them, or with degenerate corners, there are no two planes.
-    pub(super) fn of(frontal: &Frontal, map: &Map, policy: TwoPlanesPolicy) -> Option<Self> {
+    pub(super) fn of(planes: &ThreePlanes, policy: TwoPlanesPolicy) -> Option<Self> {
         Some(Self {
-            mattress: frontal.plane?,
-            floor: BedPlane::of(map.site.bed_floor.as_ref()?)?,
-            size: crate::room::bed_sizes(map.site.bed_size_m?)?,
+            mattress: planes.mattress(),
+            floor: planes.floor()?,
+            size: planes.size()?,
             policy,
         })
     }
@@ -90,12 +91,7 @@ impl TwoPlanes {
 
     /// How far the box's support is from the footprint, in metres.
     fn support_m(&self, bbox: &Rect) -> f32 {
-        let support = Point {
-            x: bbox.centroid().x,
-            y: bbox.y1,
-        };
-        let (u, v) = self.floor.project(support);
-        distance_m(u as f32, v as f32, self.size)
+        super::three_planes::support_m(&self.floor, self.size, bbox)
     }
 }
 

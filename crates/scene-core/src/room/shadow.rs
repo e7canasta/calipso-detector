@@ -8,8 +8,9 @@
 //!   without one, and its distance to the bed in metres;
 //! - the **share** of the box over the mattress.
 
+use super::three_planes::ThreePlanes;
 use crate::geom::{Point, Rect};
-use crate::map::{BedPlane, Geometry, Map};
+use crate::map::BedPlane;
 use crate::policy::ShadowPolicy;
 use crate::units::PositiveMetres;
 use crate::zone::Zone;
@@ -17,7 +18,8 @@ use crate::zone::Zone;
 pub(crate) use scene_contract::PlanePoint;
 pub(crate) use scene_contract::{BodyShadow, ShadowPlane};
 /// What the shadow measures bodies against: the mattress, the footprint if
-/// delimited, the bed's size if known, and the policy.
+/// delimited, the bed's size if known, and the policy. The planes are the
+/// frame's (`ThreePlanes`), the same ones the room in two planes reads.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Site {
     mattress: BedPlane,
@@ -28,14 +30,13 @@ pub(crate) struct Site {
 
 impl Site {
     /// The site's shadow, if the profile asks for it and the bed's geometry
-    /// applies to this frame.
-    pub(crate) fn of(map: &Map, geometry: Geometry, shadow: Option<&ShadowPolicy>) -> Option<Self> {
+    /// applies to this frame (the planes exist).
+    pub(crate) fn of(planes: &ThreePlanes, shadow: Option<&ShadowPolicy>) -> Option<Self> {
         let shadow = *shadow?;
-        let mattress = BedPlane::of(map.bed_for(geometry)?)?;
         Some(Self {
-            mattress,
-            floor: map.site.bed_floor.as_ref().and_then(BedPlane::of),
-            size: map.site.bed_size_m.and_then(crate::room::bed_sizes),
+            mattress: planes.mattress(),
+            floor: planes.floor(),
+            size: planes.size(),
             policy: shadow,
         })
     }

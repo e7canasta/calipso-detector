@@ -21,12 +21,14 @@ use crate::units::PositiveMetres;
 
 mod frontal;
 pub(crate) mod shadow;
-// The frame of three planes: the cascade (F2.2) is its first caller.
+// The cascade by support (F2.2) has no production caller until F2.3 connects it.
 #[cfg_attr(not(test), allow(dead_code))]
+mod cascade;
 mod three_planes;
 mod two_planes;
 
 use frontal::Frontal;
+use three_planes::ThreePlanes;
 use two_planes::TwoPlanes;
 
 /// Where a point of the head falls against the bed and its headboard: the
@@ -94,13 +96,18 @@ impl Room {
     /// frontal otherwise.
     pub(crate) fn of(map: &Map, geometry: Geometry, space: &SpaceRules) -> Option<Self> {
         let frontal = Frontal::of(map, geometry, &space.admission)?;
+        // The one source of the bed's planes: the room in two planes and the
+        // shadow both read them from here.
+        let planes = ThreePlanes::of(map, geometry);
         let two_planes = space
             .two_planes
-            .and_then(|two| TwoPlanes::of(&frontal, map, two));
+            .and_then(|two| TwoPlanes::of(planes.as_ref()?, two));
         Some(Self {
             frontal,
             two_planes,
-            shadow: shadow::Site::of(map, geometry, space.shadow.as_ref()),
+            shadow: planes
+                .as_ref()
+                .and_then(|planes| shadow::Site::of(planes, space.shadow.as_ref())),
         })
     }
 
