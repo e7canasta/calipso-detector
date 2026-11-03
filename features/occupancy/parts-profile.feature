@@ -39,3 +39,13 @@ Feature: The room's parts in the profile
   Scenario: An inverted pelvis band does not load
     Given the parts profile with the section "pelvis_band = [1.4, 0.6]"
     Then the profile is rejected with a reason that names "pelvis_band"
+
+  # galia's headboard stops are above the frame: the head's stops may be out of the
+  # frame, the bed must not (white book, volume IX, ch. 02; the owner, 2026-11-03).
+  Scenario: A headboard whose stop is above the frame loads
+    Given the parts profile with "headboard = [[951, 365], [1281, 325], [1270, 425], [940, 465]]" replaced by "headboard = [[951, -65], [1281, -65], [1270, 425], [940, 465]]"
+    Then the profile is accepted
+
+  Scenario: A degenerate headboard is refused even outside the frame
+    Given the parts profile with "headboard = [[951, 365], [1281, 325], [1270, 425], [940, 465]]" replaced by "headboard = [[951, -65], [1281, -65], [1100, -65], [1000, -65]]"
+    Then the profile is rejected with a reason that names "degenerate"

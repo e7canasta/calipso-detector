@@ -247,6 +247,32 @@ impl Config {
         if let Some(shadow) = &self.shadow {
             in_section("shadow", shadow.validate(self.map.bed_size_m.is_some()))?;
         }
+        // The headboard's stops may lie above the frame (galia: the headboard is cut
+        // by the top edge; white book, volume IX, ch. 02): finite and not degenerate.
+        if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
+            ensure!(
+                points.iter().all(|[x, y]| x.is_finite() && y.is_finite()),
+                "map.headboard: points must be finite"
+            );
+            ensure!(
+                !degenerate(points),
+                "map.headboard: degenerate quadrilateral"
+            );
+        }
+        if let Some(HeadboardConfig::Box([x0, y0, x1, y1])) = self.map.headboard {
+            ensure!(
+                [x0, y0, x1, y1].iter().all(|v| v.is_finite())
+                    && x0 >= 0.0
+                    && y0 >= 0.0
+                    && x1 > x0
+                    && y1 > y0
+                    && x1 <= w as f32
+                    && y1 <= h as f32,
+                "map.headboard: invalid rectangle"
+            );
+        }
+        // The parts' order is checked after the headboard's own shape: a degenerate
+        // headboard is named as such.
         if let Some(parts) = self.occupancy.as_ref().and_then(|o| o.parts.as_ref()) {
             let geometry = self.occupancy.as_ref().map(|o| o.geometry);
             let headboard = match self.map.headboard {
@@ -273,25 +299,6 @@ impl Config {
                     self.senses.pose.is_some(),
                 ),
             )?;
-        }
-        if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
-            ensure!(within(points), "map.headboard: points outside resolution");
-            ensure!(
-                !degenerate(points),
-                "map.headboard: degenerate quadrilateral"
-            );
-        }
-        if let Some(HeadboardConfig::Box([x0, y0, x1, y1])) = self.map.headboard {
-            ensure!(
-                [x0, y0, x1, y1].iter().all(|v| v.is_finite())
-                    && x0 >= 0.0
-                    && y0 >= 0.0
-                    && x1 > x0
-                    && y1 > y0
-                    && x1 <= w as f32
-                    && y1 <= h as f32,
-                "map.headboard: invalid rectangle"
-            );
         }
         if let Some([x0, y0, x1, y1]) = self.map.focus {
             ensure!(
