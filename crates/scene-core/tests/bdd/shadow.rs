@@ -242,7 +242,17 @@ fn parts_profile(ward: &mut Ward) {
         )
         .expect("an ordered band"),
         decide: false,
+        posture: false,
+        posture_upright_cos: Proportion::new(0.93).expect("a constant cosine"),
+        posture_along_cos: Proportion::new(0.80).expect("a constant cosine"),
+        posture_pillow_w: Proportion::new(0.15).expect("a constant fraction"),
     });
+}
+
+/// Layer 1 reads the posture from the frame (F5.2), not from the depth.
+#[given("the bed posture is read from the frame")]
+fn posture_from_frame(ward: &mut Ward) {
+    ward.policy.parts.as_mut().expect("the parts first").posture = true;
 }
 
 /// The parts decide the zone (F4.1): the cascade and its memory say where a
@@ -410,4 +420,13 @@ fn body_at_has_parts_step(ward: &mut Ward, x0: f32, y0: f32, x1: f32, y1: f32, w
         .expect("the body's parts");
     let got = serde_json::to_value(parts.step).expect("a step name");
     assert_eq!(got, serde_json::Value::String(want));
+}
+
+/// The body's parts on the wire, for the one body of the last turn.
+pub(crate) fn body_parts(ward: &Ward) -> scene_contract::PartsShadow {
+    body(ward)
+        .shadow
+        .expect("a shadow")
+        .parts
+        .expect("the body's parts")
 }

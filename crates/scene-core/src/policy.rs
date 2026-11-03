@@ -217,6 +217,16 @@ pub struct PartsPolicy {
     /// `true`: the parts decide the zone, with memory (F4.1). `false`: the box
     /// decides, and the parts are only published in the shadow.
     pub decide: bool,
+    /// `true`: layer 1 reads the posture from the frame (F5.2), not from the
+    /// depth disparity. `false`: the sightings are today's.
+    pub posture: bool,
+    /// The posture's thresholds (F5.2): the torso upright against «up», along the
+    /// bed against `v`, and the head on the pillow, `|w|`, in cosines and fractions.
+    pub posture_upright_cos: Proportion,
+    /// Along the bed: the torso against `v`, in cosine, from this on.
+    pub posture_along_cos: Proportion,
+    /// The head on the pillow: `|w|` up to this.
+    pub posture_pillow_w: Proportion,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume

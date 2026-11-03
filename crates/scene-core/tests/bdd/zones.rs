@@ -142,6 +142,12 @@ pub(crate) fn figure(name: &str) -> crate::script::Figure {
     match name {
         "lying" => Figure::Lying,
         "lying, feet covered" => Figure::FeetCovered,
+        "lying, feet out" => Figure::FeetOutSide,
+        "lying, head beside the headboard" => Figure::HeadBesideTheHeadboard,
+        "corner: lying along the bed" => Figure::CornerLying,
+        "corner: lying, feet out" => Figure::CornerFeetOut,
+        "corner: lying, head beside the headboard" => Figure::CornerHeadBeside,
+        "corner: sitting up against the headboard" => Figure::CornerSittingUp,
         "lying, feet far" => Figure::FeetFar,
         "an arm out" => Figure::ArmOut,
         "leaning out" => Figure::LeaningOut,

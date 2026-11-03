@@ -190,7 +190,8 @@ fn cast_parts(
     let face = crate::room::Room::face_of(boxes, faces, index);
     let verdict = room.parts(bbox, pose, face)?;
     let turn = room.turn(boxes, faces, index, shadow.share)?;
-    Some(crate::room::shadow::parts_read(&verdict, turn))
+    let frame = pose.and_then(|pose| room.frame_posture(pose));
+    Some(crate::room::shadow::parts_read(&verdict, turn, frame))
 }
 
 impl Admission {

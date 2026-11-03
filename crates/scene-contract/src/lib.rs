@@ -1118,6 +1118,41 @@ pub struct PartsShadow {
     /// The mean score of the seen ankles, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ankle_score: Option<f32>,
+    /// The torso as the frame reads it (F5.2). Absent without `posture`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub torso: Option<TorsoShadow>,
+    /// The side the legs leave the bed by (F5.2); absent while they are inside.
+    /// Absent without `posture`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legs_out: Option<LegsSide>,
+}
+
+/// The torso's orientation in the frame (F5.2, white book, volume IX, ch. 04).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TorsoShadow {
+    /// Parallel to «up»: standing, or sitting up.
+    Upright,
+    /// Parallel to the bed's length: lying along it.
+    AlongBed,
+    /// Parallel to the bed's width: across it.
+    Crosswise,
+    /// Between them: no clear orientation.
+    Unclear,
+    /// «Up» and the bed's length are nearly parallel from this camera: not separated.
+    NotSeparated,
+}
+
+/// The side the legs leave the bed by (F5.2, E7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LegsSide {
+    /// Past the near side.
+    Near,
+    /// Past the far side.
+    Far,
+    /// Past the foot of the bed.
+    Foot,
 }
 
 /// The step of the parts' cascade that decided a body's zone (cap. 05).

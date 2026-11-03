@@ -29,6 +29,7 @@ mod two_planes;
 
 pub(crate) use cascade::{Placed, Step};
 use frontal::Frontal;
+pub(crate) use posture::{HeadAt, LegsOut, Torso};
 use three_planes::ThreePlanes;
 pub(crate) use turn::Turn;
 use two_planes::TwoPlanes;
@@ -84,6 +85,17 @@ pub(crate) struct Room {
     planes: Option<ThreePlanes>,
     /// The cascade's thresholds, when the profile asks for the parts and the pose is on.
     cascade: Option<cascade::CascadeRules>,
+    /// The posture's thresholds, when the profile asks for layer 1 to read the frame (F5.2).
+    posture: Option<posture::PostureRules>,
+}
+
+/// The posture of a body in the frame (F5.2): each part read, or `None` where the
+/// frame cannot say it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct FramePosture {
+    pub(crate) torso: Option<posture::Torso>,
+    pub(crate) head: Option<posture::HeadAt>,
+    pub(crate) legs: Option<posture::LegsOut>,
 }
 
 /// The space's rules of the policy, one slice (ADR 2026-11-02, politica-en-rebanadas,
@@ -122,7 +134,19 @@ impl Room {
             }
             _ => None,
         };
+        let posture = match (space.parts.as_ref(), space.min_keypoint) {
+            (Some(parts), Some(kp)) if parts.posture && planes.is_some() => {
+                Some(posture::PostureRules {
+                    upright_cos: f64::from(parts.posture_upright_cos.get()),
+                    along_cos: f64::from(parts.posture_along_cos.get()),
+                    pillow_w: f64::from(parts.posture_pillow_w.get()),
+                    kp_min: kp.get(),
+                })
+            }
+            _ => None,
+        };
         Some(Self {
+            posture,
             frontal,
             two_planes,
             shadow: planes
@@ -130,6 +154,19 @@ impl Room {
                 .and_then(|planes| shadow::Site::of(planes, space.shadow.as_ref())),
             planes,
             cascade,
+        })
+    }
+
+    /// The frame's posture of a pose (F5.2): the torso, the head against the
+    /// headboard and the legs out of the bed. `None` unless the profile asks for
+    /// layer 1 to read the frame, and the frame's planes exist.
+    pub(crate) fn frame_posture(&self, pose: &[Keypoint]) -> Option<FramePosture> {
+        let planes = self.planes.as_ref()?;
+        let rules = self.posture.as_ref()?;
+        Some(FramePosture {
+            torso: posture::torso(planes, Some(pose), rules),
+            head: posture::head_at(planes, Some(pose), rules),
+            legs: posture::legs_out(planes, Some(pose), rules),
         })
     }
 
@@ -270,6 +307,7 @@ impl Room {
             shadow: None,
             planes: None,
             cascade: None,
+            posture: None,
         }
     }
 }

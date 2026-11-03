@@ -92,13 +92,20 @@ pub(crate) struct PartsRead {
     pub(crate) pelvis: Option<f64>,
     pub(crate) ankle_u: Option<f64>,
     pub(crate) ankle_score: Option<f32>,
+    /// The torso and the legs' side in the frame (F5.2), with `posture` on.
+    pub(crate) torso: Option<super::Torso>,
+    pub(crate) legs: Option<super::LegsOut>,
     pub(crate) head: Option<Placed>,
     pub(crate) hips: Option<Placed>,
     pub(crate) ankles: Option<Placed>,
 }
 
 /// The parts of a body, from its cascade's verdict and its turn.
-pub(crate) fn parts_read(verdict: &Verdict, turn: Turn) -> PartsRead {
+pub(crate) fn parts_read(
+    verdict: &Verdict,
+    turn: Turn,
+    frame: Option<super::FramePosture>,
+) -> PartsRead {
     let m = verdict.measures;
     PartsRead {
         zone: verdict.zone,
@@ -107,6 +114,8 @@ pub(crate) fn parts_read(verdict: &Verdict, turn: Turn) -> PartsRead {
         pelvis: m.pelvis,
         ankle_u: m.foot_u,
         ankle_score: m.foot_score,
+        torso: frame.and_then(|f| f.torso),
+        legs: frame.and_then(|f| f.legs),
         head: m.head,
         hips: m.hips,
         ankles: m.ankles,

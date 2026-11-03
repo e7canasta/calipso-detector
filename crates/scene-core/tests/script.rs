@@ -212,6 +212,20 @@ pub enum Figure {
     Lying,
     /// Lying, with the ankles covered (low score).
     FeetCovered,
+    /// Lying, with the ankles past the bed's near side (x 100 in the test world):
+    /// the legs out of the bed (E7).
+    FeetOutSide,
+    /// Lying, with the head at (120,130) of the test world: past the headboard's
+    /// side on its plane, within the mattress's sides (E6 says beside the headboard).
+    HeadBesideTheHeadboard,
+    /// Corner bed (F5.2): lying along the bed on the diagonal, the head on the pillow.
+    CornerLying,
+    /// Corner bed: lying along the bed, the feet past the near side.
+    CornerFeetOut,
+    /// Corner bed: lying along the bed, the head past the headboard's side.
+    CornerHeadBeside,
+    /// Corner bed: sitting up against the headboard, the torso vertical in the image.
+    CornerSittingUp,
     /// Sitting on the edge with the feet on the floor under the knees: the pelvis
     /// a mattress height above them, over the feet (E2).
     SittingOnTheEdgeFeetBelow,
@@ -278,6 +292,21 @@ impl Figure {
             Figure::FeetCovered => {
                 p[15].2 = 0.1;
                 p[16].2 = 0.1;
+            }
+            Figure::FeetOutSide => {
+                p[15].0 = -215.0;
+                p[16].0 = -200.0;
+            }
+            Figure::CornerLying
+            | Figure::CornerFeetOut
+            | Figure::CornerHeadBeside
+            | Figure::CornerSittingUp => return corner_keypoints(self),
+            Figure::HeadBesideTheHeadboard => {
+                // The centre of the scenes' lying box is (300,265): the eyes at (120,130).
+                for point in p.iter_mut().take(5) {
+                    point.0 = -180.0;
+                    point.1 = -135.0;
+                }
             }
             Figure::SittingOnTheEdgeFeetBelow => {
                 // The scenes' footprint lies 40 px under the bed: a mattress height
@@ -484,4 +513,68 @@ pub fn episode_scenario(n: u32) -> (Setup, Vec<Span>) {
         .find_map(|s| s.table.as_ref())
         .expect("the scenario has its table");
     (setup, spans_from_cells(&table.rows).unwrap())
+}
+
+/// The corner bed's figures (F5.2), relative to the box's centre (314,274), in
+/// the corner bed's geometry: the mattress on the diagonal, the footprint 40 px
+/// lower, the headboard on the head edge (`bdd/bed_posture.rs`).
+fn corner_keypoints(figure: Figure) -> [(f32, f32, f32); 17] {
+    let seen = 0.9;
+    let (head, shoulders, elbows, wrists, hips, knees, ankles) = match figure {
+        Figure::CornerLying => (
+            (-106.0, -106.0),
+            [(-62.4, -43.6), (-43.6, -62.4)],
+            [(-70.0, -20.0), (-20.0, -70.0)],
+            [(-80.0, 0.0), (0.0, -80.0)],
+            [(34.9, 49.9), (49.9, 34.9)],
+            [(60.0, 75.0), (75.0, 60.0)],
+            [(81.5, 96.6), (96.6, 81.5)],
+        ),
+        Figure::CornerFeetOut => (
+            (-106.0, -106.0),
+            [(-62.4, -43.6), (-43.6, -62.4)],
+            [(-70.0, -20.0), (-20.0, -70.0)],
+            [(-80.0, 0.0), (0.0, -80.0)],
+            [(34.9, 49.9), (49.9, 34.9)],
+            [(60.0, 75.0), (75.0, 60.0)],
+            [(14.3, 155.3), (-2.2, 129.4)],
+        ),
+        Figure::CornerHeadBeside => (
+            // (151,175): past the headboard's left side (u < 0 on its plane), inside
+            // the mattress's sides (u about 0.16) and past the head end.
+            (-163.0, -99.0),
+            [(-62.4, -43.6), (-43.6, -62.4)],
+            [(-70.0, -20.0), (-20.0, -70.0)],
+            [(-80.0, 0.0), (0.0, -80.0)],
+            [(34.9, 49.9), (49.9, 34.9)],
+            [(60.0, 75.0), (75.0, 60.0)],
+            [(81.5, 96.6), (96.6, 81.5)],
+        ),
+        _ => (
+            (-106.0, -126.0),
+            [(-30.0, -60.0), (-10.0, -60.0)],
+            [(-40.0, -30.0), (0.0, -30.0)],
+            [(-40.0, 0.0), (0.0, 0.0)],
+            [(-30.0, 10.0), (-10.0, 10.0)],
+            [(-30.0, 50.0), (-10.0, 50.0)],
+            [(-30.0, 90.0), (-10.0, 90.0)],
+        ),
+    };
+    let mut p = [(0.0, 0.0, seen); 17];
+    for point in p.iter_mut().take(5) {
+        *point = (head.0, head.1, seen);
+    }
+    p[5] = (shoulders[0].0, shoulders[0].1, seen);
+    p[6] = (shoulders[1].0, shoulders[1].1, seen);
+    p[7] = (elbows[0].0, elbows[0].1, seen);
+    p[8] = (elbows[1].0, elbows[1].1, seen);
+    p[9] = (wrists[0].0, wrists[0].1, seen);
+    p[10] = (wrists[1].0, wrists[1].1, seen);
+    p[11] = (hips[0].0, hips[0].1, seen);
+    p[12] = (hips[1].0, hips[1].1, seen);
+    p[13] = (knees[0].0, knees[0].1, seen);
+    p[14] = (knees[1].0, knees[1].1, seen);
+    p[15] = (ankles[0].0, ankles[0].1, seen);
+    p[16] = (ankles[1].0, ankles[1].1, seen);
+    p
 }

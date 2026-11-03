@@ -1098,6 +1098,26 @@
         "version"
       ]
     },
+    "LegsSide": {
+      "description": "The side the legs leave the bed by (F5.2, E7).",
+      "oneOf": [
+        {
+          "description": "Past the near side.",
+          "type": "string",
+          "const": "near"
+        },
+        {
+          "description": "Past the far side.",
+          "type": "string",
+          "const": "far"
+        },
+        {
+          "description": "Past the foot of the bed.",
+          "type": "string",
+          "const": "foot"
+        }
+      ]
+    },
     "Look": {
       "description": "An entry of attention's ledger (rule 12): what was decided to look at or\nnot, and what happened.",
       "type": "object",
@@ -1668,6 +1688,17 @@
             }
           ]
         },
+        "legs_out": {
+          "description": "The side the legs leave the bed by (F5.2); absent while they are inside.\nAbsent without `posture`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegsSide"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "pelvis_mattress_heights": {
           "description": "The pelvis's height over the feet, in mattress heights, if the hips were seen.",
           "type": [
@@ -1679,6 +1710,17 @@
         "step": {
           "description": "The step of the cascade that decided it, or that the pose was not looked at.",
           "$ref": "#/$defs/PartsStep"
+        },
+        "torso": {
+          "description": "The torso as the frame reads it (F5.2). Absent without `posture`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TorsoShadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "turn": {
           "description": "The rule that chose the direction that is up for the pose, if any.",
@@ -2720,6 +2762,36 @@
       "required": [
         "wait_ms",
         "processing_ms"
+      ]
+    },
+    "TorsoShadow": {
+      "description": "The torso's orientation in the frame (F5.2, white book, volume IX, ch. 04).",
+      "oneOf": [
+        {
+          "description": "Parallel to «up»: standing, or sitting up.",
+          "type": "string",
+          "const": "upright"
+        },
+        {
+          "description": "Parallel to the bed's length: lying along it.",
+          "type": "string",
+          "const": "along_bed"
+        },
+        {
+          "description": "Parallel to the bed's width: across it.",
+          "type": "string",
+          "const": "crosswise"
+        },
+        {
+          "description": "Between them: no clear orientation.",
+          "type": "string",
+          "const": "unclear"
+        },
+        {
+          "description": "«Up» and the bed's length are nearly parallel from this camera: not separated.",
+          "type": "string",
+          "const": "not_separated"
+        }
       ]
     },
     "TurnRule": {

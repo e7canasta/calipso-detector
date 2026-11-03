@@ -51,6 +51,12 @@ fn not_followed(ward: &mut Ward) {
     ward.policy.bed_posture = None;
 }
 
+#[then(regex = r#"^in sample (\d+) the bed posture is not "([a-z_]+)"$"#)]
+fn the_bed_posture_is_not(ward: &mut Ward, n: u32, state: String) {
+    let b = bed_posture(ward, n);
+    assert_ne!(b["state"], state.as_str(), "{b}");
+}
+
 #[then(expr = "in sample {int} there is no bed posture")]
 fn no_bed_posture(ward: &mut Ward, n: u32) {
     let b = bed_posture(ward, n);
@@ -126,4 +132,71 @@ fn changes_agree(ward: &mut Ward) {
         published > 0,
         "the scenario published no bed posture change"
     );
+}
+
+/// The headboard as four points, for the frame's headboard plane (F5.2). Its left
+/// side leans in: a head at (120,130) is past the headboard's side (u < 0 on the
+/// headboard), and within the mattress's sides.
+#[given("the bed's headboard is drawn as four points")]
+fn headboard_four_points(ward: &mut Ward) {
+    use scene_geom::Point;
+    let p = |x: f32, y: f32| Point { x, y };
+    ward.map.as_mut().expect("the bed first").headboard_area = Some(scene_geom::Quad([
+        p(160.0, 100.0),
+        p(500.0, 100.0),
+        p(500.0, 170.0),
+        p(100.0, 170.0),
+    ]));
+}
+
+/// A corner bed (F5.2): the mattress on the diagonal, the footprint 40 px lower
+/// (up stays vertical, as on dig1), the headboard standing on the head edge, one
+/// mattress height up (its bottom edge is the head edge, so the head on the pillow
+/// reads at the middle of its u). Replaces the axis-aligned bed here.
+#[given("the bed is a corner bed on the diagonal")]
+fn corner_bed(ward: &mut Ward) {
+    use scene_geom::{Point, Quad};
+    let q = |c: [(f32, f32); 4]| Quad(c.map(|(x, y)| Point { x, y }));
+    let map = ward.map.as_mut().expect("the bed first");
+    map.bed = q([
+        (161.0, 215.0),
+        (255.0, 121.0),
+        (467.0, 333.0),
+        (373.0, 427.0),
+    ]);
+    map.bed_floor = Some(q([
+        (161.0, 255.0),
+        (255.0, 161.0),
+        (467.0, 373.0),
+        (373.0, 467.0),
+    ]));
+    map.headboard_area = Some(q([
+        (161.0, 175.0),
+        (255.0, 81.0),
+        (255.0, 121.0),
+        (161.0, 215.0),
+    ]));
+}
+
+/// The seen of the bed posture is not this one (the sighting that must not feed it).
+#[then(regex = r#"^in sample (\d+) the bed posture was not seen as "([a-z_]+)"$"#)]
+fn the_bed_posture_was_not_seen_as(ward: &mut Ward, n: u32, seen: String) {
+    let b = bed_posture(ward, n);
+    assert_ne!(b["seen"], seen.as_str(), "{b}");
+}
+
+/// The posture the shadow publishes for the one body (F5.2): its torso.
+#[then(regex = r#"^the body's parts' torso is "(\w+)"$"#)]
+fn parts_torso(ward: &mut Ward, want: String) {
+    let parts = super::shadow::body_parts(ward);
+    let got = serde_json::to_value(parts.torso).expect("a torso name");
+    assert_eq!(got, serde_json::Value::String(want));
+}
+
+/// The side the legs leave the bed by, as the shadow publishes it (F5.2).
+#[then(regex = r#"^the body's parts leave the bed by the "(\w+)" side$"#)]
+fn parts_legs_side(ward: &mut Ward, want: String) {
+    let parts = super::shadow::body_parts(ward);
+    let got = serde_json::to_value(parts.legs_out).expect("a side name");
+    assert_eq!(got, serde_json::Value::String(want));
 }

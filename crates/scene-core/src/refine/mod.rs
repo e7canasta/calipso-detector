@@ -65,10 +65,25 @@ pub(crate) fn refine(
         head_place: Some(body.head_place),
     });
     let places = sighting::places_of(body, posture.as_ref(), room, enrich, verify);
+    // With the posture read from the frame (F5.2) and a pose, the frame gives the
+    // sighting; otherwise today's places do.
+    let keypoints: Vec<crate::body::Keypoint> = body
+        .pose
+        .keypoints
+        .iter()
+        .map(|k| crate::body::Keypoint {
+            x: k.x,
+            y: k.y,
+            score: k.score,
+        })
+        .collect();
+    let frame = room
+        .and_then(|room| room.frame_posture(&keypoints))
+        .map(|fp| sighting::frame(fp, body.head_place.state));
     Refinement {
         lying,
         posture,
-        sighting: sighting::of(places, filled),
+        sighting: frame.unwrap_or_else(|| sighting::of(places, filled)),
         places,
     }
 }

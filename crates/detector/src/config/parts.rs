@@ -32,6 +32,18 @@ pub struct PartsConfig {
     /// hash when false, so a profile without it keeps its hash.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub decide: bool,
+    /// `true`: layer 1 reads the posture from the frame (F5.2). Left out of the
+    /// hash when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub posture: bool,
+    /// The posture's thresholds (F5.2), each in [0, 1]; the defaults are the
+    /// sprint 1 values. Left out of the hash when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posture_upright_cos: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posture_along_cos: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posture_pillow_w: Option<f32>,
 }
 
 impl Default for PartsConfig {
@@ -43,6 +55,10 @@ impl Default for PartsConfig {
             cut_tolerance: 0.12,
             headboard_w: [-0.15, 1.0],
             decide: false,
+            posture: false,
+            posture_upright_cos: None,
+            posture_along_cos: None,
+            posture_pillow_w: None,
         }
     }
 }
@@ -100,6 +116,19 @@ impl PartsConfig {
             )?,
             headboard_w: headboard_w(self.headboard_w)?,
             decide: self.decide,
+            posture: self.posture,
+            posture_upright_cos: measured(
+                "occupancy.parts.posture_upright_cos",
+                Proportion::new(self.posture_upright_cos.unwrap_or(0.93)),
+            )?,
+            posture_along_cos: measured(
+                "occupancy.parts.posture_along_cos",
+                Proportion::new(self.posture_along_cos.unwrap_or(0.80)),
+            )?,
+            posture_pillow_w: measured(
+                "occupancy.parts.posture_pillow_w",
+                Proportion::new(self.posture_pillow_w.unwrap_or(0.15)),
+            )?,
         })
     }
 }

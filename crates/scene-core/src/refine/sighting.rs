@@ -17,7 +17,7 @@ use crate::geom::Point;
 use crate::policy::EnrichPolicy;
 use crate::policy::{Band, VerifyPolicy};
 use crate::provenance::Provenance;
-use crate::room::Room;
+use crate::room::{FramePosture, HeadAt, LegsOut, Room, Torso};
 use crate::units::{FeetMargin, RelativeDepth};
 
 /// Where each part of the body layer 1 reads is, in one sample.
@@ -86,6 +86,28 @@ impl BodyPlaces {
             },
             HeadPlaceState::Unknown => Sighting::Unknown,
         }
+    }
+}
+
+/// What layer 1 reads in the frame (F5.2), with the head's place from the
+/// pose as today: the feet past the bed's sides or its foot (E7) → legs out; the
+/// head at the side as today (`head_side`, not from E6); otherwise the torso
+/// upright, or the head against the headboard, is upright; the torso along the
+/// bed with the head on the pillow is lying. Anything else is unknown: across
+/// the bed, or no pose, nothing is said. A head beside the headboard feeds no
+/// sighting (F5.1: `BesideStop` is not `head_side`).
+pub(crate) fn frame(fp: FramePosture, head: HeadPlaceState) -> Sighting {
+    if matches!(fp.legs, Some(LegsOut::Near | LegsOut::Far | LegsOut::Foot)) {
+        return Sighting::LegsOut;
+    }
+    if head == HeadPlaceState::AtSide {
+        return Sighting::HeadSide;
+    }
+    match (fp.torso, fp.head) {
+        (Some(Torso::Upright), _) => Sighting::HeadboardUpright,
+        (Some(Torso::AlongBed), Some(HeadAt::Pillow)) => Sighting::HeadboardLying,
+        (Some(Torso::AlongBed), Some(HeadAt::Propped)) => Sighting::HeadboardUpright,
+        _ => Sighting::Unknown,
     }
 }
 
