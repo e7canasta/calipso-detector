@@ -124,7 +124,7 @@ check_cycle_sequences
 check_space_has_one_owner() {
   local found
   found=$(grep -rl 'BedPlane' crates/scene-core/src \
-            | grep -vE '^crates/scene-core/src/(map\.rs|map/|room/(mod|frontal|two_planes|shadow)\.rs)' \
+            | grep -vE '^crates/scene-core/src/(map\.rs|map/|room/)' \
             || true)
   [ -z "$found" ] || fail "a question of space outside room: $found"
 }
