@@ -85,3 +85,22 @@ Feature: The parts decide the zone, with memory (behind a switch)
     Then the body at 150,150 to 330,420 is in the "bed"
     And the body at 270,150 to 450,480 is in the "floor"
     And the body at 270,150 to 450,480 has its parts by the step "pose_not_looked"
+
+  # The layer 0 gets the floor body's «near the bed» from the cascade (F2.2's rule
+  # P2: the support within near_m of the footprint), not from the box. The
+  # resident lies in bed for three samples; then the same kind of body stands at
+  # the near side with its feet on the floor and its support 0.2 m from the
+  # footprint: near the bed, so it is an exit from the bed alone, not an
+  # accompanied room with someone held.
+  Scenario: With the parts deciding, a resident who stands up at the near side leaves the bed alone
+    Given the parts decide the zone
+    When in sample 1 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying"
+    And in sample 2 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying"
+    And in sample 3 the camera sees a person at 150,150 to 450,380 and the pose sees them "lying"
+    And in sample 4 the camera sees a person at 80,200 to 160,470 and the pose sees them "standing tall"
+    And in sample 5 the camera sees a person at 80,200 to 160,470 and the pose sees them "standing tall"
+    And in sample 6 the camera sees a person at 80,200 to 160,470 and the pose sees them "standing tall"
+    And in sample 7 the camera sees a person at 80,200 to 160,470 and the pose sees them "standing tall"
+    Then an exit from the bed was observed
+    And nobody is held in bed
+    And events.v5 published "room_changed" from "alone_in_bed_seen" to "alone_out"

@@ -103,6 +103,9 @@ pub(crate) fn decide(
     };
     let inherited = memory.inherited(&boxes, same_iou);
     let mut in_bed = Vec::with_capacity(boxes.len());
+    // The cascade's «near the bed» (the support within near_m of the footprint, F2.2):
+    // the floor body's near_bed, not the box's.
+    let mut near = Vec::with_capacity(boxes.len());
     for (i, bbox) in boxes.iter().enumerate() {
         let pose = perceived
             .posed
@@ -114,6 +117,7 @@ pub(crate) fn decide(
         let Some(verdict) = room.parts(*bbox, pose, face) else {
             return;
         };
+        near.push(matches!(verdict.zone, BodyZone::Floor { near_bed: true }));
         let zone = proven(verdict.step)
             .or_else(|| inherited.get(i).copied().flatten())
             .unwrap_or(match verdict.step {
@@ -134,7 +138,7 @@ pub(crate) fn decide(
                 perceived.bodies.primary.floor += 1;
             }
             floor_list.push(FloorBody {
-                near_bed: near_bed(room, &body.detection.bbox),
+                near_bed: near.get(i).copied().unwrap_or(false),
                 detection: body.detection,
                 source: body.source,
                 shadow: body.shadow,
@@ -157,7 +161,10 @@ pub(crate) fn decide(
                 parts: body.parts,
             });
         } else {
-            floor_list.push(body);
+            floor_list.push(FloorBody {
+                near_bed: near.get(beds + j).copied().unwrap_or(false),
+                ..body
+            });
         }
     }
     bed_list.sort_by(|a, b| b.detection.confidence.total_cmp(&a.detection.confidence));
@@ -174,9 +181,4 @@ pub(crate) fn decide(
         .collect();
     bodies.bed = bed_list;
     bodies.floor = floor_list;
-}
-
-/// The floor body's «near the bed» by the box, as the room says it.
-fn near_bed(room: &Room, bbox: &Rect) -> bool {
-    matches!(room.body_zone(bbox), BodyZone::Floor { near_bed: true })
 }
