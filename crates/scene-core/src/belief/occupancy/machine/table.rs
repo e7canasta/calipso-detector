@@ -37,18 +37,22 @@ enum Context {
     Booting,
     /// As the base, with rule 4 bis: a held body may leave by the side.
     SideExit,
+    /// The control of `NearFirst`: the same sequence, without the profile's
+    /// `near_first`. The difference between the two columns is the flag alone.
+    NearThenFar,
     /// One was seen near the bed first, and one far from it afterwards: rule 5
     /// refined, the profile's `near_first`, does not count the near one as
     /// the door's.
     NearFirst,
 }
 
-const CONTEXTS: [(Context, &str); 6] = [
+const CONTEXTS: [(Context, &str); 7] = [
     (Context::Base, "base"),
     (Context::Far, "far"),
     (Context::Passing, "passing"),
     (Context::Booting, "booting"),
     (Context::SideExit, "side exit"),
+    (Context::NearThenFar, "near then far"),
     (Context::NearFirst, "near first"),
 ];
 
@@ -154,7 +158,7 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
     let mut z = machine(r, b, h, !matches!(context, Context::Booting));
     let mut transitions = Vec::new();
     let end = match context {
-        Context::Far | Context::NearFirst => bodies(f, f.min(1), v),
+        Context::Far | Context::NearFirst | Context::NearThenFar => bodies(f, f.min(1), v),
         Context::Base | Context::Passing | Context::Booting | Context::SideExit => bodies(f, 0, v),
     };
     let held_left = matches!(context, Context::SideExit);
@@ -171,7 +175,7 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
         ));
         t += 0.5;
     }
-    if near_first {
+    if matches!(context, Context::NearFirst | Context::NearThenFar) {
         // One more near the bed than at rest: the one that will walk away.
         let near = (r - b) + 1;
         transitions.extend(z.step(
