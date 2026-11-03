@@ -112,6 +112,9 @@ struct Engine {
     /// What attention remembers of what it looked at: the lens and the last
     /// calibration attempt.
     attention_memory: attention::Memory,
+    /// What the parts decided last turn, per body (F4.1; used only with
+    /// `[occupancy.parts] decide`).
+    parts_memory: crate::evidence::PartsMemory,
     /// What the slow verifier was asked and what it owes.
     verification: Verification,
     frame: Option<FrameInfo>,

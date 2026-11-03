@@ -30,6 +30,22 @@ impl Engine {
         evidence::consolidate(primary, reinforcement, room, &self.space.admission)
     }
 
+    /// The zone by parts, with the memory, if the profile asks for the parts to
+    /// decide (F4.1): `perceived`'s bodies move to the lists of their zones.
+    pub(in crate::cycle) fn decide_parts(
+        &mut self,
+        perceived: &mut Perceived,
+        room: Option<&Room>,
+    ) {
+        if !self.space.parts.is_some_and(|p| p.decide) {
+            return;
+        }
+        let (Some(room), same_iou) = (room, self.space.admission.same_body_iou.get()) else {
+            return;
+        };
+        evidence::decide_parts(perceived, room, &mut self.parts_memory, same_iou);
+    }
+
     /// A doubtful body's pose, placed by the room: `perceived` changes if the
     /// pose says where the body is.
     pub(in crate::cycle) fn read_pose_body(

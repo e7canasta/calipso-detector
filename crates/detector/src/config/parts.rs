@@ -28,6 +28,10 @@ pub struct PartsConfig {
     /// The head's band against the headboard, `w`: `[low, high]`; `0` at the
     /// pillow, `1` at the headboard's top (E6).
     pub headboard_w: [f32; 2],
+    /// `true`: the parts decide the zone, with memory (F4.1). Left out of the
+    /// hash when false, so a profile without it keeps its hash.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub decide: bool,
 }
 
 impl Default for PartsConfig {
@@ -38,6 +42,7 @@ impl Default for PartsConfig {
             pelvis_band: [0.6, 1.4],
             cut_tolerance: 0.12,
             headboard_w: [-0.15, 1.0],
+            decide: false,
         }
     }
 }
@@ -94,6 +99,7 @@ impl PartsConfig {
                 Proportion::new(self.cut_tolerance),
             )?,
             headboard_w: headboard_w(self.headboard_w)?,
+            decide: self.decide,
         })
     }
 }

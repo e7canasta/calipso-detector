@@ -241,7 +241,15 @@ fn parts_profile(ward: &mut Ward) {
             HeadboardW::new(1.0).expect("a finite w"),
         )
         .expect("an ordered band"),
+        decide: false,
     });
+}
+
+/// The parts decide the zone (F4.1): the cascade and its memory say where a
+/// body is, instead of the box.
+#[given("the parts decide the zone")]
+fn parts_decide(ward: &mut Ward) {
+    ward.policy.parts.as_mut().expect("the parts first").decide = true;
 }
 
 #[then(regex = r#"^the body's parts are on the "(bed|floor)", by the step "(\w+)"$"#)]
@@ -340,4 +348,66 @@ fn pose_points_up_the_bed(ward: &mut Ward) {
 #[then("the body's pose is asked with no direction")]
 fn pose_no_direction(ward: &mut Ward) {
     assert_eq!(asked_pose(ward), None);
+}
+
+/// The body whose box is at these corners, in the last turn.
+fn body_at(ward: &Ward, x0: f32, y0: f32, x1: f32, y1: f32) -> BodySeen {
+    let want = Rect::new(x0, y0, x1, y1);
+    let items = &ward.last().output.v5.scene.evidence.bodies.items;
+    items
+        .iter()
+        .find(|b| close(b.bbox, want))
+        .cloned()
+        .unwrap_or_else(|| panic!("no body at {want:?} in {items:?}"))
+}
+
+/// In sample N, a person and a second one, and the pose looks at the first only
+/// (one pose per turn: the second is not looked at).
+#[when(
+    regex = r#"^in sample (\d+) the camera sees a person at ([\d,]+) to ([\d,]+) and a second person at ([\d,]+) to ([\d,]+), the pose sees the first "([^"]+)" and does not look at the second$"#
+)]
+fn sees_two_and_the_pose_looks_at_the_first(
+    ward: &mut Ward,
+    n: u32,
+    first_from: String,
+    first_to: String,
+    second_from: String,
+    second_to: String,
+    figure: String,
+) {
+    let (ax0, ay0) = point(&first_from);
+    let (ax1, ay1) = point(&first_to);
+    let (bx0, by0) = point(&second_from);
+    let (bx1, by1) = point(&second_to);
+    let mut script = Script::bodies(vec![
+        Detection {
+            bbox: Rect::new(ax0, ay0, ax1, ay1),
+            confidence: 0.9,
+            label: Label::Person,
+        },
+        Detection {
+            bbox: Rect::new(bx0, by0, bx1, by1),
+            confidence: 0.9,
+            label: Label::Person,
+        },
+    ]);
+    script.figure = Some(crate::zones::figure(&figure));
+    ward.turn_with(ward.sample(n), script);
+}
+
+#[then(regex = r#"^the body at (\d+),(\d+) to (\d+),(\d+) is in the "(bed|floor)"$"#)]
+fn body_at_is_in(ward: &mut Ward, x0: f32, y0: f32, x1: f32, y1: f32, name: String) {
+    let body = body_at(ward, x0, y0, x1, y1);
+    assert_eq!(body.zone, Some(zone(&name)), "{body:?}");
+}
+
+#[then(regex = r#"^the body at (\d+),(\d+) to (\d+),(\d+) has its parts by the step "(\w+)"$"#)]
+fn body_at_has_parts_step(ward: &mut Ward, x0: f32, y0: f32, x1: f32, y1: f32, want: String) {
+    let parts = body_at(ward, x0, y0, x1, y1)
+        .shadow
+        .expect("a shadow")
+        .parts
+        .expect("the body's parts");
+    let got = serde_json::to_value(parts.step).expect("a step name");
+    assert_eq!(got, serde_json::Value::String(want));
 }

@@ -103,6 +103,7 @@ impl Course<'_> {
                 }
                 // Believe.
                 Reached::Evidence(mut evidence) => {
+                    self.engine.decide_parts(&mut evidence, self.room.as_ref());
                     evidence.cast_shadow(self.room.as_ref());
                     let believed = self.believe(&evidence.bodies);
                     Reached::Belief(Observed {

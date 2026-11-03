@@ -212,6 +212,14 @@ pub enum Figure {
     Lying,
     /// Lying, with the ankles covered (low score).
     FeetCovered,
+    /// Sitting on the edge with the feet on the floor under the knees: the pelvis
+    /// a mattress height above them, over the feet (E2).
+    SittingOnTheEdgeFeetBelow,
+    /// Standing tall: the hips a mattress height and a half over the ankles
+    /// (the pelvis high over the feet, out of the band of the edge).
+    StandingTall,
+    /// Standing tall, with the ankles covered (low score).
+    StandingTallFeetCovered,
     /// Lying, with the feet far from the camera (raised, or off the end of the
     /// bed): their depth says nothing of the torso.
     FeetFar,
@@ -271,6 +279,36 @@ impl Figure {
                 p[15].2 = 0.1;
                 p[16].2 = 0.1;
             }
+            Figure::SittingOnTheEdgeFeetBelow => {
+                // The scenes' footprint lies 40 px under the bed: a mattress height
+                // is 40 px here. The hips 10 px under the centre are a mattress
+                // height and a bit above the feet (E2), and the feet are past the
+                // mattress's foot (y 411 against 400): on the floor.
+                p[13] = (-15.0, 25.0, 0.9);
+                p[14] = (15.0, 25.0, 0.9);
+                p[15] = (-15.0, 46.0, 0.9);
+                p[16] = (15.0, 46.0, 0.9);
+            }
+            Figure::StandingTall | Figure::StandingTallFeetCovered => {
+                // Upright: the hips 100 px above the centre, the knees between them
+                // and the ankles, so the leg is straight (180 degrees).
+                let heights = [
+                    -255.0, -255.0, -225.0, -225.0, -200.0, -200.0, -170.0, -170.0,
+                ];
+                for (point, y) in p.iter_mut().zip(heights) {
+                    point.1 = y;
+                }
+                p[9].1 = -140.0;
+                p[10].1 = -140.0;
+                p[11].1 = -100.0;
+                p[12].1 = -100.0;
+                p[13].1 = -5.0;
+                p[14].1 = -5.0;
+                if self == Figure::StandingTallFeetCovered {
+                    p[15].2 = 0.1;
+                    p[16].2 = 0.1;
+                }
+            }
             Figure::ArmOut => {
                 p[7] = (-170.0, -20.0, 0.9);
                 p[9] = (-200.0, 10.0, 0.9);
@@ -328,9 +366,11 @@ impl Figure {
             Figure::SittingOnTheEdge
             | Figure::SittingOnTheEdgeHeadDown
             | Figure::SittingOnTheFoot => 2.0,
-            Figure::SittingUp | Figure::SittingUpAgainstTheHeadboard | Figure::Standing => {
-                2.0 - slope
-            }
+            Figure::SittingUp
+            | Figure::SittingUpAgainstTheHeadboard
+            | Figure::Standing
+            | Figure::StandingTall
+            | Figure::StandingTallFeetCovered => 2.0 - slope,
             _ => 2.0 + slope,
         }
     }

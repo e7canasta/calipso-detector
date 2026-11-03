@@ -12,11 +12,13 @@ use crate::zone::Counts;
 mod bodies;
 mod depth;
 mod faces;
+mod parts;
 mod pose;
 
 pub(crate) use bodies::{admit, consolidate};
 pub(crate) use depth::{SubjectDepths, depth, depths};
 pub(crate) use faces::{FaceEvidence, faces};
+pub(crate) use parts::{PartsMemory, decide as decide_parts};
 pub(crate) use pose::{pose, pose_body};
 
 const NONE: Counts = Counts { floor: 0, bed: 0 };

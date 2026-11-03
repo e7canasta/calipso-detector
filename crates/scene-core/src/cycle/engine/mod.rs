@@ -76,6 +76,7 @@ impl Engine {
             verify_policy: verify,
             calibration_memory: CalibrationMemory::from(&map),
             attention_memory: attention::Memory::of(map.calibration_attempt),
+            parts_memory: Default::default(),
             map: map.into(),
             belief: Belief::default(),
             reception: reception::Memory::default(),

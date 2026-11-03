@@ -214,6 +214,9 @@ pub struct PartsPolicy {
     /// The head's band against the headboard (E6), `w`: from its low end to its
     /// high end; `0` at the pillow, `1` at the headboard's top.
     pub headboard_w: Span<HeadboardW>,
+    /// `true`: the parts decide the zone, with memory (F4.1). `false`: the box
+    /// decides, and the parts are only published in the shadow.
+    pub decide: bool,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume

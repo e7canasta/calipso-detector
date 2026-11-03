@@ -153,6 +153,9 @@ pub(crate) fn figure(name: &str) -> crate::script::Figure {
         "sitting up against the headboard" => Figure::SittingUpAgainstTheHeadboard,
         "no torso" => Figure::NoTorso,
         "standing" => Figure::Standing,
+        "standing tall" => Figure::StandingTall,
+        "sitting on the edge, feet below" => Figure::SittingOnTheEdgeFeetBelow,
+        "standing tall, feet covered" => Figure::StandingTallFeetCovered,
         other => panic!("\"{POSE}\": unknown figure \"{other}\""),
     }
 }
