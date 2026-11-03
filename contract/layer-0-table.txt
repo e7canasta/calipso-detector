@@ -15,64 +15,64 @@
 322 | accompanied
 422 | accompanied
 # Transitions: before RBH | seen FV | context: after RBH [+u unexplained] facts
-000 | 00 | base: 000 | far: 000 | passing: 000 | booting: 000 | side exit: 000
-000 | 01 | base: 000+u | far: 000+u | passing: 110 lay_down | booting: 110 lay_down/baseline | side exit: 000+u
-000 | 02 | base: 000+u2 | far: 000+u2 | passing: 110+u lay_down | booting: 220 lay_down/baseline,lay_down/baseline | side exit: 000+u2
-000 | 10 | base: 100 entered | far: 100 entered | passing: 100 entered | booting: 100 entered | side exit: 100 entered
-000 | 11 | base: 100+u entered | far: 100+u entered | passing: 210 lay_down,entered | booting: 210 lay_down/baseline,entered | side exit: 100+u entered
-000 | 20 | base: 200 entered,entered | far: 200 entered,entered | passing: 200 entered,entered | booting: 200 entered,entered | side exit: 200 entered,entered
-100 | 00 | base: 000 left_room | far: 000 left_room | passing: 000 left_room | booting: 000 left_room | side exit: 000 left_room
-100 | 01 | base: 110 lay_down | far: 110 lay_down | passing: 110 lay_down | booting: 110 lay_down | side exit: 110 lay_down
-100 | 02 | base: 110+u lay_down | far: 110+u lay_down | passing: 220 lay_down,lay_down | booting: 220 lay_down,lay_down/baseline | side exit: 110+u lay_down
-100 | 10 | base: 100 | far: 100 | passing: 100 | booting: 100 | side exit: 100
-100 | 11 | base: 100+u | far: 100+u | passing: 210 lay_down | booting: 210 lay_down/baseline | side exit: 100+u
-100 | 20 | base: 200 entered | far: 200 entered | passing: 200 entered | booting: 200 entered | side exit: 200 entered
-110 | 00 | base: 111 held_in_bed | far: 111 held_in_bed | passing: 111 held_in_bed | booting: 111 held_in_bed | side exit: 111 held_in_bed
-110 | 01 | base: 110 | far: 110 | passing: 110 | booting: 110 | side exit: 110
-110 | 02 | base: 110+u | far: 110+u | passing: 220 lay_down | booting: 220 lay_down/baseline | side exit: 110+u
-110 | 10 | base: 100 left_bed | far: 211 held_in_bed,entered | passing: 100 left_bed | booting: 100 left_bed | side exit: 100 left_bed
-110 | 11 | base: 210 entered | far: 210 entered | passing: 210 entered | booting: 210 entered | side exit: 210 entered
-110 | 20 | base: 200 left_bed,entered | far: 200 left_bed,entered | passing: 200 left_bed,entered | booting: 200 left_bed,entered | side exit: 200 left_bed,entered
-111 | 00 | base: 111 | far: 111 | passing: 111 | booting: 111 | side exit: 111
-111 | 01 | base: 110 reappeared | far: 110 reappeared | passing: 110 reappeared | booting: 110 reappeared | side exit: 110 reappeared
-111 | 02 | base: 110+u reappeared | far: 110+u reappeared | passing: 220 reappeared,lay_down | booting: 220 reappeared,lay_down/baseline | side exit: 110+u reappeared
-111 | 10 | base: 211 entered | far: 211 entered | passing: 211 entered | booting: 211 entered | side exit: 100 left_bed
-111 | 11 | base: 210 reappeared,entered | far: 210 reappeared,entered | passing: 210 reappeared,entered | booting: 210 reappeared,entered | side exit: 210 reappeared,entered
-111 | 20 | base: 311 entered,entered | far: 311 entered,entered | passing: 311 entered,entered | booting: 311 entered,entered | side exit: 200 left_bed,entered
-200 | 00 | base: 000 left_room,left_room | far: 000 left_room,left_room | passing: 000 left_room,left_room | booting: 000 left_room,left_room | side exit: 000 left_room,left_room
-200 | 01 | base: 110 lay_down,left_room | far: 110 lay_down,left_room | passing: 110 lay_down,left_room | booting: 110 lay_down,left_room | side exit: 110 lay_down,left_room
-200 | 02 | base: 220 lay_down,lay_down | far: 220 lay_down,lay_down | passing: 220 lay_down,lay_down | booting: 220 lay_down,lay_down | side exit: 220 lay_down,lay_down
-200 | 10 | base: 100 left_room | far: 100 left_room | passing: 100 left_room | booting: 100 left_room | side exit: 100 left_room
-200 | 11 | base: 210 lay_down | far: 210 lay_down | passing: 210 lay_down | booting: 210 lay_down | side exit: 210 lay_down
-200 | 20 | base: 200 | far: 200 | passing: 200 | booting: 200 | side exit: 200
-210 | 00 | base: 111 held_in_bed,left_room | far: 111 held_in_bed,left_room | passing: 111 held_in_bed,left_room | booting: 111 held_in_bed,left_room | side exit: 111 held_in_bed,left_room
-210 | 01 | base: 110 left_room | far: 110 left_room | passing: 110 left_room | booting: 110 left_room | side exit: 110 left_room
-210 | 02 | base: 220 lay_down | far: 220 lay_down | passing: 220 lay_down | booting: 220 lay_down | side exit: 220 lay_down
-210 | 10 | base: 211 held_in_bed | far: 211 held_in_bed | passing: 211 held_in_bed | booting: 211 held_in_bed | side exit: 211 held_in_bed
-210 | 11 | base: 210 | far: 210 | passing: 210 | booting: 210 | side exit: 210
-210 | 20 | base: 200 left_bed | far: 311 held_in_bed,entered | passing: 200 left_bed | booting: 200 left_bed | side exit: 200 left_bed
-211 | 00 | base: 111 left_room | far: 111 left_room | passing: 111 left_room | booting: 111 left_room | side exit: 111 left_room
-211 | 01 | base: 110 reappeared,left_room | far: 110 reappeared,left_room | passing: 110 reappeared,left_room | booting: 110 reappeared,left_room | side exit: 110 reappeared,left_room
-211 | 02 | base: 220 reappeared,lay_down | far: 220 reappeared,lay_down | passing: 220 reappeared,lay_down | booting: 220 reappeared,lay_down | side exit: 220 reappeared,lay_down
-211 | 10 | base: 211 | far: 211 | passing: 211 | booting: 211 | side exit: 211
-211 | 11 | base: 210 reappeared | far: 210 reappeared | passing: 210 reappeared | booting: 210 reappeared | side exit: 210 reappeared
-211 | 20 | base: 311 entered | far: 311 entered | passing: 311 entered | booting: 311 entered | side exit: 200 left_bed
-220 | 00 | base: 222 held_in_bed,held_in_bed | far: 222 held_in_bed,held_in_bed | passing: 222 held_in_bed,held_in_bed | booting: 222 held_in_bed,held_in_bed | side exit: 222 held_in_bed,held_in_bed
-220 | 01 | base: 221 held_in_bed | far: 221 held_in_bed | passing: 221 held_in_bed | booting: 221 held_in_bed | side exit: 221 held_in_bed
-220 | 02 | base: 220 | far: 220 | passing: 220 | booting: 220 | side exit: 220
-220 | 10 | base: 211 left_bed,held_in_bed | far: 322 held_in_bed,held_in_bed,entered | passing: 211 left_bed,held_in_bed | booting: 211 left_bed,held_in_bed | side exit: 211 left_bed,held_in_bed
-220 | 11 | base: 210 left_bed | far: 321 held_in_bed,entered | passing: 210 left_bed | booting: 210 left_bed | side exit: 210 left_bed
-220 | 20 | base: 200 left_bed,left_bed | far: 311 left_bed,held_in_bed,entered | passing: 200 left_bed,left_bed | booting: 200 left_bed,left_bed | side exit: 200 left_bed,left_bed
-221 | 00 | base: 222 held_in_bed | far: 222 held_in_bed | passing: 222 held_in_bed | booting: 222 held_in_bed | side exit: 222 held_in_bed
-221 | 01 | base: 221 | far: 221 | passing: 221 | booting: 221 | side exit: 221
-221 | 02 | base: 220 reappeared | far: 220 reappeared | passing: 220 reappeared | booting: 220 reappeared | side exit: 220 reappeared
-221 | 10 | base: 211 left_bed | far: 322 held_in_bed,entered | passing: 211 left_bed | booting: 211 left_bed | side exit: 211 left_bed
-221 | 11 | base: 321 entered | far: 321 entered | passing: 321 entered | booting: 321 entered | side exit: 210 left_bed
-221 | 20 | base: 311 left_bed,entered | far: 311 left_bed,entered | passing: 311 left_bed,entered | booting: 311 left_bed,entered | side exit: 311 left_bed,entered
-222 | 00 | base: 222 | far: 222 | passing: 222 | booting: 222 | side exit: 222
-222 | 01 | base: 221 reappeared | far: 221 reappeared | passing: 221 reappeared | booting: 221 reappeared | side exit: 221 reappeared
-222 | 02 | base: 220 reappeared,reappeared | far: 220 reappeared,reappeared | passing: 220 reappeared,reappeared | booting: 220 reappeared,reappeared | side exit: 220 reappeared,reappeared
-222 | 10 | base: 322 entered | far: 322 entered | passing: 322 entered | booting: 322 entered | side exit: 211 left_bed
-222 | 11 | base: 321 reappeared,entered | far: 321 reappeared,entered | passing: 321 reappeared,entered | booting: 321 reappeared,entered | side exit: 210 reappeared,left_bed
-222 | 20 | base: 422 entered,entered | far: 422 entered,entered | passing: 422 entered,entered | booting: 422 entered,entered | side exit: 200 left_bed,left_bed
+000 | 00 | base: 000 | far: 000 | passing: 000 | booting: 000 | side exit: 000 | near first: 000
+000 | 01 | base: 000+u | far: 000+u | passing: 110 lay_down | booting: 110 lay_down/baseline | side exit: 000+u | near first: 110 lay_down
+000 | 02 | base: 000+u2 | far: 000+u2 | passing: 110+u lay_down | booting: 220 lay_down/baseline,lay_down/baseline | side exit: 000+u2 | near first: 110+u lay_down
+000 | 10 | base: 100 entered | far: 100 entered | passing: 100 entered | booting: 100 entered | side exit: 100 entered | near first: 100 entered
+000 | 11 | base: 100+u entered | far: 100+u entered | passing: 210 lay_down,entered | booting: 210 lay_down/baseline,entered | side exit: 100+u entered | near first: 100+u entered
+000 | 20 | base: 200 entered,entered | far: 200 entered,entered | passing: 200 entered,entered | booting: 200 entered,entered | side exit: 200 entered,entered | near first: 200 entered,entered
+100 | 00 | base: 000 left_room | far: 000 left_room | passing: 000 left_room | booting: 000 left_room | side exit: 000 left_room | near first: 000 left_room
+100 | 01 | base: 110 lay_down | far: 110 lay_down | passing: 110 lay_down | booting: 110 lay_down | side exit: 110 lay_down | near first: 110 lay_down
+100 | 02 | base: 110+u lay_down | far: 110+u lay_down | passing: 220 lay_down,lay_down | booting: 220 lay_down,lay_down/baseline | side exit: 110+u lay_down | near first: 220 lay_down,lay_down
+100 | 10 | base: 100 | far: 100 | passing: 100 | booting: 100 | side exit: 100 | near first: 100
+100 | 11 | base: 100+u | far: 100+u | passing: 210 lay_down | booting: 210 lay_down/baseline | side exit: 100+u | near first: 210 lay_down
+100 | 20 | base: 200 entered | far: 200 entered | passing: 200 entered | booting: 200 entered | side exit: 200 entered | near first: 200 entered
+110 | 00 | base: 111 held_in_bed | far: 111 held_in_bed | passing: 111 held_in_bed | booting: 111 held_in_bed | side exit: 111 held_in_bed | near first: 111 held_in_bed
+110 | 01 | base: 110 | far: 110 | passing: 110 | booting: 110 | side exit: 110 | near first: 110
+110 | 02 | base: 110+u | far: 110+u | passing: 220 lay_down | booting: 220 lay_down/baseline | side exit: 110+u | near first: 220 lay_down
+110 | 10 | base: 100 left_bed | far: 211 held_in_bed,entered | passing: 100 left_bed | booting: 100 left_bed | side exit: 100 left_bed | near first: 100 left_bed
+110 | 11 | base: 210 entered | far: 210 entered | passing: 210 entered | booting: 210 entered | side exit: 210 entered | near first: 210 entered
+110 | 20 | base: 200 left_bed,entered | far: 200 left_bed,entered | passing: 200 left_bed,entered | booting: 200 left_bed,entered | side exit: 200 left_bed,entered | near first: 200 left_bed,entered
+111 | 00 | base: 111 | far: 111 | passing: 111 | booting: 111 | side exit: 111 | near first: 111
+111 | 01 | base: 110 reappeared | far: 110 reappeared | passing: 110 reappeared | booting: 110 reappeared | side exit: 110 reappeared | near first: 110 reappeared
+111 | 02 | base: 110+u reappeared | far: 110+u reappeared | passing: 220 reappeared,lay_down | booting: 220 reappeared,lay_down/baseline | side exit: 110+u reappeared | near first: 220 reappeared,lay_down
+111 | 10 | base: 211 entered | far: 211 entered | passing: 211 entered | booting: 211 entered | side exit: 100 left_bed | near first: 211 entered
+111 | 11 | base: 210 reappeared,entered | far: 210 reappeared,entered | passing: 210 reappeared,entered | booting: 210 reappeared,entered | side exit: 210 reappeared,entered | near first: 210 reappeared,entered
+111 | 20 | base: 311 entered,entered | far: 311 entered,entered | passing: 311 entered,entered | booting: 311 entered,entered | side exit: 200 left_bed,entered | near first: 311 entered,entered
+200 | 00 | base: 000 left_room,left_room | far: 000 left_room,left_room | passing: 000 left_room,left_room | booting: 000 left_room,left_room | side exit: 000 left_room,left_room | near first: 000 left_room,left_room
+200 | 01 | base: 110 lay_down,left_room | far: 110 lay_down,left_room | passing: 110 lay_down,left_room | booting: 110 lay_down,left_room | side exit: 110 lay_down,left_room | near first: 110 lay_down,left_room
+200 | 02 | base: 220 lay_down,lay_down | far: 220 lay_down,lay_down | passing: 220 lay_down,lay_down | booting: 220 lay_down,lay_down | side exit: 220 lay_down,lay_down | near first: 220 lay_down,lay_down
+200 | 10 | base: 100 left_room | far: 100 left_room | passing: 100 left_room | booting: 100 left_room | side exit: 100 left_room | near first: 100 left_room
+200 | 11 | base: 210 lay_down | far: 210 lay_down | passing: 210 lay_down | booting: 210 lay_down | side exit: 210 lay_down | near first: 210 lay_down
+200 | 20 | base: 200 | far: 200 | passing: 200 | booting: 200 | side exit: 200 | near first: 200
+210 | 00 | base: 111 held_in_bed,left_room | far: 111 held_in_bed,left_room | passing: 111 held_in_bed,left_room | booting: 111 held_in_bed,left_room | side exit: 111 held_in_bed,left_room | near first: 111 held_in_bed,left_room
+210 | 01 | base: 110 left_room | far: 110 left_room | passing: 110 left_room | booting: 110 left_room | side exit: 110 left_room | near first: 110 left_room
+210 | 02 | base: 220 lay_down | far: 220 lay_down | passing: 220 lay_down | booting: 220 lay_down | side exit: 220 lay_down | near first: 220 lay_down
+210 | 10 | base: 211 held_in_bed | far: 211 held_in_bed | passing: 211 held_in_bed | booting: 211 held_in_bed | side exit: 211 held_in_bed | near first: 211 held_in_bed
+210 | 11 | base: 210 | far: 210 | passing: 210 | booting: 210 | side exit: 210 | near first: 210
+210 | 20 | base: 200 left_bed | far: 311 held_in_bed,entered | passing: 200 left_bed | booting: 200 left_bed | side exit: 200 left_bed | near first: 200 left_bed
+211 | 00 | base: 111 left_room | far: 111 left_room | passing: 111 left_room | booting: 111 left_room | side exit: 111 left_room | near first: 111 left_room
+211 | 01 | base: 110 reappeared,left_room | far: 110 reappeared,left_room | passing: 110 reappeared,left_room | booting: 110 reappeared,left_room | side exit: 110 reappeared,left_room | near first: 110 reappeared,left_room
+211 | 02 | base: 220 reappeared,lay_down | far: 220 reappeared,lay_down | passing: 220 reappeared,lay_down | booting: 220 reappeared,lay_down | side exit: 220 reappeared,lay_down | near first: 220 reappeared,lay_down
+211 | 10 | base: 211 | far: 211 | passing: 211 | booting: 211 | side exit: 211 | near first: 211
+211 | 11 | base: 210 reappeared | far: 210 reappeared | passing: 210 reappeared | booting: 210 reappeared | side exit: 210 reappeared | near first: 210 reappeared
+211 | 20 | base: 311 entered | far: 311 entered | passing: 311 entered | booting: 311 entered | side exit: 200 left_bed | near first: 311 entered
+220 | 00 | base: 222 held_in_bed,held_in_bed | far: 222 held_in_bed,held_in_bed | passing: 222 held_in_bed,held_in_bed | booting: 222 held_in_bed,held_in_bed | side exit: 222 held_in_bed,held_in_bed | near first: 222 held_in_bed,held_in_bed
+220 | 01 | base: 221 held_in_bed | far: 221 held_in_bed | passing: 221 held_in_bed | booting: 221 held_in_bed | side exit: 221 held_in_bed | near first: 221 held_in_bed
+220 | 02 | base: 220 | far: 220 | passing: 220 | booting: 220 | side exit: 220 | near first: 220
+220 | 10 | base: 211 left_bed,held_in_bed | far: 322 held_in_bed,held_in_bed,entered | passing: 211 left_bed,held_in_bed | booting: 211 left_bed,held_in_bed | side exit: 211 left_bed,held_in_bed | near first: 211 left_bed,held_in_bed
+220 | 11 | base: 210 left_bed | far: 321 held_in_bed,entered | passing: 210 left_bed | booting: 210 left_bed | side exit: 210 left_bed | near first: 210 left_bed
+220 | 20 | base: 200 left_bed,left_bed | far: 311 left_bed,held_in_bed,entered | passing: 200 left_bed,left_bed | booting: 200 left_bed,left_bed | side exit: 200 left_bed,left_bed | near first: 200 left_bed,left_bed
+221 | 00 | base: 222 held_in_bed | far: 222 held_in_bed | passing: 222 held_in_bed | booting: 222 held_in_bed | side exit: 222 held_in_bed | near first: 222 held_in_bed
+221 | 01 | base: 221 | far: 221 | passing: 221 | booting: 221 | side exit: 221 | near first: 221
+221 | 02 | base: 220 reappeared | far: 220 reappeared | passing: 220 reappeared | booting: 220 reappeared | side exit: 220 reappeared | near first: 220 reappeared
+221 | 10 | base: 211 left_bed | far: 322 held_in_bed,entered | passing: 211 left_bed | booting: 211 left_bed | side exit: 211 left_bed | near first: 211 left_bed
+221 | 11 | base: 321 entered | far: 321 entered | passing: 321 entered | booting: 321 entered | side exit: 210 left_bed | near first: 321 entered
+221 | 20 | base: 311 left_bed,entered | far: 311 left_bed,entered | passing: 311 left_bed,entered | booting: 311 left_bed,entered | side exit: 311 left_bed,entered | near first: 311 left_bed,entered
+222 | 00 | base: 222 | far: 222 | passing: 222 | booting: 222 | side exit: 222 | near first: 222
+222 | 01 | base: 221 reappeared | far: 221 reappeared | passing: 221 reappeared | booting: 221 reappeared | side exit: 221 reappeared | near first: 221 reappeared
+222 | 02 | base: 220 reappeared,reappeared | far: 220 reappeared,reappeared | passing: 220 reappeared,reappeared | booting: 220 reappeared,reappeared | side exit: 220 reappeared,reappeared | near first: 220 reappeared,reappeared
+222 | 10 | base: 322 entered | far: 322 entered | passing: 322 entered | booting: 322 entered | side exit: 211 left_bed | near first: 322 entered
+222 | 11 | base: 321 reappeared,entered | far: 321 reappeared,entered | passing: 321 reappeared,entered | booting: 321 reappeared,entered | side exit: 210 reappeared,left_bed | near first: 321 reappeared,entered
+222 | 20 | base: 422 entered,entered | far: 422 entered,entered | passing: 422 entered,entered | booting: 422 entered,entered | side exit: 200 left_bed,left_bed | near first: 422 entered,entered
 # end

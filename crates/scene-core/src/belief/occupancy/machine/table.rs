@@ -37,14 +37,19 @@ enum Context {
     Booting,
     /// As the base, with rule 4 bis: a held body may leave by the side.
     SideExit,
+    /// One was seen near the bed first, and one far from it afterwards: rule 5
+    /// refined, the profile's `near_first`, does not count the near one as
+    /// the door's.
+    NearFirst,
 }
 
-const CONTEXTS: [(Context, &str); 5] = [
+const CONTEXTS: [(Context, &str); 6] = [
     (Context::Base, "base"),
     (Context::Far, "far"),
     (Context::Passing, "passing"),
     (Context::Booting, "booting"),
     (Context::SideExit, "side exit"),
+    (Context::NearFirst, "near first"),
 ];
 
 fn at(secs: f64) -> SampleRef {
@@ -149,18 +154,37 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
     let mut z = machine(r, b, h, !matches!(context, Context::Booting));
     let mut transitions = Vec::new();
     let end = match context {
-        Context::Far => bodies(f, f.min(1), v),
+        Context::Far | Context::NearFirst => bodies(f, f.min(1), v),
         Context::Base | Context::Passing | Context::Booting | Context::SideExit => bodies(f, 0, v),
     };
     let held_left = matches!(context, Context::SideExit);
+    let near_first = matches!(context, Context::NearFirst);
     let mut t = 1.0;
     if matches!(context, Context::Passing) {
         let before = (r - b).max(f) + 1;
-        transitions.extend(z.step(at(t), &bodies(before, 0, v), &PERSISTENCE, held_left, false));
+        transitions.extend(z.step(
+            at(t),
+            &bodies(before, 0, v),
+            &PERSISTENCE,
+            held_left,
+            near_first,
+        ));
         t += 0.5;
     }
-    transitions.extend(z.step(at(t), &end, &PERSISTENCE, held_left, false));
-    transitions.extend(z.step(at(t + 1.0), &end, &PERSISTENCE, held_left, false));
+    if near_first {
+        // One more near the bed than at rest: the one that will walk away.
+        let near = (r - b) + 1;
+        transitions.extend(z.step(
+            at(t),
+            &bodies(near, 0, v),
+            &PERSISTENCE,
+            held_left,
+            near_first,
+        ));
+        t += 0.5;
+    }
+    transitions.extend(z.step(at(t), &end, &PERSISTENCE, held_left, near_first));
+    transitions.extend(z.step(at(t + 1.0), &end, &PERSISTENCE, held_left, near_first));
     (z, transitions)
 }
 
