@@ -3,8 +3,8 @@
 //! are confidences or thresholds are [`Confidence`] (ADR unidades-en-el-tipo).
 
 use crate::units::{
-    Confidence, Degrees, DiagonalFraction, Extension, FeetMargin, Metres, PositiveMetres,
-    Proportion, Ratio, RelativeDepth, Seconds,
+    Confidence, Degrees, DiagonalFraction, Extension, FeetMargin, HeadboardW, MattressHeights,
+    Metres, PositiveMetres, Proportion, Ratio, RelativeDepth, Seconds, Span,
 };
 
 /// Which body counts as evidence, and in which zone.
@@ -143,6 +143,9 @@ pub struct Policy {
     pub shadow: Option<ShadowPolicy>,
     /// `Some`: the room in two planes; `None`: frontal, the engine as it was.
     pub two_planes: Option<TwoPlanesPolicy>,
+    /// `Some`: the room's parts, the cascade's thresholds (`[occupancy.parts]`).
+    /// `None`: the engine as it was.
+    pub parts: Option<PartsPolicy>,
     /// Rule 4 bis (white book, volume VII, ch. 05): with someone held in bed,
     /// a body that appears on the floor near the bed, not from the door, is
     /// the held one who got up. `false`: a held body leaves only reappearing
@@ -188,6 +191,29 @@ pub struct TwoPlanesPolicy {
     /// knee bent to this many degrees or less puts it in bed (white book,
     /// volume VII, ch. 15). `None`: the box alone decides.
     pub knee_bent_deg: Option<Degrees>,
+}
+
+/// The room's parts, `[occupancy.parts]` (white book, volume IX, ch. 04 and
+/// 05): the thresholds of the cascade, with the sprint 1 values. Each measure
+/// has its own unit: metres, a score, a fraction, mattress heights or a span.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PartsPolicy {
+    /// The strip on the far side of the mattress, in metres. An ankle seen in
+    /// it does not prove the bed: behind the far edge the mattress hides the
+    /// floor, and the model guesses the ankle there (tomo IX, cap. 05: "un
+    /// tobillo visto de verdad").
+    pub far_strip_m: Metres,
+    /// The score a foot's keypoint needs to prove the ankle.
+    pub ankle_proof_score: Confidence,
+    /// The pelvis band, in mattress heights: the height of the pelvis over a
+    /// foot on the floor (E2). Inside the band the pelvis sits on the edge of
+    /// the bed (E2).
+    pub pelvis_band: Span<MattressHeights>,
+    /// The tolerance of the cut (E5), as a fraction of the far edge.
+    pub cut_tolerance: Proportion,
+    /// The head's band against the headboard (E6), `w`: from its low end to its
+    /// high end; `0` at the pillow, `1` at the headboard's top.
+    pub headboard_w: Span<HeadboardW>,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume
@@ -331,6 +357,7 @@ impl Default for Policy {
             verify: None,
             shadow: None,
             two_planes: None,
+            parts: None,
             held_left: false,
             near_first: false,
         }

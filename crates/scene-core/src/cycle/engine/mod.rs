@@ -49,6 +49,8 @@ impl Engine {
             verify,
             shadow,
             two_planes,
+            // F2.3a: the parts reach the engine with F2.3b; until a slice owns them, nothing reads them.
+            parts: _,
             held_left,
             near_first,
         } = policy;

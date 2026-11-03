@@ -21,6 +21,8 @@ pub enum UnitError {
     NotPositive,
     /// A measure outside its own range, which the error names.
     OutsideRange(&'static str),
+    /// A span whose low end is above its high end.
+    Inverted,
 }
 
 impl fmt::Display for UnitError {
@@ -31,6 +33,7 @@ impl fmt::Display for UnitError {
             Self::OutOfRange => f.write_str("is not between 0 and 1"),
             Self::NotPositive => f.write_str("is not positive"),
             Self::OutsideRange(range) => write!(f, "is not in {range}"),
+            Self::Inverted => f.write_str("has its low end above its high end"),
         }
     }
 }
@@ -320,6 +323,50 @@ measure!(
 );
 
 measure!(
+    /// A height in mattress heights: how many mattress heights a part is above
+    /// its foot on the floor (E2). Finite: the sign is the caller's to judge.
+    MattressHeights,
+    finite
+);
+
+measure!(
+    /// The position of a head against the headboard, `w` (E6): `0` at the
+    /// pillow, `1` at the headboard's top. Finite; it can be negative.
+    HeadboardW,
+    finite
+);
+
+/// An interval `[lo, hi]` of a measure, built with its two ends: the low end
+/// is not above the high end. Its ends are the measure's own, so each end keeps
+/// its unit.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Span<T> {
+    lo: T,
+    hi: T,
+}
+
+impl<T: Copy + PartialOrd> Span<T> {
+    /// Builds the span. Refuses an inverted one.
+    pub fn new(lo: T, hi: T) -> Result<Self, UnitError> {
+        if lo <= hi {
+            Ok(Self { lo, hi })
+        } else {
+            Err(UnitError::Inverted)
+        }
+    }
+
+    /// The low end.
+    pub fn lo(&self) -> T {
+        self.lo
+    }
+
+    /// The high end.
+    pub fn hi(&self) -> T {
+        self.hi
+    }
+}
+
+measure!(
     /// A difference of depth relative to the model's depth: a dimensionless
     /// quantity, finite. The sign is the caller's to judge.
     RelativeDepth,
@@ -426,6 +473,23 @@ mod tests {
             FeetMargin::new(0.5),
             Err(UnitError::OutsideRange("(0, 0.5)"))
         );
+    }
+
+    #[test]
+    fn mattress_heights_and_headboard_w_are_finite_and_w_may_be_negative() {
+        assert_eq!(MattressHeights::new(1.4).map(|h| h.get()), Ok(1.4));
+        assert!(MattressHeights::new(f32::NAN).is_err());
+        assert_eq!(HeadboardW::new(-0.15).map(|w| w.get()), Ok(-0.15));
+        assert!(HeadboardW::new(f32::INFINITY).is_err());
+    }
+
+    #[test]
+    fn a_span_keeps_its_ends_in_order() {
+        let lo = MattressHeights::new(0.6).unwrap();
+        let hi = MattressHeights::new(1.4).unwrap();
+        assert_eq!(Span::new(lo, hi).map(|s| s.hi().get()), Ok(1.4));
+        assert_eq!(Span::new(hi, lo), Err(UnitError::Inverted));
+        assert!(Span::new(lo, lo).is_ok());
     }
 
     #[test]

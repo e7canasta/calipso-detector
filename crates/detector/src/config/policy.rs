@@ -40,6 +40,12 @@ impl Config {
             .map(OccupancyConfig::two_planes)
             .transpose()?
             .flatten();
+        p.parts = self
+            .occupancy
+            .as_ref()
+            .and_then(|o| o.parts.as_ref())
+            .map(PartsConfig::policy)
+            .transpose()?;
         p.held_left = self.occupancy.as_ref().is_some_and(|o| o.held_left);
         p.near_first = self.occupancy.as_ref().is_some_and(|o| o.near_first);
         p.persistence.dwell_secs = seconds("policy", "policy.dwell_secs", self.policy.dwell_secs)?;

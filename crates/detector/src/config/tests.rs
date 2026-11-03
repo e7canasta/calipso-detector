@@ -695,3 +695,49 @@ fn a_posture_tolerance_that_is_negative_or_not_finite_is_refused_by_name() {
     let depth = "\n[senses.depth]\nmodel = \"yolo26s-depth.onnx\"\nposture_tolerance = 0.05\n";
     assert!(Config::parse(&format!("{VALID}{pose}{depth}")).is_ok());
 }
+
+/// F2.3a: a profile without `[occupancy.parts]` keeps the hash it had before
+/// the section existed; the section changes it.
+#[test]
+fn parts_section_leaves_the_hash_when_absent() {
+    let text = include_str!("../../tests/support/parts.toml");
+    let hash = Config::parse(text).unwrap().profile().unwrap().hash.0;
+    assert_eq!(hash, "sha256:222c39c4eea73c46");
+    let with = Config::parse(&format!("{text}\n[occupancy.parts]\n")).unwrap();
+    assert_ne!(with.profile().unwrap().hash.0, hash);
+}
+
+/// F2.3a: the section's numbers reach `Policy::parts` in their units; an empty
+/// section is the sprint 1 values; a number out of range does not load.
+#[test]
+fn parts_section_reaches_the_policy_in_its_units() {
+    let text = include_str!("../../tests/support/parts.toml");
+    let empty = Config::parse(&format!("{text}\n[occupancy.parts]\n")).unwrap();
+    let parts = empty
+        .policy()
+        .expect("a valid profile")
+        .parts
+        .expect("the section");
+    assert_eq!(parts.far_strip_m, Metres::new(0.18).expect("a distance"));
+    assert_eq!(parts.ankle_proof_score.get(), 0.75);
+    assert_eq!(parts.pelvis_band.lo().get(), 0.6);
+    assert_eq!(parts.pelvis_band.hi().get(), 1.4);
+    assert_eq!(parts.cut_tolerance.get(), 0.12);
+    assert_eq!(parts.headboard_w.lo().get(), -0.15);
+    assert_eq!(parts.headboard_w.hi().get(), 1.0);
+    // Without the section the policy has none: the engine as it was.
+    let without = Config::parse(text).unwrap();
+    assert!(without.policy().expect("a valid profile").parts.is_none());
+    for section in [
+        "far_strip_m = -0.1",
+        "ankle_proof_score = 1.5",
+        "cut_tolerance = 2",
+        "pelvis_band = [1.4, 0.6]",
+        "headboard_w = [0.0, nan]",
+    ] {
+        assert!(
+            Config::parse(&format!("{text}\n[occupancy.parts]\n{section}\n")).is_err(),
+            "{section} must not load"
+        );
+    }
+}

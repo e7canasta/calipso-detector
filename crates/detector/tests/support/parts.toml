@@ -1,0 +1,35 @@
+# A corner camera with the room in two planes and the head's stops (F2.3a). The
+# steps add `[occupancy.parts]` and break one rule at a time; the rest is valid.
+[camera]
+site = "test"
+id = "room-1"
+
+[stream]
+url = "rtsp://127.0.0.1:18554/test"
+
+[senses.detect]
+model = "yolo26s.onnx"
+
+[senses.pose]
+model = "yolo26s-pose.onnx"
+
+[senses.faces]
+model = "face/yolov12l-face.onnx"
+
+[map]
+resolution = [1920, 1080]
+bed = [[940, 465], [1270, 425], [1635, 745], [1380, 1010]]
+headboard = [[951, 365], [1281, 325], [1270, 425], [940, 465]]
+bed_floor = [[950, 610], [1268, 485], [1627, 805], [1335, 1030]]
+bed_size_m = [0.9, 2.0]
+
+[nats]
+url = "nats://127.0.0.1:4222"
+
+[occupancy]
+geometry = "two_planes"
+
+[occupancy.two_planes]
+share = 0.45
+support_m = 0.10
+near_m = 0.60

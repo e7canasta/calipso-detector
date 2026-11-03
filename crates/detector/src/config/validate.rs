@@ -247,6 +247,23 @@ impl Config {
         if let Some(shadow) = &self.shadow {
             in_section("shadow", shadow.validate(self.map.bed_size_m.is_some()))?;
         }
+        if let Some(parts) = self.occupancy.as_ref().and_then(|o| o.parts.as_ref()) {
+            let geometry = self.occupancy.as_ref().map(|o| o.geometry);
+            let headboard = match self.map.headboard {
+                Some(HeadboardConfig::Quad(points)) => Some(points),
+                _ => None,
+            };
+            in_section(
+                "occupancy.parts",
+                parts.validate(
+                    geometry == Some(super::occupancy::RoomGeometry::TwoPlanes),
+                    self.senses.pose.is_some(),
+                    self.senses.faces.is_some(),
+                    headboard,
+                    self.map.bed,
+                ),
+            )?;
+        }
         if let Some(occupancy) = &self.occupancy {
             in_section(
                 "occupancy",

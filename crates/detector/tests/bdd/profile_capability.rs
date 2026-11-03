@@ -110,3 +110,27 @@ fn its_hash_is_recorded(w: &mut Shell) {
     let hash = w.config().profile().expect("the profile builds").hash.0;
     assert_eq!(hash, recorded_hash(&path), "{path}");
 }
+
+/// A valid two-plane profile without `[occupancy.parts]`: the parts steps add it.
+const PARTS: &str = include_str!("../support/parts.toml");
+
+/// The parts profile as the Given wrote it: parsed, its error kept for the Then.
+fn parts_profile(w: &mut Shell, text: &str) {
+    w.config = Some(Config::parse(text).map_err(|e| e.to_string()));
+}
+
+#[given(expr = "the parts profile with the section {string}")]
+fn parts_with_section(w: &mut Shell, section: String) {
+    parts_profile(w, &format!("{PARTS}\n[occupancy.parts]\n{section}\n"));
+}
+
+/// `from` (with `\n` written as an escape) becomes `to` in the fixture.
+#[given(expr = "the parts profile with {string} replaced by {string}")]
+fn parts_replaced(w: &mut Shell, from: String, to: String) {
+    // Cucumber keeps the escapes of the feature: `\n` and `\"` are unescaped here.
+    let unescape = |text: &str| text.replace("\\n", "\n").replace("\\\"", "\"");
+    let (from, to) = (unescape(&from), unescape(&to));
+    assert!(PARTS.contains(&from), "the fixture holds {from:?}");
+    let text = PARTS.replacen(&from, &to, 1);
+    parts_profile(w, &format!("{text}\n[occupancy.parts]\n"));
+}

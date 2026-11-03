@@ -2,6 +2,7 @@
 //! (white book, volume VII, ch. 14), and the rules of the room that come with
 //! it. Its section, its checks and its policy.
 
+use super::parts::PartsConfig;
 use super::validate::measured;
 use anyhow::{Result, ensure};
 use scene_core::policy::TwoPlanesPolicy;
@@ -22,6 +23,11 @@ pub struct OccupancyConfig {
     /// ch. 15); it needs `[senses.pose]`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub knee: Option<KneeConfig>,
+    /// `[occupancy.parts]`: the room's parts, the cascade's thresholds (white
+    /// book, volume IX, ch. 09). It needs two planes, the pose, the faces and
+    /// the headboard as four points. Left out of the hash when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parts: Option<PartsConfig>,
     /// `Policy::held_left`, rule 4 bis: a held body may leave by the side
     /// (white book, volume VII, ch. 05). Off by default; any geometry.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
