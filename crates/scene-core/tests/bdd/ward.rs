@@ -67,6 +67,8 @@ pub struct Ward {
     /// The scripted verifier: what it answers and after how many source
     /// seconds; the requests still owed, with when their answer is due.
     pub verifier: Verifier,
+    /// The directions of the body poses asked in the last turn (`None`: no turn).
+    pub body_poses: Vec<Option<scene_look::Up>>,
 }
 
 /// The scripted slow verifier: it answers each request after a latency, in
@@ -182,6 +184,7 @@ impl Ward {
             }
         }
         let mut asked = Vec::new();
+        let mut poses = Vec::new();
         let sent = match &input {
             Input::Sample { at, .. } => Some(*at),
             _ => None,
@@ -193,8 +196,17 @@ impl Ward {
             {
                 asked.push((*ticket, sent));
             }
+            if let scene_look::Probe::Pose {
+                purpose: scene_look::PosePurpose::Body,
+                up,
+                ..
+            } = request
+            {
+                poses.push(*up);
+            }
             (script.respond(request), Spent(1.0))
         });
+        self.body_poses = poses;
         self.verifier.owed.extend(asked);
         let facts = crate::published::facts(&output);
         invariants(&output.v5.scene, &facts);

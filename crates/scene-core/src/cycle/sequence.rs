@@ -11,7 +11,6 @@ use crate::body::Keypoint;
 use crate::evidence::{Admission, FaceEvidence, Perceived};
 use crate::geom::Rect;
 use crate::look::LookKind;
-use crate::room::Room;
 use crate::verification::{BurstStep, TurnOut};
 
 /// How far the turn got, with what it gathered: the point from which
@@ -95,7 +94,8 @@ impl Course<'_> {
                     if let Some(look) = self.wanted(considered) {
                         return Phase::Waiting(Pending::PoseBody {
                             region: look.region,
-                            floor: look.floor,
+                            target: look.target,
+                            up: look.up,
                             perceived,
                         });
                     }
@@ -103,7 +103,7 @@ impl Course<'_> {
                 }
                 // Believe.
                 Reached::Evidence(mut evidence) => {
-                    evidence.cast_shadow(self.room.as_ref().and_then(Room::shadow));
+                    evidence.cast_shadow(self.room.as_ref());
                     let believed = self.believe(&evidence.bodies);
                     Reached::Belief(Observed {
                         believed,

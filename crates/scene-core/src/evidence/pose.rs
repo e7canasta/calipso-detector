@@ -24,11 +24,12 @@ pub(crate) fn pose(reading: Sensed<Option<Vec<Keypoint>>>) -> (Option<Vec<Keypoi
 /// leaves it where it was: not seeing the knee proves nothing (rule 1).
 pub(crate) fn pose_body(
     perceived: &mut Perceived,
-    floor: usize,
+    target: crate::attention::PoseTarget,
     reading: Sensed<Option<Vec<Keypoint>>>,
     room: Option<&Room>,
     enrich: Option<&EnrichPolicy>,
 ) -> LookResult {
+    use crate::attention::PoseTarget;
     let (pose, result) = pose(reading);
     let admission = &mut perceived.bodies;
     let (Some(pose), Some(room), Some(enrich), BodyEvidence::Seen(bodies)) =
@@ -36,31 +37,46 @@ pub(crate) fn pose_body(
     else {
         return result;
     };
-    let Some(body) = bodies.floor.get_mut(floor) else {
+    let bbox = match target {
+        PoseTarget::Bed(i) => bodies.bed.get(i).map(|b| b.detection.bbox),
+        PoseTarget::Floor(i) => bodies.floor.get(i).map(|b| b.detection.bbox),
+    };
+    let Some(bbox) = bbox else {
         return result;
     };
-    let posed = room.posed(&body.detection.bbox, &pose, enrich.min_keypoint_score.get());
-    perceived.posed = Some(PosedBody {
-        bbox: body.detection.bbox,
-        pose,
-    });
-    body.knee_deg = posed.knee_deg;
-    if posed.zone != BodyZone::Bed || floor >= bodies.floor.len() {
-        return result;
+    let posed = room.posed(&bbox, &pose, enrich.min_keypoint_score.get());
+    perceived.posed = Some(PosedBody { bbox, pose });
+    match target {
+        // A body in bed stays where its box put it: its pose only reads the parts.
+        PoseTarget::Bed(i) => {
+            if let Some(body) = bodies.bed.get_mut(i) {
+                body.knee_deg = posed.knee_deg;
+            }
+        }
+        PoseTarget::Floor(floor) => {
+            let Some(body) = bodies.floor.get_mut(floor) else {
+                return result;
+            };
+            body.knee_deg = posed.knee_deg;
+            if posed.zone != BodyZone::Bed {
+                return result;
+            }
+            let moved = bodies.floor.remove(floor);
+            if moved.source == BodySource::Primary {
+                admission.primary.floor = admission.primary.floor.saturating_sub(1);
+                admission.primary.bed += 1;
+            }
+            bodies.bed.push(Body {
+                detection: moved.detection,
+                source: moved.source,
+                shadow: moved.shadow,
+                knee_deg: moved.knee_deg,
+                parts: moved.parts,
+            });
+            bodies
+                .bed
+                .sort_by(|a, b| b.detection.confidence.total_cmp(&a.detection.confidence));
+        }
     }
-    let moved = bodies.floor.remove(floor);
-    if moved.source == BodySource::Primary {
-        admission.primary.floor = admission.primary.floor.saturating_sub(1);
-        admission.primary.bed += 1;
-    }
-    bodies.bed.push(Body {
-        detection: moved.detection,
-        source: moved.source,
-        shadow: moved.shadow,
-        knee_deg: moved.knee_deg,
-    });
-    bodies
-        .bed
-        .sort_by(|a, b| b.detection.confidence.total_cmp(&a.detection.confidence));
     result
 }

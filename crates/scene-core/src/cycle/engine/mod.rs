@@ -49,8 +49,7 @@ impl Engine {
             verify,
             shadow,
             two_planes,
-            // F2.3a: the parts reach the engine with F2.3b; until a slice owns them, nothing reads them.
-            parts: _,
+            parts,
             held_left,
             near_first,
         } = policy;
@@ -65,6 +64,8 @@ impl Engine {
                 admission,
                 two_planes,
                 shadow,
+                parts,
+                min_keypoint: enrich.as_ref().map(|e| e.min_keypoint_score),
             },
             reinforce,
             face_policy: faces,

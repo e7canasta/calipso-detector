@@ -47,12 +47,12 @@ impl Course<'_> {
             }
             Pending::PoseBody {
                 mut perceived,
-                floor,
+                target,
                 ..
             } => {
                 let result = self.engine.read_pose_body(
                     &mut perceived,
-                    floor,
+                    target,
                     outcome.into_pose(),
                     self.room.as_ref(),
                 );

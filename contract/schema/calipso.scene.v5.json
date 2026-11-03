@@ -513,6 +513,17 @@
             "null"
           ]
         },
+        "parts": {
+          "description": "The zone by parts, with the step that decided it and the measures it\nleaned on. Absent unless the profile asks for `[occupancy.parts]`\n(ADR 2026-11-03, las partes en la sombra). It decides nothing: the\nzone that counts is `zone` of the body, as today.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PartsShadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "share": {
           "description": "The share of the box over the mattress, on an 8 × 8 grid.",
           "type": "number",
@@ -1604,6 +1615,136 @@
         }
       ]
     },
+    "PartsShadow": {
+      "description": "The zone by parts of one body, for the shadow (ADR 2026-11-03). It decides\nnothing; the parts' measures are the ones the cascade leaned on.",
+      "type": "object",
+      "properties": {
+        "ankle_score": {
+          "description": "The mean score of the seen ankles, if any.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "ankle_u": {
+          "description": "The seen ankles' `u` on the footprint, if any: past 1 or below 0 is out of the bed.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "ankles": {
+          "description": "The ankles' mean, where they were seen, on the footprint.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanePoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head": {
+          "description": "The turn's face, where it is in the headboard: `u` across, and `v` is\nthe headboard's `w` (0 at the mattress, 1 at its top), not the bed's `v`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanePoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hips": {
+          "description": "The hips' mean, where they were seen, on the mattress.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanePoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pelvis_mattress_heights": {
+          "description": "The pelvis's height over the feet, in mattress heights, if the hips were seen.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "step": {
+          "description": "The step of the cascade that decided it, or that the pose was not looked at.",
+          "$ref": "#/$defs/PartsStep"
+        },
+        "turn": {
+          "description": "The rule that chose the direction that is up for the pose, if any.",
+          "$ref": "#/$defs/TurnRule"
+        },
+        "zone": {
+          "description": "The zone the parts say.",
+          "$ref": "#/$defs/Zone"
+        }
+      },
+      "required": [
+        "zone",
+        "step",
+        "turn"
+      ]
+    },
+    "PartsStep": {
+      "description": "The step of the parts' cascade that decided a body's zone (cap. 05).",
+      "oneOf": [
+        {
+          "description": "Past the near edge, with little of the box over the mattress.",
+          "type": "string",
+          "const": "past_near"
+        },
+        {
+          "description": "The box cut at the far edge, with little of it over the mattress.",
+          "type": "string",
+          "const": "cut"
+        },
+        {
+          "description": "The box does not touch the bed.",
+          "type": "string",
+          "const": "no_touch"
+        },
+        {
+          "description": "The face at the headboard.",
+          "type": "string",
+          "const": "face_at_headboard"
+        },
+        {
+          "description": "The feet on the mattress, proven by the far strip and the score.",
+          "type": "string",
+          "const": "feet_on_mattress"
+        },
+        {
+          "description": "The feet on the floor, the pelvis at the mattress height at the edge.",
+          "type": "string",
+          "const": "pelvis_at_edge"
+        },
+        {
+          "description": "The feet on the floor, the pelvis out of the band: standing.",
+          "type": "string",
+          "const": "standing"
+        },
+        {
+          "description": "The pose was looked at and does not prove the zone.",
+          "type": "string",
+          "const": "unproven"
+        },
+        {
+          "description": "The pose was not looked at: the zone has no proof.",
+          "type": "string",
+          "const": "pose_not_looked"
+        }
+      ]
+    },
     "Pending": {
       "description": "A new count that has not stabilized yet.",
       "type": "object",
@@ -2579,6 +2720,26 @@
       "required": [
         "wait_ms",
         "processing_ms"
+      ]
+    },
+    "TurnRule": {
+      "description": "The rule that chose the direction that is up for the pose of a body (F2.3b).",
+      "oneOf": [
+        {
+          "description": "A face of the turn inside this body's box and in no other: the arrow\nfrom the box's centre to the face.",
+          "type": "string",
+          "const": "face_in_box"
+        },
+        {
+          "description": "The bed's `v` axis towards the headboard, for a body mostly over the mattress.",
+          "type": "string",
+          "const": "bed_axis"
+        },
+        {
+          "description": "No turn: the standing body stays as it is.",
+          "type": "string",
+          "const": "no_turn"
+        }
       ]
     },
     "Verifier": {

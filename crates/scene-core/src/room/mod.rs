@@ -16,19 +16,20 @@ use crate::geom::{Point, Rect};
 #[cfg(test)]
 use crate::geom::{Quad, Zone};
 use crate::map::{Geometry, Map};
-use crate::policy::{AdmissionPolicy, ShadowPolicy, TwoPlanesPolicy};
-use crate::units::PositiveMetres;
+use crate::policy::{AdmissionPolicy, PartsPolicy, ShadowPolicy, TwoPlanesPolicy};
+use crate::units::{Confidence, PositiveMetres};
 
+mod cascade;
 mod frontal;
 pub(crate) mod shadow;
-// The cascade by support (F2.2) has no production caller until F2.3 connects it.
-#[cfg_attr(not(test), allow(dead_code))]
-mod cascade;
 mod three_planes;
+mod turn;
 mod two_planes;
 
+pub(crate) use cascade::{Placed, Step};
 use frontal::Frontal;
 use three_planes::ThreePlanes;
+pub(crate) use turn::Turn;
 use two_planes::TwoPlanes;
 
 /// Where a point of the head falls against the bed and its headboard: the
@@ -78,6 +79,10 @@ pub(crate) struct Room {
     frontal: Frontal,
     two_planes: Option<TwoPlanes>,
     shadow: Option<shadow::Site>,
+    /// The frame's planes, for the parts (F2.3b) and the turn; `None` without the bed's footprint.
+    planes: Option<ThreePlanes>,
+    /// The cascade's thresholds, when the profile asks for the parts and the pose is on.
+    cascade: Option<cascade::CascadeRules>,
 }
 
 /// The space's rules of the policy, one slice (ADR 2026-11-02, politica-en-rebanadas,
@@ -88,6 +93,10 @@ pub(crate) struct SpaceRules {
     pub(crate) admission: AdmissionPolicy,
     pub(crate) two_planes: Option<TwoPlanesPolicy>,
     pub(crate) shadow: Option<ShadowPolicy>,
+    /// `[occupancy.parts]`: the cascade's thresholds (F2.3b). Read only with the planes and the pose.
+    pub(crate) parts: Option<PartsPolicy>,
+    /// The pose's keypoint score, from `[senses.pose]`: without a pose there are no parts.
+    pub(crate) min_keypoint: Option<Confidence>,
 }
 
 impl Room {
@@ -102,13 +111,72 @@ impl Room {
         let two_planes = space
             .two_planes
             .and_then(|two| TwoPlanes::of(planes.as_ref()?, two));
+        let cascade = match (
+            space.parts.as_ref(),
+            space.two_planes.as_ref(),
+            space.min_keypoint,
+        ) {
+            (Some(parts), Some(two), Some(kp)) => {
+                planes.map(|_| cascade::CascadeRules::of(parts, two, kp))
+            }
+            _ => None,
+        };
         Some(Self {
             frontal,
             two_planes,
             shadow: planes
                 .as_ref()
                 .and_then(|planes| shadow::Site::of(planes, space.shadow.as_ref())),
+            planes,
+            cascade,
         })
+    }
+
+    /// The parts of one body (F2.3b): its zone by the cascade and the step that
+    /// decided it. `pose` is the body's keypoints, if its pose was looked at.
+    /// `None` without the parts in the profile.
+    pub(crate) fn parts(
+        &self,
+        bbox: Rect,
+        pose: Option<&[Keypoint]>,
+        face: Option<Point>,
+    ) -> Option<cascade::Verdict> {
+        let body = cascade::Body { bbox, pose, face };
+        cascade::decide(self.planes.as_ref()?, &body, self.cascade.as_ref()?)
+    }
+
+    /// The face of body `index` among `boxes` (F2.3b): see `turn::face_of`.
+    pub(crate) fn face_of(boxes: &[Rect], faces: &[Point], index: usize) -> Option<Point> {
+        turn::face_of(boxes, faces, index)
+    }
+
+    /// The share over the mattress of a floor body that the cascade cannot
+    /// place without its pose (F2.3b, the pose's choice): `Some` only when the
+    /// parts are on and the step is «the pose was not looked at».
+    pub(crate) fn pose_needed(&self, bbox: Rect, face: Option<Point>) -> Option<f32> {
+        let verdict = self.parts(bbox, None, face)?;
+        (verdict.step == cascade::Step::PoseNotLooked).then_some(verdict.measures.share)
+    }
+
+    /// The turn of body `index` among `boxes` (F2.3b): which direction is up
+    /// for its pose. `None` without the parts.
+    pub(crate) fn turn(
+        &self,
+        boxes: &[Rect],
+        faces: &[Point],
+        index: usize,
+        share: f32,
+    ) -> Option<turn::Turn> {
+        let planes = self.planes.as_ref()?;
+        let rules = self.cascade.as_ref()?;
+        Some(turn::choose(
+            planes,
+            boxes,
+            faces,
+            index,
+            share,
+            rules.share,
+        ))
     }
 
     /// What the shadow measures bodies against, if the profile asks for it
@@ -199,6 +267,8 @@ impl Room {
             frontal: Frontal::new(bed, headboard, admission),
             two_planes: None,
             shadow: None,
+            planes: None,
+            cascade: None,
         }
     }
 }

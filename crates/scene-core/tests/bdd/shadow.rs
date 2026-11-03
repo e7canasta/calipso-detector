@@ -203,3 +203,141 @@ fn share_over_the_mattress(ward: &mut Ward, share: f32) {
 fn no_body_shadow(ward: &mut Ward) {
     assert_eq!(body(ward).shadow, None);
 }
+
+/// `[occupancy.parts]` with the sprint 1 values (ADR 2026-11-03; reglas.md, F1.1d),
+/// on the two planes it needs, with the pose's keypoints on.
+#[given("the profile asks for the parts")]
+fn parts_profile(ward: &mut Ward) {
+    use scene_core::policy::{EnrichPolicy, PartsPolicy, TwoPlanesPolicy};
+    use scene_core::units::{
+        Confidence, DiagonalFraction, Extension, HeadboardW, MattressHeights, Proportion, Ratio,
+        RelativeDepth, Span,
+    };
+    ward.policy.two_planes = Some(TwoPlanesPolicy {
+        share: Ratio::new(0.45).expect("a constant share"),
+        support_m: Metres::new(0.10).expect("a constant distance"),
+        near_m: PositiveMetres::new(0.6).expect("a constant distance"),
+        knee_bent_deg: None,
+    });
+    ward.policy.enrich = Some(EnrichPolicy {
+        move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
+        depth: false,
+        min_keypoint_score: Confidence::new(0.5).expect("a constant score"),
+        posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
+        max_pose_age_secs: None,
+        crop_pad: Extension::new(0.2).expect("a constant extension"),
+    });
+    ward.policy.parts = Some(PartsPolicy {
+        far_strip_m: Metres::new(0.18).expect("a constant distance"),
+        ankle_proof_score: Confidence::new(0.75).expect("a constant score"),
+        pelvis_band: Span::new(
+            MattressHeights::new(0.6).expect("a finite height"),
+            MattressHeights::new(1.4).expect("a finite height"),
+        )
+        .expect("an ordered band"),
+        cut_tolerance: Proportion::new(0.12).expect("a constant proportion"),
+        headboard_w: Span::new(
+            HeadboardW::new(-0.15).expect("a finite w"),
+            HeadboardW::new(1.0).expect("a finite w"),
+        )
+        .expect("an ordered band"),
+    });
+}
+
+#[then(regex = r#"^the body's parts are on the "(bed|floor)", by the step "(\w+)"$"#)]
+fn parts_zone_and_step(ward: &mut Ward, zone_name: String, want: String) {
+    let parts = body(ward)
+        .shadow
+        .expect("a shadow")
+        .parts
+        .expect("the body's parts");
+    assert_eq!(parts.zone, zone(&zone_name));
+    let got = serde_json::to_value(parts.step).expect("a step name");
+    assert_eq!(got, serde_json::Value::String(want));
+}
+
+#[then(regex = r#"^the body's parts turn by "(\w+)"$"#)]
+fn parts_turn(ward: &mut Ward, turn: String) {
+    let parts = body(ward)
+        .shadow
+        .expect("a shadow")
+        .parts
+        .expect("the body's parts");
+    let got = serde_json::to_value(parts.turn).expect("a turn name");
+    assert_eq!(got, serde_json::Value::String(turn));
+}
+
+#[then("the body's shadow carries no parts")]
+fn no_parts(ward: &mut Ward) {
+    assert_eq!(body(ward).shadow.expect("a shadow").parts, None);
+}
+
+/// In sample N, a person and a face of the turn (F2.3b: the face is the turn's
+/// rule 1 and the head of the parts).
+#[when(
+    regex = r"^in sample (\d+) the camera sees a person at ([\d,]+) to ([\d,]+) and a face at ([\d,]+)$"
+)]
+fn sees_a_person_and_a_face(ward: &mut Ward, n: u32, from: String, to: String, face: String) {
+    let (x0, y0) = point(&from);
+    let (x1, y1) = point(&to);
+    let (fx, fy) = point(&face);
+    let mut script = Script::bodies(vec![Detection {
+        bbox: Rect::new(x0, y0, x1, y1),
+        confidence: 0.9,
+        label: Label::Person,
+    }]);
+    script.faces = Ok(vec![Detection {
+        bbox: Rect::new(fx - 10.0, fy - 10.0, fx + 10.0, fy + 10.0),
+        confidence: 0.9,
+        label: Label::Person,
+    }]);
+    ward.turn_with(ward.sample(n), script);
+}
+
+/// A point written `x,y`.
+fn point(text: &str) -> (f32, f32) {
+    let (x, y) = text.split_once(',').expect("a point written x,y");
+    (x.parse().expect("an x"), y.parse().expect("a y"))
+}
+
+/// The one body pose the last turn asked for, and its direction.
+fn asked_pose(ward: &Ward) -> Option<scene_look::Up> {
+    assert_eq!(
+        ward.body_poses.len(),
+        1,
+        "one body pose in the turn: {:?}",
+        ward.body_poses
+    );
+    ward.body_poses[0]
+}
+
+/// The direction the pose is asked to turn to, as a unit vector.
+fn direction(dx: f32, dy: f32) -> scene_look::Up {
+    scene_look::Up::new(dx, dy).expect("a direction")
+}
+
+#[then(regex = r"^the body's pose is asked pointing from (\d+),(\d+) to (\d+),(\d+)$")]
+fn pose_points_from_to(ward: &mut Ward, x0: f32, y0: f32, x1: f32, y1: f32) {
+    let got = asked_pose(ward).expect("the pose is asked with a direction");
+    let want = direction(x1 - x0, y1 - y0);
+    assert!(
+        (got.dx() - want.dx()).abs() < 1e-3 && (got.dy() - want.dy()).abs() < 1e-3,
+        "{got:?} is not {want:?}"
+    );
+}
+
+#[then("the body's pose is asked pointing up the bed")]
+fn pose_points_up_the_bed(ward: &mut Ward) {
+    // The scenes' bed is 100..500 x 100..400: its foot is the bottom edge, so
+    // the way up the bed is straight up the image.
+    let got = asked_pose(ward).expect("the pose is asked with a direction");
+    assert!(
+        got.dx().abs() < 1e-3 && (got.dy() + 1.0).abs() < 1e-3,
+        "{got:?} is not up the bed"
+    );
+}
+
+#[then("the body's pose is asked with no direction")]
+fn pose_no_direction(ward: &mut Ward) {
+    assert_eq!(asked_pose(ward), None);
+}

@@ -35,6 +35,8 @@ pub(crate) struct Body {
     /// The knee measured on its pose, if it was doubtful and asked (white
     /// book, volume VII, ch. 15).
     pub knee_deg: Option<f32>,
+    /// The zone by parts, if the profile asks for them (F2.3b).
+    pub parts: Option<crate::room::shadow::PartsRead>,
 }
 
 /// A body off the bed, and whether it is near it.
@@ -47,6 +49,8 @@ pub(crate) struct FloorBody {
     pub shadow: Option<BodyShadow>,
     /// The knee measured on its pose, if it was doubtful and asked.
     pub knee_deg: Option<f32>,
+    /// The zone by parts, if the profile asks for them (F2.3b).
+    pub parts: Option<crate::room::shadow::PartsRead>,
 }
 
 /// The accepted bodies of a sample, per zone, from most to least confident.
@@ -138,17 +142,53 @@ impl Perceived {
     /// Each body zoned in this sample, with where it falls for the geometry's
     /// shadow. Without the shadow (`None`), nothing changes; with it, nothing
     /// that is believed changes either.
-    pub(crate) fn cast_shadow(&mut self, site: Option<&crate::room::shadow::Site>) {
-        let (Some(site), BodyEvidence::Seen(bodies)) = (site, &mut self.bodies.bodies) else {
+    pub(crate) fn cast_shadow(&mut self, room: Option<&crate::room::Room>) {
+        let (Some(room), Some(site), BodyEvidence::Seen(bodies)) =
+            (room, room.and_then(|r| r.shadow()), &mut self.bodies.bodies)
+        else {
             return;
         };
-        for body in &mut bodies.bed {
+        let posed = self.posed.as_ref();
+        let faces: Vec<crate::geom::Point> = match &self.faces {
+            FaceEvidence::Seen(found) => found.iter().map(|f| f.bbox.centroid()).collect(),
+            _ => Vec::new(),
+        };
+        let boxes: Vec<Rect> = bodies
+            .bed
+            .iter()
+            .map(|b| b.detection.bbox)
+            .chain(bodies.floor.iter().map(|b| b.detection.bbox))
+            .collect();
+        let bed = bodies.bed.len();
+        for (i, body) in bodies.bed.iter_mut().enumerate() {
             body.shadow = Some(site.body(&body.detection.bbox));
+            body.parts = cast_parts(room, posed, &boxes, &faces, i, body.shadow.as_ref());
         }
-        for body in &mut bodies.floor {
+        for (i, body) in bodies.floor.iter_mut().enumerate() {
             body.shadow = Some(site.body(&body.detection.bbox));
+            body.parts = cast_parts(room, posed, &boxes, &faces, bed + i, body.shadow.as_ref());
         }
     }
+}
+
+/// The parts of body `index` among `boxes` (F2.3b). The pose is the one read
+/// this turn, if it was of this body; its face is the turn's face alone in its
+/// box. `None` without the parts in the profile, or without a shadow to say them in.
+fn cast_parts(
+    room: &crate::room::Room,
+    posed: Option<&PosedBody>,
+    boxes: &[Rect],
+    faces: &[crate::geom::Point],
+    index: usize,
+    shadow: Option<&BodyShadow>,
+) -> Option<crate::room::shadow::PartsRead> {
+    let bbox = *boxes.get(index)?;
+    let shadow = shadow?;
+    let pose = posed.filter(|p| p.bbox == bbox).map(|p| p.pose.as_slice());
+    let face = crate::room::Room::face_of(boxes, faces, index);
+    let verdict = room.parts(bbox, pose, face)?;
+    let turn = room.turn(boxes, faces, index, shadow.share)?;
+    Some(crate::room::shadow::parts_read(&verdict, turn))
 }
 
 impl Admission {

@@ -84,3 +84,55 @@ Feature: The geometry's shadow is published next to what is decided
   Scenario: Without the shadow the bodies carry none
     When in sample 1 the camera sees a person at 80,200 to 160,470
     Then the body carries no shadow
+
+  # Stage 3, the parts in the shadow (ADR 2026-11-03, las partes en la sombra).
+  # With [occupancy.parts] the body carries its zone by parts and the step that
+  # decided it, and nothing else changes: the zone that counts is still `zone`.
+  # A standing body with no pose looked at: its box touches the bed, no face decides,
+  # so the pose is asked; it is looked at and proves nothing: "unproven", on the floor.
+
+  Scenario: With the parts in the profile, a standing body publishes its zone by parts
+    Given the bed's footprint on the floor is delimited as 100,140 to 500,440
+    And the bed measures 0.9 by 2.0 metres
+    And the geometry's shadow measures near the bed within 0.6 metres
+    And the profile asks for the parts
+    When in sample 1 the camera sees a person at 80,200 to 160,470
+    Then the body is in the "floor" today and on the "floor" for the shadow
+    And the body's parts are on the "floor", by the step "unproven"
+    And the body's parts turn by "bed_axis"
+
+  Scenario: Without the parts in the profile, the body carries none
+    Given the bed's footprint on the floor is delimited as 100,140 to 500,440
+    And the bed measures 0.9 by 2.0 metres
+    And the geometry's shadow measures near the bed within 0.6 metres
+    When in sample 1 the camera sees a person at 80,200 to 160,470
+    Then the body's shadow carries no parts
+
+  # F2.3b, the turn of the pose (criterion 2): the direction the pose is asked
+  # with, by the rule that chose it. The pose is asked for the body the cascade
+  # cannot place without it, bed or floor; one per turn.
+
+  Scenario: A body mostly over the mattress asks its pose turned up the bed
+    Given the bed's footprint on the floor is delimited as 100,140 to 500,440
+    And the bed measures 0.9 by 2.0 metres
+    And the geometry's shadow measures near the bed within 0.6 metres
+    And the profile asks for the parts
+    When in sample 1 the camera sees a person at 150,150 to 450,380
+    Then the body's pose is asked pointing up the bed
+
+  Scenario: A face alone in its box turns the pose to the face
+    Given the bed's footprint on the floor is delimited as 100,140 to 500,440
+    And the bed measures 0.9 by 2.0 metres
+    And the geometry's shadow measures near the bed within 0.6 metres
+    And the profile asks for the parts
+    And there is a face detector with minimum confidence 0.3
+    When in sample 1 the camera sees a person at 150,150 to 450,380 and a face at 200,200
+    Then the body's pose is asked pointing from 300,265 to 200,200
+
+  Scenario: A body with little of its box over the mattress asks its pose with no direction
+    Given the bed's footprint on the floor is delimited as 100,140 to 500,440
+    And the bed measures 0.9 by 2.0 metres
+    And the geometry's shadow measures near the bed within 0.6 metres
+    And the profile asks for the parts
+    When in sample 1 the camera sees a person at 90,330 to 130,460
+    Then the body's pose is asked with no direction

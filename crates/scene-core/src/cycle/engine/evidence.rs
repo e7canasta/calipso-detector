@@ -35,11 +35,11 @@ impl Engine {
     pub(in crate::cycle) fn read_pose_body(
         &self,
         perceived: &mut Perceived,
-        floor: usize,
+        target: crate::attention::PoseTarget,
         reading: Sensed<Option<Vec<Keypoint>>>,
         room: Option<&Room>,
     ) -> LookResult {
-        evidence::pose_body(perceived, floor, reading, room, self.enrich.as_ref())
+        evidence::pose_body(perceived, target, reading, room, self.enrich.as_ref())
     }
 
     /// The empty bed's depth, learned if the turn measured it.

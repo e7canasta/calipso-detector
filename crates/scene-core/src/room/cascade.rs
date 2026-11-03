@@ -14,6 +14,8 @@ use super::BodyZone;
 use super::three_planes::{ThreePlanes, support_m};
 use crate::body::{Keypoint, is_seen};
 use crate::geom::{Point, Rect};
+use crate::policy::{PartsPolicy, TwoPlanesPolicy};
+use crate::units::Confidence;
 
 /// COCO-17 indices of the joints the cascade reads.
 const HIPS: [usize; 2] = [11, 12];
@@ -43,6 +45,31 @@ pub(crate) struct CascadeRules {
     /// E6: the head's `w` on the headboard band, from a little under the
     /// mattress (`-0.15`) to the top (`1`).
     pub(crate) headboard_w: [f64; 2],
+}
+
+impl CascadeRules {
+    /// The cascade's thresholds from the space's rules: the parts' own, the
+    /// two planes' share and near distance (the same concepts as the room's),
+    /// and the pose's keypoint score. `None` without the parts, the planes or
+    /// the pose: without a pose the cascade has nothing to read the feet with.
+    pub(crate) fn of(parts: &PartsPolicy, two: &TwoPlanesPolicy, kp_min: Confidence) -> Self {
+        Self {
+            share: two.share.get(),
+            e5_tol: f64::from(parts.cut_tolerance.get()),
+            strip_m: f64::from(parts.far_strip_m.get()),
+            score_test: parts.ankle_proof_score.get(),
+            e2_band: [
+                f64::from(parts.pelvis_band.lo().get()),
+                f64::from(parts.pelvis_band.hi().get()),
+            ],
+            kp_min: kp_min.get(),
+            near_m: two.near_m.get(),
+            headboard_w: [
+                f64::from(parts.headboard_w.lo().get()),
+                f64::from(parts.headboard_w.hi().get()),
+            ],
+        }
+    }
 }
 
 /// What the cascade reads of a body.
@@ -80,6 +107,16 @@ pub(crate) enum Step {
     PoseNotLooked,
 }
 
+/// A point of the image and where it falls on the plane it was read on: `u`
+/// across the bed, `v` along it (on the headboard, `v` is `w`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Placed {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) u: f64,
+    pub(crate) v: f64,
+}
+
 /// The measures the shadow publishes next to the decision.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Measures {
@@ -103,6 +140,13 @@ pub(crate) struct Measures {
     pub(crate) pelvis: Option<f64>,
     /// The head's `(u, w)` on the headboard, if the face is given and the headboard drawn.
     pub(crate) head_uw: Option<(f64, f64)>,
+    /// The head, on the headboard: `u` across, `v` the headboard's `w`; where the
+    /// turn's face was seen.
+    pub(crate) head: Option<Placed>,
+    /// The hips, on the mattress, where they were seen.
+    pub(crate) hips: Option<Placed>,
+    /// The ankles, on the footprint, where they were seen.
+    pub(crate) ankles: Option<Placed>,
     /// The box's support's distance from the footprint, in metres, if the bed has its size.
     pub(crate) support_m: Option<f32>,
 }
@@ -156,6 +200,33 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
         foot_score: mean_score(body.pose, &ANKLES, rules.kp_min),
         pelvis: hips.map(|h| foot.height(h)),
         head_uw: body.face.and_then(|f| planes.read_headboard(f)),
+        head: body.face.and_then(|f| {
+            let (u, w) = planes.read_headboard(f)?;
+            Some(Placed {
+                x: f.x,
+                y: f.y,
+                u,
+                v: w,
+            })
+        }),
+        hips: hips.map(|h| {
+            let (u, v) = planes.read_mattress(h);
+            Placed {
+                x: h.x,
+                y: h.y,
+                u,
+                v,
+            }
+        }),
+        ankles: ankles.and_then(|a| {
+            let (u, v) = planes.read_floor(a)?;
+            Some(Placed {
+                x: a.x,
+                y: a.y,
+                u,
+                v,
+            })
+        }),
         support_m: planes
             .floor()
             .zip(planes.size())
@@ -266,6 +337,7 @@ fn in_unit((u, v): (f64, f64), margin: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::map::BedPlane;
 
     fn quad(c: [[f32; 2]; 4]) -> crate::geom::Quad {
         crate::geom::Quad(c.map(|[x, y]| Point { x, y }))
@@ -334,6 +406,71 @@ mod tests {
         assert_eq!(v.step, Step::PoseNotLooked);
         assert_eq!(v.zone, BodyZone::Floor { near_bed: true });
         assert!(!v.measures.foot_seen);
+    }
+
+    #[test]
+    fn the_measures_place_the_head_the_hips_and_the_ankles_on_their_planes() {
+        // A body lying on the mattress: hips at (0.5, 0.5) of the mattress, ankles
+        // at (0.5, 0.2) of the footprint, the face at (0.5, 0.5) of the headboard.
+        let planes = dig1();
+        let headboard = BedPlane::of(&quad([
+            [951.0, 365.0],
+            [1281.0, 325.0],
+            [1270.0, 425.0],
+            [940.0, 465.0],
+        ]))
+        .expect("the headboard");
+        let at = |plane: BedPlane, u: f64, v: f64| {
+            let p = plane.point(u, v);
+            Keypoint {
+                x: p.x,
+                y: p.y,
+                score: 0.9,
+            }
+        };
+        let mut pose = vec![
+            Keypoint {
+                x: 0.0,
+                y: 0.0,
+                score: 0.0
+            };
+            17
+        ];
+        let hip = at(planes.mattress(), 0.5, 0.5);
+        pose[11] = hip;
+        pose[12] = hip;
+        let ankle = at(planes.floor().expect("the footprint"), 0.5, 0.2);
+        pose[15] = ankle;
+        pose[16] = ankle;
+        let face = headboard.point(0.5, 0.5);
+        let body = Body {
+            bbox: Rect::new(1000.0, 250.0, 1200.0, 500.0),
+            pose: Some(&pose),
+            face: Some(face),
+        };
+        let m = decide(&planes, &body, &PROPOSAL)
+            .expect("the footprint")
+            .measures;
+        let head = m.head.expect("the face on the headboard");
+        assert!(
+            close(head.u, 0.5, 1e-3) && close(head.v, 0.5, 1e-3),
+            "{head:?}"
+        );
+        let hips = m.hips.expect("the hips seen");
+        assert!(
+            close(hips.u, 0.5, 1e-3) && close(hips.v, 0.5, 1e-3),
+            "{hips:?}"
+        );
+        let ankles = m.ankles.expect("the ankles seen");
+        assert!(
+            close(ankles.u, 0.5, 1e-3) && close(ankles.v, 0.2, 1e-3),
+            "{ankles:?}"
+        );
+        assert_eq!(ankles.x, ankle.x);
+    }
+
+    fn close(a: f64, b: f64, tol: f64) -> bool {
+        (a - b).abs() <= tol
     }
 
     #[test]

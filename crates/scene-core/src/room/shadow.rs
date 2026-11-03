@@ -8,7 +8,10 @@
 //!   without one, and its distance to the bed in metres;
 //! - the **share** of the box over the mattress.
 
+use super::BodyZone;
+use super::cascade::{Placed, Step, Verdict};
 use super::three_planes::ThreePlanes;
+use super::turn::Turn;
 use crate::geom::{Point, Rect};
 use crate::map::BedPlane;
 use crate::policy::ShadowPolicy;
@@ -73,7 +76,40 @@ impl Site {
             share: self.mattress.share(bbox),
             zone,
             near_bed,
+            parts: None,
         }
+    }
+}
+
+/// The parts of one body, as the room reads them (ADR 2026-11-03): the
+/// cascade's zone, step and measures, and the turn. The projection puts them on
+/// the wire; the room names no wire type.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct PartsRead {
+    pub(crate) zone: BodyZone,
+    pub(crate) step: Step,
+    pub(crate) turn: Turn,
+    pub(crate) pelvis: Option<f64>,
+    pub(crate) ankle_u: Option<f64>,
+    pub(crate) ankle_score: Option<f32>,
+    pub(crate) head: Option<Placed>,
+    pub(crate) hips: Option<Placed>,
+    pub(crate) ankles: Option<Placed>,
+}
+
+/// The parts of a body, from its cascade's verdict and its turn.
+pub(crate) fn parts_read(verdict: &Verdict, turn: Turn) -> PartsRead {
+    let m = verdict.measures;
+    PartsRead {
+        zone: verdict.zone,
+        step: verdict.step,
+        turn,
+        pelvis: m.pelvis,
+        ankle_u: m.foot_u,
+        ankle_score: m.foot_score,
+        head: m.head,
+        hips: m.hips,
+        ankles: m.ankles,
     }
 }
 

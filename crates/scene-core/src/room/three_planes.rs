@@ -20,14 +20,12 @@ pub(crate) struct ThreePlanes {
     mattress: BedPlane,
     floor: Option<BedPlane>,
     // Read by the geometry the cascade asks (F2.2): no production reader until F2.3.
-    #[cfg_attr(not(test), allow(dead_code))]
     headboard: Option<BedPlane>,
     size: Option<[PositiveMetres; 2]>,
 }
 
 /// The vertical rule at a `(u, v)`: the image segment from the floor point to
 /// the mattress point above it, one mattress height long in the scene.
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Rule {
     /// From the floor to the mattress, in pixels.
@@ -36,7 +34,6 @@ pub(crate) struct Rule {
     pub(crate) length: f64,
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 impl Rule {
     /// The rule's direction, which is the room's «up».
     pub(crate) fn up(&self) -> [f64; 2] {
@@ -45,7 +42,6 @@ impl Rule {
 }
 
 /// The long sides of the bed as `u`: the near one, the camera's, and the far one.
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Sides {
     pub(crate) near: f64,
@@ -54,7 +50,6 @@ pub(crate) struct Sides {
 
 /// A foot read in the image, the level it rests on, and the rule there: what
 /// the heights of its body are counted from (E1, E2).
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Foot {
     img: Point,
@@ -65,7 +60,6 @@ pub(crate) struct Foot {
     rule: Rule,
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 impl Foot {
     /// The level the foot rests on: 1 on the mattress, 0 on the floor.
     pub(crate) fn level(&self) -> f64 {
@@ -134,7 +128,6 @@ impl ThreePlanes {
 
 /// The questions of the frame the cascade asks (F2.2); the layers and the
 /// shadow read the planes above. No production reader until F2.3 connects it.
-#[cfg_attr(not(test), allow(dead_code))]
 impl ThreePlanes {
     /// The share of a box over the mattress (white book, volume IX, ch. 05).
     pub(crate) fn share(&self, r: &Rect) -> f32 {

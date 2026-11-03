@@ -17,7 +17,7 @@ mod memory;
 mod primary;
 mod verify;
 
-pub(crate) use body::{BodyPoseLook, EnrichPlan, enrich, pose_bodies};
+pub(crate) use body::{BodyPoseLook, EnrichPlan, PoseTarget, enrich, pose_bodies};
 pub(crate) use depth::{DepthLook, SubjectDepthLook, calibrate, deepen};
 pub(crate) use faces::faces;
 pub(crate) use ledger::{Attention, Look, LookOutcome, LookResult, SkipReason};

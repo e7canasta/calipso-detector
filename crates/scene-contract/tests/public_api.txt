@@ -63,6 +63,9 @@ pub struct FacesEvidence
 pub struct FaceSeen
 pub enum ShadowPlane
 pub struct BodyShadow
+pub struct PartsShadow
+pub enum PartsStep
+pub enum TurnRule
 pub struct Evidence
 pub enum BodiesStatus
 pub struct BodiesEvidence

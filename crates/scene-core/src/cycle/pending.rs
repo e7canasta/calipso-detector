@@ -5,7 +5,7 @@
 //! its continuation, nor a continuation without the probe that asked for it.
 
 use super::{Observed, Refined};
-use crate::attention::VerifyLook;
+use crate::attention::{PoseTarget, VerifyLook};
 use crate::body::HeadPlace;
 use crate::body::Keypoint;
 use crate::evidence::{Admission, Perceived};
@@ -32,7 +32,8 @@ pub(super) enum Pending {
     /// A doubtful body's pose, before believing: the floor body it is.
     PoseBody {
         region: Rect,
-        floor: usize,
+        target: PoseTarget,
+        up: Option<crate::look::Up>,
         perceived: Perceived,
     },
     /// The depth of the empty bed, to learn it.
@@ -82,10 +83,10 @@ impl Pending {
             Pending::Detect { region } => Probe::Detect { region: *region },
             Pending::Reinforce { region, .. } => Probe::Reinforce { region: *region },
             Pending::Faces { region, .. } => Probe::Faces { region: *region },
-            Pending::PoseBody { region, .. } => Probe::Pose {
+            Pending::PoseBody { region, up, .. } => Probe::Pose {
                 bbox: *region,
                 purpose: PosePurpose::Body,
-                up: None,
+                up: *up,
             },
             Pending::Calibrate { region, points, .. } => Probe::Depth {
                 purpose: DepthPurpose::Bed,

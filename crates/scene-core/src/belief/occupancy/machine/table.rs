@@ -81,6 +81,7 @@ fn bodies(floor: u32, far: u32, bed: u32) -> Bodies {
                 detection: bbox(i),
                 source: BodySource::Primary,
                 shadow: None,
+                parts: None,
                 knee_deg: None,
             })
             .collect(),
@@ -90,6 +91,7 @@ fn bodies(floor: u32, far: u32, bed: u32) -> Bodies {
                 near_bed: i >= far,
                 source: BodySource::Primary,
                 shadow: None,
+                parts: None,
                 knee_deg: None,
             })
             .collect(),

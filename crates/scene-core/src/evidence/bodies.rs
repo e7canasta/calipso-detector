@@ -46,6 +46,7 @@ fn admit_from(
                 source,
                 shadow: None,
                 knee_deg: None,
+                parts: None,
             }),
         }
     }
@@ -72,6 +73,7 @@ fn admit_from(
                 source: d.source,
                 shadow: None,
                 knee_deg: None,
+                parts: None,
             }),
         }
     }

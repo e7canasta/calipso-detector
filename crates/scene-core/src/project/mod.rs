@@ -374,7 +374,16 @@ fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
             status: BodiesStatus::Unzoned,
             items: unzoned
                 .iter()
-                .map(|b| seen(&b.detection, b.source, None, None, b.shadow, b.knee_deg))
+                .map(|b| {
+                    seen(
+                        &b.detection,
+                        b.source,
+                        None,
+                        None,
+                        with_parts(b.shadow, b.parts),
+                        b.knee_deg,
+                    )
+                })
                 .collect(),
         },
         BodyEvidence::Seen(bodies) => BodiesEvidence {
@@ -388,7 +397,7 @@ fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
                         b.source,
                         Some(Zone::Bed),
                         None,
-                        b.shadow,
+                        with_parts(b.shadow, b.parts),
                         b.knee_deg,
                     )
                 })
@@ -398,13 +407,65 @@ fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
                         b.source,
                         Some(Zone::Floor),
                         Some(b.near_bed),
-                        b.shadow,
+                        with_parts(b.shadow, b.parts),
                         b.knee_deg,
                     )
                 }))
                 .collect(),
         },
     }
+}
+
+/// A placed point of the parts on the wire: its image point and its `(u, v)`.
+fn plane_point(p: crate::room::Placed) -> scene_contract::PlanePoint {
+    scene_contract::PlanePoint {
+        x: p.x,
+        y: p.y,
+        u: p.u as f32,
+        v: p.v as f32,
+    }
+}
+
+/// The shadow of a body with its parts on the wire (F2.3b, ADR 2026-11-03): the
+/// room's read, put in the contract's words. Without the parts, the shadow as it is.
+fn with_parts(
+    shadow: Option<scene_contract::BodyShadow>,
+    parts: Option<crate::room::shadow::PartsRead>,
+) -> Option<scene_contract::BodyShadow> {
+    use crate::room::{Step, Turn};
+    use scene_contract::{PartsShadow, PartsStep, TurnRule, Zone};
+    let mut shadow = shadow?;
+    if let Some(read) = parts {
+        shadow.parts = Some(PartsShadow {
+            zone: match read.zone {
+                crate::room::BodyZone::Bed => Zone::Bed,
+                crate::room::BodyZone::Floor { .. } => Zone::Floor,
+            },
+            step: match read.step {
+                Step::PastNear => PartsStep::PastNear,
+                Step::Cut => PartsStep::Cut,
+                Step::NoTouch => PartsStep::NoTouch,
+                Step::FaceAtHeadboard => PartsStep::FaceAtHeadboard,
+                Step::FeetOnMattress => PartsStep::FeetOnMattress,
+                Step::PelvisAtEdge => PartsStep::PelvisAtEdge,
+                Step::Standing => PartsStep::Standing,
+                Step::Unproven => PartsStep::Unproven,
+                Step::PoseNotLooked => PartsStep::PoseNotLooked,
+            },
+            turn: match read.turn {
+                Turn::FaceInBox { .. } => TurnRule::FaceInBox,
+                Turn::BedAxis { .. } => TurnRule::BedAxis,
+                Turn::Still => TurnRule::NoTurn,
+            },
+            head: read.head.map(plane_point),
+            hips: read.hips.map(plane_point),
+            ankles: read.ankles.map(plane_point),
+            pelvis_mattress_heights: read.pelvis.map(|h| h as f32),
+            ankle_u: read.ankle_u.map(|u| u as f32),
+            ankle_score: read.ankle_score,
+        });
+    }
+    Some(shadow)
 }
 
 /// The faces, and which fall on the subject seen in this turn. Not looked
