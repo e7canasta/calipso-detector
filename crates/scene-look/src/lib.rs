@@ -4,6 +4,36 @@
 use scene_contract::{BedPostureState, Keypoint, SampleRef};
 use scene_geom::{Point, Quad, Rect};
 
+/// A direction of the image, unit length, that a pose's crop turns to point
+/// up (F2.4): the core picks it (the bed's long side, a face in the box); the
+/// shell only turns. The vector is normalized on construction.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Up {
+    dx: f32,
+    dy: f32,
+}
+
+impl Up {
+    /// The direction of (dx, dy). A zero vector has no direction: `None`.
+    pub fn new(dx: f32, dy: f32) -> Option<Self> {
+        let length = dx.hypot(dy);
+        (length > 0.0).then(|| Self {
+            dx: dx / length,
+            dy: dy / length,
+        })
+    }
+
+    /// The unit vector's x component.
+    pub fn dx(&self) -> f32 {
+        self.dx
+    }
+
+    /// The unit vector's y component.
+    pub fn dy(&self) -> f32 {
+        self.dy
+    }
+}
+
 /// What the core asks to look at. Whole-frame coordinates.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Probe {
@@ -29,6 +59,8 @@ pub enum Probe {
         bbox: Rect,
         /// Whose pose it is.
         purpose: PosePurpose,
+        /// The direction to turn the crop to, so it points up; `None`: no turn.
+        up: Option<Up>,
     },
     /// The depth at these points.
     Depth {
@@ -218,9 +250,10 @@ impl Probe {
             Probe::Detect { region } => Route::Sense(SenseProbe::Detect { region: *region }),
             Probe::Faces { region } => Route::Sense(SenseProbe::Faces { region: *region }),
             Probe::Reinforce { region } => Route::Sense(SenseProbe::Reinforce { region: *region }),
-            Probe::Pose { bbox, purpose } => Route::Sense(SenseProbe::Pose {
+            Probe::Pose { bbox, purpose, up } => Route::Sense(SenseProbe::Pose {
                 bbox: *bbox,
                 purpose: *purpose,
+                up: *up,
             }),
             Probe::Depth {
                 purpose,
@@ -288,6 +321,8 @@ pub enum SenseProbe<'a> {
         bbox: Rect,
         /// Whose pose it is.
         purpose: PosePurpose,
+        /// The direction to turn the crop to, so it points up; `None`: no turn.
+        up: Option<Up>,
     },
     /// The depth at these points.
     Depth {
@@ -459,6 +494,7 @@ mod tests {
             Probe::Pose {
                 bbox: rect,
                 purpose: PosePurpose::Body,
+                up: None,
             },
             Probe::Depth {
                 purpose: DepthPurpose::Bed,

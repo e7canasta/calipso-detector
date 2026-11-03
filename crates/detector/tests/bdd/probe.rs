@@ -95,6 +95,7 @@ fn asks_for_pose(w: &mut Shell) {
     w.probe = Some(Probe::Pose {
         bbox: CROP,
         purpose: PosePurpose::Subject,
+        up: None,
     });
 }
 

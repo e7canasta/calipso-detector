@@ -85,6 +85,7 @@ impl Pending {
             Pending::PoseBody { region, .. } => Probe::Pose {
                 bbox: *region,
                 purpose: PosePurpose::Body,
+                up: None,
             },
             Pending::Calibrate { region, points, .. } => Probe::Depth {
                 purpose: DepthPurpose::Bed,
@@ -94,6 +95,7 @@ impl Pending {
             Pending::Pose { region, .. } => Probe::Pose {
                 bbox: *region,
                 purpose: PosePurpose::Subject,
+                up: None,
             },
             Pending::Depth { region, at, .. } => Probe::Depth {
                 purpose: DepthPurpose::Subject,

@@ -81,6 +81,19 @@ fn look(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32) {
     let reading = w.look_sense(&Probe::Pose {
         bbox: Rect::new(x0, y0, x1, y1),
         purpose: PosePurpose::Subject,
+        up: None,
+    });
+    w.reading = Some(reading);
+}
+
+#[when(
+    regex = r"^the core asks for the pose in the box (\d+),(\d+) to (\d+),(\d+) turned so that (\d+),(\d+) points up$"
+)]
+fn look_turned(w: &mut Shell, x0: f32, y0: f32, x1: f32, y1: f32, dx: f32, dy: f32) {
+    let reading = w.look_sense(&Probe::Pose {
+        bbox: Rect::new(x0, y0, x1, y1),
+        purpose: PosePurpose::Subject,
+        up: scene_look::Up::new(dx, dy),
     });
     w.reading = Some(reading);
 }

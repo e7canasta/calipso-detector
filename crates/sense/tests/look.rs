@@ -264,6 +264,7 @@ fn unsupported_requests_fail_and_warn_with_the_requested_kind() {
         Probe::Pose {
             bbox: rect,
             purpose: PosePurpose::Subject,
+            up: None,
         },
         Probe::Depth {
             purpose: DepthPurpose::Subject,

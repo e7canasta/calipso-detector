@@ -84,8 +84,8 @@ impl Senses {
                 Some(port) => boxes(port.as_mut(), frame, Some(region.rect())).map(Reading::Faces),
                 None => Err(Failure::Model),
             },
-            SenseProbe::Pose { bbox, .. } => match self.pose.as_mut() {
-                Some(port) => pose(port.as_mut(), frame, bbox).map(Reading::Pose),
+            SenseProbe::Pose { bbox, up, .. } => match self.pose.as_mut() {
+                Some(port) => pose(port.as_mut(), frame, bbox, up).map(Reading::Pose),
                 None => Err(Failure::Model),
             },
             SenseProbe::Depth { points, region, .. } => match self.depth.as_mut() {
@@ -124,7 +124,20 @@ fn pose(
     port: &mut dyn PosePort,
     frame: &DynamicImage,
     bbox: Rect,
+    up: Option<scene_look::Up>,
 ) -> Result<Option<Vec<Keypoint>>, Failure> {
+    if let Some(up) = up {
+        // F2.4: the crop turned so that `up` points up; the keypoints come back to the frame.
+        let turned = crop::Turned::of(frame, bbox, up);
+        if turned.image.width() == 0 || turned.image.height() == 0 {
+            return Err(Failure::Model);
+        }
+        let people = port.estimate(&turned.image).map_err(|error| {
+            tracing::warn!(%error, "pose model failed");
+            Failure::Model
+        })?;
+        return Ok(most_confident(people).map(|keypoints| turned.keypoints_to_frame(keypoints)));
+    }
     let crop = crop::Crop::of(frame, Some(bbox));
     if crop.image.width() == 0 || crop.image.height() == 0 {
         return Err(Failure::Model);
@@ -133,7 +146,12 @@ fn pose(
         tracing::warn!(%error, "pose model failed");
         Failure::Model
     })?;
-    Ok(people
+    Ok(most_confident(people).map(|keypoints| crop.keypoints_to_frame(keypoints)))
+}
+
+/// The keypoints of the person the model is most sure of, if it saw anyone.
+fn most_confident(people: Vec<PersonPose>) -> Option<Vec<Keypoint>> {
+    people
         .into_iter()
         .reduce(|best, p| {
             if p.confidence > best.confidence {
@@ -142,7 +160,7 @@ fn pose(
                 best
             }
         })
-        .map(|p| crop.keypoints_to_frame(p.keypoints)))
+        .map(|p| p.keypoints)
 }
 
 /// The depth at each point, aligned with the requested points. The model

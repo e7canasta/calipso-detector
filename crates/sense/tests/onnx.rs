@@ -144,6 +144,7 @@ fn real_onnx_pose_on_the_person_box() {
     let request = Probe::Pose {
         bbox,
         purpose: PosePurpose::Subject,
+        up: None,
     };
     assert!(timed(&mut senses, &image, &request).0.is_ok()); // calentamiento
     let mut times = Vec::new();
@@ -230,4 +231,98 @@ fn real_onnx_depth_at_points_and_its_scale() {
         println!("812 M-1: depths={depths:?}; spent_ms={:.3}", spent.0);
     }
     println!("812 M-1: five runs ms={times:?}");
+}
+
+/// Ankles (15, 16) and hips (11, 12) seen with score ≥ 0.5, in the keypoints of a pose.
+fn ankles_and_hips_seen(keypoints: &[scene_contract::Keypoint]) -> (usize, usize) {
+    let seen = |ids: [usize; 2]| ids.iter().filter(|&&i| keypoints[i].score >= 0.5).count();
+    (seen([15, 16]), seen([11, 12]))
+}
+
+/// The keypoints of a pose request, or the reason it failed.
+fn pose_keypoints(
+    senses: &mut Senses,
+    image: &DynamicImage,
+    bbox: scene_geom::Rect,
+    up: Option<scene_look::Up>,
+) -> Vec<scene_contract::Keypoint> {
+    let request = Probe::Pose {
+        bbox,
+        purpose: PosePurpose::Subject,
+        up,
+    };
+    let (reading, _) = timed(senses, image, &request);
+    let Ok(Reading::Pose(Some(keypoints))) = reading else {
+        panic!("pose failed: {reading:?}")
+    };
+    keypoints
+}
+
+/// Measured on dig1 second 46 (2026-11-03, yolo26s-pose, up = the bed's axis, head up):
+/// ankles and hips seen with score ≥ 0.5: without turn 2 of 2 ankles and 2 of 2 hips;
+/// with turn 2 of 2 ankles and 2 of 2 hips. The turn keeps them on this frame.
+#[test]
+#[ignore = "requires CALIPSO_MODELS/yolo26s.onnx, yolo26s-pose.onnx, ONNX Runtime and workshop/43 cuadros"]
+fn real_onnx_turned_pose_on_the_dig1_bed() {
+    use sense::ultralytics::PoseEstimator;
+    let models =
+        std::path::PathBuf::from(std::env::var_os("CALIPSO_MODELS").expect("set CALIPSO_MODELS"));
+    // dig1 at second 46: the resident lying in bed (F2.4 criterion 4).
+    let frame = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../workshop/43-ocupacion-por-partes/cuadros/dig1/s046.jpg"
+    );
+    let image = image::open(frame).expect("dig1 second 46");
+    let detector = Detector::load(&models.join("yolo26s.onnx"), 0.25).expect("load yolo26s");
+    let pose = PoseEstimator::load(&models.join("yolo26s-pose.onnx"), 0.25).expect("load pose");
+    let mut senses = Senses::new(detector).with_pose(pose);
+    let (reading, _) = timed(&mut senses, &image, &Probe::Detect { region: None });
+    let Ok(Reading::Bodies(boxes)) = reading else {
+        panic!("detector failed: {reading:?}")
+    };
+    // The bed of the dig1 profile (perfiles/dig1.toml): the person whose box centre is in it.
+    let bed = [
+        (940.0, 465.0),
+        (1270.0, 425.0),
+        (1635.0, 745.0),
+        (1380.0, 1010.0),
+    ];
+    let inside = |(x, y): (f32, f32)| {
+        (0..4).all(|i| {
+            let (a, b) = (bed[i], bed[(i + 1) % 4]);
+            (b.0 - a.0) * (y - a.1) - (b.1 - a.1) * (x - a.0) >= 0.0
+        })
+    };
+    let resident = boxes
+        .iter()
+        .filter(|d| d.label == Label::Person)
+        .filter(|d| inside(((d.bbox.x0 + d.bbox.x1) / 2.0, (d.bbox.y0 + d.bbox.y1) / 2.0)))
+        .max_by(|a, b| a.confidence.total_cmp(&b.confidence))
+        .expect("the resident in bed")
+        .bbox;
+    // The bed's axis, from its foot edge's centre (1507.5, 877.5) to its head edge's centre
+    // (1105, 445), the head edge being [940,465]-[1270,425]: up is toward the head.
+    let up = scene_look::Up::new(-402.5, -432.5).expect("the bed's axis");
+
+    let plain = pose_keypoints(&mut senses, &image, resident, None);
+    let turned = pose_keypoints(&mut senses, &image, resident, Some(up));
+    let (plain_ankles, plain_hips) = ankles_and_hips_seen(&plain);
+    let (turned_ankles, turned_hips) = ankles_and_hips_seen(&turned);
+    println!(
+        "box={resident:?}; ankles/hips seen without turn={plain_ankles}/{plain_hips}, with turn={turned_ankles}/{turned_hips}"
+    );
+
+    // The turned keypoints, the ones seen, come back inside the box (2 px of margin).
+    let margin = 2.0;
+    for k in turned.iter().filter(|k| k.score >= 0.5) {
+        assert!(
+            k.x >= resident.x0 - margin
+                && k.x <= resident.x1 + margin
+                && k.y >= resident.y0 - margin
+                && k.y <= resident.y1 + margin,
+            "turned keypoint ({}, {}) outside the box {resident:?}",
+            k.x,
+            k.y
+        );
+    }
 }
