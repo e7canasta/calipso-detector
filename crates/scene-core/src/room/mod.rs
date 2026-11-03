@@ -21,6 +21,7 @@ use crate::units::{Confidence, PositiveMetres};
 
 mod cascade;
 mod frontal;
+mod posture;
 pub(crate) mod shadow;
 mod three_planes;
 mod turn;

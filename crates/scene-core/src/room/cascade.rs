@@ -18,8 +18,8 @@ use crate::policy::{PartsPolicy, TwoPlanesPolicy};
 use crate::units::Confidence;
 
 /// COCO-17 indices of the joints the cascade reads.
-const HIPS: [usize; 2] = [11, 12];
-const ANKLES: [usize; 2] = [15, 16];
+pub(super) const HIPS: [usize; 2] = [11, 12];
+pub(super) const ANKLES: [usize; 2] = [15, 16];
 
 /// The cascade's thresholds, as its caller gives them.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -285,7 +285,7 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
 }
 
 /// The mean image point of the seen joints among these COCO indices, if any.
-fn mean_seen(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Option<Point> {
+pub(super) fn mean_seen(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Option<Point> {
     let seen = seen(pose?, joints, min);
     if seen.is_empty() {
         return None;
@@ -298,7 +298,7 @@ fn mean_seen(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Option
 }
 
 /// The mean score of the seen joints among these COCO indices, if any.
-fn mean_score(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Option<f32> {
+pub(super) fn mean_score(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Option<f32> {
     let seen = seen(pose?, joints, min);
     if seen.is_empty() {
         return None;
@@ -306,7 +306,7 @@ fn mean_score(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Optio
     Some(seen.iter().map(|k| k.score).sum::<f32>() / seen.len() as f32)
 }
 
-fn seen<'a>(pose: &'a [Keypoint], joints: &[usize; 2], min: f32) -> Vec<&'a Keypoint> {
+pub(super) fn seen<'a>(pose: &'a [Keypoint], joints: &[usize; 2], min: f32) -> Vec<&'a Keypoint> {
     joints
         .iter()
         .filter_map(|&i| pose.get(i))
