@@ -132,6 +132,9 @@ impl Script {
                     detect: self.detect.clone().unwrap_or_default(),
                     reinforce: self.reinforce.clone().unwrap_or_default(),
                     faces: self.faces.clone().unwrap_or_default(),
+                    // The pose is the script's, below: the world is asked only
+                    // for what it sees.
+                    pose: Default::default(),
                 };
                 world::respond(&sample, probe)
             }
@@ -269,6 +272,8 @@ pub fn came_in_alone(from: u32, to: u32) -> Vec<(u32, Script)> {
         bed: InBed::Fixed(bed),
         reinforcement: 0,
         faces: Default::default(),
+        subject_moves: false,
+        pose: Default::default(),
         expected: Expected::default(),
     };
     turns(&[
