@@ -30,7 +30,7 @@ pub enum Body {
     LeftBed,
     HeldInBed { last_seen: SampleRef },
     Reappeared { held_since: SampleRef },
-    BedCalibrated { reference_m: f32 },
+    BedCalibrated { reference: f32 },
     RoomChanged { from: Mode, to: Mode },
     BedChanged { from: BedState, to: BedState },
     SensorChanged { from: SensorState, to: SensorState },
@@ -140,7 +140,7 @@ pub fn facts(output: &Output) -> Vec<Fact> {
                     cause: m.cause,
                     at: Some(m.at),
                     body: Body::BedCalibrated {
-                        reference_m: reference,
+                        reference,
                     },
                     after: stated(&output.v5.scene).into(),
                 });

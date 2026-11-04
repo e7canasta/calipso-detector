@@ -8,6 +8,8 @@ use scene_contract::Keypoint;
 use scene_geom::Point;
 use scene_look::Detection;
 
+/// The port takes `&mut self`: a backend may keep state between calls
+/// (a session, a warm-up). The shell owns one per role and calls it serially.
 pub trait DetectorPort {
     /// Every detection the backend returns, in `image` coordinates.
     fn detect(&mut self, image: &DynamicImage) -> Result<Vec<Detection>, ModelError>;
@@ -21,6 +23,8 @@ pub struct PersonPose {
     pub keypoints: Vec<Keypoint>,
 }
 
+/// The port takes `&mut self`: a backend may keep state between calls
+/// (a session, a warm-up). The shell owns one per role and calls it serially.
 pub trait PosePort {
     /// Every person with a pose the backend returns in `image`.
     fn estimate(&mut self, image: &DynamicImage) -> Result<Vec<PersonPose>, ModelError>;
@@ -60,6 +64,8 @@ impl DepthMap {
     }
 }
 
+/// The port takes `&mut self`: a backend may keep state between calls
+/// (a session, a warm-up). The shell owns one per role and calls it serially.
 pub trait DepthPort {
     /// El mapa de profundidad de toda `image`.
     fn estimate(&mut self, image: &DynamicImage) -> Result<DepthMap, ModelError>;

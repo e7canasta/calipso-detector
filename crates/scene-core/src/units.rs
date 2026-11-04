@@ -386,6 +386,13 @@ pub(crate) fn count(n: usize) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn half_keeps_a_valid_duration() {
+        let secs = Seconds::new(3.0).unwrap();
+        assert_eq!(secs.half().get(), 1.5);
+        assert_eq!(Seconds::new(0.0).unwrap().half().get(), 0.0);
+    }
+
     use super::*;
 
     #[test]
