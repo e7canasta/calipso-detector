@@ -8,7 +8,7 @@ use crate::chronicle::Chronicled;
 use crate::time::SampleRef;
 use crate::time::SourceTime;
 use crate::units::Seconds;
-use scene_contract::{Parts, PartsPending, Progress};
+use scene_contract::{Cell, Parts, PartsPending, Progress};
 
 impl From<PartsReading> for scene_contract::PartsReading {
     fn from(r: PartsReading) -> Self {
@@ -49,13 +49,13 @@ pub(super) fn parts(
 }
 
 /// The cell of a change: `before | seen | after`, the places without HELD.
-pub(super) fn cell(t: &PartsTransition) -> String {
-    format!(
+pub(super) fn cell(t: &PartsTransition) -> Cell {
+    Cell(format!(
         "{} | {} | {}",
         places(&t.before),
         seen(&t.seen),
         places(&t.after)
-    )
+    ))
 }
 
 /// What a sample saw: `bed IN.OUT : headboard IN.OUT : BFK`, `-` where the

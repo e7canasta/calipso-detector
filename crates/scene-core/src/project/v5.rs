@@ -245,12 +245,12 @@ fn bed_posture_change(
     let seen = scene_contract::BedPostureSeen::from(now.seen);
     Some(scene_contract::BedPostureChange {
         at,
-        cell: format!(
+        cell: scene_contract::Cell(format!(
             "{} | {} | {}",
             before.as_str(),
             seen.as_str(),
             now.state.as_str()
-        ),
+        )),
         before: scene_contract::BedPostureBefore {
             state: before,
             since,

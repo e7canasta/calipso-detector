@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Envelope",
-  "description": "The envelope of every v5 message. `observed_at` is optional: a reception\nchange observes no sample (change 2).",
+  "description": "The envelope of every v5 message. `observed_at` is optional: a reception\nchange observes no sample (change 2).\n\nThe convention lives in [`Envelope::scene`] and [`Envelope::event`]: an\nevent carries only its `event_id`, a scene only its `timing` and its\n`last_event_seq`, and each names its `schema`. The struct is\n`#[non_exhaustive]`: outside this crate those constructors are the only way\nto build one, so an `Envelope<Event>` with a `timing` cannot be built\nwithout forcing it (forging JSON and deserializing).",
   "type": "object",
   "properties": {
     "body": {
@@ -130,7 +130,7 @@
         },
         "cell": {
           "description": "The row this change crossed: `before | seen | after`.",
-          "type": "string"
+          "$ref": "#/$defs/Cell"
         },
         "seen": {
           "description": "What this sample saw.",
@@ -328,9 +328,9 @@
       ]
     },
     "Cell": {
-      "description": "The cell of a transition: `before:seen:after`, the natural key of the row.\nEach part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`).",
+      "description": "The natural key of a row: `before | seen | after`, in the notation of the\ntable it belongs to. Three notations, disjoint, so the value names its\ntable: the layer-0 transitions write counts, `before:seen:after`\n(`210:00:111`), each part in decimal digits when all its counts are below\n10 and as a tuple otherwise (`(12,0,0):(13,0):(13,0,0)`); the parts write\ntheir places with the sample's trama between them\n(`0000000.0000000:000.000:000 | 0------.1------:---.---:0-- |\n0000000.1000000:000.000:000`); the bed posture writes the names of what it\nbelieved and of what was seen (`lying | head_away | sitting_up`).",
       "type": "string",
-      "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$"
+      "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$|^[01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}:[01]{3} \\| [01-]{7}\\.[01-]{7}:[01-]{3}\\.[01-]{3}:[01-]{3} \\| [01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}:[01]{3}$|^(in_bed|lying|sitting_up|getting_out) \\| (held|head_away|head_side|legs_out|headboard_lying|headboard_upright|unknown) \\| (in_bed|lying|sitting_up|getting_out)$"
     },
     "Context": {
       "description": "What happened during the span and decided the cell.",
@@ -819,7 +819,8 @@
       "properties": {
         "places": {
           "description": "The places, without HELD.",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}:[01]{3}$"
         }
       },
       "required": [
@@ -840,7 +841,8 @@
         },
         "places": {
           "description": "The places, without HELD.",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}:[01]{3}$"
         },
         "since": {
           "description": "The sample of the previous change; `None` on the first.",
@@ -876,7 +878,7 @@
         },
         "cell": {
           "description": "The row this change crossed: `before | seen | after`.",
-          "type": "string"
+          "$ref": "#/$defs/Cell"
         },
         "seen": {
           "description": "What this sample saw, and how long the new places held.",
@@ -897,11 +899,12 @@
       "properties": {
         "parts": {
           "description": "The trama of the sample: `-` where the sense did not look.",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[01-]{7}\\.[01-]{7}:[01-]{3}\\.[01-]{3}:[01-]{3}$"
         },
         "span": {
           "description": "The span the new places held.",
-          "$ref": "#/$defs/Span2"
+          "$ref": "#/$defs/Span"
         }
       },
       "required": [
@@ -1221,25 +1224,6 @@
       "format": "double"
     },
     "Span": {
-      "description": "The span that held. Re-declared here so `Seen` below names v5's `Fv`.",
-      "type": "object",
-      "properties": {
-        "first": {
-          "description": "The first sample that saw the new count.",
-          "$ref": "#/$defs/SampleRef"
-        },
-        "secs": {
-          "description": "Source seconds it held before counting.",
-          "type": "number",
-          "format": "double"
-        }
-      },
-      "required": [
-        "first",
-        "secs"
-      ]
-    },
-    "Span2": {
       "description": "The span that held: from which sample and for how many source seconds.",
       "type": "object",
       "properties": {

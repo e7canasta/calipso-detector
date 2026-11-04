@@ -13,13 +13,17 @@
 //! 5. `rbh` and `fv` have named fields: [`Rbh`] and [`Fv`].
 
 use crate::{
-    Attention, Bed, BedPostureChange, BedState, Cause, Cell, Evidence, Floor, FrameInfo, Geometry,
-    Mode, PartsChange, Phase, Profile, Provenance, Republished, Room, SampleRef, SensorState,
-    Source, Timing,
+    Attention, Bed, BedPostureChange, BedState, Cause, Cell, Counts, Evidence, Floor, FrameInfo,
+    Geometry, Mode, PartsChange, Phase, Profile, Provenance, Republished, Room, SampleRef,
+    SensorState, Source, Timing,
 };
 use scene_geom::{Quad, Rect};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// The span that held: from which sample and for how many source seconds.
+/// Declared once, in the crate's root: this is that [`Span`](crate::Span).
+pub use crate::Span;
 
 /// The triple of occupants: `room` is the total in the room (the bed's and the
 /// floor's), `bed` the seen and retained in bed, `held` the retained in bed.
@@ -41,6 +45,29 @@ pub struct Fv {
     pub floor: u32,
     /// Admitted bodies seen in the bed.
     pub bed: u32,
+}
+
+/// `Fv` is the pair of seen bodies as the layer-0 table names it (FV);
+/// [`Counts`] is the same pair as the zones' count. One concept, two names:
+/// the fields on the wire (`"fv"`, `"counts"`) keep each name.
+impl From<Fv> for Counts {
+    fn from(fv: Fv) -> Self {
+        Self {
+            floor: fv.floor,
+            bed: fv.bed,
+        }
+    }
+}
+
+/// [`Counts`] is the same pair as `Fv`: the zones' count, as the layer-0 table
+/// names it (FV).
+impl From<Counts> for Fv {
+    fn from(counts: Counts) -> Self {
+        Self {
+            floor: counts.floor,
+            bed: counts.bed,
+        }
+    }
 }
 
 /// The subject's depth, on the depth model's relative scale (the unit is
@@ -102,7 +129,15 @@ pub enum Calibration {
 
 /// The envelope of every v5 message. `observed_at` is optional: a reception
 /// change observes no sample (change 2).
+///
+/// The convention lives in [`Envelope::scene`] and [`Envelope::event`]: an
+/// event carries only its `event_id`, a scene only its `timing` and its
+/// `last_event_seq`, and each names its `schema`. The struct is
+/// `#[non_exhaustive]`: outside this crate those constructors are the only way
+/// to build one, so an `Envelope<Event>` with a `timing` cannot be built
+/// without forcing it (forging JSON and deserializing).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub struct Envelope<T> {
     /// What the body is: a scene or an event.
     pub schema: SchemaId,
@@ -128,6 +163,61 @@ pub struct Envelope<T> {
     pub last_event_seq: Option<u64>,
     /// The scene or the event.
     pub body: T,
+}
+
+impl<T> Envelope<T> {
+    /// An event envelope, as the convention demands: `schema` is
+    /// `calipso.events.v5`, the `event_id` names it for deduplication and the
+    /// scene's fields are absent (`timing`, `last_event_seq`).
+    pub fn event(
+        source: Source,
+        profile: Profile,
+        seq: u64,
+        observed_at: Option<SampleRef>,
+        published_at_ms: u64,
+        event_id: String,
+        body: T,
+    ) -> Self {
+        Self {
+            schema: SchemaId::Events,
+            source,
+            profile,
+            seq,
+            observed_at,
+            published_at_ms,
+            event_id: Some(event_id),
+            timing: None,
+            last_event_seq: None,
+            body,
+        }
+    }
+
+    /// A scene envelope, as the convention demands: `schema` is
+    /// `calipso.scene.v5`, it carries the shell's `timing` and the numbering's
+    /// `last_event_seq`, and no `event_id`.
+    pub fn scene(
+        source: Source,
+        profile: Profile,
+        seq: u64,
+        observed_at: Option<SampleRef>,
+        published_at_ms: u64,
+        timing: Timing,
+        last_event_seq: u64,
+        body: T,
+    ) -> Self {
+        Self {
+            schema: SchemaId::Scene,
+            source,
+            profile,
+            seq,
+            observed_at,
+            published_at_ms,
+            event_id: None,
+            timing: Some(timing),
+            last_event_seq: Some(last_event_seq),
+            body,
+        }
+    }
 }
 
 /// Which schema a v5 message carries.
@@ -212,15 +302,6 @@ pub struct Before {
     pub since: Option<SampleRef>,
     /// Source seconds since `since`; `None` without `since` or across sessions.
     pub lasted_secs: Option<f64>,
-}
-
-/// The span that held. Re-declared here so `Seen` below names v5's `Fv`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Span {
-    /// The first sample that saw the new count.
-    pub first: SampleRef,
-    /// Source seconds it held before counting.
-    pub secs: f64,
 }
 
 /// What happened during the span and decided the cell.
@@ -402,4 +483,20 @@ pub enum Event {
     Map(MapEvent),
     /// A layer-1 change.
     BedPosture(BedPostureChange),
+}
+
+impl Event {
+    /// The sample this event happened in; `None` for a reception change, which
+    /// observes no sample (change 2). It is the only answer to «in which sample
+    /// did this event happen»: the envelope's `observed_at` carries it.
+    pub fn at(&self) -> Option<SampleRef> {
+        match self {
+            Self::Transition(event) => Some(event.at),
+            Self::Parts(event) => Some(event.at),
+            Self::Derived(event) => Some(event.at),
+            Self::Sensor(event) => event.at,
+            Self::Map(event) => Some(event.at),
+            Self::BedPosture(event) => Some(event.at),
+        }
+    }
 }

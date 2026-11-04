@@ -375,6 +375,7 @@ pub struct Pending {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PartsPending {
     /// The places waiting: `bed IN.OUT : headboard IN.OUT : BFK`.
+    #[schemars(regex(pattern = PLACES_RE))]
     pub places: String,
     /// Source seconds they have held, against the required dwell.
     pub duration: Progress<f64>,
@@ -896,22 +897,46 @@ pub struct Attention {
     pub looks: Vec<Look>,
 }
 
-/// The cell of a transition: `before:seen:after`, the natural key of the row.
-/// Each part is written as decimal digits if all its counts are below
-/// 10; otherwise as a tuple (`(12,1,1)`).
+// --- the trama's DSL and the rows' notation, one pattern per concept
+// (`scene-core`'s `project/parts.rs` writes them; that grammar is the
+// reference). The patterns are part of the published schema (rule 13).
+/// The places of the trama, without HELD: `bed IN.OUT : headboard IN.OUT :
+/// BFK`, the positions `cfhsaip` · `fhs` · `BFK`, two bits each.
+const PLACES_RE: &str = r"^[01]{7}\.[01]{7}:[01]{3}\.[01]{3}:[01]{3}$";
+/// What a sample saw of the trama: the places, with `-` where the sense did
+/// not look.
+const TRAMA_RE: &str = r"^[01-]{7}\.[01-]{7}:[01-]{3}\.[01-]{3}:[01-]{3}$";
+/// The places believed, with HELD: `bed IN.OUT.HELD : headboard IN.OUT.HELD :
+/// BFK.HELD`.
+const STATE_RE: &str = r"^[01]{7}\.[01]{7}\.[01]{7}:[01]{3}\.[01]{3}\.[01]{3}:[01]{3}\.[01]{3}$";
+/// The pattern of [`Cell`]: its three notations. The parts' row restates the
+/// DSL's shapes because JSON Schema patterns do not compose.
+const CELL_RE: &str = r"^(\d{3}|\(\d+,\d+,\d+\)):(\d{2}|\(\d+,\d+\)):(\d{3}|\(\d+,\d+,\d+\))$|^[01]{7}\.[01]{7}:[01]{3}\.[01]{3}:[01]{3} \| [01-]{7}\.[01-]{7}:[01-]{3}\.[01-]{3}:[01-]{3} \| [01]{7}\.[01]{7}:[01]{3}\.[01]{3}:[01]{3}$|^(in_bed|lying|sitting_up|getting_out) \| (held|head_away|head_side|legs_out|headboard_lying|headboard_upright|unknown) \| (in_bed|lying|sitting_up|getting_out)$";
+
+/// The natural key of a row: `before | seen | after`, in the notation of the
+/// table it belongs to. Three notations, disjoint, so the value names its
+/// table: the layer-0 transitions write counts, `before:seen:after`
+/// (`210:00:111`), each part in decimal digits when all its counts are below
+/// 10 and as a tuple otherwise (`(12,0,0):(13,0):(13,0,0)`); the parts write
+/// their places with the sample's trama between them
+/// (`0000000.0000000:000.000:000 | 0------.1------:---.---:0-- |
+/// 0000000.1000000:000.000:000`); the bed posture writes the names of what it
+/// believed and of what was seen (`lying | head_away | sitting_up`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
-pub struct Cell(
-    #[schemars(regex(
-        pattern = r"^(\d{3}|\(\d+,\d+,\d+\)):(\d{2}|\(\d+,\d+\)):(\d{3}|\(\d+,\d+,\d+\))$"
-    ))]
-    pub String,
-);
+pub struct Cell(#[schemars(regex(pattern = CELL_RE))] pub String);
 
 impl Cell {
-    /// As published: `before:seen:after`.
+    /// As published.
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+/// A cell compares with the string it is written as.
+impl PartialEq<String> for Cell {
+    fn eq(&self, other: &String) -> bool {
+        self.0 == *other
     }
 }
 
@@ -937,9 +962,11 @@ impl Default for FacesEvidence {
 pub struct Parts {
     /// The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :
     /// BFK.HELD`. E.g. `1011111.0000000.0011111:010.001.011:100.000`.
+    #[schemars(regex(pattern = STATE_RE))]
     pub state: String,
     /// What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`. E.g.
     /// `1-11111.0-00000:-10.-01:1--`.
+    #[schemars(regex(pattern = TRAMA_RE))]
     pub seen: String,
     /// Since when the stable places hold: the sample of their last change;
     /// `None` before the first.
@@ -948,7 +975,7 @@ pub struct Parts {
     pub pending: Option<PartsPending>,
     /// The cell of the last change: `before | seen | after`, the places
     /// without HELD.
-    pub last_cell: Option<String>,
+    pub last_cell: Option<Cell>,
     /// What we believe of the resident from the places: the semantic reading
     /// of the trama (white book, volume I, ch. 10).
     pub reading: PartsReading,
@@ -1331,7 +1358,7 @@ pub struct PartsChange {
     /// The sample in which the new places held.
     pub at: SampleRef,
     /// The row this change crossed: `before | seen | after`.
-    pub cell: String,
+    pub cell: Cell,
     /// The places we believed, and since when.
     pub before: PartsBefore,
     /// What this sample saw, and how long the new places held.
@@ -1353,6 +1380,7 @@ pub struct Span {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PartsBefore {
     /// The places, without HELD.
+    #[schemars(regex(pattern = PLACES_RE))]
     pub places: String,
     /// The sample of the previous change; `None` on the first.
     pub since: Option<SampleRef>,
@@ -1364,6 +1392,7 @@ pub struct PartsBefore {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PartsSeen {
     /// The trama of the sample: `-` where the sense did not look.
+    #[schemars(regex(pattern = TRAMA_RE))]
     pub parts: String,
     /// The span the new places held.
     pub span: Span,
@@ -1373,6 +1402,7 @@ pub struct PartsSeen {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PartsAfter {
     /// The places, without HELD.
+    #[schemars(regex(pattern = PLACES_RE))]
     pub places: String,
 }
 
@@ -1385,7 +1415,7 @@ pub struct BedPostureChange {
     /// The sample in which the new state held.
     pub at: SampleRef,
     /// The row this change crossed: `before | seen | after`.
-    pub cell: String,
+    pub cell: Cell,
     /// The state we believed, and since when.
     pub before: BedPostureBefore,
     /// What this sample saw.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Envelope",
-  "description": "The envelope of every v5 message. `observed_at` is optional: a reception\nchange observes no sample (change 2).",
+  "description": "The envelope of every v5 message. `observed_at` is optional: a reception\nchange observes no sample (change 2).\n\nThe convention lives in [`Envelope::scene`] and [`Envelope::event`]: an\nevent carries only its `event_id`, a scene only its `timing` and its\n`last_event_seq`, and each names its `schema`. The struct is\n`#[non_exhaustive]`: outside this crate those constructors are the only way\nto build one, so an `Envelope<Event>` with a `timing` cannot be built\nwithout forcing it (forging JSON and deserializing).",
   "type": "object",
   "properties": {
     "body": {
@@ -646,9 +646,9 @@
       ]
     },
     "Cell": {
-      "description": "The cell of a transition: `before:seen:after`, the natural key of the row.\nEach part is written as decimal digits if all its counts are below\n10; otherwise as a tuple (`(12,1,1)`).",
+      "description": "The natural key of a row: `before | seen | after`, in the notation of the\ntable it belongs to. Three notations, disjoint, so the value names its\ntable: the layer-0 transitions write counts, `before:seen:after`\n(`210:00:111`), each part in decimal digits when all its counts are below\n10 and as a tuple otherwise (`(12,0,0):(13,0):(13,0,0)`); the parts write\ntheir places with the sample's trama between them\n(`0000000.0000000:000.000:000 | 0------.1------:---.---:0-- |\n0000000.1000000:000.000:000`); the bed posture writes the names of what it\nbelieved and of what was seen (`lying | head_away | sitting_up`).",
       "type": "string",
-      "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$"
+      "pattern": "^(\\d{3}|\\(\\d+,\\d+,\\d+\\)):(\\d{2}|\\(\\d+,\\d+\\)):(\\d{3}|\\(\\d+,\\d+,\\d+\\))$|^[01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}:[01]{3} \\| [01-]{7}\\.[01-]{7}:[01-]{3}\\.[01-]{3}:[01-]{3} \\| [01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}:[01]{3}$|^(in_bed|lying|sitting_up|getting_out) \\| (held|head_away|head_side|legs_out|headboard_lying|headboard_upright|unknown) \\| (in_bed|lying|sitting_up|getting_out)$"
     },
     "Counts": {
       "description": "What is seen in each zone, stabilized or yet to stabilize.",
@@ -1526,9 +1526,13 @@
       "properties": {
         "last_cell": {
           "description": "The cell of the last change: `before | seen | after`, the places\nwithout HELD.",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cell"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "pending": {
@@ -1552,7 +1556,8 @@
         },
         "seen": {
           "description": "What this sample saw: `bed IN.OUT : headboard IN.OUT : BFK`. E.g.\n`1-11111.0-00000:-10.-01:1--`.",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[01-]{7}\\.[01-]{7}:[01-]{3}\\.[01-]{3}:[01-]{3}$"
         },
         "since": {
           "description": "Since when the stable places hold: the sample of their last change;\n`None` before the first.",
@@ -1567,7 +1572,8 @@
         },
         "state": {
           "description": "The places believed: `bed IN.OUT.HELD : headboard IN.OUT.HELD :\nBFK.HELD`. E.g. `1011111.0000000.0011111:010.001.011:100.000`.",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[01]{7}\\.[01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}\\.[01]{3}:[01]{3}\\.[01]{3}$"
         }
       },
       "required": [
@@ -1587,7 +1593,8 @@
         },
         "places": {
           "description": "The places waiting: `bed IN.OUT : headboard IN.OUT : BFK`.",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[01]{7}\\.[01]{7}:[01]{3}\\.[01]{3}:[01]{3}$"
         }
       },
       "required": [

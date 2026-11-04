@@ -13,42 +13,43 @@ use scene_geom::{Quad, Rect};
 use scene_look::Spent;
 use std::path::PathBuf;
 
-/// The v5 envelope the shell puts around each message, with fixed values so the
-/// examples are reproducible; `observed_at` is none for a reception change.
-fn envelope_v5<T>(
-    schema: v5::SchemaId,
-    seq: u64,
-    observed_at: Option<SampleRef>,
-    body: T,
-    last_event_seq: Option<u64>,
-) -> v5::Envelope<T> {
-    v5::Envelope {
-        schema,
+/// The v5 event envelope the examples publish, with fixed values so they are
+/// reproducible: `observed_at` is the event's sample (its `at()`), or none for
+/// a reception change, which observes none.
+fn event_envelope(seq: u64, event: v5::Event) -> v5::Envelope<v5::Event> {
+    v5::Envelope::event(
+        source(),
+        profile(),
         seq,
-        observed_at,
-        body,
-        last_event_seq,
-        source: source(),
-        profile: profile(),
-        published_at_ms: 0,
-        timing: matches!(schema, v5::SchemaId::Scene).then_some(Timing {
-            wait_ms: 0.0,
-            processing_ms: 0.0,
-        }),
-        event_id: matches!(schema, v5::SchemaId::Events).then(|| format!("example-v5-{seq}")),
-    }
+        event.at(),
+        0,
+        format!("example-v5-{seq}"),
+        event,
+    )
 }
 
-/// v5's `observed_at` of an event: its sample, or none for a reception change.
-fn v5_event_at(event: &v5::Event) -> Option<SampleRef> {
-    match event {
-        v5::Event::Sensor(e) => e.at,
-        v5::Event::Transition(e) => Some(e.at),
-        v5::Event::Parts(e) => Some(e.at),
-        v5::Event::Derived(e) => Some(e.at),
-        v5::Event::Map(e) => Some(e.at),
-        v5::Event::BedPosture(e) => Some(e.at),
-    }
+/// The v5 scene envelope the examples publish, with fixed values so they are
+/// reproducible: the scene carries the turn's `timing` and the `seq` of its
+/// last event, as the convention demands.
+fn scene_envelope(
+    seq: u64,
+    observed_at: Option<SampleRef>,
+    body: v5::Scene,
+    last_event_seq: u64,
+) -> v5::Envelope<v5::Scene> {
+    v5::Envelope::scene(
+        source(),
+        profile(),
+        seq,
+        observed_at,
+        0,
+        Timing {
+            wait_ms: 0.0,
+            processing_ms: 0.0,
+        },
+        last_event_seq,
+        body,
+    )
 }
 
 fn source() -> Source {
@@ -136,13 +137,7 @@ fn examples_s1_to_s8_are_reproducible() {
                     assert_eq!(out.v5.scene.room.last_cell.as_ref(), Some(&t.cell), "S{n}");
                 }
                 event_seq += 1;
-                let message = envelope_v5(
-                    v5::SchemaId::Events,
-                    event_seq,
-                    v5_event_at(event),
-                    event.clone(),
-                    None,
-                );
+                let message = event_envelope(event_seq, event.clone());
                 let line = serde_json::to_string(&message).unwrap();
                 assert_valid(&events_schema, &line);
                 assert_eq!(
@@ -152,12 +147,11 @@ fn examples_s1_to_s8_are_reproducible() {
                 events.push_str(&line);
                 events.push('\n');
             }
-            let message = envelope_v5(
-                v5::SchemaId::Scene,
+            let message = scene_envelope(
                 seq as u64 + 1,
                 out.v5.observed_at,
                 out.v5.scene.as_ref().clone(),
-                Some(event_seq),
+                event_seq,
             );
             let line = serde_json::to_string(&message).unwrap();
             assert_valid(&scene_schema, &line);

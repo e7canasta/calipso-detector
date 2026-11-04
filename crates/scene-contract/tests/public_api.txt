@@ -52,7 +52,7 @@ pub enum LookResult
 pub struct Look
 pub enum LookOutcome
 pub struct Attention
-pub struct Cell( #[schemars(regex( pattern = r"^(\d{3}|\(\d+,\d+,\d+\)):(\d{2}|\(\d+,\d+\)):(\d{3}|\(\d+,\d+,\d+\))$" ))] pub String, )
+pub struct Cell(#[schemars(regex(pattern = CELL_RE))] pub String)
 pub struct Parts
 pub enum BedState
 pub struct Held

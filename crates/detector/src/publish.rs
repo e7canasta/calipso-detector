@@ -162,19 +162,6 @@ impl Numbering {
     }
 }
 
-/// v5's `observed_at` of an event: the sample it happened in, or none for a
-/// reception change, which observes none (change 2).
-fn v5_event_at(event: &v5::Event) -> Option<scene_contract::SampleRef> {
-    match event {
-        v5::Event::Sensor(e) => e.at,
-        v5::Event::Transition(e) => Some(e.at),
-        v5::Event::Parts(e) => Some(e.at),
-        v5::Event::Derived(e) => Some(e.at),
-        v5::Event::Map(e) => Some(e.at),
-        v5::Event::BedPosture(e) => Some(e.at),
-    }
-}
-
 #[derive(Debug)]
 pub struct PublisherHandle {
     source: Source,
@@ -220,34 +207,29 @@ impl PublisherHandle {
             .into_iter()
             .map(|event| {
                 let seq = numbering.next_event();
-                v5::Envelope {
-                    schema: v5::SchemaId::Events,
-                    source: source.clone(),
-                    profile: profile.clone(),
+                v5::Envelope::event(
+                    source.clone(),
+                    profile.clone(),
                     seq,
-                    observed_at: v5_event_at(&event),
-                    published_at_ms: now,
-                    event_id: Some(format!("{}-{}-{seq}", source.run_id, Version::V5.token())),
-                    timing: None,
-                    last_event_seq: None,
-                    body: event,
-                }
+                    event.at(),
+                    now,
+                    format!("{}-{}-{seq}", source.run_id, Version::V5.token()),
+                    event,
+                )
             })
             .collect();
         // The scene names the last event numbered before it: the numbering's,
         // not the transport's (change 1).
-        let scene = v5::Envelope {
-            schema: v5::SchemaId::Scene,
-            source: source.clone(),
-            profile: profile.clone(),
-            seq: numbering.next_scene(),
-            observed_at: projected.observed_at,
-            published_at_ms: now,
-            event_id: None,
-            timing: Some(timing),
-            last_event_seq: Some(numbering.last_event_seq()),
-            body: projected.scene,
-        };
+        let scene = v5::Envelope::scene(
+            source.clone(),
+            profile.clone(),
+            numbering.next_scene(),
+            projected.observed_at,
+            now,
+            timing,
+            numbering.last_event_seq(),
+            projected.scene,
+        );
         Publication { events, scene }
     }
 

@@ -100,6 +100,99 @@ fn the_v5_transition_written_by_hand_is_the_specs() {
     assert_eq!(serde_json::to_value(&event).unwrap(), json);
 }
 
+/// The envelope constructors impose the convention: an event is only an event
+/// (its `event_id`, without the scene's `timing` and `last_event_seq`) and a
+/// scene is only a scene (its `timing` and its `last_event_seq`, without an
+/// `event_id`), each naming its own `schema`. Outside `scene-contract` the
+/// struct is `#[non_exhaustive]`: these constructors are the only way to build
+/// one, so an `Envelope<Event>` with a `timing` cannot be built without
+/// forcing it.
+#[test]
+fn the_envelope_constructors_impose_the_convention() {
+    use scene_contract::{Build, LayerRef, Profile, ProfileHash, SampleRef, SessionId, Source};
+    use scene_contract::{SourceSecs, Timing};
+
+    let source = Source {
+        site: "site".into(),
+        camera: "camera".into(),
+        run_id: "run".into(),
+        build: Build {
+            version: "0.1.0".into(),
+            git: "test".into(),
+        },
+    };
+    let profile = Profile {
+        camera: Some(LayerRef {
+            id: "room".into(),
+            version: 1,
+        }),
+        resident: None,
+        hash: ProfileHash("test".into()),
+        senses: Vec::new(),
+    };
+    let at = SampleRef {
+        session: SessionId(1),
+        sequence: 2,
+        source_secs: SourceSecs(2.0),
+    };
+    let timing = Timing {
+        wait_ms: 1.0,
+        processing_ms: 2.0,
+    };
+
+    let event_line = include_str!("../../../contract/examples/s1.events.v5.jsonl")
+        .lines()
+        .find(|l| l.contains("\"kind\":\"transition\""))
+        .expect("the examples have a transition");
+    let event: Event = serde_json::from_str::<scene_contract::v5::Envelope<Event>>(event_line)
+        .expect("a v5 event")
+        .body;
+    let envelope = scene_contract::v5::Envelope::event(
+        source.clone(),
+        profile.clone(),
+        3,
+        Some(at),
+        99,
+        "run-v5-3".into(),
+        event.clone(),
+    );
+    assert_eq!(envelope.schema, scene_contract::v5::SchemaId::Events);
+    assert_eq!(envelope.event_id.as_deref(), Some("run-v5-3"));
+    assert!(envelope.timing.is_none(), "an event carries no timing");
+    assert!(
+        envelope.last_event_seq.is_none(),
+        "an event carries no numbering of scenes"
+    );
+    assert_eq!(envelope.observed_at, Some(at));
+    assert_eq!(envelope.seq, 3);
+    assert_eq!(envelope.body, event);
+
+    let scene_line = include_str!("../../../contract/examples/s1.scene.v5.jsonl")
+        .lines()
+        .next()
+        .expect("the examples have a scene");
+    let scene =
+        serde_json::from_str::<scene_contract::v5::Envelope<scene_contract::v5::Scene>>(scene_line)
+            .expect("a v5 scene")
+            .body;
+    let envelope = scene_contract::v5::Envelope::scene(
+        source,
+        profile,
+        1,
+        Some(at),
+        99,
+        timing,
+        7,
+        scene.clone(),
+    );
+    assert_eq!(envelope.schema, scene_contract::v5::SchemaId::Scene);
+    assert!(envelope.event_id.is_none(), "a scene carries no event_id");
+    assert_eq!(envelope.timing, Some(timing));
+    assert_eq!(envelope.last_event_seq, Some(7));
+    assert_eq!(envelope.observed_at, Some(at));
+    assert_eq!(envelope.body, scene);
+}
+
 #[test]
 fn rejections_are_published_grouped_by_reason() {
     use scene_contract::{LookResult, RejectReason};
