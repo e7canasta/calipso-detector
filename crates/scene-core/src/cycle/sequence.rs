@@ -6,7 +6,7 @@
 use super::pending::Pending;
 use super::{Course, Observed, Phase, Refined};
 use crate::attention::{EnrichPlan, SkipReason, SubjectDepthLook};
-use crate::belief::Enrichment;
+use crate::belief::{Enrichment, ReferenceUpdate};
 use crate::body::Keypoint;
 use crate::evidence::{Admission, FaceEvidence, Perceived};
 use crate::geom::Rect;
@@ -179,8 +179,13 @@ impl Course<'_> {
                         }
                         (_, pose) => {
                             let primary_seen = observed.evidence.bodies.primary_seen();
-                            let enrichment =
-                                Enrichment::fresh(pose, None, head, bbox, primary_seen);
+                            let enrichment = Enrichment::fresh(
+                                pose,
+                                None,
+                                head,
+                                bbox,
+                                ReferenceUpdate::of(primary_seen),
+                            );
                             Reached::Enriched(observed, enrichment)
                         }
                     }

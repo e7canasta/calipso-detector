@@ -5,9 +5,8 @@
 //! 1807): below the headboard inside the bed, or past its sides.
 
 use crate::body::{HeadEvidence, HeadPlace, HeadPlaceState, Joint, Keypoint};
-use crate::body::{coco_joint, is_seen};
+use crate::body::{coco_joint, is_seen, mean_seen};
 use crate::evidence::FaceEvidence;
-use crate::geom::Point;
 use crate::policy::EnrichPolicy;
 use crate::room::{HeadArea, Room};
 
@@ -64,19 +63,13 @@ pub(crate) fn place(
     if faces.iter().any(|f| room.in_headboard(f.bbox.centroid())) {
         return HeadPlace::of(HeadPlaceState::AtHeadboard, HeadEvidence::Face);
     }
-    let head: Vec<&Keypoint> = pose
+    let head = pose
         .unwrap_or_default()
         .iter()
         .enumerate()
         .filter(|&(i, k)| is_seen(k, min_score) && coco_joint(i).is_some_and(|j| HEAD.contains(&j)))
-        .map(|(_, k)| k)
-        .collect();
-    if !head.is_empty() {
-        let n = head.len() as f32;
-        let centroid = Point {
-            x: head.iter().map(|k| k.x).sum::<f32>() / n,
-            y: head.iter().map(|k| k.y).sum::<f32>() / n,
-        };
+        .map(|(_, k)| (k.x, k.y, k.score));
+    if let Some(centroid) = mean_seen(head, min_score) {
         return HeadPlace::of(room.head_area(centroid).into(), HeadEvidence::PoseHead);
     }
     match faces.first() {

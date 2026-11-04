@@ -77,35 +77,9 @@ pub(crate) fn face_of(boxes: &[Rect], faces: &[Point], index: usize) -> Option<P
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geom::Quad;
-
-    fn quad(c: [[f32; 2]; 4]) -> Quad {
-        Quad(c.map(|[x, y]| Point { x, y }))
-    }
-
-    /// The dig1 camera (`perfiles/dig1.toml`).
-    fn dig1() -> ThreePlanes {
-        let bed = quad([
-            [940.0, 465.0],
-            [1270.0, 425.0],
-            [1635.0, 745.0],
-            [1380.0, 1010.0],
-        ]);
-        let floor = quad([
-            [950.0, 610.0],
-            [1268.0, 485.0],
-            [1627.0, 805.0],
-            [1335.0, 1030.0],
-        ]);
-        let size = crate::room::bed_sizes([0.9, 2.0]);
-        ThreePlanes::new(&bed, Some(&floor), None, size).expect("dig1's planes")
-    }
+    use crate::room::fixtures::{dig1, p};
 
     const DOUBT: f32 = 0.45;
-
-    fn p(x: f32, y: f32) -> Point {
-        Point { x, y }
-    }
 
     #[test]
     fn a_face_alone_in_its_box_turns_the_body_to_it() {

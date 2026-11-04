@@ -123,6 +123,10 @@ pub(crate) fn parts_read(
 }
 
 /// A point and its `(u, v)` on a plane.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the wire's `PlanePoint` carries f32, its published shape"
+)]
 fn point_on(plane: &BedPlane, p: Point) -> PlanePoint {
     let (u, v) = plane.project(p);
     PlanePoint {

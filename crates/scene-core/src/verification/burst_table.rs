@@ -4,7 +4,7 @@
 //! imperative code produced before the refactor (V19b): the machine must keep
 //! every cell. A rule change on purpose prints the new table to copy.
 
-use super::{BurstStep, Effect, Event, Phase, Verification, VerifyRules};
+use super::{BurstStep, Dispatched, Effect, Event, Phase, Verification, VerifyRules};
 use crate::attention::VerifyLook;
 use crate::belief::bed_posture::BedPostureState;
 use crate::body::HeadPlaceState;
@@ -475,10 +475,10 @@ fn collecting_rows(out: &mut Vec<String>) {
 fn in_flight_rows(out: &mut Vec<String>) {
     let p = Some(places(FeetPlace::Unseen, DisparitySide::Unknown));
     let (mut v, _) = in_flight(feet_target(), p);
-    let fx = v.step(Event::Dispatched { ok: false });
+    let fx = v.step(Event::Dispatched(Dispatched::Err));
     out.push(row("InFlight", "dispatch failed", "feet", &v, &fx));
     let (mut v, _) = in_flight(feet_target(), p);
-    let fx = v.step(Event::Dispatched { ok: true });
+    let fx = v.step(Event::Dispatched(Dispatched::Ok));
     out.push(row("InFlight", "dispatch ok", "feet", &v, &fx));
     let (mut v, _) = in_flight(feet_target(), p);
     let fx = turn(&mut v, at(6, 6.0), Some(BedPostureState::Lying), None);

@@ -1,5 +1,6 @@
 //! Head 1 of the second level: is the subject truly lying down?
 
+use crate::body::mean_seen;
 use crate::body::point_is_seen;
 use crate::body::{BodyPoint, Joint};
 use crate::geom::Point;
@@ -15,17 +16,13 @@ pub(super) fn classify(points: &[BodyPoint], room: &Room, min_score: f32) -> Lyi
         .filter(|p| point_is_seen(p, min_score))
         .collect();
     let part = |joints: [Joint; 2]| -> Option<Point> {
-        let found: Vec<&&BodyPoint> = visible
-            .iter()
-            .filter(|p| p.name.is_some_and(|n| joints.contains(&n)))
-            .collect();
-        (!found.is_empty()).then(|| {
-            let n = found.len() as f32;
-            Point {
-                x: found.iter().map(|p| p.x).sum::<f32>() / n,
-                y: found.iter().map(|p| p.y).sum::<f32>() / n,
-            }
-        })
+        mean_seen(
+            visible
+                .iter()
+                .filter(|p| p.name.is_some_and(|n| joints.contains(&n)))
+                .map(|p| (p.x, p.y, p.score)),
+            min_score,
+        )
     };
     let (Some(torso), Some(hips)) = (
         part([Joint::LeftShoulder, Joint::RightShoulder]),
@@ -98,6 +95,10 @@ mod tests {
             .map(|i| match (i, feet) {
                 (15 | 16, None) => point(i, 50.0, 180.0, 0.1),
                 (15 | 16, Some((x, y))) => point(i, x, y, 0.9),
+                #[allow(
+                    clippy::cast_precision_loss,
+                    reason = "test poses: 17 keypoints, exactly representable"
+                )]
                 _ => point(i, 50.0, 20.0 + 9.0 * i as f32, 0.9),
             })
             .collect()

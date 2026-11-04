@@ -7,6 +7,7 @@ use crate::body::Keypoint;
 use crate::geom::Rect;
 use crate::look::{Detection, Failure};
 use crate::room::shadow::BodyShadow;
+use crate::units::count;
 use crate::zone::Counts;
 
 mod bodies;
@@ -202,7 +203,3 @@ impl Admission {
 }
 
 pub(crate) use scene_contract::{BodySource, RejectReason};
-/// Ledger quantities are `u32`; no sense returns that many.
-fn count(n: usize) -> u32 {
-    u32::try_from(n).unwrap_or(u32::MAX)
-}

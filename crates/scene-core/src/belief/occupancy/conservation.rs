@@ -5,6 +5,7 @@
 //! No state, no events, no boxes: each rule is tested alone.
 
 use crate::belief::Occupants;
+use crate::policy::SideExit;
 use crate::zone::Counts;
 
 /// What we believed before the change: `state[t−1]`.
@@ -17,9 +18,9 @@ pub(super) struct Before {
     /// How many bodies in the bed count are not occupants (rule 6).
     pub(super) unexplained: u32,
     pub(super) bed_phase: BedPhase,
-    /// Rule 4 bis: a held body may leave by the side, seen on the floor near
-    /// the bed.
-    pub(super) held_left: bool,
+    /// Rule 4 bis: how a held body may leave (by the side, seen on the floor
+    /// near the bed, or only by reappearing in bed).
+    pub(super) held_exit: SideExit,
 }
 
 /// The bed phase for rule 6: "the bed without
@@ -62,10 +63,12 @@ pub(super) enum Movement {
     HeldLeft,
     /// A retained body was seen in bed again (rules 2 and 4).
     Reappeared,
-    /// Appeared in bed coming from the floor (rule 6). `from_floor`: it left the
-    /// stable floor count; otherwise it passed through the floor without
-    /// stabilizing.
-    LayDown { from_floor: bool },
+    /// Appeared in bed coming from the floor (rule 6): it left the stable
+    /// floor count.
+    LayDownFromFloor,
+    /// Appeared in bed after passing through the floor without stabilizing
+    /// (rule 6).
+    LayDownWhilePassing,
     /// Appeared in bed before it had a history: adopted.
     Adopted,
     /// Stopped being seen on the floor: left the room (rule 3).
@@ -120,17 +123,16 @@ pub(super) fn settle(before: Before, seen: SeenMark) -> Vec<Movement> {
         let unseen = new - lay_down;
         // Rule 4 bis: of those who appeared on the floor near the bed, not
         // from the door, a retained body that did not reappear got up.
-        let held_left = if before.held_left {
-            floor_up
+        let held_left = match before.held_exit {
+            SideExit::ByTheSide => floor_up
                 .saturating_sub(seen.from_door)
-                .min(before.held - reappeared)
-        } else {
-            0
+                .min(before.held - reappeared),
+            SideExit::OnlyReappearing => 0,
         };
         push(Reappeared, reappeared);
         push(HeldLeft, held_left);
-        push(LayDown { from_floor: true }, from_floor);
-        push(LayDown { from_floor: false }, lay_down - from_floor);
+        push(LayDownFromFloor, from_floor);
+        push(LayDownWhilePassing, lay_down - from_floor);
         if before.bed_phase == BedPhase::Adopting {
             push(Adopted, unseen);
         }
@@ -152,8 +154,8 @@ pub(super) fn evolve(occupants: Occupants, m: Movement) -> Occupants {
         Movement::Held => (floor, bed.saturating_sub(1), held + 1),
         Movement::HeldLeft => (floor + 1, bed, held.saturating_sub(1)),
         Movement::Reappeared => (floor, bed + 1, held.saturating_sub(1)),
-        Movement::LayDown { from_floor: true } => (floor.saturating_sub(1), bed + 1, held),
-        Movement::LayDown { from_floor: false } | Movement::Adopted => (floor, bed + 1, held),
+        Movement::LayDownFromFloor => (floor.saturating_sub(1), bed + 1, held),
+        Movement::LayDownWhilePassing | Movement::Adopted => (floor, bed + 1, held),
         Movement::LeftRoom => (floor.saturating_sub(1), bed, held),
         Movement::Entered => (floor + 1, bed, held),
         Movement::UnexplainedIn | Movement::UnexplainedOut => (floor, bed, held),
@@ -191,7 +193,7 @@ mod tests {
         held: u32,
         unexplained: u32,
         bed_history: bool,
-        held_left: bool,
+        held_exit: SideExit,
     }
 
     fn settle(c: Change) -> Tally {
@@ -204,7 +206,7 @@ mod tests {
             } else {
                 BedPhase::Adopting
             },
-            held_left: c.held_left,
+            held_exit: c.held_exit,
         };
         let seen = SeenMark {
             counts: c.to,
@@ -218,7 +220,7 @@ mod tests {
                 Movement::Held => &mut t.held,
                 Movement::HeldLeft => &mut t.held_left,
                 Movement::Reappeared => &mut t.reappeared,
-                Movement::LayDown { .. } => &mut t.lay_down,
+                Movement::LayDownFromFloor | Movement::LayDownWhilePassing => &mut t.lay_down,
                 Movement::Adopted => &mut t.adopted,
                 Movement::UnexplainedIn => &mut t.unexplained_in,
                 Movement::UnexplainedOut => &mut t.unexplained_out,
@@ -243,7 +245,7 @@ mod tests {
             held: 0,
             unexplained: 0,
             bed_history: true,
-            held_left: false,
+            held_exit: SideExit::OnlyReappearing,
         }
     }
 
@@ -281,7 +283,7 @@ mod tests {
             settle(Change {
                 held,
                 from_door,
-                held_left: true,
+                held_exit: SideExit::ByTheSide,
                 ..change(c(0, 0), to)
             })
         };

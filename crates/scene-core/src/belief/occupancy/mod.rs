@@ -24,8 +24,9 @@ pub(crate) use room::{Alone, InBed, Room};
 
 use crate::belief::{Fact, Occupants};
 use crate::look::Detection;
-use crate::policy::Persistence;
+use crate::policy::{FarArrival, Persistence, SideExit};
 use crate::time::SampleRef;
+use crate::units::count;
 use crate::zone::Counts;
 pub(crate) use conservation::{BedPhase, SeenMark};
 
@@ -36,12 +37,10 @@ pub(crate) use conservation::{BedPhase, SeenMark};
 pub(crate) struct OccupancyRules {
     /// How long a new count must hold before it is believed.
     pub(crate) persistence: Persistence,
-    /// Rule 4 bis: a held body that appears near the bed on the floor is the
-    /// one who got up.
-    pub(crate) held_left: bool,
-    /// Rule 5, refined: a body that appeared near the bed and walked away did
-    /// not come from the door.
-    pub(crate) near_first: bool,
+    /// Rule 4 bis: how a body held in bed may leave.
+    pub(crate) held_exit: SideExit,
+    /// Rule 5, refined: which bodies seen far come from the door.
+    pub(crate) far_arrival: FarArrival,
 }
 
 /// A retained body (rule 1): it stopped being seen in bed without a step to
@@ -116,7 +115,7 @@ impl Occupancy {
         Occupants {
             floor: self.counts.floor,
             bed: self.counts.bed,
-            held: u32::try_from(self.held.len()).unwrap_or(u32::MAX),
+            held: count(self.held.len()),
         }
     }
 }

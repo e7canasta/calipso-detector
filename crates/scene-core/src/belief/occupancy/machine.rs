@@ -7,12 +7,14 @@
 
 use super::conservation::{self, BedPhase, Before, Movement};
 use super::span::{Settled, Span};
-use super::{Happened, HeldBody, Occupancy, PendingCounts, Room, Tally, Transition};
+use super::{
+    Happened, HeldBody, Occupancy, OccupancyRules, PendingCounts, Room, Tally, Transition,
+};
 use crate::belief::{Fact, Occupants};
 use crate::evidence::Bodies;
 use crate::look::Detection;
-use crate::policy::Persistence;
 use crate::time::{SampleRef, SessionId};
+use crate::units::count;
 use crate::zone::Counts;
 
 /// The last time someone was seen in a zone.
@@ -61,15 +63,13 @@ impl Default for Machine {
 impl Machine {
     /// A sample with bodies per zone: it stabilizes and, if the count changed,
     /// applies the moves that explain it and returns the transition. The
-    /// machine does not emit: its caller decides what to do with it.
-    /// `held_left` and `near_first`: rules 4 bis and 5 refined, the profile's.
+    /// machine does not emit: its caller decides what to do with it. It decides
+    /// with its own rules, the occupancy's slice of the profile.
     pub(in crate::belief) fn step(
         &mut self,
         at: SampleRef,
         bodies: &Bodies,
-        p: &Persistence,
-        held_left: bool,
-        near_first: bool,
+        rules: &OccupancyRules,
     ) -> Option<Transition> {
         if self.session.is_some_and(|previous| previous != at.session) {
             self.span.new_session();
@@ -87,13 +87,13 @@ impl Machine {
                 at,
             });
         }
-        let settled = self.span.observe(at, bodies, p, near_first)?;
+        let settled = self.span.observe(at, bodies, rules)?;
         let before = Before {
             stable: settled.from,
             held: count(self.held.len()),
             unexplained: self.unexplained,
             bed_phase: self.bed_phase,
-            held_left,
+            held_exit: rules.held_exit,
         };
         let moves = conservation::settle(before, settled.seen);
         Some(self.apply(at, before, settled, moves))
@@ -146,7 +146,7 @@ impl Machine {
                     }
                     Fact::LeftBed
                 }
-                Movement::LayDown { .. } => {
+                Movement::LayDownFromFloor | Movement::LayDownWhilePassing => {
                     self.bed_phase = BedPhase::Tracking;
                     Fact::LayDown
                 }
@@ -262,10 +262,6 @@ impl Machine {
             }),
         }
     }
-}
-
-fn count(n: usize) -> u32 {
-    u32::try_from(n).unwrap_or(u32::MAX)
 }
 
 #[cfg(test)]

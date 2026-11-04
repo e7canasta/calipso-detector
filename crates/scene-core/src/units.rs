@@ -376,6 +376,14 @@ measure!(
     finite
 );
 
+/// A tally quantity: bodies, keypoints or crops counted in `u32`. No sense
+/// returns that many; the count saturates instead of wrapping (rule 21: the
+/// core does not panic). The one `usize → u32` door of the core: `evidence`
+/// and `belief` count through here, without one layer borrowing the other's.
+pub(crate) fn count(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -15,6 +15,7 @@ use crate::evidence::BodySource;
 use crate::evidence::{Body, FloorBody};
 use crate::geom::Rect;
 use crate::look::Label;
+use crate::policy::{FarArrival, Persistence, SideExit};
 use crate::time::SessionId;
 use crate::units::Seconds;
 use scene_contract::SourceSecs;
@@ -163,34 +164,31 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
         Context::Far | Context::NearFirst | Context::NearThenFar => bodies(f, f.min(1), v),
         Context::Base | Context::Passing | Context::Booting | Context::SideExit => bodies(f, 0, v),
     };
-    let held_left = matches!(context, Context::SideExit);
-    let near_first = matches!(context, Context::NearFirst);
+    let rules = OccupancyRules {
+        persistence: PERSISTENCE,
+        held_exit: match context {
+            Context::SideExit => SideExit::ByTheSide,
+            _ => SideExit::OnlyReappearing,
+        },
+        far_arrival: match context {
+            Context::NearFirst => FarArrival::ThoseNeverNear,
+            _ => FarArrival::FromTheDoor,
+        },
+    };
     let mut t = 1.0;
     if matches!(context, Context::Passing) {
         let before = (r - b).max(f) + 1;
-        transitions.extend(z.step(
-            at(t),
-            &bodies(before, 0, v),
-            &PERSISTENCE,
-            held_left,
-            near_first,
-        ));
+        transitions.extend(z.step(at(t), &bodies(before, 0, v), &rules));
         t += 0.5;
     }
     if matches!(context, Context::NearFirst | Context::NearThenFar) {
         // One more near the bed than at rest: the one that will walk away.
         let near = (r - b) + 1;
-        transitions.extend(z.step(
-            at(t),
-            &bodies(near, 0, v),
-            &PERSISTENCE,
-            held_left,
-            near_first,
-        ));
+        transitions.extend(z.step(at(t), &bodies(near, 0, v), &rules));
         t += 0.5;
     }
-    transitions.extend(z.step(at(t), &end, &PERSISTENCE, held_left, near_first));
-    transitions.extend(z.step(at(t + 1.0), &end, &PERSISTENCE, held_left, near_first));
+    transitions.extend(z.step(at(t), &end, &rules));
+    transitions.extend(z.step(at(t + 1.0), &end, &rules));
     (z, transitions)
 }
 

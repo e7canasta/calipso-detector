@@ -212,6 +212,10 @@ impl ThreePlanes {
 /// How far a box's support (the centre of its lower edge) is from the bed's
 /// footprint, in metres: the room's own measure, shared by the room in two
 /// planes (P2) and the cascade's «near the bed».
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "`distance_m` measures in f32 metres: the u/v of the plane stay f64 until the measure"
+)]
 pub(crate) fn support_m(floor: &BedPlane, size: [PositiveMetres; 2], bbox: &Rect) -> f32 {
     let support = Point {
         x: bbox.centroid().x,
@@ -225,67 +229,13 @@ pub(crate) fn support_m(floor: &BedPlane, size: [PositiveMetres; 2], bbox: &Rect
 mod tests {
     use super::*;
     use crate::map::SiteMap;
-    use crate::room::bed_sizes;
+    use crate::room::fixtures::{bed_quad, close, dig1, floor_quad, headboard_quad, p, size};
 
     /// Tolerances declared against the prototype `herramientas/partes.py`,
     /// which rounds to four decimals and runs its homographies in float32.
     const PIXELS: f64 = 0.05;
     const UNITS: f64 = 1e-3;
     const HEIGHTS: f64 = 0.01;
-
-    fn quad(c: [[f32; 2]; 4]) -> Quad {
-        Quad(c.map(|[x, y]| Point { x, y }))
-    }
-
-    fn p(x: f32, y: f32) -> Point {
-        Point { x, y }
-    }
-
-    fn bed_quad() -> Quad {
-        quad([
-            [940.0, 465.0],
-            [1270.0, 425.0],
-            [1635.0, 745.0],
-            [1380.0, 1010.0],
-        ])
-    }
-
-    fn floor_quad() -> Quad {
-        quad([
-            [950.0, 610.0],
-            [1268.0, 485.0],
-            [1627.0, 805.0],
-            [1335.0, 1030.0],
-        ])
-    }
-
-    fn headboard_quad() -> Quad {
-        quad([
-            [951.0, 365.0],
-            [1281.0, 325.0],
-            [1270.0, 425.0],
-            [940.0, 465.0],
-        ])
-    }
-
-    fn size() -> Option<[PositiveMetres; 2]> {
-        bed_sizes([0.9, 2.0])
-    }
-
-    /// The dig1 camera (`workshop/43-ocupacion-por-partes/perfiles/dig1.toml`).
-    fn dig1() -> ThreePlanes {
-        ThreePlanes::new(
-            &bed_quad(),
-            Some(&floor_quad()),
-            Some(&headboard_quad()),
-            size(),
-        )
-        .expect("dig1's planes")
-    }
-
-    fn close(a: f64, b: f64, tol: f64) -> bool {
-        (a - b).abs() <= tol
-    }
 
     #[test]
     fn the_far_side_of_dig1_is_u_one() {

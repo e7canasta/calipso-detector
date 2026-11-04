@@ -135,6 +135,19 @@ impl TransitionKey {
     }
 }
 
+/// What the fold remembers of the parts' places in one turn: the change is
+/// folded only while there are places; without them, what was folded is
+/// forgotten, as the machine forgets.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum PartsChange {
+    /// No places this turn: what the chronicle held of them is forgotten.
+    Forgotten,
+    /// There are places and they held: no change.
+    Unchanged,
+    /// There are places and they changed in this turn.
+    Changed(PartsTransition),
+}
+
 /// A concluded turn, in the vocabulary the chronicle remembers.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Entry {
@@ -148,7 +161,7 @@ pub(crate) struct Entry {
     /// The transition, if layer 0 changed in this turn.
     pub transition: Option<TransitionKey>,
     /// Whether there are parts' places in this turn, and their change if any.
-    pub parts: Option<Option<PartsTransition>>,
+    pub parts: PartsChange,
     /// The parts' reading, if there are places.
     pub parts_reading: Option<PartsReading>,
 }
@@ -170,7 +183,11 @@ impl Entry {
                 .transition
                 .as_ref()
                 .map(TransitionKey::of),
-            parts: observation.parts.map(|p| p.transition),
+            parts: match observation.parts.map(|p| p.transition) {
+                None => PartsChange::Forgotten,
+                Some(None) => PartsChange::Unchanged,
+                Some(Some(change)) => PartsChange::Changed(change),
+            },
             parts_reading: observation.parts.map(|p| p.reading),
         }
     }
@@ -200,12 +217,14 @@ impl Chronicle {
         }
         // Without places, what was folded of them is forgotten, as the
         // machine forgets.
-        let parts_change = parts.flatten();
-        let parts_transition_since = parts_change.and_then(|_| self.parts.map(|p| p.at));
+        let parts_transition_since = match parts {
+            PartsChange::Changed(_) => self.parts.map(|p| p.at),
+            PartsChange::Forgotten | PartsChange::Unchanged => None,
+        };
         match parts {
-            None => self.parts = None,
-            Some(Some(change)) => self.parts = Some(change),
-            Some(None) => {}
+            PartsChange::Forgotten => self.parts = None,
+            PartsChange::Changed(change) => self.parts = Some(change),
+            PartsChange::Unchanged => {}
         }
         let bed_posture_held_since = self.bed_posture.since;
         let bed_posture = self.bed_posture.update(bed_posture, at);
@@ -294,7 +313,7 @@ mod tests {
             bed_posture: None,
             seen,
             transition: None,
-            parts: None,
+            parts: PartsChange::Forgotten,
             parts_reading: None,
         }
     }

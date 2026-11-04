@@ -1,25 +1,30 @@
 //! How each reading moves the turn on: what the shell read is interpreted here,
 //! with the evidence it belongs to, and the turn goes on at `Course::next`.
 
-use super::pending::Pending;
+use super::pending::{Continuation, Pending};
 use super::sequence::Reached;
 use super::{Course, Phase};
 use crate::attention::LookResult;
-use crate::belief::Enrichment;
+use crate::belief::{Enrichment, ReferenceUpdate};
 use crate::evidence::{self, Admission, Perceived};
 use crate::look::Probe;
 use crate::outcome::Outcome;
-use crate::verification::Dispatch;
+use crate::verification::{Dispatch, Dispatched};
 
 impl Course<'_> {
     /// The reading arrived: it is interpreted by the question it answers, and
     /// the turn continues where it was.
-    pub(super) fn advance(&mut self, pending: Pending, probe: &Probe, outcome: Outcome) -> Phase {
+    pub(super) fn advance(
+        &mut self,
+        continuation: Continuation,
+        probe: &Probe,
+        outcome: Outcome,
+    ) -> Phase {
         let spent = outcome.spent;
-        let reached = match pending {
-            Pending::Detect { region: Some(_) } => Reached::Focused(self.admit(probe, outcome)),
-            Pending::Detect { region: None } => Reached::Primary(self.admit(probe, outcome)),
-            Pending::Reinforce { primary, .. } => {
+        let reached = match continuation {
+            Continuation::Focused => Reached::Focused(self.admit(probe, outcome)),
+            Continuation::Primary => Reached::Primary(self.admit(probe, outcome)),
+            Continuation::Reinforce { primary } => {
                 // The loss counts as checked only if reinforcement read bodies:
                 // a failing look, or a reading of another kind, is requested
                 // again on the next sample.
@@ -32,7 +37,7 @@ impl Course<'_> {
                 self.asked(probe, spent, result);
                 Reached::Bodies(bodies)
             }
-            Pending::Faces {
+            Continuation::Faces {
                 bodies,
                 region,
                 policy,
@@ -45,10 +50,9 @@ impl Course<'_> {
                     posed: None,
                 })
             }
-            Pending::PoseBody {
+            Continuation::PoseBody {
                 mut perceived,
                 target,
-                ..
             } => {
                 let result = self.engine.read_pose_body(
                     &mut perceived,
@@ -59,13 +63,13 @@ impl Course<'_> {
                 self.asked(probe, spent, result);
                 Reached::Evidence(perceived)
             }
-            Pending::Calibrate { mut observed, .. } => {
+            Continuation::Calibrate { mut observed } => {
                 let (depth, result) = evidence::depth(outcome.depths());
                 self.asked(probe, spent, result);
                 observed.calibrated = self.engine.learn_bed(self.at, depth);
                 Reached::Calibrated(observed)
             }
-            Pending::Pose { bbox, observed, .. } => {
+            Continuation::Pose { bbox, observed } => {
                 let (pose, result) = evidence::pose(outcome.into_pose());
                 self.asked(probe, spent, result);
                 Reached::Pose {
@@ -74,21 +78,26 @@ impl Course<'_> {
                     bbox,
                 }
             }
-            Pending::Depth {
+            Continuation::Depth {
                 observed,
                 pose,
                 bbox,
                 at,
                 head,
-                ..
             } => {
                 let (depths, result) = evidence::depths(outcome.depths(), &at, pose.len());
                 self.asked(probe, spent, result);
                 let primary_seen = observed.evidence.bodies.primary_seen();
-                let enrichment = Enrichment::fresh(Some(pose), depths, head, bbox, primary_seen);
+                let enrichment = Enrichment::fresh(
+                    Some(pose),
+                    depths,
+                    head,
+                    bbox,
+                    ReferenceUpdate::of(primary_seen),
+                );
                 Reached::Enriched(observed, enrichment)
             }
-            Pending::Keep { refined, .. } => {
+            Continuation::Keep { refined } => {
                 let (result, kept) = self.engine.kept(self.at, outcome.kept());
                 self.asked(probe, spent, result);
                 // The burst is ready: the question goes out now, with the chosen crops.
@@ -107,14 +116,14 @@ impl Course<'_> {
                 }
                 Reached::Final(refined)
             }
-            Pending::Verify { refined, .. } => {
+            Continuation::Verify { refined } => {
                 let result = match outcome.dispatched() {
                     Ok(()) => {
-                        self.engine.dispatched(true);
+                        self.engine.dispatched(Dispatched::Ok);
                         LookResult::Dispatched
                     }
                     Err(failure) => {
-                        self.engine.dispatched(false);
+                        self.engine.dispatched(Dispatched::Err);
                         LookResult::failed(failure)
                     }
                 };

@@ -42,7 +42,7 @@ use crate::units::Extension;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct BedCalibrated {
     pub at: SampleRef,
-    pub reference_m: f32,
+    pub reference: f32,
 }
 
 /// Initial site configuration: data, not behaviour. `Monitor` splits geometry
@@ -174,7 +174,7 @@ impl CalibrationMemory {
         });
         Some(BedCalibrated {
             at,
-            reference_m: depth,
+            reference: depth,
         })
     }
 

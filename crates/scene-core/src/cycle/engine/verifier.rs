@@ -9,7 +9,7 @@ use crate::look::Failure;
 use crate::look::LookKind;
 use crate::refine::BodyPlaces;
 use crate::time::SampleRef;
-use crate::verification::{AskOut, Event, KeptOut, TurnOut};
+use crate::verification::{AskOut, Dispatched, Event, KeptOut, TurnOut};
 
 impl Engine {
     /// Whether a doubt is worth the slow verifier, over what the turn observed.
@@ -65,9 +65,9 @@ impl Engine {
             .ask(at, *look, burst, self.verify_rules.sharpness.is_some())
     }
 
-    /// The verifier's request left (`ok`) or could not.
-    pub(in crate::cycle) fn dispatched(&mut self, ok: bool) {
-        self.verification.step(Event::Dispatched { ok });
+    /// The verifier's request left, or could not.
+    pub(in crate::cycle) fn dispatched(&mut self, dispatched: Dispatched) {
+        self.verification.step(Event::Dispatched(dispatched));
     }
 
     /// The turn reaches the verifier's last attention point: a burst being

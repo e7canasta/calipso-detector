@@ -12,10 +12,10 @@
 
 use super::BodyZone;
 use super::three_planes::{ThreePlanes, support_m};
-use crate::body::{Keypoint, is_seen};
+use crate::body::{Keypoint, is_seen, mean_seen_at};
 use crate::geom::{Point, Rect};
 use crate::policy::{PartsPolicy, TwoPlanesPolicy};
-use crate::units::Confidence;
+use crate::units::{Confidence, HeadboardW, MattressHeights, Span};
 
 /// COCO-17 indices of the joints the cascade reads.
 pub(super) const HIPS: [usize; 2] = [11, 12];
@@ -35,7 +35,7 @@ pub(crate) struct CascadeRules {
     /// (b): the mean score of the visible ankles that proves the feet.
     pub(crate) score_test: f32,
     /// E2: the band of the pelvis's height, in mattress heights.
-    pub(crate) e2_band: [f64; 2],
+    pub(crate) e2_band: Span<MattressHeights>,
     /// The score from which a keypoint counts as seen.
     pub(crate) kp_min: f32,
     /// «Near the bed» of a body on the floor: its support within this many
@@ -44,7 +44,7 @@ pub(crate) struct CascadeRules {
     pub(crate) near_m: f32,
     /// E6: the head's `w` on the headboard band, from a little under the
     /// mattress (`-0.15`) to the top (`1`).
-    pub(crate) headboard_w: [f64; 2],
+    pub(crate) headboard_w: Span<HeadboardW>,
 }
 
 impl CascadeRules {
@@ -58,16 +58,10 @@ impl CascadeRules {
             e5_tol: f64::from(parts.cut_tolerance.get()),
             strip_m: f64::from(parts.far_strip_m.get()),
             score_test: parts.ankle_proof_score.get(),
-            e2_band: [
-                f64::from(parts.pelvis_band.lo().get()),
-                f64::from(parts.pelvis_band.hi().get()),
-            ],
+            e2_band: parts.pelvis_band,
             kp_min: kp_min.get(),
             near_m: two.near_m.get(),
-            headboard_w: [
-                f64::from(parts.headboard_w.lo().get()),
-                f64::from(parts.headboard_w.hi().get()),
-            ],
+            headboard_w: parts.headboard_w,
         }
     }
 }
@@ -169,9 +163,9 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
         x: b.centroid().x,
         y: b.y1,
     };
-    let ankles = mean_seen(body.pose, &ANKLES, rules.kp_min);
+    let ankles = mean_seen_at(body.pose, &ANKLES, rules.kp_min);
     let foot = planes.foot(ankles.unwrap_or(box_foot))?;
-    let hips = mean_seen(body.pose, &HIPS, rules.kp_min);
+    let hips = mean_seen_at(body.pose, &HIPS, rules.kp_min);
 
     let share = planes.share(&b);
     let past_near =
@@ -252,9 +246,10 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
         return Some(floor(Step::NoTouch));
     }
     // 2: the face at the headboard.
+    let band = rules.headboard_w;
     if let Some((u, w)) = measures.head_uw
         && (0.0..=1.0).contains(&u)
-        && (rules.headboard_w[0]..=rules.headboard_w[1]).contains(&w)
+        && (f64::from(band.lo().get())..=f64::from(band.hi().get())).contains(&w)
     {
         return Some(bed(Step::FaceAtHeadboard));
     }
@@ -276,7 +271,8 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
         });
     }
     if let (Some(h), Some(hip)) = (measures.pelvis, hips) {
-        let [lo, hi] = rules.e2_band;
+        let band = rules.e2_band;
+        let (lo, hi) = (f64::from(band.lo().get()), f64::from(band.hi().get()));
         if (lo..=hi).contains(&h) && in_unit(mattress.project(hip), 0.1) {
             return Some(bed(Step::PelvisAtEdge));
         }
@@ -284,26 +280,19 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
     Some(floor(Step::Standing))
 }
 
-/// The mean image point of the seen joints among these COCO indices, if any.
-pub(super) fn mean_seen(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Option<Point> {
-    let seen = seen(pose?, joints, min);
-    if seen.is_empty() {
-        return None;
-    }
-    let n = seen.len() as f32;
-    Some(Point {
-        x: seen.iter().map(|k| k.x).sum::<f32>() / n,
-        y: seen.iter().map(|k| k.y).sum::<f32>() / n,
-    })
-}
-
-/// The mean score of the seen joints among these COCO indices, if any.
+/// The mean score of the seen joints among these COCO indices, if any. The
+/// mean of a point is [`mean_seen_at`], shared with the rest of the core.
 pub(super) fn mean_score(pose: Option<&[Keypoint]>, joints: &[usize; 2], min: f32) -> Option<f32> {
     let seen = seen(pose?, joints, min);
     if seen.is_empty() {
         return None;
     }
-    Some(seen.iter().map(|k| k.score).sum::<f32>() / seen.len() as f32)
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "at most the 17 COCO keypoints, exactly representable"
+    )]
+    let n = seen.len() as f32;
+    Some(seen.iter().map(|k| k.score).sum::<f32>() / n)
 }
 
 pub(super) fn seen<'a>(pose: &'a [Keypoint], joints: &[usize; 2], min: f32) -> Vec<&'a Keypoint> {
@@ -338,47 +327,30 @@ fn in_unit((u, v): (f64, f64), margin: f64) -> bool {
 mod tests {
     use super::*;
     use crate::map::BedPlane;
-
-    fn quad(c: [[f32; 2]; 4]) -> crate::geom::Quad {
-        crate::geom::Quad(c.map(|[x, y]| Point { x, y }))
-    }
-
-    /// The dig1 camera (`perfiles/dig1.toml`).
-    fn dig1() -> ThreePlanes {
-        let bed = quad([
-            [940.0, 465.0],
-            [1270.0, 425.0],
-            [1635.0, 745.0],
-            [1380.0, 1010.0],
-        ]);
-        let floor = quad([
-            [950.0, 610.0],
-            [1268.0, 485.0],
-            [1627.0, 805.0],
-            [1335.0, 1030.0],
-        ]);
-        let headboard = quad([
-            [951.0, 365.0],
-            [1281.0, 325.0],
-            [1270.0, 425.0],
-            [940.0, 465.0],
-        ]);
-        let size = crate::room::bed_sizes([0.9, 2.0]);
-        ThreePlanes::new(&bed, Some(&floor), Some(&headboard), size).expect("dig1's planes")
-    }
+    use crate::room::fixtures::{close, dig1, quad};
 
     /// The sprint 1 proposal (`workshop/43-ocupacion-por-partes/resultados/reglas.md`, F1.1d).
-    const PROPOSAL: CascadeRules = CascadeRules {
-        share: 0.45,
-        e5_tol: 0.12,
-        strip_m: 0.18,
-        score_test: 0.75,
-        e2_band: [0.6, 1.4],
-        kp_min: 0.5,
-        // dig1's profile: [occupancy.two_planes] near_m = 0.60; headboard band as in reglas.md.
-        near_m: 0.6,
-        headboard_w: [-0.15, 1.0],
-    };
+    fn proposal() -> CascadeRules {
+        CascadeRules {
+            share: 0.45,
+            e5_tol: 0.12,
+            strip_m: 0.18,
+            score_test: 0.75,
+            e2_band: Span::new(
+                MattressHeights::new(0.6).expect("a finite height"),
+                MattressHeights::new(1.4).expect("a finite height"),
+            )
+            .expect("an ordered band"),
+            kp_min: 0.5,
+            // dig1's profile: [occupancy.two_planes] near_m = 0.60; headboard band as in reglas.md.
+            near_m: 0.6,
+            headboard_w: Span::new(
+                HeadboardW::new(-0.15).expect("a finite w"),
+                HeadboardW::new(1.0).expect("a finite w"),
+            )
+            .expect("an ordered band"),
+        }
+    }
 
     #[test]
     fn a_box_past_the_near_side_with_no_share_is_on_the_floor() {
@@ -388,7 +360,7 @@ mod tests {
             pose: None,
             face: None,
         };
-        let v = decide(&dig1(), &body, &PROPOSAL).expect("the footprint");
+        let v = decide(&dig1(), &body, &proposal()).expect("the footprint");
         assert_eq!(v.step, Step::PastNear);
         assert_eq!(v.zone, BodyZone::Floor { near_bed: false });
         assert_eq!(v.measures.share, 0.0);
@@ -402,7 +374,7 @@ mod tests {
             pose: None,
             face: None,
         };
-        let v = decide(&dig1(), &body, &PROPOSAL).expect("the footprint");
+        let v = decide(&dig1(), &body, &proposal()).expect("the footprint");
         assert_eq!(v.step, Step::PoseNotLooked);
         assert_eq!(v.zone, BodyZone::Floor { near_bed: true });
         assert!(!v.measures.foot_seen);
@@ -448,7 +420,7 @@ mod tests {
             pose: Some(&pose),
             face: Some(face),
         };
-        let m = decide(&planes, &body, &PROPOSAL)
+        let m = decide(&planes, &body, &proposal())
             .expect("the footprint")
             .measures;
         let head = m.head.expect("the face on the headboard");
@@ -469,10 +441,6 @@ mod tests {
         assert_eq!(ankles.x, ankle.x);
     }
 
-    fn close(a: f64, b: f64, tol: f64) -> bool {
-        (a - b).abs() <= tol
-    }
-
     #[test]
     fn near_bed_is_the_support_within_near_m_not_the_touch() {
         let planes = dig1();
@@ -488,7 +456,7 @@ mod tests {
             &left,
             &CascadeRules {
                 near_m: 10.0,
-                ..PROPOSAL
+                ..proposal()
             },
         )
         .expect("the footprint");
@@ -501,7 +469,7 @@ mod tests {
             pose: None,
             face: None,
         };
-        let base = decide(&planes, &lying, &PROPOSAL).expect("the footprint");
+        let base = decide(&planes, &lying, &proposal()).expect("the footprint");
         let d = base.measures.support_m.expect("the bed's size");
         assert!(base.measures.touches);
         assert!(d > 0.0, "the support is off the footprint: {d}");
@@ -510,7 +478,7 @@ mod tests {
             &lying,
             &CascadeRules {
                 near_m: 0.0,
-                ..PROPOSAL
+                ..proposal()
             },
         )
         .expect("the footprint");
@@ -520,7 +488,7 @@ mod tests {
             &lying,
             &CascadeRules {
                 near_m: d,
-                ..PROPOSAL
+                ..proposal()
             },
         )
         .expect("the footprint");
@@ -545,12 +513,12 @@ mod tests {
         let on_bed = decide(
             &planes,
             &body(Rect::new(50.0, 150.0, 150.0, 300.0)),
-            &PROPOSAL,
+            &proposal(),
         )
         .expect("the footprint");
         assert!(on_bed.measures.cut, "the foot is on the far edge");
         assert!(
-            on_bed.measures.share >= PROPOSAL.share,
+            on_bed.measures.share >= proposal().share,
             "share {}",
             on_bed.measures.share
         );
@@ -559,12 +527,12 @@ mod tests {
         let off_bed = decide(
             &planes,
             &body(Rect::new(50.0, 20.0, 150.0, 110.0)),
-            &PROPOSAL,
+            &proposal(),
         )
         .expect("the footprint");
         assert!(off_bed.measures.cut);
         assert!(
-            off_bed.measures.share < PROPOSAL.share,
+            off_bed.measures.share < proposal().share,
             "share {}",
             off_bed.measures.share
         );
@@ -582,7 +550,7 @@ mod tests {
                 y: 380.0,
             }),
         };
-        let v = decide(&dig1(), &body, &PROPOSAL).expect("the footprint");
+        let v = decide(&dig1(), &body, &proposal()).expect("the footprint");
         assert_eq!(v.step, Step::FaceAtHeadboard);
         assert_eq!(v.zone, BodyZone::Bed);
         assert!(v.measures.head_uw.is_some());
@@ -669,7 +637,7 @@ mod tests {
                 pose: Some(&pose),
                 face: row.face.map(|[x, y]| Point { x, y }),
             };
-            let v = decide(&planes, &body, &PROPOSAL).expect("the footprint");
+            let v = decide(&planes, &body, &proposal()).expect("the footprint");
             let zone = match v.zone {
                 BodyZone::Bed => "bed",
                 BodyZone::Floor { .. } => "floor",

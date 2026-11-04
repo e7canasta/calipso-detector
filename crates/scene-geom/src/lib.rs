@@ -5,6 +5,9 @@
 // What is `pub` is reachable from outside; the rest says `pub(crate)`.
 #![warn(missing_docs)]
 #![warn(unreachable_pub)]
+// A cast that loses says so at its site, with its reason: the lints are on.
+#![warn(clippy::cast_precision_loss)]
+#![warn(clippy::cast_possible_truncation)]
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -45,12 +48,15 @@ impl Rect {
         }
     }
 
-    /// Does it contain the point? The edges count as inside.
+    /// Does it contain the point? The edges count as inside; a `NaN`
+    /// coordinate is never inside (`NaN` compares false to everything).
     pub fn contains(&self, p: Point) -> bool {
         p.x >= self.x0 && p.x <= self.x1 && p.y >= self.y0 && p.y <= self.y1
     }
 
-    /// In square pixels; zero if it is inverted.
+    /// In square pixels; zero if it is inverted (its right edge left of its
+    /// left one, or its bottom above its top) and zero when a coordinate is
+    /// not a number.
     pub fn area(&self) -> f32 {
         (self.x1 - self.x0).max(0.0) * (self.y1 - self.y0).max(0.0)
     }
@@ -60,7 +66,9 @@ impl Rect {
         other.x0 >= self.x0 && other.y0 >= self.y0 && other.x1 <= self.x1 && other.y1 <= self.y1
     }
 
-    /// Intersection over union: how much two boxes overlap (0 to 1).
+    /// Intersection over union: how much two boxes overlap (0 to 1). Boxes
+    /// that do not overlap score 0, and so do inverted or not-a-number ones
+    /// (their union is not positive).
     pub fn iou(&self, other: &Rect) -> f32 {
         let inter = Rect {
             x0: self.x0.max(other.x0),
@@ -131,7 +139,11 @@ impl Quad {
 
 impl Quad {
     /// Does it overlap the box, with some area? The quadrilateral convex:
-    /// a corner of one inside the other, or two edges that cross.
+    /// a corner of one inside the other, or two edges that cross. A graze is
+    /// not an overlap: segments that merely touch — at a point or along a
+    /// line — do not cross, and a corner exactly on an edge is inside only
+    /// when that shape's `contains` says so (`Quad` is ray casting, which
+    /// makes no promise about its own boundary).
     pub fn touches(&self, r: &Rect) -> bool {
         let boxed = Quad::from_rect(*r).0;
         let edges = |v: [Point; 4]| v.into_iter().zip(v.into_iter().cycle().skip(1));
@@ -141,7 +153,9 @@ impl Quad {
     }
 }
 
-/// Do the two segments cross at a single point inside both?
+/// Do the two segments cross at a single point inside both? Strict: the
+/// products of the sides must change sign, so segments that meet at an end or
+/// overlap along a line do not cross.
 fn cross((p, q): (Point, Point), (r, s): (Point, Point)) -> bool {
     let side = |a: Point, b: Point, c: Point| (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     let (d1, d2) = (side(r, s, p), side(r, s, q));
@@ -271,5 +285,67 @@ mod tests {
             Rect::new(200.0, 150.0, 300.0, 350.0).centroid(),
             Point { x: 250.0, y: 250.0 }
         );
+    }
+
+    #[test]
+    fn the_edges_of_a_box_count_as_inside() {
+        let r = Rect::new(10.0, 20.0, 30.0, 40.0);
+        for p in [
+            Point { x: 10.0, y: 20.0 },
+            Point { x: 30.0, y: 40.0 },
+            Point { x: 10.0, y: 30.0 },
+            Point { x: 30.0, y: 30.0 },
+            Point { x: 20.0, y: 20.0 },
+            Point { x: 20.0, y: 40.0 },
+        ] {
+            assert!(r.contains(p), "on the edge: {p:?}");
+        }
+        for p in [
+            Point { x: 9.9, y: 30.0 },
+            Point { x: 30.1, y: 30.0 },
+            Point { x: 20.0, y: 19.9 },
+            Point { x: 20.0, y: 40.1 },
+        ] {
+            assert!(!r.contains(p), "just outside: {p:?}");
+        }
+    }
+
+    #[test]
+    fn an_inverted_box_measures_nothing() {
+        let inverted = Rect::new(30.0, 40.0, 10.0, 20.0);
+        assert_eq!(inverted.area(), 0.0);
+        let a = Rect::new(0.0, 0.0, 10.0, 10.0);
+        assert_eq!(inverted.iou(&a), 0.0);
+        assert_eq!(a.iou(&inverted), 0.0);
+        assert_eq!(inverted.iou(&Rect::new(40.0, 50.0, 60.0, 70.0)), 0.0);
+    }
+
+    #[test]
+    fn a_nan_is_never_inside_and_measures_nothing() {
+        let r = Rect::new(10.0, 20.0, 30.0, 40.0);
+        assert!(!r.contains(Point {
+            x: f32::NAN,
+            y: 30.0
+        }));
+        assert!(!Rect::new(f32::NAN, 20.0, 30.0, 40.0).contains(Point { x: 15.0, y: 30.0 }));
+        let nan = Rect::new(10.0, 20.0, f32::NAN, 40.0);
+        assert_eq!(nan.area(), 0.0);
+        assert_eq!(nan.iou(&r), 0.0);
+        assert_eq!(r.iou(&nan), 0.0);
+        assert!(!band().touches(&nan));
+    }
+
+    #[test]
+    fn a_box_that_grazes_the_quadrilateral_does_not_touch_it() {
+        // The band's edge runs from (300, 100) to (400, 200); the box's corner
+        // sits exactly on its middle, outside: a graze, not an overlap.
+        let grazed = Rect::new(350.0, 120.0, 390.0, 150.0);
+        assert!(!band().touches(&grazed));
+        // Crossing is strict: segments that meet at an end do not cross.
+        let along = (Point { x: 0.0, y: 0.0 }, Point { x: 10.0, y: 0.0 });
+        let meeting = (Point { x: 10.0, y: 0.0 }, Point { x: 10.0, y: 10.0 });
+        let across = (Point { x: 5.0, y: -5.0 }, Point { x: 5.0, y: 5.0 });
+        assert!(!cross(along, meeting));
+        assert!(cross(along, across));
     }
 }

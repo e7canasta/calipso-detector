@@ -5,6 +5,7 @@
 //! protocol's vocabulary (`scene-contract`); the body the core builds from them
 //! is its own, and `project` publishes it.
 
+use crate::geom::Point;
 use crate::provenance::Provenance;
 pub(crate) use scene_contract::{BedSite, Joint, Keypoint};
 
@@ -39,7 +40,7 @@ pub(crate) struct Pose {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct SubjectDepth {
     /// On the depth model's scale (relative, not metres).
-    pub meters: f32,
+    pub relative: f32,
     /// Measured in this sample, or stable with the pose.
     pub provenance: Provenance,
 }
@@ -114,6 +115,61 @@ impl HeadPlace {
 /// seen: no depth, no reasoning, not drawn.
 pub(crate) fn is_seen(keypoint: &Keypoint, min_score: f32) -> bool {
     keypoint.score >= min_score
+}
+
+/// «Media de keypoints vistos» (white book, volume IX, ch. 05): the mean
+/// image point of the keypoints that are seen (`score ≥ min_score`); `None`
+/// when none of them is. The keypoints arrive as `(x, y, score)`, whichever
+/// reading holds them: the sense's pose or the body's points.
+pub(crate) fn mean_seen(
+    keypoints: impl IntoIterator<Item = (f32, f32, f32)>,
+    min_score: f32,
+) -> Option<Point> {
+    let mut x = 0.0;
+    let mut y = 0.0;
+    let mut n = 0u32;
+    for (kx, ky, score) in keypoints {
+        if is_seen(
+            &Keypoint {
+                x: kx,
+                y: ky,
+                score,
+            },
+            min_score,
+        ) {
+            x += kx;
+            y += ky;
+            n += 1;
+        }
+    }
+    (n > 0).then(|| {
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "at most the 17 COCO keypoints, exactly representable"
+        )]
+        let seen = n as f32;
+        Point {
+            x: x / seen,
+            y: y / seen,
+        }
+    })
+}
+
+/// «Media de keypoints vistos» by COCO indices: [`mean_seen`] over the pose's
+/// keypoints at these joints. `None` without a pose or when none is seen.
+pub(crate) fn mean_seen_at(
+    pose: Option<&[Keypoint]>,
+    joints: &[usize],
+    min_score: f32,
+) -> Option<Point> {
+    let pose = pose?;
+    mean_seen(
+        joints
+            .iter()
+            .filter_map(|&i| pose.get(i))
+            .map(|k| (k.x, k.y, k.score)),
+        min_score,
+    )
 }
 
 /// Seen: its score reaches the profile's minimum, as a [`BodyPoint`]'s.

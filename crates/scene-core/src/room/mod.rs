@@ -20,6 +20,8 @@ use crate::policy::{AdmissionPolicy, PartsPolicy, ShadowPolicy, TwoPlanesPolicy}
 use crate::units::{Confidence, PositiveMetres};
 
 mod cascade;
+#[cfg(test)]
+mod fixtures;
 mod frontal;
 mod posture;
 pub(crate) mod shadow;

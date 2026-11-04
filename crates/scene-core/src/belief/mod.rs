@@ -22,7 +22,7 @@ pub(crate) use bed_posture::{BedPosture, BedPostureState};
 pub(crate) use parts::PartsReading;
 
 pub(crate) use occupancy::{Alone, BedPhase, InBed, Occupancy, OccupancyRules, Room, Transition};
-pub(crate) use subject::{Enrichment, SubjectBody};
+pub(crate) use subject::{Enrichment, ReferenceUpdate, SubjectBody};
 
 /// The occupants layer 0 believes in, by where they are: off the bed, seen in
 /// bed and held in bed. The book's `RBH` is `(total, bed + held, held)`.
@@ -184,15 +184,7 @@ impl Belief {
         rules: &OccupancyRules,
     ) -> Believed {
         let current = admission.bodies.seen();
-        let transition = current.and_then(|bodies| {
-            self.occupancy.step(
-                at,
-                bodies,
-                &rules.persistence,
-                rules.held_left,
-                rules.near_first,
-            )
-        });
+        let transition = current.and_then(|bodies| self.occupancy.step(at, bodies, rules));
         let subject = self.subject_now(current);
         if subject.is_none() {
             self.subject.forget();

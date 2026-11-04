@@ -18,7 +18,7 @@ use crate::units::Seconds;
 mod burst;
 #[cfg(test)]
 pub(crate) use burst::Effect;
-pub(crate) use burst::{AskOut, BurstStep, Dispatch, Event, KeptOut, Phase, TurnOut};
+pub(crate) use burst::{AskOut, BurstStep, Dispatch, Dispatched, Event, KeptOut, Phase, TurnOut};
 
 /// How much observation backs a body held in bed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -63,7 +63,12 @@ impl BedPlane {
         apply(self.to_bed, f64::from(p.x), f64::from(p.y))
     }
 
-    /// The image point at these bed coordinates.
+    /// The image point at these bed coordinates. Its coordinates are the
+    /// image's: f32, while the homography multiplies in f64.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "`Point` is in f32 pixels; the homography keeps f64 until the shape of the image"
+    )]
     pub(crate) fn point(&self, u: f64, v: f64) -> Point {
         let (x, y) = apply(self.to_image, u, v);
         Point {
@@ -74,6 +79,10 @@ impl BedPlane {
 
     /// The share of a box over the bed: of an 8 × 8 grid of points over it,
     /// how many fall inside.
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "the grid has 64 points: the count is exactly representable"
+    )]
     pub(crate) fn share(&self, r: &Rect) -> f32 {
         const N: u8 = 8;
         let at = |i: u8, lo: f32, hi: f32| lo + (hi - lo) * (f32::from(i) + 0.5) / f32::from(N);

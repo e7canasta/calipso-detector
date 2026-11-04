@@ -113,10 +113,20 @@ pub(crate) enum Event {
     },
     /// The shell could not keep the crop.
     KeepFailed,
-    /// The shell took the request (`ok`) or could not.
-    Dispatched { ok: bool },
+    /// The shell took the request, or could not.
+    Dispatched(Dispatched),
     /// An answer arrived between turns.
     Answer(Verified),
+}
+
+/// Whether the shell took the request when it was dispatched (white book,
+/// volume III, ch. 12). A named outcome, not a flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Dispatched {
+    /// The shell took it: the question is in flight.
+    Ok,
+    /// The shell could not: the request closes and may be asked again.
+    Err,
 }
 
 /// A question ready to leave: its ticket, its look and the crops it goes with
@@ -365,11 +375,11 @@ impl Verification {
                 sharpness,
                 policy,
             } => self.kept_crop(at, sharpness, policy).into_effects(),
-            Event::KeepFailed | Event::Dispatched { ok: false } => {
+            Event::KeepFailed | Event::Dispatched(Dispatched::Err) => {
                 self.phase = Phase::Idle;
                 Vec::new()
             }
-            Event::Dispatched { ok: true } => Vec::new(),
+            Event::Dispatched(Dispatched::Ok) => Vec::new(),
             Event::Answer(verified) => {
                 self.answers.push(verified);
                 Vec::new()

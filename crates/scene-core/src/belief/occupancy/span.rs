@@ -5,10 +5,11 @@
 //! (the window). It delivers two columns of the table: what we believed we saw
 //! and what we saw.
 
+use super::OccupancyRules;
 use super::conservation::SeenMark;
 use crate::belief::stabilizer::{Candidate, Change, Stabilizer};
 use crate::evidence::Bodies;
-use crate::policy::Persistence;
+use crate::policy::FarArrival;
 use crate::time::SampleRef;
 use crate::zone::Counts;
 
@@ -49,12 +50,15 @@ impl Window {
         };
     }
 
-    /// `near_first`: rule 5, refined (white book, volume VII, ch. 17): those
-    /// seen near the bed before are not from the door when they are far.
-    fn track(&mut self, bodies: &Bodies, near_first: bool) {
+    /// Rule 5, refined (white book, volume VII, ch. 17): those seen near the
+    /// bed before are not from the door when they are far.
+    fn track(&mut self, bodies: &Bodies, arrival: FarArrival) {
         let extra = |now: u32, rest: u32| now.saturating_sub(rest);
         let far = extra(bodies.far(), self.far_at_rest);
-        let walked = if near_first { self.walked } else { 0 };
+        let walked = match arrival {
+            FarArrival::FromTheDoor => 0,
+            FarArrival::ThoseNeverNear => self.walked,
+        };
         self.from_door = self.from_door.max(far.saturating_sub(walked));
         let near = bodies.counts().floor - bodies.far();
         self.walked = self.walked.max(extra(near, self.near_at_rest));
@@ -105,21 +109,22 @@ impl Span {
     }
 
     /// One sample. If the new count held as required, returns the span that
-    /// closed, and the span goes back to rest. `near_first`: rule 5, refined.
+    /// closed, and the span goes back to rest. It decides with the occupancy's
+    /// rules: its dwell and rule 5, refined.
     pub(super) fn observe(
         &mut self,
         at: SampleRef,
         bodies: &Bodies,
-        p: &Persistence,
-        near_first: bool,
+        rules: &OccupancyRules,
     ) -> Option<Settled> {
         let raw = bodies.counts();
         if raw == self.counts.stable() {
             self.window.rest(bodies);
         } else {
-            self.window.track(bodies, near_first);
+            self.window.track(bodies, rules.far_arrival);
         }
-        let Change { from, to, first } = self.counts.observe(at, raw, p.dwell_secs)?;
+        let Change { from, to, first } =
+            self.counts.observe(at, raw, rules.persistence.dwell_secs)?;
         let seen = SeenMark {
             counts: to,
             from_door: self.window.from_door,

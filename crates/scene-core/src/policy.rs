@@ -146,16 +146,63 @@ pub struct Policy {
     /// `Some`: the room's parts, the cascade's thresholds (`[occupancy.parts]`).
     /// `None`: the engine as it was.
     pub parts: Option<PartsPolicy>,
-    /// Rule 4 bis (white book, volume VII, ch. 05): with someone held in bed,
-    /// a body that appears on the floor near the bed, not from the door, is
-    /// the held one who got up. `false`: a held body leaves only reappearing
-    /// in bed, as it always did.
+    /// Rule 4 bis (white book, volume VII, ch. 05), as the profile switches
+    /// it: `true`, a body that appears on the floor near the bed, not from the
+    /// door, is the held one who got up; `false`, a held body leaves only
+    /// reappearing in bed, as it always did. The rule itself has a name:
+    /// [`Policy::held_exit`] answers [`SideExit`], which is what layer 0
+    /// decides with.
     pub held_left: bool,
-    /// Rule 5, refined (white book, volume VII, ch. 17): a body that appeared
-    /// near the bed and then walked away did not come from the door. `false`:
-    /// whoever was seen far while the count stabilized came from the door, as
-    /// it always did.
+    /// Rule 5, refined (white book, volume VII, ch. 17), as the profile
+    /// switches it: `true`, a body that appeared near the bed and then walked
+    /// away did not come from the door; `false`, whoever was seen far while
+    /// the count stabilized came from the door, as it always did. The rule
+    /// itself has a name: [`Policy::far_arrival`] answers [`FarArrival`].
     pub near_first: bool,
+}
+
+/// Rule 4 bis (white book, volume VII, ch. 05): how a body held in bed may
+/// leave. A named rule, not a flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SideExit {
+    /// With someone held in bed, a body that appears on the floor near the
+    /// bed, not from the door, is the held one who got up.
+    ByTheSide,
+    /// As it always was: a held body leaves only by reappearing in bed.
+    OnlyReappearing,
+}
+
+/// Rule 5, refined (white book, volume VII, ch. 17): which bodies seen far
+/// from the bed count as coming from the door while a count stabilizes. A
+/// named rule, not a flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FarArrival {
+    /// As it always was: whoever was seen far while the count stabilized came
+    /// from the door.
+    FromTheDoor,
+    /// Whoever appeared near the bed and then walked away did not come from
+    /// the door.
+    ThoseNeverNear,
+}
+
+impl Policy {
+    /// Rule 4 bis by its name: the held body's way out of bed.
+    pub fn held_exit(&self) -> SideExit {
+        if self.held_left {
+            SideExit::ByTheSide
+        } else {
+            SideExit::OnlyReappearing
+        }
+    }
+
+    /// Rule 5, refined, by its name: who arrives from the door.
+    pub fn far_arrival(&self) -> FarArrival {
+        if self.near_first {
+            FarArrival::ThoseNeverNear
+        } else {
+            FarArrival::FromTheDoor
+        }
+    }
 }
 
 /// The geometry's shadow (white book, volume VII, ch. 11): estimates of a

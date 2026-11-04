@@ -59,7 +59,15 @@ pub(super) fn classify(body: &SubjectBody, policy: &EnrichPolicy) -> Option<Read
         let found = of(joints);
         BodyGroup {
             depth: depth(&found),
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "at most the 17 COCO joints: exactly representable"
+            )]
             seen: found.len() as u32,
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "at most the 17 COCO joints: exactly representable"
+            )]
             of: joints.len() as u32,
         }
     };

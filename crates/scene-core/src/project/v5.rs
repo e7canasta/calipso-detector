@@ -191,7 +191,7 @@ fn events(
             cause: Cause::MapLearned,
             at: fact.at,
             body: v5::MapBody::BedCalibrated {
-                reference: fact.reference_m,
+                reference: fact.reference,
             },
         })
     }));

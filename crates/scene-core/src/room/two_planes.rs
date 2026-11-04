@@ -3,8 +3,7 @@
 
 use super::three_planes::ThreePlanes;
 use super::{BodyZone, Doubt, Posed};
-use crate::body::is_seen;
-use crate::body::{Joint, Keypoint};
+use crate::body::{Joint, Keypoint, mean_seen};
 use crate::geom::{Point, Rect};
 use crate::map::BedPlane;
 use crate::policy::TwoPlanesPolicy;
@@ -100,18 +99,16 @@ impl TwoPlanes {
 /// a knee or an ankle in sight, none.
 fn knee_deg(pose: &[Keypoint], min_score: f32) -> Option<f32> {
     let joint = |sides: [Joint; 2]| {
-        let seen: Vec<&Keypoint> = sides
-            .iter()
-            .filter_map(|&j| {
-                let i = Joint::COCO.iter().position(|&c| c == j)?;
-                pose.get(i).filter(|k| is_seen(k, min_score))
-            })
-            .collect();
-        let n = seen.len() as f32;
-        (!seen.is_empty()).then(|| Point {
-            x: seen.iter().map(|k| k.x).sum::<f32>() / n,
-            y: seen.iter().map(|k| k.y).sum::<f32>() / n,
-        })
+        mean_seen(
+            sides
+                .iter()
+                .filter_map(|&j| {
+                    let i = Joint::COCO.iter().position(|&c| c == j)?;
+                    pose.get(i)
+                })
+                .map(|k| (k.x, k.y, k.score)),
+            min_score,
+        )
     };
     let hip = joint([Joint::LeftHip, Joint::RightHip])?;
     let knee = joint([Joint::LeftKnee, Joint::RightKnee])?;

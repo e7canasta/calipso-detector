@@ -277,9 +277,9 @@ impl Turn<'_> {
                 let conclusion = loop {
                     phase = match phase {
                         Phase::Waiting(pending) => {
-                            let probe = pending.probe();
+                            let (probe, continuation) = pending.split();
                             let (result, spent) = look(&probe);
-                            course.advance(pending, &probe, Outcome { result, spent })
+                            course.advance(continuation, &probe, Outcome { result, spent })
                         }
                         Phase::Concluded { refined } => break course.observed(refined),
                         Phase::Republish { reason, changed } => {

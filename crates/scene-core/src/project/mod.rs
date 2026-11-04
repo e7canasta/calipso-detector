@@ -329,7 +329,7 @@ fn publish_subject(
         pose: pose.map(Into::into),
         // The depth is named for its scale: relative (change 4).
         depth: depth.map(|d| scene_contract::v5::SubjectDepth {
-            relative: d.meters,
+            relative: d.relative,
             provenance: d.provenance,
         }),
         lying: refined.lying.map(Into::into),
@@ -418,6 +418,10 @@ fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
 }
 
 /// A placed point of the parts on the wire: its image point and its `(u, v)`.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the wire's `PlanePoint` carries f32, its published shape"
+)]
 fn plane_point(p: crate::room::Placed) -> scene_contract::PlanePoint {
     scene_contract::PlanePoint {
         x: p.x,
@@ -429,6 +433,10 @@ fn plane_point(p: crate::room::Placed) -> scene_contract::PlanePoint {
 
 /// The shadow of a body with its parts on the wire (F2.3b, ADR 2026-11-03): the
 /// room's read, put in the contract's words. Without the parts, the shadow as it is.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the wire's shadow carries f32, its published shape"
+)]
 fn with_parts(
     shadow: Option<scene_contract::BodyShadow>,
     parts: Option<crate::room::shadow::PartsRead>,

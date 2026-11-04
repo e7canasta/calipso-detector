@@ -6,9 +6,9 @@
 //! until F5.2: the items are unused in production until then.
 #![allow(dead_code)]
 
-use super::cascade::{ANKLES, HIPS, mean_seen};
+use super::cascade::{ANKLES, HIPS};
 use super::three_planes::ThreePlanes;
-use crate::body::Keypoint;
+use crate::body::{Keypoint, mean_seen_at};
 use crate::geom::Point;
 
 /// COCO indices of the shoulders and of the eyes (the head's centre).
@@ -132,8 +132,8 @@ fn torso_on(axes: &Axes, pose: Option<&[Keypoint]>, rules: &PostureRules) -> Opt
     if cosine(axes.up, axes.v) >= rules.upright_cos {
         return Some(Torso::NotSeparated);
     }
-    let shoulders = mean_seen(pose, &SHOULDERS, rules.kp_min)?;
-    let hips = mean_seen(pose, &HIPS, rules.kp_min)?;
+    let shoulders = mean_seen_at(pose, &SHOULDERS, rules.kp_min)?;
+    let hips = mean_seen_at(pose, &HIPS, rules.kp_min)?;
     let axis = [
         f64::from(shoulders.x - hips.x),
         f64::from(shoulders.y - hips.y),
@@ -148,7 +148,7 @@ pub(crate) fn head_at(
     pose: Option<&[Keypoint]>,
     rules: &PostureRules,
 ) -> Option<HeadAt> {
-    let head = mean_seen(pose, &EYES, rules.kp_min)?;
+    let head = mean_seen_at(pose, &EYES, rules.kp_min)?;
     let (u, w) = planes.read_headboard(head)?;
     if !(0.0..=1.0).contains(&u) {
         return Some(HeadAt::BesideStop);
@@ -171,7 +171,7 @@ pub(crate) fn legs_out(
     pose: Option<&[Keypoint]>,
     rules: &PostureRules,
 ) -> Option<LegsOut> {
-    let ankles = mean_seen(pose, &ANKLES, rules.kp_min)?;
+    let ankles = mean_seen_at(pose, &ANKLES, rules.kp_min)?;
     let (u, v) = planes.foot(ankles)?.uv();
     if v < 0.0 {
         return Some(LegsOut::Foot);
@@ -191,7 +191,7 @@ pub(crate) fn legs_out(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geom::Quad;
+    use crate::room::fixtures::dig1;
 
     /// The sprint 1 proposal's thresholds (`workshop/43-ocupacion-por-partes/resultados/reglas.md`).
     const RULES: PostureRules = PostureRules {
@@ -201,35 +201,11 @@ mod tests {
         kp_min: 0.5,
     };
 
-    fn quad(c: [[f32; 2]; 4]) -> Quad {
-        Quad(c.map(|[x, y]| Point { x, y }))
-    }
-
-    /// The dig1 camera (`perfiles/dig1-partes.toml`): the frame of three planes.
-    fn dig1() -> ThreePlanes {
-        let bed = quad([
-            [940.0, 465.0],
-            [1270.0, 425.0],
-            [1635.0, 745.0],
-            [1380.0, 1010.0],
-        ]);
-        let floor = quad([
-            [950.0, 610.0],
-            [1268.0, 485.0],
-            [1627.0, 805.0],
-            [1335.0, 1030.0],
-        ]);
-        let headboard = quad([
-            [951.0, 365.0],
-            [1281.0, 325.0],
-            [1270.0, 425.0],
-            [940.0, 465.0],
-        ]);
-        let size = crate::room::bed_sizes([0.9, 2.0]);
-        ThreePlanes::new(&bed, Some(&floor), Some(&headboard), size).expect("dig1's planes")
-    }
-
     /// The pose of a dig1 second, from `tests/fixtures/posture-dig1.json`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the fixture's keypoints are exact in f32: dig1's prototype keeps them short"
+    )]
     fn pose(second: &str) -> (String, Vec<Keypoint>) {
         let all: serde_json::Value =
             serde_json::from_str(include_str!("../../tests/fixtures/posture-dig1.json")).unwrap();
@@ -316,14 +292,14 @@ mod tests {
     }
 
     #[test]
-    fn dig1_lying_is_along_the_bed() {
+    fn lying_is_along_the_bed_on_dig1() {
         let (label, kp) = pose("5");
         assert_eq!(label, "lying");
         assert_eq!(torso(&dig1(), Some(&kp), &RULES), Some(Torso::AlongBed));
     }
 
     #[test]
-    fn dig1_sitting_up_and_edge_are_upright() {
+    fn sitting_up_and_edge_are_upright_on_dig1() {
         for second in ["21", "28", "42"] {
             let (label, kp) = pose(second);
             assert!(
@@ -339,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn dig1_standing_is_upright() {
+    fn standing_is_upright_on_dig1() {
         let (label, kp) = pose("150");
         assert_eq!(label, "standing");
         assert_eq!(torso(&dig1(), Some(&kp), &RULES), Some(Torso::Upright));

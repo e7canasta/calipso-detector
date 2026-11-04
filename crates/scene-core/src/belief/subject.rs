@@ -55,14 +55,27 @@ pub(crate) enum Enrichment {
     Failed,
 }
 
+impl ReferenceUpdate {
+    /// Only the main detector renews an existing reference; reinforcement
+    /// keeps it.
+    pub(crate) fn of(primary_seen: bool) -> Self {
+        if primary_seen {
+            Self::Refresh
+        } else {
+            Self::Preserve
+        }
+    }
+}
+
 impl Enrichment {
-    /// Only the main detector renews an existing reference; reinforcement keeps it.
+    /// A new pose (and depth, if measured): what to do with the motion
+    /// reference arrives as the rule it is, not as a flag.
     pub(crate) fn fresh(
         pose: Option<Vec<Keypoint>>,
         depths: Option<SubjectDepths>,
         head: HeadPlace,
         bbox: Rect,
-        primary_seen: bool,
+        reference: ReferenceUpdate,
     ) -> Self {
         match pose {
             Some(pose) => Self::Fresh {
@@ -70,11 +83,7 @@ impl Enrichment {
                 depths: depths.unwrap_or_default(),
                 head,
                 bbox,
-                reference: if primary_seen {
-                    ReferenceUpdate::Refresh
-                } else {
-                    ReferenceUpdate::Preserve
-                },
+                reference,
             },
             None => Self::Failed,
         }
@@ -178,7 +187,7 @@ fn body(enriched: &Enriched, provenance: Provenance) -> SubjectBody {
             provenance,
         },
         depth: enriched.depth.map(|depth| SubjectDepth {
-            meters: depth,
+            relative: depth,
             provenance,
         }),
         bed_points: enriched.depths.bed.clone(),
