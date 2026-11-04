@@ -8,7 +8,7 @@ use super::*;
 use scene_core::units::{Extension, Proportion, Ratio};
 use scene_core::{
     map::{FrameInfo, SiteMap},
-    policy::Policy,
+    policy::{FarArrival, Policy, SideExit},
 };
 use scene_geom::{Point, Quad, Rect};
 
@@ -46,8 +46,16 @@ impl Config {
             .and_then(|o| o.parts.as_ref())
             .map(PartsConfig::policy)
             .transpose()?;
-        p.held_left = self.occupancy.as_ref().is_some_and(|o| o.held_left);
-        p.near_first = self.occupancy.as_ref().is_some_and(|o| o.near_first);
+        p.held_exit = if self.occupancy.as_ref().is_some_and(|o| o.held_left) {
+            SideExit::ByTheSide
+        } else {
+            SideExit::OnlyReappearing
+        };
+        p.far_arrival = if self.occupancy.as_ref().is_some_and(|o| o.near_first) {
+            FarArrival::ThoseNeverNear
+        } else {
+            FarArrival::FromTheDoor
+        };
         p.persistence.dwell_secs = seconds("policy", "policy.dwell_secs", self.policy.dwell_secs)?;
         p.reinforce = self
             .senses

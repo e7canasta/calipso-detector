@@ -16,7 +16,7 @@ use crate::geom::{Point, Rect};
 #[cfg(test)]
 use crate::geom::{Quad, Zone};
 use crate::map::{Geometry, Map};
-use crate::policy::{AdmissionPolicy, PartsPolicy, ShadowPolicy, TwoPlanesPolicy};
+use crate::policy::{AdmissionPolicy, PartsPolicy, PostureSource, ShadowPolicy, TwoPlanesPolicy};
 use crate::units::{Confidence, PositiveMetres};
 
 mod cascade;
@@ -137,7 +137,9 @@ impl Room {
             _ => None,
         };
         let posture = match (space.parts.as_ref(), space.min_keypoint) {
-            (Some(parts), Some(kp)) if parts.posture && planes.is_some() => {
+            (Some(parts), Some(kp))
+                if parts.posture_source == PostureSource::FromTheFrame && planes.is_some() =>
+            {
                 Some(posture::PostureRules {
                     upright_cos: f64::from(parts.posture_upright_cos.get()),
                     along_cos: f64::from(parts.posture_along_cos.get()),

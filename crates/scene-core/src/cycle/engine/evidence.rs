@@ -7,6 +7,7 @@ use crate::cycle::Engine;
 use crate::evidence::{self, Admission, Perceived, Sensed};
 use crate::look::Detection;
 use crate::map::BedCalibrated;
+use crate::policy::ZoneRule;
 use crate::room::Room;
 use crate::time::SampleRef;
 
@@ -37,7 +38,11 @@ impl Engine {
         perceived: &mut Perceived,
         room: Option<&Room>,
     ) {
-        if !self.space.parts.is_some_and(|p| p.decide) {
+        if !self
+            .space
+            .parts
+            .is_some_and(|p| p.zone_rule == ZoneRule::ByTheParts)
+        {
             return;
         }
         let (Some(room), same_iou) = (room, self.space.admission.same_body_iou.get()) else {

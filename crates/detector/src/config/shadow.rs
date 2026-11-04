@@ -2,6 +2,7 @@
 //! decided, deciding nothing (white book, volume VII, ch. 11). Its section, its
 //! checks and its policy.
 
+use super::Requirements;
 use super::validate::measured;
 use anyhow::{Result, ensure};
 use scene_core::policy::ShadowPolicy;
@@ -21,8 +22,9 @@ pub struct ShadowConfig {
 }
 
 impl ShadowConfig {
-    /// Distances in metres; the bed's size in metres is needed (`bed_size_m`).
-    pub(super) fn validate(&self, bed_size_m: bool) -> Result<()> {
+    /// Distances in metres; the bed's size in metres is needed, as the map
+    /// says it (`needs`: `map.bed_size_m`).
+    pub(super) fn validate(&self, needs: &Requirements<'_>) -> Result<()> {
         ensure!(
             self.near_m.is_finite() && self.near_m > 0.0,
             "shadow.near_m: a distance in metres, positive"
@@ -32,7 +34,7 @@ impl ShadowConfig {
             "shadow.support_margin_m: a distance in metres, not negative"
         );
         ensure!(
-            bed_size_m,
+            needs.has_bed_size_m(),
             "shadow needs map.bed_size_m: near the bed is measured in metres"
         );
         Ok(())

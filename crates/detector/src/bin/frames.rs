@@ -6,14 +6,12 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use detector::FramesSource;
+use detector::SystemClock;
 use detector::build_info;
-use detector::{Config, Driver, PublisherHandle, SystemClock};
+use detector::{Config, PublisherHandle, build_driver};
 use scene_contract::Source;
-use std::{io::Write, path::PathBuf, time::Duration};
+use std::{io::Write, path::PathBuf};
 use tokio_util::sync::CancellationToken;
-
-/// The stall watchdog's timeout over frames: a year, never in a test.
-const NEVER_STALLS: Duration = Duration::from_secs(365 * 24 * 3600);
 
 #[derive(Debug, Parser)]
 #[command(
@@ -64,16 +62,12 @@ fn main() -> Result<()> {
     let (mut publisher, _rx) = PublisherHandle::channel(run, profile);
     let mut file = std::fs::File::create(&args.out)
         .with_context(|| format!("create {}", args.out.display()))?;
-    let senses = detector::load_senses(&config)?;
-    let mut driver = Driver::new(
-        config.policy()?,
-        config.site_map(),
-        senses,
+    let mut driver = build_driver(
+        &config,
         // No camera, nothing to stall: the watchdog runs on the wall clock,
         // and a slow turn on a loaded machine must not change the scenes.
-        NEVER_STALLS,
-        SystemClock,
-    );
+        None,
+    )?;
     let mut error = None;
     driver.run(&mut source, &CancellationToken::new(), |processed| {
         let written = publisher

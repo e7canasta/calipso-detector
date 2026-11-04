@@ -66,40 +66,33 @@ fn in_section(section: &str, checked: Result<()>) -> Result<()> {
 impl Config {
     /// Each section checks itself; the first error found is reported.
     pub(super) fn validate(&self) -> Result<()> {
+        let needs = Requirements::of(self);
         self.validate_identifiers()?;
         self.validate_transport()?;
-        self.validate_senses()?;
+        self.validate_senses(&needs)?;
         self.validate_policy()?;
-        self.validate_map()?;
-        self.validate_bed_posture()?;
-        self.validate_verify()?;
+        self.validate_map(&needs)?;
+        self.validate_bed_posture(&needs)?;
+        self.validate_verify(&needs)?;
         Ok(())
     }
 
     /// The verifier's two sections together: the sense and the policy come
     /// together, and each rule names its own section.
-    fn validate_verify(&self) -> Result<()> {
+    fn validate_verify(&self, needs: &Requirements<'_>) -> Result<()> {
         in_section(
             "verify",
-            verify::validate(
-                self.verify.as_ref(),
-                self.senses.verify.as_ref(),
-                self.senses.depth.is_some(),
-                self.bed_posture.is_some(),
-            ),
+            verify::validate(self.verify.as_ref(), self.senses.verify.as_ref(), needs),
         )
     }
 
     /// Times finite and not negative; it needs where the head is (the
     /// headboard) and the body (a pose model).
-    fn validate_bed_posture(&self) -> Result<()> {
+    fn validate_bed_posture(&self, needs: &Requirements<'_>) -> Result<()> {
         let Some(b) = &self.bed_posture else {
             return Ok(());
         };
-        in_section(
-            "bed_posture",
-            b.validate(self.map.headboard.is_some(), self.senses.pose.is_some()),
-        )
+        in_section("bed_posture", b.validate(needs))
     }
 
     /// `camera.site` and `camera.id` become subject tokens.
@@ -155,7 +148,7 @@ impl Config {
     }
 
     /// Each sense section, and that depth and calibration ask for each other.
-    fn validate_senses(&self) -> Result<()> {
+    fn validate_senses(&self, needs: &Requirements<'_>) -> Result<()> {
         in_section("detect", self.senses.detect.validate_sense())?;
         if let Some(reinforce) = &self.senses.reinforce {
             in_section("reinforce", reinforce.validate(self.policy.min_confidence))?;
@@ -167,14 +160,10 @@ impl Config {
             in_section("pose", pose.validate())?;
         }
         if let Some(depth) = &self.senses.depth {
-            let asked = self.senses.pose.is_some() || self.calibration.is_some();
-            in_section("depth", depth.validate(asked))?;
+            in_section("depth", depth.validate(needs))?;
         }
         if let Some(calibration) = &self.calibration {
-            in_section(
-                "calibration",
-                calibration.validate(self.senses.depth.is_some()),
-            )?;
+            in_section("calibration", calibration.validate(needs))?;
         }
         Ok(())
     }
@@ -202,37 +191,36 @@ impl Config {
         not_negative("policy.dwell_secs", self.policy.dwell_secs)
     }
 
-    /// The bed inside the resolution and not degenerate; a valid headboard;
-    /// the shadow and the room's geometry, which need the map's measures.
-    fn validate_map(&self) -> Result<()> {
+    /// The map's own measures and shapes, the shadow and the room's geometry:
+    /// one named piece each, in the order the first error is reported.
+    fn validate_map(&self, needs: &Requirements<'_>) -> Result<()> {
+        self.validate_map_measures()?;
+        self.validate_shadow(needs)?;
+        self.validate_headboard()?;
+        self.validate_parts_section(needs)?;
+        self.validate_occupancy(needs)?;
+        self.validate_focus()
+    }
+
+    /// The bed inside the resolution and not degenerate; the floor it stands
+    /// on, the same; its size in metres, positive.
+    fn validate_map_measures(&self) -> Result<()> {
         let [w, h] = self.map.resolution;
         ensure!(w > 0 && h > 0, "map.resolution must be positive");
-        let within = |points: &[[f32; 2]; 4]| {
-            points.iter().all(|[x, y]| {
-                x.is_finite()
-                    && y.is_finite()
-                    && *x >= 0.0
-                    && *y >= 0.0
-                    && *x <= w as f32
-                    && *y <= h as f32
-            })
-        };
-        let degenerate = |points: &[[f32; 2]; 4]| {
-            let area: f32 = points
-                .iter()
-                .zip(points.iter().cycle().skip(1))
-                .take(4)
-                .map(|([x, y], [u, v])| x * v - y * u)
-                .sum();
-            !(area.is_finite() && area.abs() > 0.0)
-        };
-        ensure!(within(&self.map.bed), "map.bed: points outside resolution");
+        let resolution = self.map.resolution;
+        ensure!(
+            within(&self.map.bed, resolution),
+            "map.bed: points outside resolution"
+        );
         ensure!(
             !degenerate(&self.map.bed),
             "map.bed: degenerate quadrilateral"
         );
         if let Some(points) = &self.map.bed_floor {
-            ensure!(within(points), "map.bed_floor: points outside resolution");
+            ensure!(
+                within(points, resolution),
+                "map.bed_floor: points outside resolution"
+            );
             ensure!(
                 !degenerate(points),
                 "map.bed_floor: degenerate quadrilateral"
@@ -244,11 +232,22 @@ impl Config {
                 "map.bed_size_m: the bed's width and length in metres, positive"
             );
         }
+        Ok(())
+    }
+
+    /// The shadow's section: its numbers, and the bed's size it needs.
+    fn validate_shadow(&self, needs: &Requirements<'_>) -> Result<()> {
         if let Some(shadow) = &self.shadow {
-            in_section("shadow", shadow.validate(self.map.bed_size_m.is_some()))?;
+            in_section("shadow", shadow.validate(needs))?;
         }
-        // The headboard's stops may lie above the frame (galia: the headboard is cut
-        // by the top edge; white book, volume IX, ch. 02): finite and not degenerate.
+        Ok(())
+    }
+
+    /// The headboard's own shape. Its stops may lie above the frame (galia: the
+    /// headboard is cut by the top edge; white book, volume IX, ch. 02):
+    /// finite and not degenerate.
+    fn validate_headboard(&self) -> Result<()> {
+        let [w, h] = self.map.resolution;
         if let Some(HeadboardConfig::Quad(points)) = &self.map.headboard {
             ensure!(
                 points.iter().all(|[x, y]| x.is_finite() && y.is_finite()),
@@ -271,35 +270,30 @@ impl Config {
                 "map.headboard: invalid rectangle"
             );
         }
-        // The parts' order is checked after the headboard's own shape: a degenerate
-        // headboard is named as such.
+        Ok(())
+    }
+
+    /// The parts' order against the headboard and the bed. Checked after the
+    /// headboard's own shape: a degenerate headboard is named as such.
+    fn validate_parts_section(&self, needs: &Requirements<'_>) -> Result<()> {
         if let Some(parts) = self.occupancy.as_ref().and_then(|o| o.parts.as_ref()) {
-            let geometry = self.occupancy.as_ref().map(|o| o.geometry);
-            let headboard = match self.map.headboard {
-                Some(HeadboardConfig::Quad(points)) => Some(points),
-                _ => None,
-            };
-            in_section(
-                "occupancy.parts",
-                parts.validate(
-                    geometry == Some(super::occupancy::RoomGeometry::TwoPlanes),
-                    self.senses.pose.is_some(),
-                    self.senses.faces.is_some(),
-                    headboard,
-                    self.map.bed,
-                ),
-            )?;
+            in_section("occupancy.parts", parts.validate(needs))?;
         }
+        Ok(())
+    }
+
+    /// The room's geometry section and its pieces.
+    fn validate_occupancy(&self, needs: &Requirements<'_>) -> Result<()> {
         if let Some(occupancy) = &self.occupancy {
-            in_section(
-                "occupancy",
-                occupancy.validate(
-                    self.map.bed_floor.is_some(),
-                    self.map.bed_size_m.is_some(),
-                    self.senses.pose.is_some(),
-                ),
-            )?;
+            in_section("occupancy", occupancy.validate(needs))?;
         }
+        Ok(())
+    }
+
+    /// Where the main detector looks while focusing: a rectangle over the bed,
+    /// inside the resolution, and the detector must be able to focus.
+    fn validate_focus(&self) -> Result<()> {
+        let [w, h] = self.map.resolution;
         if let Some([x0, y0, x1, y1]) = self.map.focus {
             ensure!(
                 self.senses.detect.focus.is_some(),
@@ -323,4 +317,23 @@ impl Config {
         }
         Ok(())
     }
+}
+
+/// The quadrilateral's points inside the frame's resolution, borders counted
+/// in, all of them finite.
+fn within(points: &[[f32; 2]; 4], [w, h]: [u32; 2]) -> bool {
+    points.iter().all(|[x, y]| {
+        x.is_finite() && y.is_finite() && *x >= 0.0 && *y >= 0.0 && *x <= w as f32 && *y <= h as f32
+    })
+}
+
+/// A quadrilateral with no area — or a non-finite one: nothing to decide with.
+fn degenerate(points: &[[f32; 2]; 4]) -> bool {
+    let area: f32 = points
+        .iter()
+        .zip(points.iter().cycle().skip(1))
+        .take(4)
+        .map(|([x, y], [u, v])| x * v - y * u)
+        .sum();
+    !(area.is_finite() && area.abs() > 0.0)
 }

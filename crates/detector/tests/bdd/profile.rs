@@ -69,12 +69,13 @@ fn others_without_keypoint_score(w: &mut Shell) {
 #[then("the core policy does not measure the subject's depth")]
 fn no_subject_depth(w: &mut Shell) {
     assert!(
-        !w.config()
+        w.config()
             .policy()
             .expect("a valid profile")
             .enrich
             .expect("pose policy")
             .depth
+            .is_none()
     );
 }
 
@@ -148,7 +149,7 @@ fn subject_depth(w: &mut Shell, score: f32) {
         .expect("a valid profile")
         .enrich
         .expect("pose policy");
-    assert!(enrich.depth);
+    assert!(enrich.depth.is_some());
     assert_eq!(enrich.min_keypoint_score.get(), score);
 }
 

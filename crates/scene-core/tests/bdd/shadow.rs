@@ -5,7 +5,7 @@
 use cucumber::{given, then, when};
 use scene_contract::{BodySeen, ShadowPlane, Zone};
 use scene_core::map::MapShadow;
-use scene_core::policy::ShadowPolicy;
+use scene_core::policy::{PostureSource, ShadowPolicy, ZoneRule};
 use scene_core::{Monitor, Output};
 use scene_geom::{Quad, Rect};
 use scene_look::{Detection, Label};
@@ -221,7 +221,7 @@ fn parts_profile(ward: &mut Ward) {
     });
     ward.policy.enrich = Some(EnrichPolicy {
         move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
-        depth: false,
+        depth: None,
         min_keypoint_score: Confidence::new(0.5).expect("a constant score"),
         posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
         max_pose_age_secs: None,
@@ -241,8 +241,8 @@ fn parts_profile(ward: &mut Ward) {
             HeadboardW::new(1.0).expect("a finite w"),
         )
         .expect("an ordered band"),
-        decide: false,
-        posture: false,
+        zone_rule: ZoneRule::ByTheBox,
+        posture_source: PostureSource::FromTheSightings,
         posture_upright_cos: Proportion::new(0.93).expect("a constant cosine"),
         posture_along_cos: Proportion::new(0.80).expect("a constant cosine"),
         posture_pillow_w: Proportion::new(0.15).expect("a constant fraction"),
@@ -252,14 +252,22 @@ fn parts_profile(ward: &mut Ward) {
 /// Layer 1 reads the posture from the frame (F5.2), not from the depth.
 #[given("the bed posture is read from the frame")]
 fn posture_from_frame(ward: &mut Ward) {
-    ward.policy.parts.as_mut().expect("the parts first").posture = true;
+    ward.policy
+        .parts
+        .as_mut()
+        .expect("the parts first")
+        .posture_source = PostureSource::FromTheFrame;
 }
 
 /// The parts decide the zone (F4.1): the cascade and its memory say where a
 /// body is, instead of the box.
 #[given("the parts decide the zone")]
 fn parts_decide(ward: &mut Ward) {
-    ward.policy.parts.as_mut().expect("the parts first").decide = true;
+    ward.policy
+        .parts
+        .as_mut()
+        .expect("the parts first")
+        .zone_rule = ZoneRule::ByTheParts;
 }
 
 #[then(regex = r#"^the body's parts are on the "(bed|floor)", by the step "(\w+)"$"#)]

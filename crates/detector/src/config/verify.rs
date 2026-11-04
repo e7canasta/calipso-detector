@@ -2,13 +2,15 @@
 //! `[senses.verify]` says where the verifier is (a local service behind NATS).
 //! Each stream pays only for what matters to it (white book, volume III).
 
+use super::Requirements;
 use super::schema::defaults;
 use super::validate::measured;
 use super::validate::{not_negative, positive, seconds};
-use anyhow::{Result, ensure};
+use anyhow::{Result, anyhow, ensure};
 use scene_core::policy::{Band, Burst, Frames, HeldVerifyPolicy, SharpnessPolicy, VerifyPolicy};
-use scene_core::units::{FeetMargin, Ratio, RelativeDepth};
+use scene_core::units::{FeetMargin, Ratio, RelativeDepth, Seconds};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// `VerifyPolicy`: what this stream verifies, and nothing else. Each stream
 /// pays only for what matters to it.
@@ -88,20 +90,34 @@ pub struct HeldVerifyConfig {
 pub struct VerifySense {
     #[serde(default = "defaults::verify_subject")]
     pub subject: String,
-    /// Wall seconds the shell waits for a reply before answering unsure.
+    /// Wall seconds the shell waits for a reply before answering unsure. A
+    /// `Seconds`, so it is validated as the profile loads — not a bare `f64`
+    /// that `Duration::from_secs_f64` could panic on (rule 21).
     #[serde(default = "defaults::verify_wall_timeout_secs")]
-    pub wall_timeout_secs: f64,
+    pub wall_timeout_secs: Seconds,
 }
 
-/// The verifier's two sections together. `depth`: `[senses.depth]` is present
-/// (the disparity needs it); `bed_posture`: `[bed_posture]` is present (layer 1
-/// reads the doubtful digits). Without `[verify]`, nothing may be asked; with
-/// it, the sense is required.
+impl VerifySense {
+    /// The wait as the shell's wall-clock [`Duration`]: the load has checked
+    /// it is positive and fits, so the conversion cannot panic (rule 21).
+    pub fn wall_timeout(&self) -> Result<Duration> {
+        positive(
+            "senses.verify.wall_timeout_secs",
+            self.wall_timeout_secs.get(),
+        )?;
+        Duration::try_from_secs_f64(self.wall_timeout_secs.get())
+            .map_err(|_| anyhow!("senses.verify.wall_timeout_secs: longer than a wall clock waits"))
+    }
+}
+
+/// The verifier's two sections together, against what the profile holds
+/// (`needs`): the disparity needs `[senses.depth]`, the doubtful digits need
+/// `[bed_posture]` (layer 1 reads them). Without `[verify]`, nothing may be
+/// asked; with it, the sense is required.
 pub(super) fn validate(
     verify: Option<&VerifyConfig>,
     sense: Option<&VerifySense>,
-    depth: bool,
-    bed_posture: bool,
+    needs: &Requirements<'_>,
 ) -> Result<()> {
     let Some(v) = verify else {
         ensure!(
@@ -114,7 +130,7 @@ pub(super) fn validate(
         anyhow::bail!("verify needs senses.verify: where the verifier is");
     };
     ensure!(!sense.subject.is_empty(), "senses.verify.subject is empty");
-    positive("senses.verify.wall_timeout_secs", sense.wall_timeout_secs)?;
+    sense.wall_timeout()?;
     if let Some(max) = v.max_per_hour {
         ensure!(max > 0, "verify.max_per_hour must be positive");
     }
@@ -133,7 +149,7 @@ pub(super) fn validate(
             "verify.doubtful_disparity must be [lo, hi], finite, lo <= hi"
         );
         ensure!(
-            depth,
+            needs.depth(),
             "verify.doubtful_disparity needs senses.depth: the disparity"
         );
     }
@@ -170,7 +186,7 @@ pub(super) fn validate(
     }
     if v.doubtful_disparity.is_some() || v.doubtful_feet_margin.is_some() {
         ensure!(
-            bed_posture,
+            needs.bed_posture(),
             "verify.doubtful_* needs [bed_posture]: layer 1 reads the digit"
         );
     }

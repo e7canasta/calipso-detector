@@ -1,6 +1,7 @@
 //! Layer 1, the bed posture, `[bed_posture]`: how long each state must hold to
 //! count. Its section, its checks and its policy.
 
+use super::Requirements;
 use super::schema::defaults;
 use super::validate::{not_negative, seconds};
 use anyhow::{Result, ensure};
@@ -23,8 +24,8 @@ pub struct BedPostureConfig {
 
 impl BedPostureConfig {
     /// Times not negative; it needs where the head is (the headboard) and the
-    /// body (a pose model).
-    pub(super) fn validate(&self, headboard: bool, pose: bool) -> Result<()> {
+    /// body (a pose model), as the profile says them (`needs`).
+    pub(super) fn validate(&self, needs: &Requirements<'_>) -> Result<()> {
         not_negative("bed_posture.dwell_lying_secs", self.dwell_lying_secs)?;
         not_negative(
             "bed_posture.dwell_sitting_up_secs",
@@ -35,10 +36,10 @@ impl BedPostureConfig {
             self.dwell_getting_out_secs,
         )?;
         ensure!(
-            headboard,
+            needs.has_headboard(),
             "bed_posture needs map.headboard: where the head is"
         );
-        ensure!(pose, "bed_posture needs senses.pose: the body");
+        ensure!(needs.pose(), "bed_posture needs senses.pose: the body");
         Ok(())
     }
 

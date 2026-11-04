@@ -26,18 +26,14 @@ where
     let started = clock.now();
     let result = match probe.route() {
         Route::Sense(sense) => senses.look(frame, &sense),
+        // Each verifier probe goes to its own method, the probe itself (ADR
+        // quien-responde-cada-probe): no loose parameters to misorder.
         Route::Verifier(verified) => match verified {
-            VerifierProbe::Verify {
-                ticket,
-                region,
-                bed,
-                question,
-                crops,
-            } => verifier
-                .ask(frame, ticket, region, &bed, question, crops)
-                .map(|()| Reading::Dispatched),
-            VerifierProbe::Keep { ticket, region } => verifier
-                .keep(frame, ticket, region)
+            VerifierProbe::Verify { .. } => {
+                verifier.ask(frame, &verified).map(|()| Reading::Dispatched)
+            }
+            VerifierProbe::Keep { .. } => verifier
+                .keep(frame, &verified)
                 .map(|sharpness| Reading::Kept { sharpness }),
         },
     };

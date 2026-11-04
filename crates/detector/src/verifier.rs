@@ -5,12 +5,17 @@
 //! (`Monitor::verified`). Nothing here writes a pixel anywhere (rule 7): the
 //! crop goes to the local verifier and is dropped.
 use crate::clock::Clock;
+use burst::CropBurst;
 use image::{DynamicImage, codecs::jpeg::JpegEncoder};
 use scene_geom::{Quad, Rect};
-use scene_look::{Failure, Question, Ticket, Verified};
+use scene_look::{Failure, Question, Ticket, Verified, VerifierProbe};
 use std::marker::PhantomData;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
+
+/// The burst of crops kept for a question (white book, volume III, ch. 12):
+/// its own type, testable without the transport.
+mod burst;
 
 /// The wire of the protocol (`calipso.verify.v1`): the request's headers and
 /// payload, and the reply read as an answer. Documented in
@@ -19,26 +24,23 @@ mod verify_wire;
 
 /// Who verifies: it takes a request over the looked frame without blocking
 /// the turn, and gives back the answers that arrived since the last call.
+/// The port speaks [`VerifierProbe`]'s language: `ask` takes its `Verify`
+/// probe — the crop, the bed and the question — and `keep` its `Keep`, not
+/// loose parameters.
 pub trait VerifierPort {
     type Frame;
-    /// `region` is the crop; `bed` the bed grown by the crop's margin, which
-    /// the verifier may rectify the crop to. `crops`: which crops kept for the
-    /// ticket go, by the order they were kept; empty, this frame's crop.
-    fn ask(
-        &mut self,
-        frame: &Self::Frame,
-        ticket: Ticket,
-        region: Rect,
-        bed: &Quad,
-        question: Question,
-        crops: &[u8],
-    ) -> Result<(), Failure>;
+    /// The `Verify` probe: `region` is the crop; `bed` the bed grown by the
+    /// crop's margin, which the verifier may rectify the crop to. `crops`:
+    /// which crops kept for the ticket go, by the order they were kept;
+    /// empty, this frame's crop.
+    fn ask(&mut self, frame: &Self::Frame, probe: &VerifierProbe<'_>) -> Result<(), Failure>;
     fn answers(&mut self) -> Vec<Verified>;
-    /// Keeps the crop of `region` for the burst of `ticket` (white book,
-    /// volume III, ch. 12): it goes out with the `ask` of the same ticket. A
-    /// crop kept for another ticket is dropped: one burst at a time. Returns
-    /// how sharp the crop is: the core decides whether it counts.
-    fn keep(&mut self, frame: &Self::Frame, ticket: Ticket, region: Rect) -> Result<f32, Failure>;
+    /// The `Keep` probe: keeps its crop for the burst of its ticket (white
+    /// book, volume III, ch. 12); it goes out with the `ask` of the same
+    /// ticket. A crop kept for another ticket is dropped: one burst at a
+    /// time. Returns how sharp the crop is: the core decides whether it
+    /// counts.
+    fn keep(&mut self, frame: &Self::Frame, probe: &VerifierProbe<'_>) -> Result<f32, Failure>;
 }
 
 /// No verifier: a profile without `[verify]` never asks; if it were asked, it
@@ -54,21 +56,13 @@ impl<F> Default for NoVerifier<F> {
 
 impl<F> VerifierPort for NoVerifier<F> {
     type Frame = F;
-    fn ask(
-        &mut self,
-        _: &F,
-        _: Ticket,
-        _: Rect,
-        _: &Quad,
-        _: Question,
-        _: &[u8],
-    ) -> Result<(), Failure> {
+    fn ask(&mut self, _: &F, _: &VerifierProbe<'_>) -> Result<(), Failure> {
         Err(Failure::Model)
     }
     fn answers(&mut self) -> Vec<Verified> {
         Vec::new()
     }
-    fn keep(&mut self, _: &F, _: Ticket, _: Rect) -> Result<f32, Failure> {
+    fn keep(&mut self, _: &F, _: &VerifierProbe<'_>) -> Result<f32, Failure> {
         Err(Failure::Model)
     }
 }
@@ -149,29 +143,43 @@ struct Request {
     jpegs: Vec<Vec<u8>>,
 }
 
+/// Where the slow verifier listens, and who asks: the four names of the
+/// request, one struct instead of interchangeable strings.
+#[derive(Debug, Clone)]
+pub struct VerifierEndpoint {
+    /// The NATS server, on the profile's own.
+    pub url: String,
+    /// The subject the questions go to (`calipso.verify.v1`).
+    pub subject: String,
+    /// The stream the questions name: the NATS prefix of the camera.
+    pub prefix: String,
+    /// The camera that asks.
+    pub camera: String,
+}
+
 /// Live: the local verifier service behind NATS (`calipso.verify.v1`). A
 /// background task makes one request/reply at a time; the turn only queues.
 #[derive(Debug)]
 pub struct NatsVerifier {
     requests: tokio::sync::mpsc::Sender<Request>,
     answers: mpsc::Receiver<Verified>,
-    /// The crops kept for the burst being collected, by its ticket's id.
-    kept: Option<(u64, Vec<Vec<u8>>)>,
+    /// The crops kept for the burst being collected, one burst at a time.
+    kept: CropBurst,
 }
 
 impl NatsVerifier {
-    /// Starts the task on `runtime`, on its own connection to `url`. Each
-    /// request carries the stream (the NATS prefix), the camera, the
-    /// question's versioned id, the ticket and the looked sample as headers,
-    /// and the crop as the payload. The wall-clock deadline is not here: it is
-    /// [`DeadlineVerifier`]'s, which wraps this port.
-    pub fn spawn(
-        runtime: &tokio::runtime::Handle,
-        url: String,
-        subject: String,
-        stream: String,
-        camera: String,
-    ) -> Self {
+    /// Starts the task on `runtime`, on its own connection to the endpoint's
+    /// `url`. Each request carries the stream (the NATS prefix), the camera,
+    /// the question's versioned id, the ticket and the looked sample as
+    /// headers, and the crop as the payload. The wall-clock deadline is not
+    /// here: it is [`DeadlineVerifier`]'s, which wraps this port.
+    pub fn spawn(runtime: &tokio::runtime::Handle, endpoint: VerifierEndpoint) -> Self {
+        let VerifierEndpoint {
+            url,
+            subject,
+            prefix,
+            camera,
+        } = endpoint;
         let (requests, mut queue) = tokio::sync::mpsc::channel::<Request>(1);
         let (answered, answers) = mpsc::channel();
         runtime.spawn(async move {
@@ -192,7 +200,7 @@ impl NatsVerifier {
                 let (payload, _) = verify_wire::frames_payload(&jpegs);
                 let headers = verify_wire::request_headers(
                     camera.as_str(),
-                    stream.as_str(),
+                    prefix.as_str(),
                     ticket,
                     question,
                     bed.as_str(),
@@ -217,7 +225,7 @@ impl NatsVerifier {
         Self {
             requests,
             answers,
-            kept: None,
+            kept: CropBurst::default(),
         }
     }
 }
@@ -250,19 +258,14 @@ impl<V, C> DeadlineVerifier<V, C> {
 
 impl<V: VerifierPort, C: Clock> VerifierPort for DeadlineVerifier<V, C> {
     type Frame = V::Frame;
-    fn ask(
-        &mut self,
-        frame: &V::Frame,
-        ticket: Ticket,
-        region: Rect,
-        bed: &Quad,
-        question: Question,
-        crops: &[u8],
-    ) -> Result<(), Failure> {
-        self.inner
-            .ask(frame, ticket, region, bed, question, crops)?;
+    fn ask(&mut self, frame: &V::Frame, probe: &VerifierProbe<'_>) -> Result<(), Failure> {
+        // `ask` takes the `Verify` probe; the router sends `Keep` to `keep`.
+        let VerifierProbe::Verify { ticket, .. } = probe else {
+            return Err(Failure::Model);
+        };
+        self.inner.ask(frame, probe)?;
         self.sent
-            .push((ticket, self.clock.now() + self.wall_timeout));
+            .push((*ticket, self.clock.now() + self.wall_timeout));
         Ok(())
     }
     fn answers(&mut self) -> Vec<Verified> {
@@ -296,28 +299,28 @@ impl<V: VerifierPort, C: Clock> VerifierPort for DeadlineVerifier<V, C> {
         }));
         answers
     }
-    fn keep(&mut self, frame: &V::Frame, ticket: Ticket, region: Rect) -> Result<f32, Failure> {
-        self.inner.keep(frame, ticket, region)
+    fn keep(&mut self, frame: &V::Frame, probe: &VerifierProbe<'_>) -> Result<f32, Failure> {
+        self.inner.keep(frame, probe)
     }
 }
 
 impl VerifierPort for NatsVerifier {
     type Frame = DynamicImage;
-    fn ask(
-        &mut self,
-        frame: &DynamicImage,
-        ticket: Ticket,
-        region: Rect,
-        bed: &Quad,
-        question: Question,
-        crops: &[u8],
-    ) -> Result<(), Failure> {
-        let kept = match self.kept.take() {
-            Some((id, kept)) if id == ticket.id => kept,
-            _ => Vec::new(),
+    fn ask(&mut self, frame: &DynamicImage, probe: &VerifierProbe<'_>) -> Result<(), Failure> {
+        // `ask` takes the `Verify` probe; the router sends `Keep` to `keep`.
+        let VerifierProbe::Verify {
+            ticket,
+            region,
+            bed,
+            question,
+            crops,
+        } = probe
+        else {
+            return Err(Failure::Model);
         };
+        let kept = self.kept.take(ticket.id);
         let jpegs = if crops.is_empty() {
-            vec![jpeg_crop(frame, region)?]
+            vec![jpeg_crop(frame, *region)?]
         } else {
             crops
                 .iter()
@@ -326,9 +329,9 @@ impl VerifierPort for NatsVerifier {
         };
         self.requests
             .try_send(Request {
-                ticket,
-                question,
-                bed: bed_in_crop(frame, region, bed),
+                ticket: *ticket,
+                question: *question,
+                bed: bed_in_crop(frame, *region, bed),
                 jpegs,
             })
             .map_err(|_| Failure::Model)
@@ -336,13 +339,14 @@ impl VerifierPort for NatsVerifier {
     fn answers(&mut self) -> Vec<Verified> {
         self.answers.try_iter().collect()
     }
-    fn keep(&mut self, frame: &DynamicImage, ticket: Ticket, region: Rect) -> Result<f32, Failure> {
-        let jpeg = jpeg_crop(frame, region)?;
-        let sharp = sharpness(frame, region)?;
-        match self.kept.as_mut() {
-            Some((id, kept)) if *id == ticket.id => kept.push(jpeg),
-            _ => self.kept = Some((ticket.id, vec![jpeg])),
-        }
+    fn keep(&mut self, frame: &DynamicImage, probe: &VerifierProbe<'_>) -> Result<f32, Failure> {
+        // `keep` takes the `Keep` probe; the router sends `Verify` to `ask`.
+        let VerifierProbe::Keep { ticket, region } = probe else {
+            return Err(Failure::Model);
+        };
+        let jpeg = jpeg_crop(frame, *region)?;
+        let sharp = sharpness(frame, *region)?;
+        self.kept.keep(ticket.id, jpeg);
         Ok(sharp)
     }
 }
@@ -408,21 +412,13 @@ mod tests {
 
     impl VerifierPort for Fake {
         type Frame = ();
-        fn ask(
-            &mut self,
-            _: &(),
-            _: Ticket,
-            _: Rect,
-            _: &Quad,
-            _: Question,
-            _: &[u8],
-        ) -> Result<(), Failure> {
+        fn ask(&mut self, _: &(), _: &VerifierProbe<'_>) -> Result<(), Failure> {
             Ok(())
         }
         fn answers(&mut self) -> Vec<Verified> {
             std::mem::take(&mut self.pending)
         }
-        fn keep(&mut self, _: &(), _: Ticket, _: Rect) -> Result<f32, Failure> {
+        fn keep(&mut self, _: &(), _: &VerifierProbe<'_>) -> Result<f32, Failure> {
             Err(Failure::Model)
         }
     }
@@ -444,11 +440,13 @@ mod tests {
         let region = Rect::new(0.0, 0.0, 10.0, 10.0);
         v.ask(
             &(),
-            ticket,
-            region,
-            &Quad::from_rect(region),
-            Question::HeldInBed,
-            &[],
+            &VerifierProbe::Verify {
+                ticket,
+                region,
+                bed: Quad::from_rect(region),
+                question: Question::HeldInBed,
+                crops: &[],
+            },
         )
         .expect("the fake takes the request");
     }

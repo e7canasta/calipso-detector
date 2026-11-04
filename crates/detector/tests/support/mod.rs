@@ -36,7 +36,7 @@ pub fn driver() -> Driver<sense::Senses, detector::NoVerifier<DynamicImage>, Fix
         Policy::default(),
         SiteMap::new(Quad::from_rect(Rect::new(20.0, 20.0, 100.0, 80.0))),
         sense::Senses::new(Script(script)),
-        Duration::from_secs(3),
+        Some(Duration::from_secs(3)),
         FixedClock::new(),
     )
 }

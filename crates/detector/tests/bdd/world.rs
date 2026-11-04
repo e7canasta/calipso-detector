@@ -5,9 +5,7 @@ use detector::VerifierPort;
 use image::DynamicImage;
 use models::{Call, DepthModel, Model, PoseModel};
 use scene_geom::Rect;
-use scene_look::{
-    Detection, FaceRegion, Failure, Label, Probe, Reading, SenseProbe, Spent, Ticket,
-};
+use scene_look::{Detection, FaceRegion, Failure, Label, Probe, Reading, SenseProbe, Spent};
 use sense::{DetectorPort, ModelError};
 use std::time::Duration;
 
@@ -35,22 +33,18 @@ pub struct Verifier {
 
 impl VerifierPort for Verifier {
     type Frame = DynamicImage;
-    fn ask(
-        &mut self,
-        _: &DynamicImage,
-        _: Ticket,
-        _: Rect,
-        _: &scene_geom::Quad,
-        _: scene_look::Question,
-        _: &[u8],
-    ) -> Result<(), Failure> {
+    fn ask(&mut self, _: &DynamicImage, _: &scene_look::VerifierProbe<'_>) -> Result<(), Failure> {
         self.asks += 1;
         Ok(())
     }
     fn answers(&mut self) -> Vec<scene_look::Verified> {
         Vec::new()
     }
-    fn keep(&mut self, _: &DynamicImage, _: Ticket, _: Rect) -> Result<f32, Failure> {
+    fn keep(
+        &mut self,
+        _: &DynamicImage,
+        _: &scene_look::VerifierProbe<'_>,
+    ) -> Result<f32, Failure> {
         self.keeps += 1;
         Ok(3.0)
     }

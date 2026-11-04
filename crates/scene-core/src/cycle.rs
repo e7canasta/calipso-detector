@@ -348,7 +348,7 @@ mod tests {
                 }),
                 enrich: Some(EnrichPolicy {
                     move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
-                    depth: false,
+                    depth: None,
                     min_keypoint_score: Confidence::new(0.3).expect("a score"),
                     posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
                     max_pose_age_secs: None,

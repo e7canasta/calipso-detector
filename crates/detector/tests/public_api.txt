@@ -1,9 +1,9 @@
 pub use build::current as build_info
 pub use clock::{Clock, FixedClock, SystemClock}
 pub use config::{Config, NatsConfig}
-pub use driver::{Driver, Processed}
+pub use driver::{Driver, Processed, build_driver}
 pub use publish::{CHANNEL_BUFFER, Kind, Publication, PublisherHandle, nats}
 pub use router::answer
 pub use senses::{Frame, SensesPort, load as load_senses}
 pub use source::{Arrival, FramesSource, RtspSource, SampleDecoder, SampleSource}
-pub use verifier::{DeadlineVerifier, NatsVerifier, NoVerifier, VerifierPort, jpeg_crop}
+pub use verifier::{ DeadlineVerifier, NatsVerifier, NoVerifier, VerifierEndpoint, VerifierPort, jpeg_crop, }

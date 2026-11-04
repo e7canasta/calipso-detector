@@ -1,5 +1,5 @@
 use super::*;
-use scene_core::policy::{Band, Burst, ShadowPolicy, TwoPlanesPolicy};
+use scene_core::policy::{Band, Burst, FarArrival, ShadowPolicy, SideExit, TwoPlanesPolicy};
 use scene_core::units::{FeetMargin, Metres, PositiveMetres, Ratio, RelativeDepth};
 
 /// Every profile in the repository loads and builds what the detector
@@ -303,7 +303,7 @@ fn pose_section_enables_enrich_validates_and_preserves_legacy_hash() {
     assert_eq!(
         (
             enrich.move_threshold.get(),
-            enrich.depth,
+            enrich.depth.is_some(),
             enrich.min_keypoint_score.get()
         ),
         (0.1, false, 0.3)
@@ -441,11 +441,20 @@ fn two_planes_needs_its_geometry_validates_and_leaves_the_hash_when_absent() {
 #[test]
 fn the_side_exit_is_off_unless_asked_and_leaves_the_hash_when_absent() {
     let baseline = Config::parse(VALID).unwrap();
-    assert!(!baseline.policy().expect("a valid profile").held_left);
+    assert_eq!(
+        baseline.policy().expect("a valid profile").held_exit,
+        SideExit::OnlyReappearing
+    );
     let off = Config::parse(&format!("{VALID}\n[occupancy]\nheld_left = false\n")).unwrap();
     let on = Config::parse(&format!("{VALID}\n[occupancy]\nheld_left = true\n")).unwrap();
-    assert!(!off.policy().expect("a valid profile").held_left);
-    assert!(on.policy().expect("a valid profile").held_left);
+    assert_eq!(
+        off.policy().expect("a valid profile").held_exit,
+        SideExit::OnlyReappearing
+    );
+    assert_eq!(
+        on.policy().expect("a valid profile").held_exit,
+        SideExit::ByTheSide
+    );
     assert_ne!(off.profile().unwrap().hash, on.profile().unwrap().hash);
 }
 
@@ -454,11 +463,20 @@ fn near_first_is_off_unless_asked_and_leaves_the_hash_when_absent() {
     // An `[occupancy]` already in the profile: the key alone is measured.
     let occupancy = format!("{VALID}\n[occupancy]\nheld_left = true\n");
     let baseline = Config::parse(&occupancy).unwrap();
-    assert!(!baseline.policy().expect("a valid profile").near_first);
+    assert_eq!(
+        baseline.policy().expect("a valid profile").far_arrival,
+        FarArrival::FromTheDoor
+    );
     let off = Config::parse(&format!("{occupancy}near_first = false\n")).unwrap();
     let on = Config::parse(&format!("{occupancy}near_first = true\n")).unwrap();
-    assert!(!off.policy().expect("a valid profile").near_first);
-    assert!(on.policy().expect("a valid profile").near_first);
+    assert_eq!(
+        off.policy().expect("a valid profile").far_arrival,
+        FarArrival::FromTheDoor
+    );
+    assert_eq!(
+        on.policy().expect("a valid profile").far_arrival,
+        FarArrival::ThoseNeverNear
+    );
     assert_eq!(
         baseline.profile().unwrap().hash,
         off.profile().unwrap().hash
@@ -552,7 +570,10 @@ fn depth_and_calibration_enable_policies_validate_together_and_keep_legacy_hash(
         )
     };
     let (policy, with_pose, roles) = kinds(&format!("{pose}{depth}"));
-    assert!(policy.enrich.unwrap().depth && policy.calibration.is_none());
+    assert!(
+        policy.enrich.unwrap().depth.is_some() && policy.calibration.is_none(),
+        "depth: a model of its own; calibration off"
+    );
     assert_eq!(roles, [LookKind::Detect, LookKind::Pose, LookKind::Depth]);
     let (policy, with_calibration, roles) = kinds(&format!("{depth}{calibration}"));
     assert!(policy.enrich.is_none());

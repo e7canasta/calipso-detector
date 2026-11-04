@@ -158,6 +158,8 @@ pub struct NatsConfig {
 /// What a profile gets when it leaves a field out. Each value is named by what
 /// it means: two fields that share a number do not share a default.
 pub(super) mod defaults {
+    use scene_core::units::Seconds;
+
     pub(in crate::config) fn sharpness_window() -> u16 {
         20
     }
@@ -167,9 +169,10 @@ pub(super) mod defaults {
     }
     /// Above the verifier's slowest answer: two calls of up to 30 s each (it
     /// retries a broken reply once); MiMo took up to 43.8 s on vador1's crops
-    /// with a retry (2026-10-13).
-    pub(in crate::config) fn verify_wall_timeout_secs() -> f64 {
-        65.0
+    /// with a retry (2026-10-13). A constant, so `Seconds::new` cannot refuse
+    /// it.
+    pub(in crate::config) fn verify_wall_timeout_secs() -> Seconds {
+        Seconds::new(65.0).expect("a constant duration")
     }
     pub(in crate::config) fn keyframe_only() -> bool {
         true

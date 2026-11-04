@@ -1,6 +1,7 @@
 //! The bed's calibration, `[calibration]`: learn the empty bed with depth. Its
 //! section, its checks and its policy.
 
+use super::Requirements;
 use super::schema::defaults;
 use super::validate::{not_negative, seconds};
 use anyhow::{Result, ensure};
@@ -16,10 +17,10 @@ pub struct CalibrationConfig {
 }
 
 impl CalibrationConfig {
-    /// It learns with depth: `depth` is whether `[senses.depth]` is present.
-    pub(super) fn validate(&self, depth: bool) -> Result<()> {
+    /// It learns with depth: `needs` says whether `[senses.depth]` is present.
+    pub(super) fn validate(&self, needs: &Requirements<'_>) -> Result<()> {
         ensure!(
-            depth,
+            needs.depth(),
             "calibration: calibrating the bed requires [senses.depth]"
         );
         not_negative("calibration.retry_secs", self.retry_secs)

@@ -2,6 +2,7 @@
 //! (white book, volume VII, ch. 14), and the rules of the room that come with
 //! it. Its section, its checks and its policy.
 
+use super::Requirements;
 use super::parts::PartsConfig;
 use super::validate::measured;
 use anyhow::{Result, ensure};
@@ -73,9 +74,9 @@ pub struct TwoPlanesConfig {
 }
 
 impl OccupancyConfig {
-    /// The geometry and its pieces. `bed_floor` and `bed_size_m`: the map has
-    /// them; `pose`: `[senses.pose]` is present (the knee is read on it).
-    pub(super) fn validate(&self, bed_floor: bool, bed_size_m: bool, pose: bool) -> Result<()> {
+    /// The geometry and its pieces, against what the profile holds (`needs`):
+    /// the map's `bed_floor` and `bed_size_m`, and the pose for the knee.
+    pub(super) fn validate(&self, needs: &Requirements<'_>) -> Result<()> {
         match (self.geometry, &self.two_planes) {
             (RoomGeometry::Frontal, Some(_)) => {
                 anyhow::bail!("occupancy.two_planes needs occupancy.geometry = \"two_planes\"")
@@ -97,11 +98,11 @@ impl OccupancyConfig {
                     "occupancy.two_planes.near_m: a distance in metres, positive"
                 );
                 ensure!(
-                    bed_floor,
+                    needs.has_bed_floor(),
                     "occupancy in two planes needs map.bed_floor: the support rests on it"
                 );
                 ensure!(
-                    bed_size_m,
+                    needs.has_bed_size_m(),
                     "occupancy in two planes needs map.bed_size_m: distances are in metres"
                 );
             }
@@ -113,7 +114,7 @@ impl OccupancyConfig {
                 "occupancy.knee needs occupancy.geometry = \"two_planes\""
             );
             ensure!(
-                pose,
+                needs.pose(),
                 "occupancy.knee needs [senses.pose]: the knee is read on the pose"
             );
             ensure!(

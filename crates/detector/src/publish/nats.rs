@@ -14,10 +14,6 @@ use tokio_util::sync::CancellationToken;
 const NETWORK_TIMEOUT: Duration = Duration::from_secs(1);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(3);
 
-/// The last event that actually went out.
-#[derive(Debug, Default, Clone, Copy)]
-struct Sent(u64);
-
 /// An event that carries its number in the stream.
 trait Numbered {
     fn number(&self) -> u64;
@@ -27,16 +23,6 @@ impl Numbered for EventPublication {
     fn number(&self) -> u64 {
         self.seq
     }
-}
-
-/// A scene keeps its own `last_event_seq`: the numbering's, whatever the
-/// transport sent (change 1).
-trait Restamp {
-    fn restamp(&mut self, sent: Sent);
-}
-
-impl Restamp for ScenePublication {
-    fn restamp(&mut self, _sent: Sent) {}
 }
 
 /// The queue: its events, and the last scene (a new one replaces the previous).
@@ -68,23 +54,21 @@ impl Queue {
         self.events.is_empty() && self.scene.is_none()
     }
 
-    /// The front: events first; with the queue empty, the scene.
-    fn front(&mut self, sent: Sent) -> Option<serde_json::Result<WireMessage>> {
+    /// The front: events first; with the queue empty, the scene. The scene
+    /// goes out as the numbering wrote it (change 1): the transport never
+    /// stamps `last_event_seq`.
+    fn front(&self) -> Option<serde_json::Result<WireMessage>> {
         if let Some(event) = self.events.front() {
             Some(event.wire())
-        } else if let Some(scene) = self.scene.as_mut() {
-            scene.restamp(sent);
-            Some(scene.wire())
         } else {
-            None
+            self.scene.as_ref().map(|scene| scene.wire())
         }
     }
 
-    /// Removes the front that went out and notes its event.
-    fn pop(&mut self, sent: &mut Sent) {
-        match self.events.pop_front() {
-            Some(event) => sent.0 = event.number(),
-            None => self.scene = None,
+    /// Removes the front that went out.
+    fn pop(&mut self) {
+        if self.events.pop_front().is_none() {
+            self.scene = None;
         }
     }
 }
@@ -100,7 +84,6 @@ pub async fn run(
     let mut client: Option<async_nats::Client> = None;
     let mut closed = false;
     let mut stopping = None;
-    let mut sent = Sent::default();
     loop {
         // Bounded by capacity: receiving cannot stop serving the network.
         for _ in 0..super::CHANNEL_BUFFER {
@@ -149,8 +132,10 @@ pub async fn run(
                 }
             }
         }
-        let connected = client.as_ref().expect("client just connected");
-        let Some(message) = pending.front(sent) else {
+        let Some(connected) = client.as_ref() else {
+            continue;
+        };
+        let Some(message) = pending.front() else {
             continue;
         };
         let result = match message {
@@ -158,7 +143,7 @@ pub async fn run(
             Err(error) => Ok(Err(error.into())),
         };
         match result {
-            Ok(Ok(())) => pending.pop(&mut sent),
+            Ok(Ok(())) => pending.pop(),
             result => {
                 // The front is not removed until flush: retry with the same ID.
                 tracing::warn!(?result, "NATS publication failed; retrying the front");
@@ -284,13 +269,12 @@ mod tests {
                 .cancel();
             ingest(&mut queue, handle.prepare(output, timing()));
         }
-        let mut sent = Sent::default();
         let mut wire = Vec::new();
-        while let Some(message) = queue.front(sent) {
+        while let Some(message) = queue.front() {
             let message = message.unwrap();
             let json: serde_json::Value = serde_json::from_slice(&message.bytes).unwrap();
             wire.push((message.kind, json));
-            queue.pop(&mut sent);
+            queue.pop();
         }
         let kinds: Vec<Kind> = wire.iter().map(|(kind, _)| *kind).collect();
         let events = kinds.iter().filter(|k| **k == Kind::Events).count();
@@ -301,8 +285,14 @@ mod tests {
         assert_eq!(wire[events].1["last_event_seq"], last);
     }
 
+    /// The property the removed no-op trait protected (change 1): the scene
+    /// keeps the numbering's `last_event_seq`, never the transport's count —
+    /// what went out does not stamp what is published. What stands is that the
+    /// numbering's number reaches the wire untouched through the queue — and
+    /// `a_scene_that_follows_a_dropped_event_keeps_the_numbering_through_the_queue`
+    /// pins the case where the transport's count and the numbering's differ.
     #[test]
-    fn v5_alone_keeps_its_last_event_seq_when_the_transport_restates_one_sent() {
+    fn v5_alone_keeps_its_last_event_seq_whatever_the_transport_sent() {
         let (mut handle, _) = PublisherHandle::channel(source(), profile());
         let mut monitor = monitor();
         let at = at();
@@ -316,16 +306,20 @@ mod tests {
         let publication = handle.prepare(output, timing());
         let numbered = publication.events.len() as u64;
         assert_eq!(publication.scene.last_event_seq, Some(numbered));
-        // The transport's number must differ from the numbered one, or a
-        // restamp that copies it would pass.
-        let mut scene = publication.scene;
-        super::Restamp::restamp(&mut scene, super::Sent(numbered + 7));
-        assert_eq!(scene.last_event_seq, Some(numbered));
+        // Through the transport's queue: the scene keeps the numbering's.
+        let mut queue = Queue::default();
+        ingest(&mut queue, publication);
+        while !queue.events.is_empty() {
+            queue.pop();
+        }
+        let scene = queue.front().unwrap().unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&scene.bytes).unwrap();
+        assert_eq!(json["last_event_seq"], numbered, "{json}");
     }
 
-    /// Through the actor's queue, with the `Sent` the transport really reports:
-    /// the FIFO drops the newest event, so the numbering runs ahead of what
-    /// went out, and the scene must keep the numbering's.
+    /// Through the actor's queue: the FIFO drops the newest event, so the
+    /// numbering runs ahead of what went out, and the scene must keep the
+    /// numbering's.
     #[test]
     fn a_scene_that_follows_a_dropped_event_keeps_the_numbering_through_the_queue() {
         let (mut handle, _) = PublisherHandle::channel(source(), profile());
@@ -348,12 +342,13 @@ mod tests {
         }
         assert_eq!(queue.dropped_events, 1);
         // The transport delivers the 1024 queued events: its last one is 1024.
-        let mut sent = Sent::default();
+        let mut delivered = 0;
         while !queue.events.is_empty() {
-            queue.pop(&mut sent);
+            queue.pop();
+            delivered += 1;
         }
-        assert_eq!(sent.0, 1024);
-        let scene = queue.front(sent).unwrap().unwrap();
+        assert_eq!(delivered, 1024);
+        let scene = queue.front().unwrap().unwrap();
         let json: serde_json::Value = serde_json::from_slice(&scene.bytes).unwrap();
         assert_eq!(json["last_event_seq"], 1025, "{json}");
     }

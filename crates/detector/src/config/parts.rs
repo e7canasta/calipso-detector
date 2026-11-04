@@ -3,9 +3,10 @@
 //! section needs from the rest of the profile (the two planes, the pose, the
 //! faces and the headboard as four points).
 
+use super::Requirements;
 use super::validate::measured;
 use anyhow::{Result, ensure};
-use scene_core::policy::PartsPolicy;
+use scene_core::policy::{PartsPolicy, PostureSource, ZoneRule};
 use scene_core::units::{HeadboardW, MattressHeights, Metres, Proportion, Span};
 use serde::{Deserialize, Serialize};
 
@@ -68,35 +69,28 @@ impl Default for PartsConfig {
 const EDGE_TOLERANCE: f32 = 0.1;
 
 impl PartsConfig {
-    /// The section's own rules, against the rest of the profile: `two_planes`
-    /// (the geometry), `pose` and `faces` (the senses), the headboard as four
-    /// points (`headboard`) and the bed's corners (`bed`). Then every number.
-    pub(super) fn validate(
-        &self,
-        two_planes: bool,
-        pose: bool,
-        faces: bool,
-        headboard: Option<[[f32; 2]; 4]>,
-        bed: [[f32; 2]; 4],
-    ) -> Result<()> {
+    /// The section's own rules, against the rest of the profile (`needs`): the
+    /// two planes (the geometry), the pose and the faces (the senses), the
+    /// headboard as four points and the bed's corners. Then every number.
+    pub(super) fn validate(&self, needs: &Requirements<'_>) -> Result<()> {
         ensure!(
-            two_planes,
+            needs.two_planes(),
             "occupancy.parts needs occupancy.geometry = \"two_planes\""
         );
         ensure!(
-            pose,
+            needs.pose(),
             "occupancy.parts needs [senses.pose]: the parts are read on the pose"
         );
         ensure!(
-            faces,
+            needs.faces(),
             "occupancy.parts needs [senses.faces]: the head is read on the faces"
         );
-        let Some(headboard) = headboard else {
+        let Some(headboard) = needs.headboard_quad() else {
             anyhow::bail!(
                 "occupancy.parts needs map.headboard as four points, top-left, top-right, bottom-right, bottom-left"
             )
         };
-        headboard_order(headboard, bed)?;
+        headboard_order(headboard, needs.bed())?;
         self.policy()?;
         Ok(())
     }
@@ -115,8 +109,16 @@ impl PartsConfig {
                 Proportion::new(self.cut_tolerance),
             )?,
             headboard_w: headboard_w(self.headboard_w)?,
-            decide: self.decide,
-            posture: self.posture,
+            zone_rule: if self.decide {
+                ZoneRule::ByTheParts
+            } else {
+                ZoneRule::ByTheBox
+            },
+            posture_source: if self.posture {
+                PostureSource::FromTheFrame
+            } else {
+                PostureSource::FromTheSightings
+            },
             posture_upright_cos: measured(
                 "occupancy.parts.posture_upright_cos",
                 Proportion::new(self.posture_upright_cos.unwrap_or(0.93)),

@@ -2,11 +2,13 @@
 //! driver does not know where samples come from or who looks: a
 //! [`SampleSource`] and a [`SensesPort`] are injected into it.
 use crate::clock::{Clock, SystemClock};
+use crate::config::Config;
 use crate::router;
 use crate::senses::{Frame, SensesPort};
 use crate::source::{Arrival, SampleSource};
 use crate::stream_watch::{self, StreamWatch};
 use crate::verifier::{NoVerifier, VerifierPort};
+use anyhow::Result;
 use ingest::{IngestError, Stamp, StreamEvent};
 use scene_contract::{SampleRef, SensorState, SessionId, SourceSecs, Timing};
 use scene_core::{Input, Monitor, NoFrame, Output, map::SiteMap, policy::Policy};
@@ -17,6 +19,21 @@ use tokio_util::sync::CancellationToken;
 pub struct Processed {
     pub output: Output,
     pub timing: Timing,
+}
+
+/// The driver of one camera from its profile: the models load and the driver
+/// composes over them. Shared by the camera binary and the frames one.
+/// `stall_timeout`: the stall watchdog's deadline; `None`, no watchdog —
+/// there is no camera to stall (rule 12: what is not looked at has a reason).
+pub fn build_driver(config: &Config, stall_timeout: Option<Duration>) -> Result<Driver> {
+    let senses = crate::senses::load(config)?;
+    Ok(Driver::new(
+        config.policy()?,
+        config.site_map(),
+        senses,
+        stall_timeout,
+        SystemClock,
+    ))
 }
 
 /// Both types belong to other crates: Rust does not allow impl From here.
@@ -41,11 +58,20 @@ pub struct Driver<
     watch: StreamWatch,
     last_at: Option<SampleRef>,
     session: u64,
-    stall_timeout: Duration,
+    /// The stall watchdog's deadline; `None`: no watchdog at all.
+    stall_timeout: Option<Duration>,
     clock: C,
 }
 impl<S: SensesPort, C: Clock> Driver<S, NoVerifier<S::Frame>, C> {
-    pub fn new(policy: Policy, map: SiteMap, senses: S, stall_timeout: Duration, clock: C) -> Self {
+    /// `stall_timeout`: the deadline of the stall watchdog; `None`, no
+    /// watchdog — over frames there is no camera to stall.
+    pub fn new(
+        policy: Policy,
+        map: SiteMap,
+        senses: S,
+        stall_timeout: Option<Duration>,
+        clock: C,
+    ) -> Self {
         Self {
             monitor: Monitor::new(policy, map),
             senses,
@@ -113,10 +139,15 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>, C: Clock> Driver<S, V, C>
         let (session, last) = (self.session, self.last_at);
         stream_watch::translate(&event).map(|state| self.report(state, session, last))
     }
+    /// The watchdog's verdict: `None` without a timeout (nothing to stall) or
+    /// when nothing stalled.
     fn poll_stall(&mut self, now: Instant) -> Option<Processed> {
-        self.watch
-            .poll(now, self.stall_timeout)
-            .then(|| self.report(SensorState::Stalled, self.session, self.last_at))
+        let timeout = self.stall_timeout?;
+        if self.watch.poll(now, timeout) {
+            Some(self.report(SensorState::Stalled, self.session, self.last_at))
+        } else {
+            None
+        }
     }
     /// What arrives from the source: a sample or a transport change.
     pub fn arrive(&mut self, arrival: Arrival<S::Frame>) -> Vec<Processed> {
@@ -242,7 +273,7 @@ mod tests {
             Policy::default(),
             SiteMap::new(Quad::from_rect(Rect::new(10.0, 10.0, 50.0, 50.0))),
             Senses::new(Empty),
-            Duration::from_secs(3),
+            Some(Duration::from_secs(3)),
             FixedClock::new(),
         )
     }

@@ -1,6 +1,7 @@
 //! The depth sense, `[senses.depth]`: one model for the subject's keypoints and
 //! for the bed's calibration. Its section, its checks and its policy.
 
+use super::Requirements;
 use super::schema::defaults;
 use super::validate::{model, not_negative};
 use anyhow::{Result, ensure};
@@ -28,9 +29,10 @@ pub struct Depth {
 }
 
 impl Depth {
-    /// `asked`: the pose or the calibration asks for depth; without either,
-    /// the model would run for nobody.
-    pub(super) fn validate(&self, asked: bool) -> Result<()> {
+    /// Someone must ask for depth — the pose or the calibration, as the
+    /// profile says them (`needs`); without either, the model would run for
+    /// nobody.
+    pub(super) fn validate(&self, needs: &Requirements<'_>) -> Result<()> {
         model("senses.depth.model", &self.model)?;
         if let Some(pad) = self.crop_pad {
             not_negative("senses.depth.crop_pad", f64::from(pad))?;
@@ -40,7 +42,7 @@ impl Depth {
             "senses.depth.posture_tolerance must be finite and not negative"
         );
         ensure!(
-            asked,
+            needs.pose() || needs.calibration(),
             "senses.depth: nobody asks for depth; [senses.pose] or [calibration] is needed"
         );
         Ok(())

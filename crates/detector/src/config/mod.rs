@@ -18,6 +18,7 @@ mod policy;
 mod pose;
 mod profile;
 mod reinforce;
+mod requirements;
 mod schema;
 mod shadow;
 #[cfg(test)]
@@ -32,6 +33,7 @@ pub(crate) use faces::Faces;
 pub(crate) use occupancy::OccupancyConfig;
 pub(crate) use parts::PartsConfig;
 pub(crate) use reinforce::Reinforce;
+pub(crate) use requirements::Requirements;
 pub(crate) use schema::*;
 pub use schema::{Config, NatsConfig};
 pub(crate) use shadow::ShadowConfig;

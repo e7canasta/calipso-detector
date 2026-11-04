@@ -50,7 +50,7 @@ pub(crate) fn deepen(
     enrich: Option<&EnrichPolicy>,
 ) -> Consideration<SubjectDepthLook> {
     let lens = depth_lens(g, depth_pad);
-    let Some(policy) = enrich.filter(|p| p.depth) else {
+    let Some(policy) = enrich.filter(|p| p.depth.is_some()) else {
         return Consideration::Disabled;
     };
     let mut points: Vec<(DepthTarget, Point)> = pose

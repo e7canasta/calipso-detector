@@ -3,7 +3,8 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use detector::build_info;
 use detector::{
-    Config, DeadlineVerifier, Driver, NatsVerifier, PublisherHandle, RtspSource, SystemClock, nats,
+    Config, DeadlineVerifier, NatsVerifier, PublisherHandle, RtspSource, SystemClock,
+    VerifierEndpoint, build_driver, nats,
 };
 use ingest::{Mailbox, Sample};
 use scene_contract::Source;
@@ -76,31 +77,30 @@ async fn main() -> Result<()> {
     );
     // The slow verifier, if the profile has one: a local service behind NATS,
     // on its own connection, outside the turn.
-    let verifier = config.senses.verify.as_ref().map(|sense| {
-        DeadlineVerifier::new(
+    let verifier = match config.senses.verify.as_ref() {
+        None => None,
+        Some(sense) => Some(DeadlineVerifier::new(
             NatsVerifier::spawn(
                 &tokio::runtime::Handle::current(),
-                config.nats.url.clone(),
-                sense.subject.clone(),
-                config.prefix(),
-                config.camera.id.clone(),
+                VerifierEndpoint {
+                    url: config.nats.url.clone(),
+                    subject: sense.subject.clone(),
+                    prefix: config.prefix(),
+                    camera: config.camera.id.clone(),
+                },
             ),
-            Duration::from_secs_f64(sense.wall_timeout_secs),
+            sense.wall_timeout()?,
             SystemClock,
-        )
-    });
+        )),
+    };
     let mut engine = tokio::task::spawn_blocking({
         let mailbox = Arc::clone(&mailbox);
         let token = token.clone();
         move || -> Result<()> {
-            let senses = detector::load_senses(&config)?;
-            let driver = Driver::new(
-                config.policy()?,
-                config.site_map(),
-                senses,
-                Duration::from_secs(config.stream.stall_timeout_secs),
-                SystemClock,
-            );
+            let mut driver = build_driver(
+                &config,
+                Some(Duration::from_secs(config.stream.stall_timeout_secs)),
+            )?;
             let mut source = RtspSource::new(
                 mailbox,
                 events_rx,
@@ -115,7 +115,6 @@ async fn main() -> Result<()> {
                     .with_verifier(verifier)
                     .run(&mut source, &token, emit),
                 None => {
-                    let mut driver = driver;
                     driver.run(&mut source, &token, emit);
                 }
             }

@@ -71,14 +71,22 @@ pub struct FacePolicy {
     pub headboard_pad: Extension,
 }
 
+/// The depth model's presence: `None`, there is none and the pose measures no
+/// depth with it. It carries no knobs of its own — the score its keypoints
+/// need and the posture's tolerance are read with or without it — so it is the
+/// sense's name in the policy, as [`FacePolicy`] is the face's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DepthPolicy;
+
 /// The subject's pose and depth, only when worth it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EnrichPolicy {
     /// Centroid shift, as a fraction of the reference box diagonal, from which
     /// the subject moved.
     pub move_threshold: DiagonalFraction,
-    /// Is there a depth model?
-    pub depth: bool,
+    /// The depth model, when there is one (a sense, as the others: `None`, no
+    /// depth model).
+    pub depth: Option<DepthPolicy>,
     /// Minimum score of a pose keypoint to measure depth at it.
     pub min_keypoint_score: Confidence,
     /// Relative disparity between top and bottom within which the posture is
@@ -147,18 +155,15 @@ pub struct Policy {
     /// `None`: the engine as it was.
     pub parts: Option<PartsPolicy>,
     /// Rule 4 bis (white book, volume VII, ch. 05), as the profile switches
-    /// it: `true`, a body that appears on the floor near the bed, not from the
-    /// door, is the held one who got up; `false`, a held body leaves only
-    /// reappearing in bed, as it always did. The rule itself has a name:
-    /// [`Policy::held_exit`] answers [`SideExit`], which is what layer 0
-    /// decides with.
-    pub held_left: bool,
+    /// it: a body held in bed may leave by the side or only reappearing in
+    /// bed. The rule has its name here: [`SideExit`] is what layer 0 decides
+    /// with.
+    pub held_exit: SideExit,
     /// Rule 5, refined (white book, volume VII, ch. 17), as the profile
-    /// switches it: `true`, a body that appeared near the bed and then walked
-    /// away did not come from the door; `false`, whoever was seen far while
-    /// the count stabilized came from the door, as it always did. The rule
-    /// itself has a name: [`Policy::far_arrival`] answers [`FarArrival`].
-    pub near_first: bool,
+    /// switches it: who counted as coming from the door while a count
+    /// stabilized. The rule has its name here: [`FarArrival`] is what layer 0
+    /// decides with.
+    pub far_arrival: FarArrival,
 }
 
 /// Rule 4 bis (white book, volume VII, ch. 05): how a body held in bed may
@@ -183,26 +188,6 @@ pub enum FarArrival {
     /// Whoever appeared near the bed and then walked away did not come from
     /// the door.
     ThoseNeverNear,
-}
-
-impl Policy {
-    /// Rule 4 bis by its name: the held body's way out of bed.
-    pub fn held_exit(&self) -> SideExit {
-        if self.held_left {
-            SideExit::ByTheSide
-        } else {
-            SideExit::OnlyReappearing
-        }
-    }
-
-    /// Rule 5, refined, by its name: who arrives from the door.
-    pub fn far_arrival(&self) -> FarArrival {
-        if self.near_first {
-            FarArrival::ThoseNeverNear
-        } else {
-            FarArrival::FromTheDoor
-        }
-    }
 }
 
 /// The geometry's shadow (white book, volume VII, ch. 11): estimates of a
@@ -261,12 +246,12 @@ pub struct PartsPolicy {
     /// The head's band against the headboard (E6), `w`: from its low end to its
     /// high end; `0` at the pillow, `1` at the headboard's top.
     pub headboard_w: Span<HeadboardW>,
-    /// `true`: the parts decide the zone, with memory (F4.1). `false`: the box
-    /// decides, and the parts are only published in the shadow.
-    pub decide: bool,
-    /// `true`: layer 1 reads the posture from the frame (F5.2), not from the
-    /// depth disparity. `false`: the sightings are today's.
-    pub posture: bool,
+    /// Who decides a body's zone (F4.1): [`ZoneRule`], a named rule, not a
+    /// flag.
+    pub zone_rule: ZoneRule,
+    /// Where layer 1 reads the posture from (F5.2): [`PostureSource`], a named
+    /// rule, not a flag.
+    pub posture_source: PostureSource,
     /// The posture's thresholds (F5.2): the torso upright against «up», along the
     /// bed against `v`, and the head on the pillow, `|w|`, in cosines and fractions.
     pub posture_upright_cos: Proportion,
@@ -274,6 +259,28 @@ pub struct PartsPolicy {
     pub posture_along_cos: Proportion,
     /// The head on the pillow: `|w|` up to this.
     pub posture_pillow_w: Proportion,
+}
+
+/// F4.1 (white book, volume IX, ch. 05): who decides a body's zone, the parts
+/// or the box. A named rule, not a flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ZoneRule {
+    /// The parts decide the zone, with memory (F4.1).
+    ByTheParts,
+    /// As it always was: the box decides, and the parts are only published in
+    /// the shadow.
+    ByTheBox,
+}
+
+/// F5.2 (white book, volume IX, ch. 06): where layer 1 reads the bed posture
+/// from. A named rule, not a flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostureSource {
+    /// Layer 1 reads the posture from the frame (F5.2), not from the depth
+    /// disparity.
+    FromTheFrame,
+    /// As it always was: the sightings are today's.
+    FromTheSightings,
 }
 
 /// What a camera verifies with the slow verifier (book 4; white book, volume
@@ -418,8 +425,8 @@ impl Default for Policy {
             shadow: None,
             two_planes: None,
             parts: None,
-            held_left: false,
-            near_first: false,
+            held_exit: SideExit::OnlyReappearing,
+            far_arrival: FarArrival::FromTheDoor,
         }
     }
 }

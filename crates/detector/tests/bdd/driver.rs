@@ -222,7 +222,7 @@ pub fn publish_samples(
         config.policy().expect("a valid profile"),
         config.site_map(),
         w.senses(),
-        Duration::from_secs(10),
+        Some(Duration::from_secs(10)),
         FixedClock::new(),
     );
     let source = Source {

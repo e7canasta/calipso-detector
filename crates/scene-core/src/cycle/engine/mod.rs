@@ -36,8 +36,8 @@ impl Engine {
     pub(super) fn new(policy: Policy, map: SiteMap) -> Self {
         // The two rules of layer 0 by their names, before the policy is taken
         // apart: the occupancy decides with the rule, never with a switch.
-        let held_exit = policy.held_exit();
-        let far_arrival = policy.far_arrival();
+        let held_exit = policy.held_exit;
+        let far_arrival = policy.far_arrival;
         // Without `..`: a field added to `Policy` does not compile until
         // someone decides which slice of the engine owns it.
         let Policy {
@@ -54,8 +54,8 @@ impl Engine {
             shadow,
             two_planes,
             parts,
-            held_left: _,
-            near_first: _,
+            held_exit: _,
+            far_arrival: _,
         } = policy;
         let occupancy_rules = OccupancyRules {
             persistence,

@@ -6,7 +6,7 @@
 use crate::published::Body;
 use cucumber::{given, then};
 use scene_contract::{LookKind, LookOutcome, LookResult, Provenance, SkipReason, Zone};
-use scene_core::policy::{CalibrationPolicy, EnrichPolicy};
+use scene_core::policy::{CalibrationPolicy, DepthPolicy, EnrichPolicy};
 use scene_geom::Rect;
 
 use crate::attention::{scene, skipped};
@@ -20,7 +20,7 @@ use scene_core::units::{DiagonalFraction, Extension, RelativeDepth};
 fn pose_model(ward: &mut Ward) {
     ward.policy.enrich = Some(EnrichPolicy {
         move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
-        depth: false,
+        depth: None,
         min_keypoint_score: Confidence::new(0.3).expect("a score"),
         posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
         max_pose_age_secs: None,
@@ -56,14 +56,14 @@ fn depth_model(ward: &mut Ward) {
     // Without a pose there is no subject depth; calibration turns on the
     // bed's.
     if let Some(enrich) = ward.policy.enrich.as_mut() {
-        enrich.depth = true;
+        enrich.depth = Some(DepthPolicy);
     }
 }
 
 #[given("there is no depth model")]
 fn no_depth_model(ward: &mut Ward) {
     if let Some(enrich) = ward.policy.enrich.as_mut() {
-        enrich.depth = false;
+        enrich.depth = None;
     }
 }
 

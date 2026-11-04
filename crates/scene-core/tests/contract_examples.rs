@@ -394,13 +394,13 @@ fn the_published_examples_validate_and_the_invalid_fixture_does_not() {
 
 #[test]
 fn a_still_pose_keeps_its_origin_and_a_failure_forgets_the_reference() {
-    use scene_core::policy::EnrichPolicy;
+    use scene_core::policy::{DepthPolicy, EnrichPolicy};
     use scene_look::Failure;
     let mut policy = Policy::default();
     policy.persistence.dwell_secs = Seconds::ZERO;
     policy.enrich = Some(EnrichPolicy {
         move_threshold: DiagonalFraction::new(0.1).expect("a constant fraction"),
-        depth: true,
+        depth: Some(DepthPolicy),
         min_keypoint_score: Confidence::new(0.3).expect("a score"),
         posture_tolerance: RelativeDepth::new(0.05).expect("a constant depth"),
         max_pose_age_secs: None,

@@ -5,7 +5,7 @@
 use crate::published::Body;
 use cucumber::{given, then, when};
 use scene_contract::{Cause, LookKind, LookOutcome, LookResult, RepublishReason, SampleRef};
-use scene_core::policy::ReinforcePolicy;
+use scene_core::policy::{FarArrival, ReinforcePolicy, SideExit};
 use scene_look::Failure;
 
 use crate::script::Script;
@@ -239,10 +239,10 @@ fn no_earlier_observation(ward: &mut Ward) {
 
 #[given("a held resident can leave the bed by the side")]
 fn held_left(ward: &mut Ward) {
-    ward.policy.held_left = true;
+    ward.policy.held_exit = SideExit::ByTheSide;
 }
 
 #[given("whoever appears near the bed did not come from the door")]
 fn near_first(ward: &mut Ward) {
-    ward.policy.near_first = true;
+    ward.policy.far_arrival = FarArrival::ThoseNeverNear;
 }

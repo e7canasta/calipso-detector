@@ -29,6 +29,10 @@ pub(crate) fn translate(event: &ingest::StreamEvent) -> Option<scene_contract::S
         ingest::StreamEvent::Connecting => Some(SensorState::Connecting),
         ingest::StreamEvent::Streaming { .. } => Some(SensorState::Streaming),
         ingest::StreamEvent::Disconnected { .. } => Some(SensorState::Reconnecting),
+        // `ingest::StreamEvent` is `#[non_exhaustive]`: no match outside
+        // `ingest` may close, so this wildcard stays. It is watched, not
+        // silent: `every_known_variant_of_stream_event_is_translated` below
+        // fails when a variant arrives that `translate` has not been taught.
         _ => {
             tracing::warn!("unknown ingest event");
             None
@@ -124,5 +128,53 @@ mod tests {
             }),
             Some(SensorState::Reconnecting)
         );
+    }
+
+    /// The wildcard in `translate` is `#[non_exhaustive]`'s (ingest may grow
+    /// a variant), so this test is the one that points at a new one: it reads
+    /// the enum's own source and fails until `translate` — and this list —
+    /// know it.
+    #[test]
+    fn every_known_variant_of_stream_event_is_translated() {
+        let known = ["Connecting", "Streaming", "Disconnected"];
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ingest/src/lib.rs"),
+        )
+        .expect("ingest's source is readable");
+        let variants = stream_event_variants(&source);
+        assert_eq!(
+            variants, known,
+            "ingest::StreamEvent grew or lost a variant: teach `translate` and this list"
+        );
+    }
+
+    /// The variant names of `pub enum StreamEvent` in `source`, in order.
+    fn stream_event_variants(source: &str) -> Vec<String> {
+        let mut lines = source.lines();
+        for line in &mut lines {
+            if line.trim_start().starts_with("pub enum StreamEvent") {
+                break;
+            }
+        }
+        let mut variants = Vec::new();
+        let mut depth: i64 = 1;
+        for line in lines {
+            if depth == 1 {
+                let name: String = line
+                    .trim()
+                    .chars()
+                    .skip_while(|c| c.is_whitespace() || *c == '#' || *c == '/')
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                if !name.is_empty() && !line.trim().starts_with("//") {
+                    variants.push(name);
+                }
+            }
+            depth += line.matches('{').count() as i64 - line.matches('}').count() as i64;
+            if depth <= 0 {
+                break;
+            }
+        }
+        variants
     }
 }

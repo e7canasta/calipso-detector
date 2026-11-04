@@ -37,7 +37,7 @@ fn faces_on_current_resident_are_published_in_frame_coordinates_on_subject() {
         policy,
         map,
         sense::Senses::new(principal).with_faces(faces.clone()),
-        Duration::from_secs(10),
+        Some(Duration::from_secs(10)),
         FixedClock::new(),
     );
     for n in 1..=5 {

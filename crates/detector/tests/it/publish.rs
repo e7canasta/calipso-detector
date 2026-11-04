@@ -106,7 +106,8 @@ fn a_full_channel_drops_without_waiting_and_leaves_a_seq_gap() {
         )
         .unwrap();
     assert!(!h.send(p.output, TIMING));
-    assert_eq!(h.dropped_events(), 1);
+    // The publication falls whole — one turn, its events and its scene.
+    assert_eq!(h.dropped_publications(), 1);
     while rx.try_recv().is_ok() {}
     let p = d
         .on_stream(StreamEvent::Connecting, Instant::now())

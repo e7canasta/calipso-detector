@@ -9,7 +9,7 @@ use super::validate::measured;
 use super::validate::{confidence, fraction, model, not_negative, seconds};
 use anyhow::{Result, ensure};
 use scene_contract::{LookKind, SenseProfile};
-use scene_core::policy::EnrichPolicy;
+use scene_core::policy::{DepthPolicy, EnrichPolicy};
 use scene_core::units::{DiagonalFraction, Extension, RelativeDepth};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -63,7 +63,7 @@ impl Pose {
                 "senses.pose.move_threshold",
                 DiagonalFraction::new(self.move_threshold),
             )?,
-            depth: depth.is_some(),
+            depth: depth.map(|_| DepthPolicy),
             min_keypoint_score: confidence(
                 "pose",
                 "senses.pose.min_keypoint_score",

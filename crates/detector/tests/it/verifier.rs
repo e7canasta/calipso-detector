@@ -12,7 +12,7 @@ use scene_core::map::SiteMap;
 use scene_core::policy::{HeldVerifyPolicy, Policy, VerifyPolicy};
 use scene_core::units::Seconds;
 use scene_geom::{Quad, Rect};
-use scene_look::{Answer, Detection, Failure, Label, Question, Ticket, Verified};
+use scene_look::{Answer, Detection, Failure, Label, Question, Ticket, Verified, VerifierProbe};
 use std::time::Duration;
 use support::Script;
 
@@ -26,18 +26,19 @@ struct Scripted {
 
 impl VerifierPort for Scripted {
     type Frame = DynamicImage;
-    fn ask(
-        &mut self,
-        frame: &DynamicImage,
-        ticket: Ticket,
-        region: Rect,
-        _bed: &scene_geom::Quad,
-        question: Question,
-        _crops: &[u8],
-    ) -> Result<(), Failure> {
-        let jpeg = jpeg_crop(frame, region)?;
-        self.asked.push((ticket, question, jpeg));
-        self.owed.push((self.calls, ticket));
+    fn ask(&mut self, frame: &DynamicImage, probe: &VerifierProbe<'_>) -> Result<(), Failure> {
+        let VerifierProbe::Verify {
+            ticket,
+            region,
+            question,
+            ..
+        } = probe
+        else {
+            return Err(Failure::Model);
+        };
+        let jpeg = jpeg_crop(frame, *region)?;
+        self.asked.push((*ticket, *question, jpeg));
+        self.owed.push((self.calls, *ticket));
         Ok(())
     }
     fn answers(&mut self) -> Vec<Verified> {
@@ -54,7 +55,7 @@ impl VerifierPort for Scripted {
             })
             .collect()
     }
-    fn keep(&mut self, _: &DynamicImage, _: Ticket, _: Rect) -> Result<f32, Failure> {
+    fn keep(&mut self, _: &DynamicImage, _: &VerifierProbe<'_>) -> Result<f32, Failure> {
         Ok(100.0)
     }
 }
@@ -92,7 +93,7 @@ fn a_held_occupant_is_verified_through_the_port_and_confirmed() {
         policy,
         SiteMap::new(Quad::from_rect(Rect::new(20.0, 20.0, 100.0, 80.0))),
         sense::Senses::new(Script(script)),
-        Duration::from_secs(10),
+        Some(Duration::from_secs(10)),
         FixedClock::new(),
     )
     .with_verifier(Scripted {
@@ -148,11 +149,13 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
     scripted
         .ask(
             &frame,
-            ticket,
-            Rect::new(8.0, 11.0, 112.0, 89.0),
-            &scene_geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
-            Question::HeldInBed,
-            &[],
+            &VerifierProbe::Verify {
+                ticket,
+                region: Rect::new(8.0, 11.0, 112.0, 89.0),
+                bed: scene_geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
+                question: Question::HeldInBed,
+                crops: &[],
+            },
         )
         .unwrap();
     let (asked, question, jpeg) = &scripted.asked[0];
@@ -169,14 +172,17 @@ fn the_port_receives_a_jpeg_of_the_bed_and_the_question() {
 #[ignore = "needs nats-server and calipso-verifier running"]
 fn the_live_verifier_answers_over_nats() {
     use detector::NatsVerifier;
+    use detector::VerifierEndpoint;
     let url = std::env::var("CALIPSO_NATS_URL").unwrap_or_else(|_| "nats://127.0.0.1:4222".into());
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut verifier = NatsVerifier::spawn(
         runtime.handle(),
-        url,
-        "calipso.verify.v1".into(),
-        "vision.test.room-1".into(),
-        "room-1".into(),
+        VerifierEndpoint {
+            url,
+            subject: "calipso.verify.v1".into(),
+            prefix: "vision.test.room-1".into(),
+            camera: "room-1".into(),
+        },
     );
     let frame = DynamicImage::new_rgb8(128, 96);
     let looked = scene_contract::SampleRef {
@@ -193,11 +199,13 @@ fn the_live_verifier_answers_over_nats() {
     verifier
         .ask(
             &frame,
-            ticket,
-            Rect::new(8.0, 11.0, 112.0, 89.0),
-            &scene_geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
-            Question::HeldInBed,
-            &[],
+            &VerifierProbe::Verify {
+                ticket,
+                region: Rect::new(8.0, 11.0, 112.0, 89.0),
+                bed: scene_geom::Quad::from_rect(Rect::new(8.0, 11.0, 112.0, 89.0)),
+                question: Question::HeldInBed,
+                crops: &[],
+            },
         )
         .unwrap();
     let deadline = std::time::Instant::now() + Duration::from_secs(30);

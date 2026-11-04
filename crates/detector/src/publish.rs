@@ -182,7 +182,10 @@ pub struct PublisherHandle {
     profile: Profile,
     numbering: Numbering,
     tx: mpsc::Sender<Publication>,
-    dropped_events: u64,
+    /// Turns dropped whole at the channel: their events and their scene fall
+    /// together, so this counts publications, not events — the FIFO's
+    /// `dropped_events` counts single events dropped there.
+    dropped_publications: u64,
 }
 
 impl PublisherHandle {
@@ -196,7 +199,7 @@ impl PublisherHandle {
                 profile,
                 numbering: Numbering::default(),
                 tx,
-                dropped_events: 0,
+                dropped_publications: 0,
             },
             rx,
         )
@@ -257,18 +260,22 @@ impl PublisherHandle {
         match self.tx.try_send(publication) {
             Ok(()) => true,
             Err(error) => {
-                self.dropped_events += error.into_inner().events.len() as u64;
+                // The publication falls whole — its events and its scene —
+                // so the count is of publications (change: `dropped_events`
+                // counted only the events of what fell).
+                self.dropped_publications += 1;
                 tracing::warn!(
-                    dropped_events = self.dropped_events,
-                    "publication channel full or closed; the new publication is dropped"
+                    dropped_publications = self.dropped_publications,
+                    dropped_events = error.into_inner().events.len(),
+                    "publication channel full or closed; the new publication is dropped whole"
                 );
                 false
             }
         }
     }
 
-    pub fn dropped_events(&self) -> u64 {
-        self.dropped_events
+    pub fn dropped_publications(&self) -> u64 {
+        self.dropped_publications
     }
 }
 
