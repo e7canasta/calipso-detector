@@ -139,9 +139,7 @@ pub fn facts(output: &Output) -> Vec<Fact> {
                     kind: Kind::Domain,
                     cause: m.cause,
                     at: Some(m.at),
-                    body: Body::BedCalibrated {
-                        reference,
-                    },
+                    body: Body::BedCalibrated { reference },
                     after: stated(&output.v5.scene).into(),
                 });
             }

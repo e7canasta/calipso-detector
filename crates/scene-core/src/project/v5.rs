@@ -319,8 +319,8 @@ fn cell_v5(t: &belief::Transition) -> scene_contract::Cell {
     publish_cell(&TransitionKey::of(t))
 }
 
-/// The last scene, without a new observation and declared as such (rule 2), in
-/// It republishes the last scene of the contract.
+/// The last scene, without a new observation and declared as such (rule 2):
+/// it republishes the last scene of the contract.
 fn republish_scene(
     last: Option<(&Scene, SampleRef)>,
     reason: RepublishReason,
@@ -357,7 +357,7 @@ fn republish_scene(
         room: scene.room.clone(),
         bed: scene.bed.clone(),
         floor: scene.floor,
-        subject: retained_subject_v5(scene.subject.as_ref(), projected_at),
+        subject: retained_subject_v5(scene.subject.as_ref()),
         attention: scene_contract::Attention::default(),
         map,
         sensor,
@@ -418,10 +418,7 @@ fn empty_occupancy() -> Occupancy {
 
 /// The subject of the last scene, kept while the turn carries no observation
 /// of it: the same rule, on the v5 subject.
-fn retained_subject_v5(
-    subject: Option<&v5::Subject>,
-    _projected_at: SampleRef,
-) -> Option<v5::Subject> {
+fn retained_subject_v5(subject: Option<&v5::Subject>) -> Option<v5::Subject> {
     subject.cloned()
 }
 
