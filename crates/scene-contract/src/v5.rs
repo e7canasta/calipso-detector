@@ -169,6 +169,7 @@ impl<T> Envelope<T> {
     /// An event envelope, as the convention demands: `schema` is
     /// `calipso.events.v5`, the `event_id` names it for deduplication and the
     /// scene's fields are absent (`timing`, `last_event_seq`).
+    #[allow(clippy::too_many_arguments, reason = "the constructor mirrors the envelope's fields one to one")]
     pub fn event(
         source: Source,
         profile: Profile,
@@ -195,6 +196,7 @@ impl<T> Envelope<T> {
     /// A scene envelope, as the convention demands: `schema` is
     /// `calipso.scene.v5`, it carries the shell's `timing` and the numbering's
     /// `last_event_seq`, and no `event_id`.
+    #[allow(clippy::too_many_arguments, reason = "the constructor mirrors the envelope's fields one to one")]
     pub fn scene(
         source: Source,
         profile: Profile,
