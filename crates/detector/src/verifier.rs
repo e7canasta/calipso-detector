@@ -7,10 +7,15 @@
 use crate::clock::Clock;
 use image::{DynamicImage, codecs::jpeg::JpegEncoder};
 use scene_geom::{Quad, Rect};
-use scene_look::{Answer, Failure, Question, Ticket, Verified};
+use scene_look::{Failure, Question, Ticket, Verified};
 use std::marker::PhantomData;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
+
+/// The wire of the protocol (`calipso.verify.v1`): the request's headers and
+/// payload, and the reply read as an answer. Documented in
+/// `contract/verify-v1.md`.
+mod verify_wire;
 
 /// Who verifies: it takes a request over the looked frame without blocking
 /// the turn, and gives back the answers that arrived since the last call.
@@ -135,26 +140,6 @@ pub(crate) fn sharpness(frame: &DynamicImage, region: Rect) -> Result<f32, Failu
     Ok(variance as f32)
 }
 
-/// What the verifier said, from its reply: `yes`, `no` or anything else, which
-/// is unsure. The reply is JSON with an `answer` field, or the bare word.
-pub(crate) fn read_answer(reply: &[u8]) -> Answer {
-    let text = serde_json::from_slice::<serde_json::Value>(reply)
-        .ok()
-        .and_then(|v| v.get("answer").and_then(|a| a.as_str()).map(str::to_owned))
-        .unwrap_or_else(|| String::from_utf8_lossy(reply).into_owned());
-    let word: String = text
-        .trim()
-        .chars()
-        .take_while(|c| c.is_alphabetic())
-        .collect::<String>()
-        .to_lowercase();
-    match word.as_str() {
-        "yes" | "si" | "sí" => Answer::Yes,
-        "no" => Answer::No,
-        _ => Answer::Unsure,
-    }
-}
-
 /// A request on its way to the service: one crop, or a burst in order.
 #[derive(Debug)]
 struct Request {
@@ -162,21 +147,6 @@ struct Request {
     question: Question,
     bed: String,
     jpegs: Vec<Vec<u8>>,
-}
-
-/// The payload and the `Calipso-Frame-Lengths` header of a request: the crops
-/// one after the other, and each one's length in bytes. One crop goes alone
-/// and without the header, as before bursts.
-pub(crate) fn frames_payload(jpegs: &[Vec<u8>]) -> (Vec<u8>, Option<String>) {
-    let payload = jpegs.concat();
-    let lengths = (jpegs.len() > 1).then(|| {
-        jpegs
-            .iter()
-            .map(|j| j.len().to_string())
-            .collect::<Vec<_>>()
-            .join(",")
-    });
-    (payload, lengths)
 }
 
 /// Live: the local verifier service behind NATS (`calipso.verify.v1`). A
@@ -219,29 +189,21 @@ impl NatsVerifier {
                 jpegs,
             }) = queue.recv().await
             {
-                let (payload, lengths) = frames_payload(&jpegs);
-                let mut headers = async_nats::HeaderMap::new();
-                headers.insert("Calipso-Camera", camera.as_str());
-                headers.insert("Calipso-Question", question.id());
-                headers.insert("Calipso-Ticket", ticket.id.to_string().as_str());
-                headers.insert("Calipso-Stream", stream.as_str());
-                headers.insert("Calipso-Bed", bed.as_str());
-                let looked = ticket.looked;
-                let looked = format!(
-                    "{}:{}:{}",
-                    looked.session.0, looked.sequence, looked.source_secs.0
+                let (payload, _) = verify_wire::frames_payload(&jpegs);
+                let headers = verify_wire::request_headers(
+                    camera.as_str(),
+                    stream.as_str(),
+                    ticket,
+                    question,
+                    bed.as_str(),
+                    &jpegs,
                 );
-                headers.insert("Calipso-Looked", looked.as_str());
-                if let Some(lengths) = lengths {
-                    headers.insert("Calipso-Frames", jpegs.len().to_string().as_str());
-                    headers.insert("Calipso-Frame-Lengths", lengths.as_str());
-                }
                 // No reply is no answer: the core takes it as the request's expiry.
                 let answer = match client
                     .request_with_headers(subject.clone(), headers, payload.into())
                     .await
                 {
-                    Ok(message) => Some(read_answer(&message.payload)),
+                    Ok(message) => Some(verify_wire::read_answer(&message.payload)),
                     Err(error) => {
                         tracing::warn!(%error, "verifier: no reply");
                         None
@@ -388,23 +350,7 @@ impl VerifierPort for NatsVerifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_reply_is_read_as_yes_no_or_unsure() {
-        assert_eq!(read_answer(br#"{"answer":"yes"}"#), Answer::Yes);
-        assert_eq!(read_answer(br#"{"answer":"No."}"#), Answer::No);
-        assert_eq!(read_answer(b"Yes, the person is sitting up."), Answer::Yes);
-        assert_eq!(read_answer(b"I cannot tell"), Answer::Unsure);
-        assert_eq!(read_answer(b""), Answer::Unsure);
-    }
-
-    #[test]
-    fn a_burst_goes_as_its_crops_in_order_with_their_lengths() {
-        let one = frames_payload(&[vec![1, 2]]);
-        assert_eq!(one, (vec![1, 2], None));
-        let three = frames_payload(&[vec![1, 2], vec![3], vec![4, 5, 6]]);
-        assert_eq!(three, (vec![1, 2, 3, 4, 5, 6], Some("2,1,3".to_owned())));
-    }
+    use scene_look::Answer;
 
     #[test]
     fn a_blurred_crop_is_less_sharp_than_a_sharp_one() {

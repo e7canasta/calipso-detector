@@ -8,8 +8,11 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Why a number is not a value of a unit.
+/// Why a number is not a value of a unit. It is a Rust error, not wire: it
+/// wears the open shape (`#[non_exhaustive]`) so a new check can name its own
+/// refusal without breaking its consumers.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub enum UnitError {
     /// `NaN` or infinite.
     NotFinite,

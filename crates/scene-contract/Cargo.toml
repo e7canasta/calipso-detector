@@ -1,6 +1,6 @@
 [package]
 name = "scene-contract"
-description = "The wire: the published vocabulary of scene.v4 and events.v4, with no logic and no domain"
+description = "The wire: the published vocabulary of scene.v5 and events.v5, with no logic and no domain"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -47,8 +47,10 @@
 // domain-free maths; `reception` remembers what the shell reports of the source.
 // The vocabulary that the domain and the contract share (`time`, `zone`, `body`,
 // `provenance` and the types of `look`, `evidence`, `attention`, `map`,
-// `reception`, `refine`) is owned
-// by the domain and re-exported by each contract version.
+// `reception`, `refine`) is owned by the language crates (`scene-contract`,
+// `scene-look`, `scene-geom`; ADR 2026-11-02, crates-del-lenguaje) and
+// re-exported by each core module that decides with it, so the core's paths
+// do not change.
 mod attention;
 mod belief;
 mod body;

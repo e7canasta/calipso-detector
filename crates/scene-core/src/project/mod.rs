@@ -1,11 +1,12 @@
 //! The projection: how the belief looks from outside. It does not decide and
 //! is not read back (rule 3). It is the only place that translates the domain
-//! into the contract, one version per module (today `v4`), from the
-//! conclusion and the chronicle. What no version changes lives here, as
-//! `contract::common` does: the evidence, the subject, the bed and how what
-//! is published degrades on republishing (rule 2). It names only
-//! `contract::common`, so a next version shares it without depending on v4
-//! (C2).
+//! into the contract, one version per module (today `v5`), from the
+//! conclusion and the chronicle. What no version changes lives in the root of
+//! `scene-contract`, owned by the language crate (ADR 2026-11-02,
+//! crates-del-lenguaje): the evidence, the subject, the bed and how what is
+//! published degrades on republishing (rule 2). A version names only that
+//! root vocabulary, so the next one shares it without depending on this
+//! one's (C2).
 
 mod parts;
 pub(crate) mod v5;

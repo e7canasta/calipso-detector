@@ -115,7 +115,153 @@ snapshot) y validan contra el schema regenerado. Lo que cambia es el schema
   `Cell`; se leen con `.as_str()` y se construyen con `Cell(…)` o con
   `scene_core::cell_of(...)`, como siempre.
 
-## F1c — pendiente
+## F1c — consistencia del wire y del lenguaje del bucle
 
-Los cambios de forma de F1c se anotan aquí, con la misma estructura, al
-cerrarse ese frente.
+Regla común de las entradas de F1c: **ningún valor publicado cambia**; los
+mensajes de `contract/examples/` siguen byte a byte y los snapshots de
+`contract/schema/*.json` ni se regeneraron (el movimiento de doc-strings fue
+literal). Lo que cambia es la API Rust de `scene-contract`, su forma de
+organizarse y los textos que la cuentan.
+
+### 1. Una sola política de superficie pública, con guardián (decisión B)
+
+**Medición, antes de decidir.** Un `#[non_exhaustive]` generalizado a todos
+los enums publicados del wire (y a `UnitError`) exigiría brazos `_` en **9
+`match` del workspace**, todos dentro de `scene-core`:
+`belief/bed_posture/machine.rs` (`dwell_secs`, sobre `BedPostureState`),
+`belief/bed_posture/rules.rs` (`decide`, sobre `BedPostureState`),
+`body.rs` (`bed_site_at`, sobre `BedSite`), `room/shadow.rs` (sobre `Zone`) y
+`tests/published.rs` (la cinta dorada: `FactBody`, `Event`, `DerivedBody` y
+dos `let` sobre `MapBody`/`SensorBody`). Ninguno en `router.rs` ni en `sense`
+(las guardianas que deniegan wildcards), pero cuatro de esos nueve son
+matches del core exhaustivos a propósito, donde el compilador señala cada
+decisión del dominio.
+
+**Decisión: B — dos clases, con guardián.** La regla 13 manda sobre la guía:
+un cambio incompatible del contrato publicado es versión mayor con ADR. Eso es
+exactamente el criterio de las dos clases:
+
+- **abierto** — status, razón, fallo o etiqueta (quién/cuál/cómo) de una
+  observación, una mirada o la recepción, que puede crecer dentro de v5 sin
+  cambiar lo que ya se publica: `#[non_exhaustive]`, para que el consumidor
+  Rust tolere lo desconocido. Son `Provenance`, `SensorState`, `LookKind`,
+  `Failure`, `RepublishReason`, `SkipReason`, `BodySource`, `RejectReason`,
+  `Cause`, `Verifier`, `HeadEvidence`, `Geometry`, `LookResult`,
+  `LookOutcome`, `FacesStatus`, `BodiesStatus`, `HeldCheckState`,
+  `ShadowPlane` y `Calibration`. El crecimiento dentro de v5 está atestiguado
+  por el propio v5: `Calibrate` y `Keep` entraron en `LookKind`, y
+  `Dispatched` y `Kept` en `LookResult`.
+- **cerrado** — el vocabulario del dominio: lo que el cable dice del mundo
+  (estados de las máquinas y de las creencias, zonas, lugares, articulaciones,
+  los pasos de las cascadas, la trama percibida de las tablas, los tipos de
+  hecho de la cinta). Una variante nueva es un cambio incompatible del
+  contrato: versión mayor con ADR (regla 13), y por eso queda exhaustivo — el
+  compilador señala cada decisión del core y de cada consumidor cuando ese
+  cambio llegue. Son `Zone`, `Mode`, `Phase`, `BedState`, `PostureState`,
+  `LyingState`, `PartsReading`, `BedPostureState`, `BedPostureSeen`,
+  `HeadPlaceState`, `TorsoShadow`, `LegsSide`, `PartsStep`, `TurnRule`,
+  `BedSite`, `Joint`, `SchemaId`, `FactBody`, `DerivedBody`, `SensorBody`,
+  `MapBody` y `Event`.
+
+**Guardián.** `crates/scene-contract/src/surface.rs` lista cada enum publicado
+con su clase y falla si uno nuevo no está clasificado o trae la forma de la
+otra clase (`cargo test -p scene-contract`).
+
+**JSON**: sin cambios de valores ni de nombres; `#[non_exhaustive]` no toca el
+schema.
+
+**API Rust**: churn de la clasificación, solo lo que ella exige —
+`HeldCheckState` gana `#[non_exhaustive]` (abierto); `Phase`, `BedState`,
+`LyingState`, `Joint`, `BedPostureSeen` y `SchemaId` lo pierden (cerrados:
+son vocabulario del dominio, y hoy lo llevaban sin principio).
+
+**Por qué**: con la mezcla de hoy, un consumidor no podía saber qué enums iban
+a crecer y cuáles no; ahora la forma de cada enum lo dice, y dice lo que la
+regla 13 ya decía: lo cerrado solo cambia versionado.
+
+**Consumidor con el formato viejo**: sin efecto.
+
+**Consumidor Rust viejo**: sus brazos `_` sobre los enums abiertos siguen
+haciendo falta; los que cubrían `Phase`, `BedState`, `LyingState`, `Joint`,
+`BedPostureSeen` o `SchemaId` quedan sin efecto (`unreachable_patterns`) y se
+quitan — p. ej. el brazo de `calipso-golden/distill.rs` que anticipaba «a bed
+state the language does not know yet».
+
+### 2. `UnitError` con la forma abierta
+
+- **JSON**: no es wire; sin efecto.
+- **API Rust**: `scene_core::units::UnitError` gana `#[non_exhaustive]` (es un
+  error Rust, y sus comprobaciones pueden nombrar nuevas formas de rechazo).
+  Su único `match` es el `Display`, dentro del propio `scene-core`: el
+  atributo no exige brazos dentro del crate que define el enum, y el match
+  queda exhaustivo (más fuerte, no más débil); `detector/src/config/validate.rs`
+  lo usa solo por `Display`, sin cambios.
+- **Por qué**: un error que puede crecer no debe romper a quien lo formatea.
+- **Consumidor Rust viejo**: solo se le ensancha la API; nada que hacer.
+
+### 3. `Display` delegado en `as_str`
+
+- **JSON**: sin cambios.
+- **API Rust**: `BedPostureState` y `BedPostureSeen` (`scene-contract`) ganan
+  `Display`, delegado en su `as_str`, como `LookKind` ya tenía; en la
+  cáscara, `publish::Kind` y `publish::Version` (`detector`) ganan `Display`
+  delegado en `as_str`/`token`. Se añade `Display`, no se quita.
+- **Por qué**: el nombre de una celda, el del sujeto y el mostrado eran tres
+  maneras de escribir lo mismo; ahora escriben una.
+- **Consumidor Rust viejo**: solo se le ensancha la API.
+
+### 4. `kind()` unificado en `scene-look`
+
+- **JSON**: sin cambios.
+- **API Rust**: sin cambios de paths; `Probe::kind()` y `SenseProbe::kind()`
+  leen una sola función privada (`recorded`), donde vive el único mapeo
+  propósito→`LookKind`. El ADR quien-responde-cada-probe se conserva: los
+  matches nombran todas las variantes, sin wildcard.
+- **Por qué**: el mismo mapeo estaba escrito dos veces; un sentido nuevo se
+  agrega en un solo lugar.
+- **Consumidor Rust viejo**: sin efecto.
+
+### 5. El protocolo del verificador, escrito y probado
+
+- **JSON**: sin cambios; `calipso.verify.v1` ya se hablaba así.
+- **API Rust**: `detector/src/verifier/verify_wire.rs` reúne las formas del
+  cable — `request_headers()`, `frames_payload()` y `read_answer()` — con
+  pruebas de ida y vuelta (cabeceras `Calipso-*` con y sin ráfaga, payload de
+  N JPEGs con sus longitudes, y la respuesta leída por su primera palabra
+  alfabética: `yes`/`si`/`sí` afirmativo, el resto `unsure`, salvo `no`). Los
+  nombres de las pruebas movidas se conservan.
+- **Por qué**: el protocolo estaba en el código y en la memoria; ahora está
+  escrito en `contract/verify-v1.md` y probado en su módulo.
+- **Consumidor con el formato viejo**: sin efecto (el verificador habla igual).
+- **Consumidor Rust viejo**: sin efecto.
+
+### 6. `scene-contract` particionado en submódulos por dominio
+
+- **JSON**: sin cambios.
+- **API Rust**: los tipos viven en submódulos por dominio (`time`, `run`,
+  `zone`, `reception`, `look`, `evidence`, `body`, `posture`, `parts`, `bed`,
+  `shadow`, `map`, `room`, `cell`) y la raíz los re-exporta uno a uno: los
+  paths públicos (`scene_contract::X`, `scene_contract::v5::X`) son los
+  mismos. Los doc-strings se movieron con sus tipos, literalmente (los
+  snapshots del schema ni se regeneraron). El `public_api.txt` se actualizó a
+  propósito: los mismos 87 nombres, en el mismo orden, ahora escritos como
+  re-exports.
+- **Por qué**: un `lib.rs` de 1500 líneas no se navega; cada concepto del
+  vocabulario tiene su dominio, y la raíz es la superficie.
+- **Consumidor Rust viejo**: sin efecto; ni se enteran de la partición.
+
+### 7. Ningún texto cuenta la versión retirada
+
+- **JSON**: sin cambios.
+- **API Rust**: sin cambios; solo docs y la descripción del paquete: la
+  descripción de `scene-contract` (que nombraba la versión retirada del
+  wire), la cabecera de `scene-core/src/project/mod.rs` («today», «sin
+  depender de») y el bloque de vocabulario de `scene-core/src/lib.rs`, que
+  decía que el dominio era el dueño del vocabulario y que cada versión del
+  contrato lo re-exportaba. Hoy los dueños son los crates del lenguaje
+  (`scene-contract`, `scene-look`, `scene-geom`; ADR 2026-11-02,
+  crates-del-lenguaje) y el core re-exporta lo que decide, para no mover sus
+  paths. Todo dice v5 y coincide con el código.
+- **Por qué**: un texto que cuenta otra versión que la que corre engaña al que
+  entra.
+- **Consumidor Rust viejo**: sin efecto.

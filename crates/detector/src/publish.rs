@@ -31,6 +31,13 @@ impl Version {
     }
 }
 
+/// As `token` writes it: the subject's token and the display's are one.
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.token())
+    }
+}
+
 /// A numbered turn: its events and, after them, its scene.
 #[derive(Debug)]
 pub struct Publication {
@@ -57,6 +64,13 @@ impl Kind {
     /// `{prefix}.scene.v5`, `{prefix}.events.v5`.
     pub fn subject(self, prefix: &str, version: Version) -> String {
         format!("{prefix}.{}.{}", self.as_str(), version.token())
+    }
+}
+
+/// As `as_str` writes it: one name for the subject and for display.
+impl std::fmt::Display for Kind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 

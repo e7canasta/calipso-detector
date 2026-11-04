@@ -203,31 +203,10 @@ pub enum DepthPurpose {
 }
 
 impl Probe {
-    /// The look this probe is recorded as in the ledger.
+    /// The look this probe is recorded as in the ledger. It reads the one
+    /// mapping, [`recorded`].
     pub fn kind(&self) -> LookKind {
-        match self {
-            Probe::Detect { .. } => LookKind::Detect,
-            Probe::Faces { .. } => LookKind::Faces,
-            Probe::Reinforce { .. } => LookKind::Reinforce,
-            Probe::Pose {
-                purpose: PosePurpose::Subject,
-                ..
-            } => LookKind::Pose,
-            Probe::Pose {
-                purpose: PosePurpose::Body,
-                ..
-            } => LookKind::PoseBody,
-            Probe::Depth {
-                purpose: DepthPurpose::Subject,
-                ..
-            } => LookKind::Depth,
-            Probe::Depth {
-                purpose: DepthPurpose::Bed,
-                ..
-            } => LookKind::Calibrate,
-            Probe::Verify { .. } => LookKind::Verify,
-            Probe::Keep { .. } => LookKind::Keep,
-        }
+        recorded(self.route())
     }
 
     /// The region recorded in the ledger.
@@ -337,8 +316,21 @@ pub enum SenseProbe<'a> {
 
 impl SenseProbe<'_> {
     /// The look this probe is recorded as in the ledger, as [`Probe::kind`].
+    /// It reads the one mapping, [`recorded`].
     pub fn kind(&self) -> LookKind {
-        match self {
+        recorded(Route::Sense(*self))
+    }
+}
+
+/// The one place a probe's answerer and purpose map to the [`LookKind`] the
+/// ledger records the look as (F1c): a sense probe names its sense — the pose
+/// and the depth, by their purpose — and a verifier probe names the
+/// verifier's two looks. [`Probe::kind`] and [`SenseProbe::kind`] both read
+/// it; the match names every variant, with no wildcard (ADR 2026-11-02,
+/// quien-responde-cada-probe).
+fn recorded(route: Route<'_>) -> LookKind {
+    match route {
+        Route::Sense(sense) => match sense {
             SenseProbe::Detect { .. } => LookKind::Detect,
             SenseProbe::Faces { .. } => LookKind::Faces,
             SenseProbe::Reinforce { .. } => LookKind::Reinforce,
@@ -358,7 +350,11 @@ impl SenseProbe<'_> {
                 purpose: DepthPurpose::Bed,
                 ..
             } => LookKind::Calibrate,
-        }
+        },
+        Route::Verifier(verifier) => match verifier {
+            VerifierProbe::Verify { .. } => LookKind::Verify,
+            VerifierProbe::Keep { .. } => LookKind::Keep,
+        },
     }
 }
 

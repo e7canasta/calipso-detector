@@ -222,7 +222,6 @@ impl<T> Envelope<T> {
 
 /// Which schema a v5 message carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[non_exhaustive]
 pub enum SchemaId {
     /// One scene per sample.
     #[serde(rename = "calipso.scene.v5")]
