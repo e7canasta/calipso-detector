@@ -227,7 +227,7 @@ impl Ward {
 
 /// How far whoever moved shifts in bed: 40 px, more than the scenarios' motion
 /// threshold (0.1 × the 100×200 diagonal ≈ 22 px), without leaving the bed.
-pub const SHIFT: f32 = 40.0;
+pub const SHIFT: f32 = golden::world::SHIFT;
 
 /// Shifts by `dx` the body boxes whose centre is in bed, in what the main
 /// detector and reinforcement see: the resident changed place on the mattress.

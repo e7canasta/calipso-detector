@@ -47,7 +47,7 @@ fn staff_put_them_to_bed(ward: &mut Ward) {
 
 // --- The sequence
 
-use golden::language::{Samples, spans_from_cells};
+use golden::language::{Pose, Samples, Span, spans_from_cells};
 use scene_core::units::Seconds;
 
 /// The sequence table: one span per row, in the golden scenes' language
@@ -57,23 +57,20 @@ use scene_core::units::Seconds;
 fn sequence(ward: &mut Ward, step: &Step) {
     let table = step.table.as_ref().expect("the sequence carries a table");
     // The script columns (what the scene does not model) are split off before
-    // reading the rest with the scene language.
-    let (rows, moves) = split_column(&table.rows, SUBJECT_MOVES);
-    let (rows, changes_shape) = split_column(&rows, SUBJECT_CHANGES_SHAPE);
-    let (rows, pose) = split_column(&rows, POSE);
+    // reading the rest with the scene language, which reads `subject moves`
+    // and `pose` itself.
+    let (rows, changes_shape) = split_column(&table.rows, SUBJECT_CHANGES_SHAPE);
     let (rows, depth) = split_column(&rows, DEPTH);
     let (rows, bed_depth) = split_column(&rows, BED_DEPTH);
     let spans = spans_from_cells(&rows).unwrap_or_else(|e| panic!("{e}"));
     for (i, span) in spans.into_iter().enumerate() {
-        let shift = match moves.get(i).map(String::as_str) {
-            None | Some("") => false,
-            Some("yes") => true,
-            Some(other) => panic!("\"{SUBJECT_MOVES}\": \"yes\" or empty, not \"{other}\""),
-        };
-        let (pose_fails, figure) = match pose.get(i).map(String::as_str) {
-            None | Some("" | "sees") => (false, None),
-            Some("fails") => (true, None),
-            Some(other) => (false, Some(figure(other))),
+        // The ward keeps where the resident lies across steps: it toggles the
+        // shift itself, and the world gets the span without it.
+        let shift = span.subject_moves;
+        let (pose_fails, figure) = match span.pose {
+            Pose::Unscripted => (false, None),
+            Pose::Fails => (true, None),
+            Pose::Figure(figure) => (false, Some(figure)),
         };
         let depth_fails = match depth.get(i).map(String::as_str) {
             None | Some("" | "sees") => false,
@@ -94,7 +91,11 @@ fn sequence(ward: &mut Ward, step: &Step) {
                 panic!("\"{SUBJECT_CHANGES_SHAPE}\": \"yes\" or empty, not \"{other}\"")
             }
         };
-        for (n, mut script) in crate::script::turns(&[span]) {
+        let still = Span {
+            subject_moves: false,
+            ..span
+        };
+        for (n, mut script) in crate::script::turns(&[still]) {
             if reshape {
                 ward.reshaped = !ward.reshaped;
             }
@@ -124,22 +125,13 @@ fn sequence(ward: &mut Ward, step: &Step) {
     }
 }
 
-/// Script column: in each sample of the span, the resident changes place in
-/// bed and stays there. It lives in the harness and not in
-/// `golden::language` while no golden scene needs it.
-const SUBJECT_MOVES: &str = "subject moves";
-
 /// Script column: in each sample of the span, the resident changes shape in
 /// bed without shifting, and stays so.
 const SUBJECT_CHANGES_SHAPE: &str = "subject changes shape";
 
-/// Script column: what the pose model answers in the span.
-const POSE: &str = "pose";
-
 /// A body figure by its name in the table.
 pub(crate) fn figure(name: &str) -> crate::script::Figure {
-    crate::script::Figure::named(name)
-        .unwrap_or_else(|| panic!("\"{POSE}\": unknown figure \"{name}\""))
+    crate::script::Figure::named(name).unwrap_or_else(|| panic!("unknown figure \"{name}\""))
 }
 
 /// Script column: what the subject's depth model answers.
