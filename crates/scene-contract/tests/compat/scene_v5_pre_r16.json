@@ -1,0 +1,118 @@
+{
+  "schema": "calipso.scene.v5",
+  "source": {
+    "site": "example",
+    "camera": "room",
+    "run_id": "example",
+    "build": {
+      "version": "0.1.0",
+      "git": "example"
+    }
+  },
+  "seq": 18,
+  "published_at_ms": 0,
+  "profile": {
+    "hash": "example"
+  },
+  "body": {
+    "evidence": {
+      "bodies": {
+        "status": "seen",
+        "items": []
+      },
+      "faces": {
+        "status": "skipped",
+        "items": []
+      }
+    },
+    "room": {
+      "mode": "alone_in_bed_held",
+      "occupants": 1,
+      "phase": "running"
+    },
+    "bed": {
+      "state": "held",
+      "seen": 0,
+      "held": [
+        {
+          "bbox": {
+            "x0": 150.0,
+            "y0": 150.0,
+            "x1": 250.0,
+            "y1": 350.0
+          },
+          "last_seen": {
+            "session": 1,
+            "sequence": 10,
+            "source_secs": 10.0
+          }
+        }
+      ],
+      "unexplained": 0
+    },
+    "floor": {
+      "seen": 0
+    },
+    "subject": {
+      "zone": "bed",
+      "bbox": {
+        "x0": 150.0,
+        "y0": 150.0,
+        "x1": 250.0,
+        "y1": 350.0
+      },
+      "confidence": 0.8,
+      "provenance": {
+        "type": "retained",
+        "since": {
+          "session": 1,
+          "sequence": 10,
+          "source_secs": 10.0
+        }
+      }
+    },
+    "attention": {
+      "looks": [
+        {
+          "kind": "detect",
+          "outcome": {
+            "type": "asked",
+            "result": {
+              "type": "read",
+              "candidates": 0,
+              "rejected": []
+            },
+            "spent_ms": 1.0
+          }
+        }
+      ]
+    },
+    "map": {
+      "geometry": {
+        "type": "valid"
+      },
+      "bed": [
+        {
+          "x": 100.0,
+          "y": 100.0
+        },
+        {
+          "x": 500.0,
+          "y": 100.0
+        },
+        {
+          "x": 500.0,
+          "y": 400.0
+        },
+        {
+          "x": 100.0,
+          "y": 400.0
+        }
+      ],
+      "calibration": {
+        "status": "unavailable"
+      }
+    },
+    "sensor": "connecting"
+  }
+}

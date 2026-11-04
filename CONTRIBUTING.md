@@ -37,7 +37,7 @@ for how the engine is built.
    change to what `calipso.scene` or `calipso.events` publish needs a new
    contract version, never an edit of a published one. The JSON Schema
    snapshots catch it; regenerate them only on purpose:
-   `CALIPSO_UPDATE_SCHEMA=1 cargo test -p scene-core --test contract_schema`.
+   `CALIPSO_UPDATE_SCHEMA=1 cargo test -p scene-contract --test contract_schema`.
 4. **The core does no IO and does not panic** (rules 8 and 21). If you need a
    clock, a file or a model, it belongs to the shell (`detector`, `sense`,
    `ingest`).

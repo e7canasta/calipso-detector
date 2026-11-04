@@ -1,0 +1,98 @@
+{
+  "schema": "calipso.events.v5",
+  "source": {
+    "site": "example",
+    "camera": "room",
+    "run_id": "example",
+    "build": {
+      "version": "0.1.0",
+      "git": "example"
+    }
+  },
+  "seq": 3,
+  "observed_at": {
+    "session": 1,
+    "sequence": 8,
+    "source_secs": 8.0
+  },
+  "published_at_ms": 0,
+  "profile": {
+    "camera": {
+      "id": "room",
+      "version": 1
+    },
+    "resident": null,
+    "hash": "example"
+  },
+  "event_id": "example-v5-3",
+  "body": {
+    "kind": "transition",
+    "at": {
+      "session": 1,
+      "sequence": 8,
+      "source_secs": 8.0
+    },
+    "cell": "200:11:210",
+    "phase": "booting",
+    "before": {
+      "rbh": {
+        "room": 2,
+        "bed": 0,
+        "held": 0
+      },
+      "mode": "accompanied",
+      "bed": "empty",
+      "unexplained": 0,
+      "since": {
+        "session": 1,
+        "sequence": 3,
+        "source_secs": 3.0
+      },
+      "lasted_secs": 5.0
+    },
+    "seen": {
+      "fv": {
+        "floor": 1,
+        "bed": 1
+      },
+      "span": {
+        "first": {
+          "session": 1,
+          "sequence": 6,
+          "source_secs": 6.0
+        },
+        "secs": 2.0
+      },
+      "context": {
+        "far": 0,
+        "passing": 0
+      }
+    },
+    "after": {
+      "rbh": {
+        "room": 2,
+        "bed": 1,
+        "held": 0
+      },
+      "mode": "accompanied",
+      "bed": "seen",
+      "unexplained": 0
+    },
+    "facts": [
+      {
+        "type": "lay_down",
+        "cause": "stabilized",
+        "after": {
+          "rbh": {
+            "room": 2,
+            "bed": 1,
+            "held": 0
+          },
+          "mode": "accompanied",
+          "bed": "seen",
+          "unexplained": 0
+        }
+      }
+    ]
+  }
+}

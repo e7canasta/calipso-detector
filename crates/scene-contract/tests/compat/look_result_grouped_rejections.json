@@ -1,0 +1,14 @@
+{
+  "type": "read",
+  "candidates": 4,
+  "rejected": [
+    {
+      "reason": "low_confidence",
+      "count": 2
+    },
+    {
+      "reason": "not_person",
+      "count": 1
+    }
+  ]
+}

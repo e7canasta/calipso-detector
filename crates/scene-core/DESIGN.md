@@ -71,7 +71,7 @@ number.
 | C2 | **Expand, migrate, contract.** A new version goes out next to the old one; consumers migrate one at a time; the old one is retired | Fowler, *Parallel Change* |
 | C3 | **One definition, one source.** The contract is defined once (its types in `scene-contract`, its projection in `project::v5`) and its JSON Schema comes from the types (rule 13) | |
 | C4 | **Every version comes out of the same turn.** `project` translates the same domain values into each version in the same turn: they cannot tell different things | |
-| C5 | **A test proves it.** The contract is frozen by its guardians: the schema snapshot (`contract_schema.rs`), the eight examples `s*.scene.v5.jsonl` / `s*.events.v5.jsonl` as expected output (`contract_examples.rs`), and the scenarios of `features/contract/v5.feature` with fixed values | Metamorphic testing |
+| C5 | **A test proves it.** The contract is frozen by its guardians: the schema snapshot (`scene-contract/tests/contract_schema.rs`), the eight examples `s*.scene.v5.jsonl` / `s*.events.v5.jsonl` as expected output (`contract_examples.rs`), and the scenarios of `features/contract/v5.feature` with fixed values | Metamorphic testing |
 
 A published version is frozen (C1), so its types are deliberately **not**
 `#[non_exhaustive]`: a consumer may `match` them exhaustively, and the compiler

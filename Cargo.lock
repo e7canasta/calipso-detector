@@ -3070,6 +3070,7 @@ dependencies = [
  "scene-geom",
  "schemars",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
