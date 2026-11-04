@@ -1,5 +1,6 @@
 # The parts' reading. Facts: g groin in bed · b box in bed · headboard (unseen, free, partly,
-# lying: shoulders and face or head at it) · o something out of bed (arms aside) · B whole boxes in bed.
+# lying: shoulders and face or head at it) · o something out of bed (arms aside; face, head,
+# shoulders only out of the headboard too) · B whole boxes in bed.
 # g b headboard o B | reading [urgent: half the dwell]
 0 0 unseen  0 0 | out_of_bed
 0 0 free    0 0 | out_of_bed

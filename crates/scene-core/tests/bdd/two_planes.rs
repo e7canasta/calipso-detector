@@ -53,6 +53,25 @@ fn sees_with_pose(ward: &mut Ward, n: u32, x0: f32, y0: f32, x1: f32, y1: f32, f
 }
 
 #[when(
+    regex = r#"^in samples (\d+) to (\d+) the camera sees a person at (\d+),(\d+) to (\d+),(\d+) and the pose sees them "([^"]+)"$"#
+)]
+#[allow(clippy::too_many_arguments)]
+fn sees_with_pose_in_samples(
+    ward: &mut Ward,
+    from: u32,
+    to: u32,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    figure: String,
+) {
+    for n in from..=to {
+        sees_with_pose(ward, n, x0, y0, x1, y1, figure.clone());
+    }
+}
+
+#[when(
     regex = r"^in sample (\d+) the camera sees a person at (\d+),(\d+) to (\d+),(\d+) and the pose fails$"
 )]
 fn sees_and_the_pose_fails(ward: &mut Ward, n: u32, x0: f32, y0: f32, x1: f32, y1: f32) {

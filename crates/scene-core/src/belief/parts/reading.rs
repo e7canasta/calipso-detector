@@ -14,7 +14,8 @@
 //! - the headboard seen free: sitting in bed;
 //! - otherwise: undecided.
 //!
-//! An arm out is not "something out": reaching is not leaving. A part never
+//! An arm out is not "something out": reaching is not leaving; nor is a face,
+//! a head or shoulders at the headboard, even out of the mattress. A part never
 //! seen says nothing: a headboard never seen is not a free headboard. Where occupancy cannot tell (sitting up against the
 //! headboard reads lying), the depth decides: that is layer 1, not this.
 
@@ -63,7 +64,8 @@ pub(crate) struct Facts {
     pub box_in: bool,
     /// What is at the headboard.
     pub headboard: Headboard,
-    /// Some part out of the bed, the arms aside.
+    /// Some part out of the bed, the arms aside, and a face, a head or
+    /// shoulders only when also out of the headboard.
     pub out: bool,
     /// The whole boxes seen are in the bed: the person's, and the face's if
     /// it was seen.
@@ -85,13 +87,18 @@ impl Facts {
         } else {
             Headboard::Unseen
         };
+        // At the headboard is in bed: a face, a head or shoulders out of the
+        // mattress but at the headboard are not out (a corner camera sees the
+        // board over the mattress's head edge).
+        let out_of_both = |bed: Place, at: Place| bed.outside && !at.inside;
         Self {
             groin_in: groin.inside,
             box_in: centre.inside,
             headboard,
-            out: [centre, face, head, shoulders, groin, legs]
-                .iter()
-                .any(|p| p.outside),
+            out: [centre, groin, legs].iter().any(|p| p.outside)
+                || out_of_both(face, hb_face)
+                || out_of_both(head, hb_head)
+                || out_of_both(shoulders, hb_shoulders),
             boxes_in: person_box.inside && (face_box.inside || !face_box.known()),
         }
     }

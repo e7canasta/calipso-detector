@@ -96,6 +96,14 @@ fn headboard_to_the_shoulders(ward: &mut Ward) {
         Some(scene_geom::Rect::new(100.0, 100.0, 500.0, 210.0));
 }
 
+/// As a corner camera draws it: from the board's top, above the mattress
+/// (which starts at y 100), down over the pillow to the shoulders.
+#[given("the bed's headboard delimited from above the mattress down to the shoulders")]
+fn headboard_above_the_mattress(ward: &mut Ward) {
+    ward.map.as_mut().expect("the bed first").headboard =
+        Some(scene_geom::Rect::new(100.0, 20.0, 500.0, 210.0));
+}
+
 #[then(expr = "in sample {int} the parts read {string}")]
 fn parts_read(ward: &mut Ward, n: u32, reading: String) {
     let parts = parts(ward, n);

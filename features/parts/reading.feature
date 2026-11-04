@@ -11,8 +11,9 @@ Feature: The reading of the parts
   # headboard, nothing out); trying to leave (something out while some torso
   # is at the headboard); sitting up (everything in, the whole boxes in, the
   # headboard seen free); sitting in bed (the headboard seen free); otherwise
-  # undecided. An arm out is not "out". The urgent readings (trying to leave,
-  # on the edge) hold half of layer 0's dwell.
+  # undecided. An arm out is not "out", nor a face, a head or shoulders at the
+  # headboard. The urgent readings (trying to leave, on the edge) hold half of
+  # layer 0's dwell.
 
   Background:
     Given a room with the bed delimited
@@ -63,6 +64,29 @@ Feature: The reading of the parts
         | 12-13   | 0        |       | 1      |               |            | 1         | occupied, seen |
       Then in sample 13 the parts read "sitting_in_bed"
 
+    # Slid down, the head leaves the headboard with everything still in bed:
+    # the places are those of sitting up, which occupancy cannot tell apart.
+    Scenario: Everything in bed and the headboard seen free: sitting up
+      Given there is a pose model
+      And the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose      | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | slid down | 1         | occupied, seen |
+        | 12-13   | 0        |       | 1      |               |           | 1         | occupied, seen |
+      Then in sample 13 the parts read "sitting_up"
+
+    # Frontal puts a body in bed by its box's centre, so the centre is always
+    # in while seen. In two planes the share and the support decide: a box
+    # 0.48 over the mattress, its centre past the far side, the hips split on
+    # the edge. The bed is 100..500 x 100..400.
+    Scenario: In two planes, the groin in the bed and the box's centre out: on the edge, and it counts sooner
+      Given the bed's footprint on the floor is delimited as 100,140 to 500,440
+      And the bed measures 0.9 by 2.0 metres
+      And the room is measured in two planes: in bed with 0.45 of the box over the mattress and its support within 0.10 metres, near the bed within 0.60 metres
+      And there is a pose model
+      When in samples 1 to 4 the camera sees a person at 452,150 to 552,390 and the pose sees them "lying"
+      Then in sample 4 the parts read "on_the_edge"
+
     Scenario: Before getting in, the resident at the door reads out of bed
       Given there is a pose model
       And the resident came in alone and lay down in samples 1 to 10
@@ -85,6 +109,20 @@ Feature: The reading of the parts
         | 13-14   | 0        |       | 1      |               |                                  | 1         | occupied, seen |
       Then in sample 14 the parts read "lying"
       And in sample 12 the bed posture is "sitting_up", seen "headboard_upright"
+
+    # A corner camera sees the board stand over the mattress's head edge: the
+    # headboard is drawn from its top down over the pillow, and a head against
+    # it falls out of the mattress. At the headboard is in bed: it is not
+    # "something out" (ADR 2026-11-04, en la cabecera es en la cama).
+    Scenario: The head against a headboard drawn above the mattress is not out of bed: lying
+      Given the bed's headboard delimited from above the mattress down to the shoulders
+      And there is a pose model
+      And the resident came in alone and lay down in samples 1 to 10
+      When the camera sees this sequence:
+        | samples | on floor | where | in bed | subject moves | pose       | occupants | bed            |
+        | 11      | 0        |       | 1      | yes           | sitting up | 1         | occupied, seen |
+        | 12-13   | 0        |       | 1      |               |            | 1         | occupied, seen |
+      Then in sample 13 the parts read "lying"
 
     Scenario: Without a pose the headboard is never seen: no reading in bed
       Given there is no pose model

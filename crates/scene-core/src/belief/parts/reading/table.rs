@@ -22,7 +22,8 @@ fn headboard_name(headboard: Headboard) -> &'static str {
 fn table() -> String {
     let mut out = String::from(
         "# The parts' reading. Facts: g groin in bed · b box in bed · headboard (unseen, free, partly,\n\
-         # lying: shoulders and face or head at it) · o something out of bed (arms aside) · B whole boxes in bed.\n\
+         # lying: shoulders and face or head at it) · o something out of bed (arms aside; face, head,\n\
+         # shoulders only out of the headboard too) · B whole boxes in bed.\n\
          # g b headboard o B | reading [urgent: half the dwell]\n",
     );
     let bit = |b: bool| if b { '1' } else { '0' };
