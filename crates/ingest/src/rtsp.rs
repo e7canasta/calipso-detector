@@ -11,8 +11,11 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
-use super::{Clock, Mailbox, Payload, Sample, StreamEvent, decode::FrameDecoder};
-use crate::{IngestConfig, Stamp};
+use super::{
+    Clock, Mailbox, Payload, Sample, StreamEvent,
+    decode::{FrameDecoder, Picture},
+};
+use crate::{IngestConfig, MediaTime, Sampling, Sequence, Session, SourceSecs, Stamp};
 
 const STATS_INTERVAL: Duration = Duration::from_secs(10);
 
@@ -77,17 +80,18 @@ async fn run<C: Clock>(
     clock: C,
 ) {
     let creds = config
-        .username
+        .credentials
         .as_ref()
-        .map(|username| retina::client::Credentials {
-            username: username.clone(),
-            password: config.password.clone().unwrap_or_default(),
+        .map(|credentials| retina::client::Credentials {
+            username: credentials.username.clone(),
+            password: credentials.password.clone(),
         });
     let mut stats = IngestStats::default();
-    let mut session = 0;
+    let mut session = Session(0);
+    let mut backoff = ReconnectBackoff::new(config.reconnect_delay);
 
     loop {
-        session += 1;
+        session.0 += 1;
         let _ = events.send(StreamEvent::Connecting);
         info!("Connecting to {} (session {session})", config.url);
         let result = tokio::select! {
@@ -98,13 +102,14 @@ async fn run<C: Clock>(
             Ok(()) => IngestError::Unreachable("end of stream".to_owned()),
             Err(error) => error,
         };
+        let wait = backoff.next(clock.now());
         error!(
             "Stream session {session} ended: {reason}; reconnecting in {}s",
-            config.reconnect_delay.as_secs_f64()
+            wait.as_secs_f64()
         );
         let _ = events.send(StreamEvent::Disconnected { session, reason });
         tokio::select! {
-            _ = tokio::time::sleep(config.reconnect_delay) => {}
+            _ = tokio::time::sleep(wait) => {}
             _ = shutdown.cancelled() => return,
         }
     }
@@ -113,17 +118,36 @@ async fn run<C: Clock>(
 async fn stream_session<C: Clock>(
     config: &IngestConfig,
     creds: Option<retina::client::Credentials>,
-    session_id: u64,
+    session_id: Session,
     mailbox: &Mailbox<Sample>,
     events: &mpsc::Sender<StreamEvent>,
     stats: &mut IngestStats,
     clock: &C,
 ) -> Result<()> {
+    let demuxed = handshake(config, creds).await?;
+    info!("Streaming (session {session_id})");
+    let _ = events.send(StreamEvent::Streaming {
+        session: session_id,
+    });
+    demux(
+        demuxed,
+        SampleGate::new(config.sampling),
+        session_id,
+        mailbox,
+        stats,
+        clock,
+    )
+    .await
+}
+
+/// The RTSP handshake: DESCRIBE, then SETUP and PLAY on the video stream.
+/// The session is streaming when this returns.
+async fn handshake(
+    config: &IngestConfig,
+    creds: Option<retina::client::Credentials>,
+) -> Result<retina::client::Demuxed> {
     let mut session = retina::client::Session::describe(
-        config
-            .url
-            .parse()
-            .map_err(|error| IngestError::Protocol(format!("invalid RTSP URL: {error}")))?,
+        config.url.clone(),
         retina::client::SessionOptions::default()
             .creds(creds)
             .session_group(Arc::new(retina::client::SessionGroup::default()))
@@ -131,7 +155,7 @@ async fn stream_session<C: Clock>(
             .teardown(retina::client::TeardownPolicy::Auto),
     )
     .await
-    .map_err(|error| IngestError::rtsp(error, true))?;
+    .map_err(IngestError::connecting)?;
 
     let video_stream_i = session
         .streams()
@@ -148,21 +172,28 @@ async fn stream_session<C: Clock>(
                 .frame_format(retina::codec::FrameFormat::SIMPLE),
         )
         .await
-        .map_err(|error| IngestError::rtsp(error, false))?;
-    let mut demuxed = session
+        .map_err(IngestError::streaming)?;
+    session
         .play(retina::client::PlayOptions::default())
         .await
-        .map_err(|error| IngestError::rtsp(error, false))?
+        .map_err(IngestError::streaming)?
         .demuxed()
-        .map_err(|error| IngestError::rtsp(error, false))?;
-    info!("Streaming (session {session_id})");
-    let _ = events.send(StreamEvent::Streaming {
-        session: session_id,
-    });
+        .map_err(IngestError::streaming)
+}
 
+/// Consumes the demuxed stream until it ends: every good item resets the
+/// error budget, a bad packet costs its access unit, and each frame goes
+/// through the sampling gate.
+async fn demux<C: Clock>(
+    mut demuxed: retina::client::Demuxed,
+    mut gate: SampleGate,
+    session_id: Session,
+    mailbox: &Mailbox<Sample>,
+    stats: &mut IngestStats,
+    clock: &C,
+) -> Result<()> {
     // Continuous decoding only when every frame is a candidate sample.
     let mut decoder: Option<FrameDecoder> = None;
-    let mut sync = KeyframeSync::default();
     let mut errors = ErrorBudget::default();
 
     while let Some(item) = demuxed.next().await {
@@ -184,10 +215,10 @@ async fn stream_session<C: Clock>(
                 );
                 // Later frames reference the lost one.
                 decoder = None;
-                sync.lost();
+                gate.lost();
                 continue;
             }
-            Err(error) => return Err(IngestError::rtsp(error, false)),
+            Err(error) => return Err(IngestError::streaming(error)),
         };
         let CodecItem::VideoFrame(frame) = item else {
             continue;
@@ -196,67 +227,136 @@ async fn stream_session<C: Clock>(
         let is_keyframe = frame.is_random_access_point();
         stats.keyframes += u64::from(is_keyframe);
         let timestamp = frame.timestamp();
+        let time = MediaTime {
+            ticks: timestamp.elapsed(),
+            clock_rate: timestamp.clock_rate(),
+        };
         let sample = Stamp {
             session: session_id,
-            sequence: stats.received,
-            source_secs: timestamp.elapsed_secs(),
+            sequence: Sequence(stats.received),
+            source_secs: SourceSecs(timestamp.elapsed_secs()),
         };
 
-        if config.keyframe_only {
-            if is_keyframe {
+        match gate.act(is_keyframe) {
+            FrameAction::Publish => {
                 publish(
                     mailbox,
                     stats,
                     sample,
                     Payload::Keyframe {
                         data: frame.into_data(),
-                        pts_ticks: timestamp.elapsed(),
-                        clock_rate: timestamp.clock_rate().get(),
+                        time,
                     },
                     clock,
                 )?;
             }
-        } else if sync.admit(is_keyframe) {
-            let decoder_ref = match decoder.as_mut() {
-                Some(decoder) => decoder,
-                None => decoder.insert(FrameDecoder::h264(timestamp.clock_rate().get())?),
-            };
-            // Convert to RGB only when the engine is waiting for a sample.
-            let picture = decoder_ref
-                .push(frame.data(), timestamp.elapsed())
-                .and_then(|decoded| match decoded.filter(|_| mailbox.is_waiting()) {
-                    Some(decoded) => decoder_ref.picture(&decoded).map(Some),
-                    None => Ok(None),
-                });
-            match picture {
-                Ok(Some(picture)) => {
-                    let sample = Stamp {
-                        source_secs: picture.source_time_secs.unwrap_or(sample.source_secs),
-                        ..sample
-                    };
-                    publish(mailbox, stats, sample, Payload::Picture(picture), clock)?;
-                }
-                Ok(None) => {}
-                // A corrupt unit costs the frames up to the next keyframe,
-                // not the RTSP session.
-                Err(error) => {
-                    stats.decode_errors += 1;
-                    warn!(
-                        "Decode failed (session {session_id}): {error}; resyncing at the next keyframe"
-                    );
-                    decoder = None;
-                    sync.lost();
+            FrameAction::Decode => {
+                let decoder_ref = match decoder.as_mut() {
+                    Some(decoder) => decoder,
+                    None => decoder.insert(FrameDecoder::h264(time.clock_rate)?),
+                };
+                match decode_unit(decoder_ref, frame.data(), time, mailbox.is_waiting()) {
+                    Ok(Some(picture)) => {
+                        let sample = Stamp {
+                            source_secs: SourceSecs(
+                                picture.source_time_secs.unwrap_or(sample.source_secs.0),
+                            ),
+                            ..sample
+                        };
+                        publish(mailbox, stats, sample, Payload::Picture(picture), clock)?;
+                    }
+                    Ok(None) => {}
+                    // A corrupt unit costs the frames up to the next keyframe,
+                    // not the RTSP session.
+                    Err(error) => {
+                        stats.decode_errors += 1;
+                        warn!(
+                            "Decode failed (session {session_id}): {error}; resyncing at the next keyframe"
+                        );
+                        decoder = None;
+                        gate.lost();
+                    }
                 }
             }
+            FrameAction::Skip => {}
         }
         stats.report_if_due(clock, mailbox.overwritten());
     }
     Ok(())
 }
 
+/// The decode pipeline of the continuous mode: one push per access unit and
+/// a picture only for the frames the engine is waiting for.
+fn decode_unit(
+    decoder: &mut FrameDecoder,
+    data: &[u8],
+    time: MediaTime,
+    waiting: bool,
+) -> Result<Option<Picture>> {
+    // Convert to RGB only when the engine is waiting for a sample.
+    let decoded = decoder.push(data, time)?;
+    match decoded.filter(|_| waiting) {
+        Some(decoded) => decoder.picture(&decoded).map(Some),
+        None => Ok(None),
+    }
+}
+
+/// What a demuxed frame becomes: a self-contained sample to publish, a frame
+/// for the decode pipeline, or nothing yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FrameAction {
+    Publish,
+    Decode,
+    Skip,
+}
+
+/// Which frames become samples: the keyframe mode publishes access units for
+/// the consumer to decode; the continuous mode decodes every frame the sync
+/// admits.
+#[derive(Debug)]
+struct SampleGate {
+    sampling: Sampling,
+    sync: KeyframeSync,
+}
+
+impl SampleGate {
+    fn new(sampling: Sampling) -> Self {
+        Self {
+            sampling,
+            sync: KeyframeSync::default(),
+        }
+    }
+
+    /// What this frame becomes; in continuous mode the sync starts at the
+    /// first keyframe.
+    fn act(&mut self, is_keyframe: bool) -> FrameAction {
+        match self.sampling {
+            Sampling::KeyframesOnly => {
+                if is_keyframe {
+                    FrameAction::Publish
+                } else {
+                    FrameAction::Skip
+                }
+            }
+            Sampling::Continuous => {
+                if self.sync.admit(is_keyframe) {
+                    FrameAction::Decode
+                } else {
+                    FrameAction::Skip
+                }
+            }
+        }
+    }
+
+    /// The decoder state was dropped; wait for the next keyframe.
+    fn lost(&mut self) {
+        self.sync.lost();
+    }
+}
+
 /// Continuous decoding starts at a keyframe and, after a decode error,
 /// restarts at the next one: frames in between reference lost state.
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct KeyframeSync {
     synced: bool,
 }
@@ -302,6 +402,83 @@ impl ErrorBudget {
     }
 }
 
+/// Eight times the configured delay: where the reconnect wait stops growing.
+const MAX_RECONNECT_MULTIPLIER: u32 = 8;
+/// Twice that, as the quiet between two failures that counts a session as
+/// healthy again and starts the growth over.
+const HEALTHY_GAP_MULTIPLIER: u32 = 2 * MAX_RECONNECT_MULTIPLIER;
+/// The waits carry jitter in their top half: several cameras that lost the
+/// same server do not retry in lockstep.
+const JITTER: f64 = 0.5;
+
+/// How long to wait before the next connection attempt: the configured delay,
+/// doubling when one failure follows another closely, up to a cap. This is
+/// the declared change of degradation mode: a server that is down is retried
+/// less and less often instead of every `reconnect_delay`.
+#[derive(Debug)]
+struct ReconnectBackoff {
+    base: Duration,
+    jitter: f64,
+    rng: u64,
+    failures: u32,
+    last: Option<Instant>,
+}
+
+impl ReconnectBackoff {
+    /// Grows from `base`, with the process's own jitter stream.
+    fn new(base: Duration) -> Self {
+        Self {
+            base,
+            jitter: JITTER,
+            rng: jitter_seed(),
+            failures: 0,
+            last: None,
+        }
+    }
+
+    /// The wait before the next attempt, after the failure at `now`. Two
+    /// failures separated by a healthy gap are not consecutive: a session
+    /// that ran starts the growth over.
+    fn next(&mut self, now: Instant) -> Duration {
+        let window = self.base.saturating_mul(HEALTHY_GAP_MULTIPLIER);
+        let consecutive = self
+            .last
+            .is_some_and(|last| now.saturating_duration_since(last) <= window);
+        self.failures = if consecutive {
+            self.failures.saturating_add(1)
+        } else {
+            0
+        };
+        self.last = Some(now);
+        let doubled = self.base.saturating_mul(1 << self.failures.min(16));
+        let delay = doubled.min(self.base.saturating_mul(MAX_RECONNECT_MULTIPLIER));
+        self.jittered(delay)
+    }
+
+    /// The delay with jitter uniformly in its top half: `[d/2, d]`.
+    fn jittered(&mut self, delay: Duration) -> Duration {
+        if self.jitter <= 0.0 {
+            return delay;
+        }
+        // xorshift64: a pseudo-random stream of this backoff, no dependency.
+        let mut x = self.rng;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.rng = x;
+        let fraction = (x >> 11) as f64 / (1u64 << 53) as f64;
+        delay.mul_f64(1.0 - self.jitter * fraction)
+    }
+}
+
+/// A non-zero seed from the process's randomized hash state.
+fn jitter_seed() -> u64 {
+    use std::hash::{BuildHasher, Hasher, RandomState};
+    let mut hasher = RandomState::new().build_hasher();
+    hasher.write_u64(0x9E37_79B9_7F4A_7C15);
+    hasher.finish() | 1
+}
+
 fn publish<C: Clock>(
     mailbox: &Mailbox<Sample>,
     stats: &mut IngestStats,
@@ -324,8 +501,11 @@ fn publish<C: Clock>(
 #[cfg(test)]
 mod tests {
     use super::{
-        ERROR_WINDOW, ErrorBudget, IngestStats, KeyframeSync, MAX_ERRORS_IN_A_ROW, STATS_INTERVAL,
+        Clock, ERROR_WINDOW, ErrorBudget, FrameAction, IngestStats, KeyframeSync,
+        MAX_ERRORS_IN_A_ROW, MAX_RECONNECT_MULTIPLIER, ReconnectBackoff, STATS_INTERVAL,
+        SampleGate,
     };
+    use crate::Sampling;
     use std::cell::Cell;
     use std::time::{Duration, Instant};
 
@@ -346,6 +526,10 @@ mod tests {
 
         fn at(&self, elapsed: Duration) {
             self.elapsed.set(elapsed);
+        }
+
+        fn elapsed(&self) -> Duration {
+            self.elapsed.get()
         }
     }
 
@@ -417,5 +601,90 @@ mod tests {
         );
         assert!(sync.admit(true));
         assert!(sync.admit(false));
+    }
+
+    #[test]
+    fn keyframes_only_publishes_only_keyframes() {
+        let mut gate = SampleGate::new(Sampling::KeyframesOnly);
+        assert_eq!(gate.act(false), FrameAction::Skip);
+        assert_eq!(gate.act(true), FrameAction::Publish);
+        assert_eq!(gate.act(false), FrameAction::Skip);
+    }
+
+    #[test]
+    fn continuous_decodes_from_the_first_keyframe_on() {
+        let mut gate = SampleGate::new(Sampling::Continuous);
+        assert_eq!(gate.act(false), FrameAction::Skip);
+        assert_eq!(gate.act(true), FrameAction::Decode);
+        assert_eq!(gate.act(false), FrameAction::Decode);
+        gate.lost();
+        assert_eq!(gate.act(false), FrameAction::Skip, "wait for a keyframe");
+        assert_eq!(gate.act(true), FrameAction::Decode);
+    }
+
+    /// The backoff the tests measure exactly: no jitter.
+    fn unjittered(base: Duration) -> ReconnectBackoff {
+        ReconnectBackoff {
+            jitter: 0.0,
+            rng: 1,
+            ..ReconnectBackoff::new(base)
+        }
+    }
+
+    #[test]
+    fn reconnection_waits_grow_and_stop_at_the_cap() {
+        let clock = ManualClock::new();
+        let mut backoff = unjittered(Duration::from_secs(1));
+        // Handshake failures, one right after the other.
+        let mut waits = Vec::new();
+        for _ in 0..6 {
+            let wait = backoff.next(clock.now());
+            waits.push(wait);
+            // The next attempt fails as soon as its wait is over.
+            clock.at(clock.elapsed() + wait);
+        }
+        assert_eq!(
+            waits,
+            [
+                Duration::from_secs(1),
+                Duration::from_secs(2),
+                Duration::from_secs(4),
+                Duration::from_secs(8),
+                Duration::from_secs(8),
+                Duration::from_secs(8),
+            ],
+            "the growth stops at {}x the base",
+            MAX_RECONNECT_MULTIPLIER
+        );
+    }
+
+    #[test]
+    fn a_session_that_lived_starts_the_growth_over() {
+        let clock = ManualClock::new();
+        let mut backoff = unjittered(Duration::from_secs(1));
+        for _ in 0..3 {
+            let wait = backoff.next(clock.now());
+            clock.at(clock.elapsed() + wait);
+        }
+        // The next failure comes after a healthy gap: not a consecutive one.
+        clock.at(clock.elapsed() + Duration::from_secs(100));
+        assert_eq!(backoff.next(clock.now()), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn the_wait_carries_jitter_in_its_top_half() {
+        let mut backoff = ReconnectBackoff::new(Duration::from_secs(4));
+        let mut expected = Duration::from_secs(4);
+        for _ in 0..8 {
+            let wait = backoff.next(Instant::now());
+            assert!(
+                wait >= expected / 2 && wait <= expected,
+                "wait {wait:?} outside the top half of {expected:?}"
+            );
+            expected *= 2;
+            if expected > Duration::from_secs(4) * MAX_RECONNECT_MULTIPLIER {
+                expected = Duration::from_secs(4) * MAX_RECONNECT_MULTIPLIER;
+            }
+        }
     }
 }

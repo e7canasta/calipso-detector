@@ -60,14 +60,30 @@ impl Config {
 }
 
 impl Config {
+    /// The stream stage's configuration. The URL is validated again here by
+    /// `IngestConfig::new` on purpose: `Config::validate` has already parsed
+    /// the same URL before anything starts, so this cannot fail at runtime.
     pub fn ingest(&self) -> ingest::IngestConfig {
-        ingest::IngestConfig {
-            url: self.stream.url.clone(),
-            username: self.stream.username.clone(),
-            password: self.stream.password.clone(),
-            keyframe_only: self.stream.keyframe_only,
-            reconnect_delay: Duration::from_secs(self.stream.reconnect_delay_secs),
-        }
+        let credentials = self
+            .stream
+            .username
+            .clone()
+            .map(|username| ingest::Credentials {
+                username,
+                password: self.stream.password.clone().unwrap_or_default(),
+            });
+        let sampling = if self.stream.keyframe_only {
+            ingest::Sampling::KeyframesOnly
+        } else {
+            ingest::Sampling::Continuous
+        };
+        ingest::IngestConfig::new(
+            &self.stream.url,
+            credentials,
+            sampling,
+            Duration::from_secs(self.stream.reconnect_delay_secs),
+        )
+        .expect("stream.url is validated when the configuration loads")
     }
     pub fn model_path(&self, model: &Path) -> PathBuf {
         let base = std::env::var_os("CALIPSO_MODELS").map(PathBuf::from);

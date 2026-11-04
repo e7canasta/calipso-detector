@@ -96,21 +96,23 @@ impl<C: Clock> SampleSource for RtspSource<C> {
 mod tests {
     use super::*;
     use crate::clock::FixedClock;
-    use ingest::{Payload, Stamp};
+    use ingest::{MediaTime, Payload, Session, Stamp};
     use std::sync::mpsc;
 
     fn sample(n: u64, received_at: Instant) -> Sample {
         Sample {
             stamp: Stamp {
-                session: 1,
-                sequence: n,
-                source_secs: n as f64,
+                session: Session(1),
+                sequence: ingest::Sequence(n),
+                source_secs: ingest::SourceSecs(n as f64),
             },
             received_at,
             payload: Payload::Keyframe {
                 data: Vec::new(),
-                pts_ticks: 0,
-                clock_rate: 90_000,
+                time: MediaTime {
+                    ticks: 0,
+                    clock_rate: 90_000.try_into().expect("a clock rate"),
+                },
             },
         }
     }
@@ -147,7 +149,10 @@ mod tests {
         let clock = FixedClock::new();
         let (mut s, mailbox, tx) = source(Duration::ZERO, clock);
         mailbox.put(sample(7, clock.now()));
-        tx.send(StreamEvent::Streaming { session: 1 }).unwrap();
+        tx.send(StreamEvent::Streaming {
+            session: Session(1),
+        })
+        .unwrap();
         assert!(matches!(
             s.next(Duration::from_millis(10)),
             Arrival::Transport(_)

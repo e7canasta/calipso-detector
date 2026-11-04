@@ -2,14 +2,26 @@
 //!
 //! FFmpeg objects are not `Send`; a decoder lives and dies on the thread that
 //! created it.
+//!
+//! The work is blocking and runs inside the stream thread's current-thread
+//! async runtime: decoding happens in the async context of the RTSP session,
+//! so cancelling that future only takes effect between frames — the latency
+//! of a cancellation is the duration of the frame being decoded.
+//!
+//! The consumer of the mailbox may die first. The stream stage reports its
+//! state to the shell with events on a channel it sends best-effort (`let _ =
+//! …`): a shell that stopped listening loses nothing but those reports. A
+//! closed mailbox is different: it means the engine is gone for good and is a
+//! fatal stop for the session (`publish` refuses to continue).
 
-use crate::IngestError;
+use crate::{IngestError, MediaTime};
 
 type Result<T> = std::result::Result<T, IngestError>;
 use image::RgbImage;
 
 use ffmpeg::software::scaling;
 use ffmpeg::util::frame::video::Video;
+use std::num::NonZeroU32;
 
 /// A decoded picture and the source time carried through the decoder.
 #[derive(Debug)]
@@ -23,11 +35,13 @@ pub struct Picture {
 pub struct FrameDecoder {
     decoder: ffmpeg::decoder::Video,
     scaler: Option<scaling::Context>,
-    clock_rate: f64,
+    clock_rate: NonZeroU32,
 }
 
 impl FrameDecoder {
-    pub fn h264(clock_rate: u32) -> Result<Self> {
+    /// A decoder for the source clock of the timestamps it will receive.
+    /// The rate cannot be zero: the type refuses it.
+    pub fn h264(clock_rate: NonZeroU32) -> Result<Self> {
         ffmpeg::init()
             .map_err(|e| IngestError::Decode(format!("FFmpeg initialization failed: {e}")))?;
         let codec = ffmpeg::codec::decoder::find(ffmpeg::codec::Id::H264)
@@ -43,15 +57,15 @@ impl FrameDecoder {
         Ok(Self {
             decoder,
             scaler: None,
-            clock_rate: f64::from(clock_rate.max(1)),
+            clock_rate,
         })
     }
 
     /// Decodes a self-contained access unit (a keyframe with parameter sets)
     /// and returns exactly the picture it produces. The decoder is drained and
     /// reset afterwards, so units need not be consecutive.
-    pub fn decode_keyframe(&mut self, data: &[u8], pts_ticks: i64) -> Result<Option<Picture>> {
-        self.send(data, pts_ticks)?;
+    pub fn decode_keyframe(&mut self, data: &[u8], time: MediaTime) -> Result<Option<Picture>> {
+        self.send(data, time)?;
         self.decoder.send_eof()?;
         let mut last = None;
         let mut decoded = Video::empty();
@@ -64,8 +78,8 @@ impl FrameDecoder {
 
     /// Feeds one unit of a continuous stream. Returns the newest raw frame
     /// produced, without converting it.
-    pub fn push(&mut self, data: &[u8], pts_ticks: i64) -> Result<Option<Video>> {
-        self.send(data, pts_ticks)?;
+    pub(crate) fn push(&mut self, data: &[u8], time: MediaTime) -> Result<Option<Video>> {
+        self.send(data, time)?;
         let mut newest = None;
         loop {
             let mut decoded = Video::empty();
@@ -80,7 +94,7 @@ impl FrameDecoder {
         Ok(newest)
     }
 
-    pub fn picture(&mut self, decoded: &Video) -> Result<Picture> {
+    pub(crate) fn picture(&mut self, decoded: &Video) -> Result<Picture> {
         if let Some(current) = self.scaler.as_ref()
             && (current.input().format != decoded.format()
                 || current.input().width != decoded.width()
@@ -104,13 +118,19 @@ impl FrameDecoder {
         scaler.run(decoded, &mut rgb)?;
         Ok(Picture {
             image: rgb_image(&rgb)?,
-            source_time_secs: decoded.pts().map(|pts| pts as f64 / self.clock_rate),
+            source_time_secs: decoded.pts().map(|pts| {
+                MediaTime {
+                    ticks: pts,
+                    clock_rate: self.clock_rate,
+                }
+                .as_secs()
+            }),
         })
     }
 
-    fn send(&mut self, data: &[u8], pts_ticks: i64) -> Result<()> {
+    fn send(&mut self, data: &[u8], time: MediaTime) -> Result<()> {
         let mut packet = ffmpeg::codec::packet::Packet::copy(data);
-        packet.set_pts(Some(pts_ticks));
+        packet.set_pts(Some(time.ticks));
         self.decoder.send_packet(&packet)?;
         Ok(())
     }

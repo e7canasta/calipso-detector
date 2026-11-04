@@ -655,7 +655,7 @@ fn config_validates_and_translates_without_io() {
         2.0
     );
     assert_eq!(c.prefix(), "vision.test.room-1");
-    assert!(c.ingest().keyframe_only);
+    assert_eq!(c.ingest().sampling, ingest::Sampling::KeyframesOnly);
 }
 #[test]
 fn resolution_is_required_with_a_reason() {

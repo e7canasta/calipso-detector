@@ -1,4 +1,5 @@
-use ingest::FrameDecoder;
+use ingest::{FrameDecoder, MediaTime};
+use std::num::NonZeroU32;
 
 // ffmpeg -f lavfi -i 'testsrc=size=160x96:rate=10:duration=2' \
 //   -c:v libx264 -pix_fmt yuv420p -preset ultrafast -tune zerolatency \
@@ -22,16 +23,17 @@ fn first_access_unit() -> &'static [u8] {
 #[test]
 fn keyframe_decodes_to_rgb_with_source_time() {
     assert!(VIDEO.len() < 50_000);
-    let mut decoder = FrameDecoder::h264(90_000).unwrap();
+    let clock_rate = NonZeroU32::new(90_000).expect("a clock rate");
+    let mut decoder = FrameDecoder::h264(clock_rate).unwrap();
     // Repeat after drain/flush: independent GOPs must not need intervening frames.
-    for pts in [90_000, 180_000] {
+    for ticks in [90_000, 180_000] {
         let picture = decoder
-            .decode_keyframe(first_access_unit(), pts)
+            .decode_keyframe(first_access_unit(), MediaTime { ticks, clock_rate })
             .unwrap()
             .unwrap();
         assert_eq!((picture.width(), picture.height()), (160, 96));
         assert_eq!(picture.image().as_raw().len(), 160 * 96 * 3);
-        assert_eq!(picture.source_time_secs, Some(pts as f64 / 90_000.0));
+        assert_eq!(picture.source_time_secs, Some(ticks as f64 / 90_000.0));
         let image = picture.into_image();
         assert_eq!(image.dimensions(), (160, 96));
         assert!(image.pixels().any(|p| p[0] != p[1]));

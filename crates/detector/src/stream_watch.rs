@@ -82,7 +82,12 @@ mod tests {
         let limit = Duration::from_secs(3);
         let mut watch = StreamWatch::new(t);
         assert!(!watch.poll(t + limit, limit));
-        watch.on_stream(&ingest::StreamEvent::Streaming { session: 1 }, t);
+        watch.on_stream(
+            &ingest::StreamEvent::Streaming {
+                session: ingest::Session(1),
+            },
+            t,
+        );
         assert!(!watch.poll(t + limit - Duration::from_nanos(1), limit));
         assert!(watch.poll(t + limit, limit));
         assert!(!watch.poll(t + limit, limit));
@@ -90,7 +95,7 @@ mod tests {
         assert!(!watch.on_sample(t + limit));
         watch.on_stream(
             &ingest::StreamEvent::Disconnected {
-                session: 1,
+                session: ingest::Session(1),
                 reason: ingest::IngestError::Protocol("test".into()),
             },
             t,
@@ -106,13 +111,15 @@ mod tests {
         );
         for _ in 0..2 {
             assert_eq!(
-                translate(&ingest::StreamEvent::Streaming { session: 1 }),
+                translate(&ingest::StreamEvent::Streaming {
+                    session: ingest::Session(1)
+                }),
                 Some(SensorState::Streaming)
             );
         }
         assert_eq!(
             translate(&ingest::StreamEvent::Disconnected {
-                session: 1,
+                session: ingest::Session(1),
                 reason: ingest::IngestError::Protocol("test".into())
             }),
             Some(SensorState::Reconnecting)

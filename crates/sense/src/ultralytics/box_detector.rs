@@ -2,6 +2,7 @@ use image::DynamicImage;
 use std::path::Path;
 use ultralytics_inference::{InferenceConfig, YOLOModel};
 
+use super::Task;
 use crate::{ModelError, detection::from_backend};
 use scene_look::Detection;
 
@@ -30,10 +31,7 @@ impl BoxDetector {
     }
 
     pub(super) fn predict(&mut self, image: &DynamicImage) -> Result<Vec<Detection>, ModelError> {
-        let results = self
-            .model
-            .predict_image(image, "detect".into())
-            .map_err(|error| ModelError::Inference(error.to_string()))?;
+        let results = self.model.predict_image(image, Task::Detect.into())?;
 
         let mut detections = Vec::new();
         for result in &results {

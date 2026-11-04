@@ -40,6 +40,18 @@ impl<'a> Crop<'a> {
         }
     }
 
+    /// The crop only when it has pixels: an empty region stays empty and
+    /// becomes `None` instead of falling back to the whole frame.
+    pub(crate) fn try_of(frame: &'a DynamicImage, region: Option<Rect>) -> Option<Self> {
+        let crop = Self::of(frame, region);
+        crop.non_empty().then_some(crop)
+    }
+
+    /// Whether the crop has pixels: the empty guard, written once (F3).
+    pub(crate) fn non_empty(&self) -> bool {
+        self.image.width() > 0 && self.image.height() > 0
+    }
+
     /// A point of the frame in the crop's coordinates.
     pub(crate) fn point_to_crop(&self, point: Point) -> Point {
         Point {
@@ -104,16 +116,37 @@ impl Turned {
             .ceil()
             .max(1.0) as u32;
         let canvas = (w as f32 / 2.0, h as f32 / 2.0);
-        let source = frame.to_rgb8();
-        let (fw, fh) = (source.width() as f32, source.height() as f32);
+        let (fw, fh) = (frame.width() as f32, frame.height() as f32);
+        // The turn reads only the pixels the canvas samples: no whole-frame
+        // RGB copy (F3: 6.2 MB at 1080p), row access on the raw pixels. A
+        // frame that is already RGB is read in place; anything else is
+        // converted once.
+        let converted;
+        let source = match frame.as_rgb8() {
+            Some(rgb) => rgb,
+            None => {
+                converted = frame.to_rgb8();
+                &converted
+            }
+        };
+        let (sw, pixels) = (source.width() as usize, source.as_raw().as_slice());
         let mut image = image::RgbImage::new(w, h);
-        for qy in 0..h {
-            for qx in 0..w {
+        let row_bytes = w as usize * 3;
+        for (qy, row) in image
+            .as_flat_samples_mut()
+            .samples
+            .chunks_exact_mut(row_bytes)
+            .enumerate()
+        {
+            for (qx, pixel) in row.as_chunks_mut::<3>().0.iter_mut().enumerate() {
                 let (dx, dy) = (qx as f32 - canvas.0, qy as f32 - canvas.1);
                 let x = cos * dx + sin * dy + centre.0;
                 let y = -sin * dx + cos * dy + centre.1;
                 if x >= 0.0 && y >= 0.0 && x < fw && y < fh {
-                    image.put_pixel(qx, qy, *source.get_pixel(x as u32, y as u32));
+                    let at = (y as u32 as usize * sw + x as u32 as usize) * 3;
+                    pixel[0] = pixels[at];
+                    pixel[1] = pixels[at + 1];
+                    pixel[2] = pixels[at + 2];
                 }
             }
         }
@@ -253,5 +286,78 @@ mod tests {
                 "corner {corner:?} -> {c:?}"
             );
         }
+    }
+
+    /// Perf probe (F3 criterion 7): `--ignored --nocapture` prints the cost of
+    /// one `Turned::of` on a 1080p frame, before and after the row access. The
+    /// best of alternating batches: the machine runs other work in parallel.
+    #[test]
+    #[ignore = "perf probe: cargo test -p sense --lib --release -- --ignored --nocapture"]
+    fn turned_of_cost() {
+        use std::time::{Duration, Instant};
+        fn reference(frame: &DynamicImage, bbox: Rect, up: scene_look::Up) -> image::RgbImage {
+            let theta = -std::f32::consts::FRAC_PI_2 - up.dy().atan2(up.dx());
+            let snap = |v: f32| if v.abs() < 1e-6 { 0.0 } else { v };
+            let (sin, cos) = theta.sin_cos();
+            let (sin, cos) = (snap(sin), snap(cos));
+            let centre = ((bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0);
+            let (half_w, half_h) = ((bbox.x1 - bbox.x0) / 2.0, (bbox.y1 - bbox.y0) / 2.0);
+            let w = (cos.abs() * 2.0 * half_w + sin.abs() * 2.0 * half_h)
+                .ceil()
+                .max(1.0) as u32;
+            let h = (sin.abs() * 2.0 * half_w + cos.abs() * 2.0 * half_h)
+                .ceil()
+                .max(1.0) as u32;
+            let canvas = (w as f32 / 2.0, h as f32 / 2.0);
+            let source = frame.to_rgb8();
+            let (fw, fh) = (source.width() as f32, source.height() as f32);
+            let mut image = image::RgbImage::new(w, h);
+            for qy in 0..h {
+                for qx in 0..w {
+                    let (dx, dy) = (qx as f32 - canvas.0, qy as f32 - canvas.1);
+                    let x = cos * dx + sin * dy + centre.0;
+                    let y = -sin * dx + cos * dy + centre.1;
+                    if x >= 0.0 && y >= 0.0 && x < fw && y < fh {
+                        image.put_pixel(qx, qy, *source.get_pixel(x as u32, y as u32));
+                    }
+                }
+            }
+            image
+        }
+        let frame = DynamicImage::new_rgb8(1920, 1080);
+        let bbox = Rect::new(800.0, 300.0, 1120.0, 1020.0);
+        let up = scene_look::Up::new(1.0, 1.0).expect("a direction");
+        let before = || {
+            let _ = reference(&frame, bbox, up);
+        };
+        let after = || {
+            let _ = Turned::of(&frame, bbox, up);
+        };
+        for _ in 0..5 {
+            before();
+            after();
+        }
+        // Interleaved batches: the machine runs other work in parallel and a
+        // later batch is not systematically worse than an earlier one.
+        let (mut best_before, mut best_after) = (Duration::MAX, Duration::MAX);
+        for _ in 0..7 {
+            let started = Instant::now();
+            for _ in 0..20 {
+                before();
+            }
+            best_before = best_before.min(started.elapsed() / 20);
+            let started = Instant::now();
+            for _ in 0..20 {
+                after();
+            }
+            best_after = best_after.min(started.elapsed() / 20);
+        }
+        let (before, after) = (best_before, best_after);
+        // The bbox at a quarter turn is what the canvas reads; at 45° the
+        // corners widen it. The frame copy is gone entirely (zero-copy read).
+        println!(
+            "Turned::of 1080p (best of batches): before {before:?} copying {} B, after {after:?} copying 0 B (reads in place)",
+            1920 * 1080 * 3,
+        );
     }
 }

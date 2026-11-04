@@ -86,7 +86,9 @@ fn a_full_channel_drops_without_waiting_and_leaves_a_seq_gap() {
         let p = d
             .on_stream(
                 if i % 2 == 0 {
-                    StreamEvent::Streaming { session: 1 }
+                    StreamEvent::Streaming {
+                        session: ingest::Session(1),
+                    }
                 } else {
                     StreamEvent::Connecting
                 },
@@ -96,7 +98,12 @@ fn a_full_channel_drops_without_waiting_and_leaves_a_seq_gap() {
         assert!(h.send(p.output, TIMING));
     }
     let p = d
-        .on_stream(StreamEvent::Streaming { session: 1 }, Instant::now())
+        .on_stream(
+            StreamEvent::Streaming {
+                session: ingest::Session(1),
+            },
+            Instant::now(),
+        )
         .unwrap();
     assert!(!h.send(p.output, TIMING));
     assert_eq!(h.dropped_events(), 1);

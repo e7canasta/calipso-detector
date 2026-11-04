@@ -252,7 +252,7 @@ pub fn publish_samples(
     }
     if disconnect {
         let stream = ingest::StreamEvent::Disconnected {
-            session: 1,
+            session: ingest::Session(1),
             reason: ingest::IngestError::Protocol("the camera went away".into()),
         };
         if let Some(processed) = driver.on_stream(stream, std::time::Instant::now()) {

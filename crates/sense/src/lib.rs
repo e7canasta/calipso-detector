@@ -100,21 +100,22 @@ impl Senses {
     }
 }
 
+/// The probe failed: logged once here, with the reason that distinguishes an
+/// empty region from a model that failed (F3).
+fn fail(reason: impl std::fmt::Display) -> Failure {
+    tracing::warn!(%reason, "sense failed");
+    Failure::Model
+}
+
 fn boxes(
     port: &mut dyn DetectorPort,
     frame: &DynamicImage,
     region: Option<Rect>,
 ) -> Result<Vec<Detection>, Failure> {
-    let crop = crop::Crop::of(frame, region);
-    if crop.image.width() == 0 || crop.image.height() == 0 {
-        return Err(Failure::Model);
-    }
+    let crop = crop::Crop::try_of(frame, region).ok_or_else(|| fail("the region is empty"))?;
     port.detect(&crop.image)
         .map(|boxes| crop.to_frame(boxes))
-        .map_err(|error| {
-            tracing::warn!(%error, "model failed");
-            Failure::Model
-        })
+        .map_err(fail)
 }
 
 /// The pose of the most confident person in the crop (ties: the first). The
@@ -128,24 +129,13 @@ fn pose(
 ) -> Result<Option<Vec<Keypoint>>, Failure> {
     if let Some(up) = up {
         // F2.4: the crop turned so that `up` points up; the keypoints come back to the frame.
+        // The canvas is at least 1x1 by construction: it needs no empty guard.
         let turned = crop::Turned::of(frame, bbox, up);
-        if turned.image.width() == 0 || turned.image.height() == 0 {
-            return Err(Failure::Model);
-        }
-        let people = port.estimate(&turned.image).map_err(|error| {
-            tracing::warn!(%error, "pose model failed");
-            Failure::Model
-        })?;
+        let people = port.estimate(&turned.image).map_err(fail)?;
         return Ok(most_confident(people).map(|keypoints| turned.keypoints_to_frame(keypoints)));
     }
-    let crop = crop::Crop::of(frame, Some(bbox));
-    if crop.image.width() == 0 || crop.image.height() == 0 {
-        return Err(Failure::Model);
-    }
-    let people = port.estimate(&crop.image).map_err(|error| {
-        tracing::warn!(%error, "pose model failed");
-        Failure::Model
-    })?;
+    let crop = crop::Crop::try_of(frame, Some(bbox)).ok_or_else(|| fail("the region is empty"))?;
+    let people = port.estimate(&crop.image).map_err(fail)?;
     Ok(most_confident(people).map(|keypoints| crop.keypoints_to_frame(keypoints)))
 }
 
@@ -173,14 +163,8 @@ fn depth(
     points: &[Point],
     region: Option<Rect>,
 ) -> Result<Vec<Option<f32>>, Failure> {
-    let crop = crop::Crop::of(frame, region);
-    if crop.image.width() == 0 || crop.image.height() == 0 {
-        return Err(Failure::Model);
-    }
-    let map = port.estimate(&crop.image).map_err(|error| {
-        tracing::warn!(%error, "depth model failed");
-        Failure::Model
-    })?;
+    let crop = crop::Crop::try_of(frame, region).ok_or_else(|| fail("the region is empty"))?;
+    let map = port.estimate(&crop.image).map_err(fail)?;
     let size = (crop.image.width() as f32, crop.image.height() as f32);
     Ok(points
         .iter()

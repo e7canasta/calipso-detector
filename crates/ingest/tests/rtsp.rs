@@ -1,6 +1,6 @@
 //! CALIPSO_RTSP_TEST=1 cargo test -p ingest --test rtsp -- --ignored --nocapture
 //! Requires mediamtx and ffmpeg. Each test owns its server on a free local port.
-use ingest::{IngestConfig, Mailbox, Payload, Sample, StreamEvent, Take};
+use ingest::{IngestConfig, Mailbox, Payload, Sample, Sampling, Session, StreamEvent, Take};
 use std::{
     io::{BufRead, BufReader},
     net::TcpListener,
@@ -58,13 +58,19 @@ impl Receiver {
         let mailbox = Arc::new(Mailbox::default());
         let (send, events) = mpsc::channel();
         let shutdown = CancellationToken::new();
+        let sampling = if keyframe_only {
+            Sampling::KeyframesOnly
+        } else {
+            Sampling::Continuous
+        };
         let handle = ingest::spawn(
-            IngestConfig {
-                url: format!("rtsp://127.0.0.1:{port}/test"),
-                keyframe_only,
-                reconnect_delay: Duration::from_secs(3),
-                ..IngestConfig::default()
-            },
+            IngestConfig::new(
+                &format!("rtsp://127.0.0.1:{port}/test"),
+                None,
+                sampling,
+                Duration::from_secs(3),
+            )
+            .expect("a valid RTSP URL"),
             Arc::clone(&mailbox),
             send,
             shutdown.clone(),
@@ -81,7 +87,7 @@ impl Receiver {
         let deadline = Instant::now() + Duration::from_secs(15);
         while Instant::now() < deadline {
             match self.mailbox.take(Duration::from_millis(200)) {
-                Take::Value(sample) if sample.stamp.session == session => return sample,
+                Take::Value(sample) if sample.stamp.session == Session(session) => return sample,
                 Take::Closed => panic!("ingest mailbox closed"),
                 _ => {}
             }
@@ -126,7 +132,9 @@ fn rtsp_samples_and_reconnection() {
     assert!(matches!(receiver.event(), StreamEvent::Connecting));
     assert!(matches!(
         receiver.event(),
-        StreamEvent::Streaming { session: 1 }
+        StreamEvent::Streaming {
+            session: Session(1)
+        }
     ));
     let first = receiver.sample(1);
     let second = receiver.sample(1);
@@ -156,13 +164,18 @@ fn rtsp_samples_and_reconnection() {
     let disconnected = receiver.event();
     assert!(matches!(
         disconnected,
-        StreamEvent::Disconnected { session: 1, .. }
+        StreamEvent::Disconnected {
+            session: Session(1),
+            ..
+        }
     ));
     let _server = Server::start(port);
     assert!(matches!(receiver.event(), StreamEvent::Connecting));
     assert!(matches!(
         receiver.event(),
-        StreamEvent::Streaming { session: 2 }
+        StreamEvent::Streaming {
+            session: Session(2)
+        }
     ));
     let resumed = receiver.sample(2);
     assert!(resumed.stamp.sequence > third.stamp.sequence);
@@ -186,7 +199,10 @@ fn continuous_decode_delivers_rgb_when_consumer_waits() {
         panic!("continuous RGB sample")
     };
     assert_eq!((picture.width(), picture.height()), (160, 96));
-    assert_eq!(sample.stamp.source_secs, picture.source_time_secs.unwrap());
+    assert_eq!(
+        sample.stamp.source_secs.0,
+        picture.source_time_secs.unwrap()
+    );
     println!("Continuous decode OK: 160x96 RGB, session=1");
 }
 

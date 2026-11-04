@@ -1,4 +1,4 @@
-use super::box_detector::load;
+use super::{Task, box_detector::load};
 use crate::{
     ModelError,
     ports::{DepthMap, DepthPort},
@@ -25,10 +25,7 @@ impl DepthEstimator {
 
 impl DepthPort for DepthEstimator {
     fn estimate(&mut self, image: &DynamicImage) -> Result<DepthMap, ModelError> {
-        let results = self
-            .model
-            .predict_image(image, "depth".into())
-            .map_err(|error| ModelError::Inference(error.to_string()))?;
+        let results = self.model.predict_image(image, Task::Depth.into())?;
         // Without a map the backend ran and measured nothing: an empty map, which
         // yields no value at any point (as in v2).
         let Some(map) = results.iter().find_map(|r| r.depth.as_ref()) else {

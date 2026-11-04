@@ -22,9 +22,9 @@ pub struct Processed {
 /// Both types belong to other crates: Rust does not allow impl From here.
 pub(crate) fn stamp_to_ref(stamp: Stamp) -> SampleRef {
     SampleRef {
-        session: SessionId(stamp.session),
-        sequence: stamp.sequence,
-        source_secs: SourceSecs(stamp.source_secs),
+        session: SessionId(stamp.session.0),
+        sequence: stamp.sequence.0,
+        source_secs: SourceSecs(stamp.source_secs.0),
     }
 }
 /// The driver of one camera. By default, with the live senses, no verifier and
@@ -108,7 +108,7 @@ impl<S: SensesPort, V: VerifierPort<Frame = S::Frame>, C: Clock> Driver<S, V, C>
         if let StreamEvent::Streaming { session } | StreamEvent::Disconnected { session, .. } =
             &event
         {
-            self.session = *session;
+            self.session = session.0;
         }
         let (session, last) = (self.session, self.last_at);
         stream_watch::translate(&event).map(|state| self.report(state, session, last))
@@ -248,9 +248,9 @@ mod tests {
     }
     fn stamp() -> Stamp {
         Stamp {
-            session: 1,
-            sequence: 42,
-            source_secs: 4.2,
+            session: ingest::Session(1),
+            sequence: ingest::Sequence(42),
+            source_secs: ingest::SourceSecs(4.2),
         }
     }
     #[test]
@@ -299,8 +299,10 @@ mod tests {
                             .0;
                         video[..end].to_vec()
                     },
-                    pts_ticks: 378000,
-                    clock_rate: 90000,
+                    time: ingest::MediaTime {
+                        ticks: 378000,
+                        clock_rate: std::num::NonZeroU32::new(90_000).expect("a clock rate"),
+                    },
                 },
             },
             &clock,
@@ -324,17 +326,27 @@ mod tests {
         let mut d = driver();
         let t = Instant::now();
         let first = d
-            .on_stream(StreamEvent::Streaming { session: 1 }, t)
+            .on_stream(
+                StreamEvent::Streaming {
+                    session: ingest::Session(1),
+                },
+                t,
+            )
             .unwrap();
         assert_eq!(first.output.v5.scene.sensor, SensorState::Streaming);
         assert_eq!(first.output.v5.events.len(), 1);
         assert!(
-            d.on_stream(StreamEvent::Streaming { session: 1 }, t)
-                .unwrap()
-                .output
-                .v5
-                .events
-                .is_empty()
+            d.on_stream(
+                StreamEvent::Streaming {
+                    session: ingest::Session(1)
+                },
+                t
+            )
+            .unwrap()
+            .output
+            .v5
+            .events
+            .is_empty()
         );
         let stalled = d.poll_stall(t + Duration::from_secs(3)).unwrap();
         assert_eq!(stalled.output.v5.scene.sensor, SensorState::Stalled);
@@ -350,7 +362,7 @@ mod tests {
         let disconnected = d
             .on_stream(
                 StreamEvent::Disconnected {
-                    session: 1,
+                    session: ingest::Session(1),
                     reason: IngestError::Protocol("test".into()),
                 },
                 t,

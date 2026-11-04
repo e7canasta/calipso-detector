@@ -5,6 +5,12 @@ pub use mailbox::{Mailbox, Take}
 pub use rtsp::spawn
 pub struct Sample
 pub enum Payload
-pub enum StreamEvent
-pub struct IngestConfig
+pub struct MediaTime
+pub struct Session(pub u64)
+pub struct Sequence(pub u64)
+pub struct SourceSecs(pub f64)
 pub struct Stamp
+pub enum StreamEvent
+pub struct Credentials
+pub enum Sampling
+pub struct IngestConfig

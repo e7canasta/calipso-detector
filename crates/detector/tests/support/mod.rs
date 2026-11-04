@@ -3,7 +3,7 @@ use detector::Driver;
 use detector::FixedClock;
 use detector::{Arrival, SampleDecoder};
 use image::DynamicImage;
-use ingest::{Clock, Payload, Sample, Stamp};
+use ingest::{Clock, MediaTime, Payload, Sample, Stamp};
 use scene_core::{map::SiteMap, policy::Policy};
 use scene_geom::{Quad, Rect};
 use scene_look::Detection;
@@ -56,15 +56,17 @@ pub fn sample(n: u64, session: u64) -> Arrival<DynamicImage> {
     SampleDecoder::default().arrival(
         Sample {
             stamp: Stamp {
-                session,
-                sequence: n,
-                source_secs: n as f64,
+                session: ingest::Session(session),
+                sequence: ingest::Sequence(n),
+                source_secs: ingest::SourceSecs(n as f64),
             },
             received_at: clock.now(),
             payload: Payload::Keyframe {
                 data: VIDEO[..end].to_vec(),
-                pts_ticks: n as i64 * 90000,
-                clock_rate: 90000,
+                time: MediaTime {
+                    ticks: n as i64 * 90000,
+                    clock_rate: 90000.try_into().expect("a clock rate"),
+                },
             },
         },
         &clock,

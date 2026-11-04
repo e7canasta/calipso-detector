@@ -14,12 +14,24 @@ pub enum IngestError {
 }
 
 impl IngestError {
-    pub(crate) fn rtsp(error: retina::Error, connecting: bool) -> Self {
+    /// The failure of the connecting phase (DESCRIBE): an error without a
+    /// status code means the server could not be reached at all.
+    pub(crate) fn connecting(error: retina::Error) -> Self {
+        Self::for_status(&error).unwrap_or_else(|| Self::Unreachable(error.to_string()))
+    }
+
+    /// The failure of an established session (SETUP, PLAY or the stream
+    /// itself): a transport error there is a protocol failure.
+    pub(crate) fn streaming(error: retina::Error) -> Self {
+        Self::for_status(&error).unwrap_or_else(|| Self::Protocol(error.to_string()))
+    }
+
+    /// How a response that carries a status code reads.
+    fn for_status(error: &retina::Error) -> Option<Self> {
         match error.status_code() {
-            Some(401 | 403) => Self::Unauthorized(error.to_string()),
-            Some(_) => Self::Protocol(error.to_string()),
-            None if connecting => Self::Unreachable(error.to_string()),
-            None => Self::Protocol(error.to_string()),
+            Some(401 | 403) => Some(Self::Unauthorized(error.to_string())),
+            Some(_) => Some(Self::Protocol(error.to_string())),
+            None => None,
         }
     }
 }

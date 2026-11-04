@@ -1,4 +1,4 @@
-use super::box_detector::load;
+use super::{Task, box_detector::load};
 use crate::{
     ModelError,
     ports::{PersonPose, PosePort},
@@ -26,10 +26,7 @@ impl PoseEstimator {
 
 impl PosePort for PoseEstimator {
     fn estimate(&mut self, image: &DynamicImage) -> Result<Vec<PersonPose>, ModelError> {
-        let results = self
-            .model
-            .predict_image(image, "pose".into())
-            .map_err(|error| ModelError::Inference(error.to_string()))?;
+        let results = self.model.predict_image(image, Task::Pose.into())?;
         let mut people = Vec::new();
         for result in &results {
             let Some(keypoints) = result.keypoints.as_ref() else {

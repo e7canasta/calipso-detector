@@ -63,7 +63,9 @@ impl<C: Clock> SampleSource for FramesSource<C> {
     fn next(&mut self, _wait: Duration) -> Arrival<DynamicImage> {
         if !self.connected {
             self.connected = true;
-            return Arrival::Transport(StreamEvent::Streaming { session: SESSION });
+            return Arrival::Transport(StreamEvent::Streaming {
+                session: ingest::Session(SESSION),
+            });
         }
         let Some((secs, path)) = self.frames.pop_front() else {
             return Arrival::End;

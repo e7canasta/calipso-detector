@@ -48,7 +48,12 @@ fn a_reconnection_in_s1_only_reports_the_sensor_and_keeps_the_held() {
     use scene_contract::SensorState;
     use std::time::Instant;
     let mut driver = support::driver();
-    driver.on_stream(StreamEvent::Streaming { session: 1 }, Instant::now());
+    driver.on_stream(
+        StreamEvent::Streaming {
+            session: ingest::Session(1),
+        },
+        Instant::now(),
+    );
     let mut previous = None;
     for n in 1..=15 {
         previous = Some(
@@ -65,11 +70,13 @@ fn a_reconnection_in_s1_only_reports_the_sensor_and_keeps_the_held() {
     assert_eq!(previous.bed.state, BedState::Held);
     for event in [
         StreamEvent::Disconnected {
-            session: 1,
+            session: ingest::Session(1),
             reason: IngestError::Protocol("test".into()),
         },
         StreamEvent::Connecting,
-        StreamEvent::Streaming { session: 2 },
+        StreamEvent::Streaming {
+            session: ingest::Session(2),
+        },
     ] {
         let output = driver.on_stream(event, Instant::now()).unwrap().output;
         assert_eq!(output.v5.scene.bed, previous.bed);
