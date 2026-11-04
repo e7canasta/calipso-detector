@@ -8,7 +8,7 @@ use super::*;
 use scene_core::units::{Extension, Proportion, Ratio};
 use scene_core::{
     map::{FrameInfo, SiteMap},
-    policy::{FarArrival, Policy, SideExit},
+    policy::{BedStep, FarArrival, Policy, SideExit},
 };
 use scene_geom::{Point, Quad, Rect};
 
@@ -55,6 +55,11 @@ impl Config {
             FarArrival::ThoseNeverNear
         } else {
             FarArrival::FromTheDoor
+        };
+        p.bed_step = if self.occupancy.as_ref().is_some_and(|o| o.step_near) {
+            BedStep::SeenNear
+        } else {
+            BedStep::FloorRises
         };
         p.persistence.dwell_secs = seconds("policy", "policy.dwell_secs", self.policy.dwell_secs)?;
         p.reinforce = self

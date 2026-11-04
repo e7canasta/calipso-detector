@@ -5,7 +5,7 @@
 //! No state, no events, no boxes: each rule is tested alone.
 
 use crate::belief::Occupants;
-use crate::policy::SideExit;
+use crate::policy::{BedStep, SideExit};
 use crate::zone::Counts;
 
 /// What we believed before the change: `state[t−1]`.
@@ -15,12 +15,17 @@ pub(super) struct Before {
     pub(super) stable: Counts,
     /// How many were retained in bed.
     pub(super) held: u32,
+    /// Of the retained, how many were held while one more was seen stepping
+    /// down near the bed (rule 1, refined).
+    pub(super) held_stepped: u32,
     /// How many bodies in the bed count are not occupants (rule 6).
     pub(super) unexplained: u32,
     pub(super) bed_phase: BedPhase,
     /// Rule 4 bis: how a held body may leave (by the side, seen on the floor
     /// near the bed, or only by reappearing in bed).
     pub(super) held_exit: SideExit,
+    /// Rule 1, refined: what counts as the step from the bed to the floor.
+    pub(super) bed_step: BedStep,
 }
 
 /// The bed phase for rule 6: "the bed without
@@ -48,6 +53,9 @@ pub(crate) struct SeenMark {
     /// How many extra were seen on the floor while it stabilized: someone who
     /// passed through the floor though the floor count never changed (rule 6).
     pub(crate) passing: u32,
+    /// How many more than at rest were seen on the floor near the bed while it
+    /// stabilized: who may have stepped down from the bed (rule 1, refined).
+    pub(crate) stepped: u32,
 }
 
 /// A move of a person (or of a body that is nobody) that explains part of the
@@ -58,6 +66,12 @@ pub(super) enum Movement {
     LeftBed,
     /// Stopped being seen in bed without leaving: retained (rule 1).
     Held,
+    /// Retained, while one more was seen near the bed: it may have stepped
+    /// down (rule 1, refined).
+    HeldStepped,
+    /// A body retained after a step seen near the bed left the room with
+    /// whoever left the floor, without reappearing (rule 1, refined).
+    SteppedLeft,
     /// A retained body was seen on the floor near the bed: it got up by the
     /// side (rule 4 bis).
     HeldLeft,
@@ -96,17 +110,34 @@ pub(super) fn settle(before: Before, seen: SeenMark) -> Vec<Movement> {
         // down and the floor goes up. Rule 5: those who came from the door did
         // not leave the bed. Rule 6: only an occupant leaves the bed.
         let occupants = before.stable.bed.saturating_sub(before.unexplained);
-        let left_bed = gone
-            .min(floor_up.saturating_sub(seen.from_door))
-            .min(occupants);
+        let risen = floor_up.saturating_sub(seen.from_door);
+        // Rule 1, refined: of those seen near the bed while it stabilized,
+        // more than are left on the floor means one of them stepped down and
+        // left the room in the window. The rest may have stepped down too.
+        let (step, maybe) = match before.bed_step {
+            BedStep::FloorRises => (risen, 0),
+            BedStep::SeenNear => {
+                let step = risen.max(seen.stepped.saturating_sub(seen.counts.floor));
+                (step, seen.stepped.saturating_sub(step))
+            }
+        };
+        let left_bed = gone.min(step).min(occupants);
         // What did not leave: what was nobody goes first; an occupant stays
         // retained.
         let stayed = gone - left_bed;
         let unexplained_out = stayed.min(before.unexplained);
+        let held = stayed - unexplained_out;
+        // Retained after a step seen near the bed: it leaves with the next one
+        // who leaves the floor, unless it reappears first.
+        let held_stepped = held.min(maybe);
+        // Whoever stepped down past the floor's rise took the place of someone
+        // who left the room meanwhile.
+        let through = left_bed.saturating_sub(floor_up);
         push(LeftBed, left_bed);
-        push(Held, stayed - unexplained_out);
-        push(LeftRoom, floor_down);
-        push(Entered, floor_up - left_bed);
+        push(Held, held - held_stepped);
+        push(HeldStepped, held_stepped);
+        push(LeftRoom, floor_down + through);
+        push(Entered, floor_up - (left_bed - through));
         push(UnexplainedOut, unexplained_out);
     } else {
         let appeared = seen.counts.bed - before.stable.bed;
@@ -129,15 +160,23 @@ pub(super) fn settle(before: Before, seen: SeenMark) -> Vec<Movement> {
                 .min(before.held - reappeared),
             SideExit::OnlyReappearing => 0,
         };
+        // Rule 1, refined: a body retained after a step seen near the bed left
+        // with whoever left the floor, if it did not reappear.
+        let left_floor = floor_down - from_floor;
+        let stepped_left = before
+            .held_stepped
+            .min(before.held - reappeared - held_left)
+            .min(left_floor);
         push(Reappeared, reappeared);
         push(HeldLeft, held_left);
+        push(SteppedLeft, stepped_left);
         push(LayDownFromFloor, from_floor);
         push(LayDownWhilePassing, lay_down - from_floor);
         if before.bed_phase == BedPhase::Adopting {
             push(Adopted, unseen);
         }
         // Whoever lay down from the floor did not leave the room.
-        push(LeftRoom, floor_down - from_floor);
+        push(LeftRoom, left_floor + stepped_left);
         push(Entered, floor_up - held_left);
         if before.bed_phase == BedPhase::Tracking {
             push(UnexplainedIn, unseen);
@@ -151,8 +190,8 @@ pub(super) fn evolve(occupants: Occupants, m: Movement) -> Occupants {
     let Occupants { floor, bed, held } = occupants;
     let (floor, bed, held) = match m {
         Movement::LeftBed => (floor + 1, bed.saturating_sub(1), held),
-        Movement::Held => (floor, bed.saturating_sub(1), held + 1),
-        Movement::HeldLeft => (floor + 1, bed, held.saturating_sub(1)),
+        Movement::Held | Movement::HeldStepped => (floor, bed.saturating_sub(1), held + 1),
+        Movement::HeldLeft | Movement::SteppedLeft => (floor + 1, bed, held.saturating_sub(1)),
         Movement::Reappeared => (floor, bed + 1, held.saturating_sub(1)),
         Movement::LayDownFromFloor => (floor.saturating_sub(1), bed + 1, held),
         Movement::LayDownWhilePassing | Movement::Adopted => (floor, bed + 1, held),
@@ -172,7 +211,9 @@ mod tests {
     struct Tally {
         left_bed: u32,
         held: u32,
+        held_stepped: u32,
         held_left: u32,
+        stepped_left: u32,
         reappeared: u32,
         lay_down: u32,
         adopted: u32,
@@ -191,15 +232,19 @@ mod tests {
         from_door: u32,
         passing: u32,
         held: u32,
+        held_stepped: u32,
         unexplained: u32,
         bed_history: bool,
         held_exit: SideExit,
+        stepped: u32,
+        bed_step: BedStep,
     }
 
     fn settle(c: Change) -> Tally {
         let before = Before {
             stable: c.from,
             held: c.held,
+            held_stepped: c.held_stepped,
             unexplained: c.unexplained,
             bed_phase: if c.bed_history {
                 BedPhase::Tracking
@@ -207,18 +252,22 @@ mod tests {
                 BedPhase::Adopting
             },
             held_exit: c.held_exit,
+            bed_step: c.bed_step,
         };
         let seen = SeenMark {
             counts: c.to,
             from_door: c.from_door,
             passing: c.passing,
+            stepped: c.stepped,
         };
         let mut t = Tally::default();
         for m in super::settle(before, seen) {
             *match m {
                 Movement::LeftBed => &mut t.left_bed,
                 Movement::Held => &mut t.held,
+                Movement::HeldStepped => &mut t.held_stepped,
                 Movement::HeldLeft => &mut t.held_left,
+                Movement::SteppedLeft => &mut t.stepped_left,
                 Movement::Reappeared => &mut t.reappeared,
                 Movement::LayDownFromFloor | Movement::LayDownWhilePassing => &mut t.lay_down,
                 Movement::Adopted => &mut t.adopted,
@@ -243,9 +292,12 @@ mod tests {
             from_door: 0,
             passing: 0,
             held: 0,
+            held_stepped: 0,
             unexplained: 0,
             bed_history: true,
             held_exit: SideExit::OnlyReappearing,
+            stepped: 0,
+            bed_step: BedStep::FloorRises,
         }
     }
 
@@ -259,6 +311,55 @@ mod tests {
     fn rule_1_the_bed_goes_down_without_a_step_and_someone_is_retained() {
         let m = settle(change(c(1, 1), c(1, 0)));
         assert_eq!((m.left_bed, m.held), (0, 1));
+    }
+
+    #[test]
+    fn rule_1_refined_one_more_seen_near_the_bed_is_the_step() {
+        let near = |bed_step: BedStep, from: Counts, to: Counts| {
+            settle(Change {
+                stepped: 1,
+                bed_step,
+                ..change(from, to)
+            })
+        };
+        // Alone, gets up and goes within one count: fewer left on the floor
+        // than were seen near the bed, decided at once.
+        let m = near(BedStep::SeenNear, c(0, 1), c(0, 0));
+        assert_eq!((m.left_bed, m.held_stepped, m.left_room), (1, 0, 1));
+        // With the carer, both gone by the end: both left.
+        let m = near(BedStep::SeenNear, c(1, 1), c(0, 0));
+        assert_eq!((m.left_bed, m.held_stepped, m.left_room), (1, 0, 2));
+        // galia2, turned: one left on the floor, the carer or the resident.
+        // Retained, marked as seen stepping.
+        let m = near(BedStep::SeenNear, c(1, 1), c(1, 0));
+        assert_eq!(
+            (m.left_bed, m.held, m.held_stepped, m.left_room),
+            (0, 0, 1, 0)
+        );
+        // The floor rose too: the step is counted once.
+        let m = near(BedStep::SeenNear, c(0, 1), c(1, 0));
+        assert_eq!((m.left_bed, m.held_stepped, m.entered), (1, 0, 0));
+        // Without the rule, as rule 1 always said.
+        let m = near(BedStep::FloorRises, c(1, 1), c(1, 0));
+        assert_eq!((m.left_bed, m.held, m.held_stepped), (0, 1, 0));
+    }
+
+    #[test]
+    fn rule_1_refined_the_body_seen_stepping_leaves_with_the_floor() {
+        let after = |to: Counts| {
+            settle(Change {
+                held: 1,
+                held_stepped: 1,
+                bed_step: BedStep::SeenNear,
+                ..change(c(1, 0), to)
+            })
+        };
+        // The last one on the floor leaves: the retained one went too.
+        let m = after(c(0, 0));
+        assert_eq!((m.stepped_left, m.left_room), (1, 2));
+        // It shows in bed again first: it never left.
+        let m = after(c(1, 1));
+        assert_eq!((m.reappeared, m.stepped_left, m.left_room), (1, 0, 0));
     }
 
     #[test]

@@ -32,7 +32,9 @@ struct Window {
     from_door: u32,
     passing: u32,
     /// How many extra were already seen near the bed: whoever of them is
-    /// later far walked away, and did not come from the door (rule 5, refined).
+    /// later far walked away, and did not come from the door (rule 5, refined),
+    /// and with the bed going down, may have stepped down from it (rule 1,
+    /// refined).
     walked: u32,
 }
 
@@ -129,6 +131,7 @@ impl Span {
             counts: to,
             from_door: self.window.from_door,
             passing: self.window.passing,
+            stepped: self.window.walked,
         };
         self.window.rest(bodies);
         Some(Settled { from, seen, first })

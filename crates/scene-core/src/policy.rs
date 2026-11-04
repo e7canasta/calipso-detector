@@ -164,6 +164,10 @@ pub struct Policy {
     /// stabilized. The rule has its name here: [`FarArrival`] is what layer 0
     /// decides with.
     pub far_arrival: FarArrival,
+    /// Rule 1, refined (white book, volume VII, ch. 17), as the profile
+    /// switches it: what counts as the step from the bed to the floor. The
+    /// rule has its name here: [`BedStep`] is what layer 0 decides with.
+    pub bed_step: BedStep,
 }
 
 /// Rule 4 bis (white book, volume VII, ch. 05): how a body held in bed may
@@ -188,6 +192,19 @@ pub enum FarArrival {
     /// Whoever appeared near the bed and then walked away did not come from
     /// the door.
     ThoseNeverNear,
+}
+
+/// Rule 1, refined (white book, volume VII, ch. 17): what counts as the step
+/// from the bed to the floor when the bed count goes down. A named rule, not
+/// a flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BedStep {
+    /// As it always was: the floor count goes up as the bed goes down.
+    FloorRises,
+    /// Also one more than at rest seen on the floor near the bed while the
+    /// count stabilized, though the floor did not rise at the end: whoever
+    /// made up for it left the room.
+    SeenNear,
 }
 
 /// The geometry's shadow (white book, volume VII, ch. 11): estimates of a
@@ -427,6 +444,7 @@ impl Default for Policy {
             parts: None,
             held_exit: SideExit::OnlyReappearing,
             far_arrival: FarArrival::FromTheDoor,
+            bed_step: BedStep::FloorRises,
         }
     }
 }

@@ -91,9 +91,11 @@ impl Machine {
         let before = Before {
             stable: settled.from,
             held: count(self.held.len()),
+            held_stepped: count(self.held.iter().filter(|h| h.stepped).count()),
             unexplained: self.unexplained,
             bed_phase: self.bed_phase,
             held_exit: rules.held_exit,
+            bed_step: rules.bed_step,
         };
         let moves = conservation::settle(before, settled.seen);
         Some(self.apply(at, before, settled, moves))
@@ -118,15 +120,19 @@ impl Machine {
         let mut occupants = believed;
         let mut facts = Vec::new();
         // Newly retained bodies are chosen together: the last ones seen in bed.
-        let held = moves.iter().filter(|m| **m == Movement::Held).count();
+        let held = moves
+            .iter()
+            .filter(|m| matches!(m, Movement::Held | Movement::HeldStepped))
+            .count();
         let mut newly_held = self.newly_held(count(held)).into_iter();
         for m in moves {
             let fact = match m {
                 Movement::LeftBed => Fact::LeftBed,
-                Movement::Held => {
-                    let Some(kept) = newly_held.next() else {
+                Movement::Held | Movement::HeldStepped => {
+                    let Some(mut kept) = newly_held.next() else {
                         continue;
                     };
+                    kept.stepped = m == Movement::HeldStepped;
                     let last_seen = kept.since;
                     self.held.push(kept);
                     Fact::HeldInBed { last_seen }
@@ -144,6 +150,15 @@ impl Machine {
                     if self.held.pop().is_none() {
                         continue;
                     }
+                    Fact::LeftBed
+                }
+                // The one seen stepping down leaves the bed: the scene sees the
+                // bed left, as with `LeftBed`.
+                Movement::SteppedLeft => {
+                    let Some(i) = self.held.iter().rposition(|h| h.stepped) else {
+                        continue;
+                    };
+                    self.held.remove(i);
                     Fact::LeftBed
                 }
                 Movement::LayDownFromFloor | Movement::LayDownWhilePassing => {
@@ -204,6 +219,7 @@ impl Machine {
             .map(|d| HeldBody {
                 detection: *d,
                 since: last.at,
+                stepped: false,
             })
             .collect()
     }

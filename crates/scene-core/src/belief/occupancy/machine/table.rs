@@ -15,7 +15,7 @@ use crate::evidence::Body;
 use crate::evidence::BodySource;
 use crate::geom::Rect;
 use crate::look::Label;
-use crate::policy::{FarArrival, Persistence, SideExit};
+use crate::policy::{BedStep, FarArrival, Persistence, SideExit};
 use crate::room::BodyZone;
 use crate::time::SessionId;
 use crate::units::Seconds;
@@ -46,9 +46,13 @@ enum Context {
     /// refined, the profile's `near_first`, does not count the near one as
     /// the door's.
     NearFirst,
+    /// As `Passing`, with rule 1 refined, the profile's `step_near`: one more
+    /// seen near the bed while the bed went down stepped down from it. The
+    /// difference between the two columns is the flag alone.
+    StepNear,
 }
 
-const CONTEXTS: [(Context, &str); 7] = [
+const CONTEXTS: [(Context, &str); 8] = [
     (Context::Base, "base"),
     (Context::Far, "far"),
     (Context::Passing, "passing"),
@@ -56,6 +60,7 @@ const CONTEXTS: [(Context, &str); 7] = [
     (Context::SideExit, "side exit"),
     (Context::NearThenFar, "near then far"),
     (Context::NearFirst, "near first"),
+    (Context::StepNear, "step near"),
 ];
 
 fn at(secs: f64) -> SampleRef {
@@ -115,6 +120,7 @@ fn machine(r: u32, b: u32, h: u32, history: bool) -> Machine {
             .map(|i| HeldBody {
                 detection: bbox(20 + i),
                 since: at(0.0),
+                stepped: false,
             })
             .collect(),
         bed_phase: if history {
@@ -164,7 +170,11 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
     let mut transitions = Vec::new();
     let end = match context {
         Context::Far | Context::NearFirst | Context::NearThenFar => bodies(f, f.min(1), v),
-        Context::Base | Context::Passing | Context::Booting | Context::SideExit => bodies(f, 0, v),
+        Context::Base
+        | Context::Passing
+        | Context::Booting
+        | Context::SideExit
+        | Context::StepNear => bodies(f, 0, v),
     };
     let rules = OccupancyRules {
         persistence: PERSISTENCE,
@@ -176,9 +186,13 @@ fn cross(r: u32, b: u32, h: u32, f: u32, v: u32, context: Context) -> (Machine, 
             Context::NearFirst => FarArrival::ThoseNeverNear,
             _ => FarArrival::FromTheDoor,
         },
+        bed_step: match context {
+            Context::StepNear => BedStep::SeenNear,
+            _ => BedStep::FloorRises,
+        },
     };
     let mut t = 1.0;
-    if matches!(context, Context::Passing) {
+    if matches!(context, Context::Passing | Context::StepNear) {
         let before = (r - b).max(f) + 1;
         transitions.extend(z.step(at(t), &bodies(before, 0, v), &rules));
         t += 0.5;

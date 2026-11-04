@@ -1,5 +1,7 @@
 use super::*;
-use scene_core::policy::{Band, Burst, FarArrival, ShadowPolicy, SideExit, TwoPlanesPolicy};
+use scene_core::policy::{
+    Band, BedStep, Burst, FarArrival, ShadowPolicy, SideExit, TwoPlanesPolicy,
+};
 use scene_core::units::{FeetMargin, Metres, PositiveMetres, Ratio, RelativeDepth};
 
 /// Every profile in the repository loads and builds what the detector
@@ -454,6 +456,32 @@ fn the_side_exit_is_off_unless_asked_and_leaves_the_hash_when_absent() {
     assert_eq!(
         on.policy().expect("a valid profile").held_exit,
         SideExit::ByTheSide
+    );
+    assert_ne!(off.profile().unwrap().hash, on.profile().unwrap().hash);
+}
+
+#[test]
+fn step_near_is_off_unless_asked_and_leaves_the_hash_when_absent() {
+    // An `[occupancy]` already in the profile: the key alone is measured.
+    let occupancy = format!("{VALID}\n[occupancy]\nheld_left = true\n");
+    let baseline = Config::parse(&occupancy).unwrap();
+    assert_eq!(
+        baseline.policy().expect("a valid profile").bed_step,
+        BedStep::FloorRises
+    );
+    let off = Config::parse(&format!("{occupancy}step_near = false\n")).unwrap();
+    let on = Config::parse(&format!("{occupancy}step_near = true\n")).unwrap();
+    assert_eq!(
+        off.policy().expect("a valid profile").bed_step,
+        BedStep::FloorRises
+    );
+    assert_eq!(
+        on.policy().expect("a valid profile").bed_step,
+        BedStep::SeenNear
+    );
+    assert_eq!(
+        baseline.profile().unwrap().hash,
+        off.profile().unwrap().hash
     );
     assert_ne!(off.profile().unwrap().hash, on.profile().unwrap().hash);
 }

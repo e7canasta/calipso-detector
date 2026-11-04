@@ -5,7 +5,7 @@
 use crate::published::Body;
 use cucumber::{given, then, when};
 use scene_contract::{Cause, LookKind, LookOutcome, LookResult, RepublishReason, SampleRef};
-use scene_core::policy::{FarArrival, ReinforcePolicy, SideExit};
+use scene_core::policy::{BedStep, FarArrival, ReinforcePolicy, SideExit};
 use scene_look::Failure;
 
 use crate::script::Script;
@@ -245,4 +245,9 @@ fn held_left(ward: &mut Ward) {
 #[given("whoever appears near the bed did not come from the door")]
 fn near_first(ward: &mut Ward) {
     ward.policy.far_arrival = FarArrival::ThoseNeverNear;
+}
+
+#[given("whoever is seen stepping down beside the bed left it")]
+fn step_near(ward: &mut Ward) {
+    ward.policy.bed_step = BedStep::SeenNear;
 }

@@ -38,6 +38,12 @@ pub struct OccupancyConfig {
     /// ch. 17). Off by default; any geometry.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub near_first: bool,
+    /// `Policy::bed_step`, rule 1 refined: one more seen near the bed while
+    /// the bed went down stepped down from it, though the floor did not rise
+    /// (ADR 2026-11-04, el paso visto junto a la cama). Off by default; any
+    /// geometry.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub step_near: bool,
 }
 
 /// `TwoPlanesPolicy::knee_bent_deg`: a doubtful body's knee bent to this many

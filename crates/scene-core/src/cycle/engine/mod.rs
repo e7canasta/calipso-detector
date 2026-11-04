@@ -34,10 +34,11 @@ impl Engine {
     /// The monitor is built: the policy is sliced here, once, and each decider
     /// keeps only its slice (ADR 2026-11-02, politica-en-rebanadas).
     pub(super) fn new(policy: Policy, map: SiteMap) -> Self {
-        // The two rules of layer 0 by their names, before the policy is taken
+        // The three rules of layer 0 by their names, before the policy is taken
         // apart: the occupancy decides with the rule, never with a switch.
         let held_exit = policy.held_exit;
         let far_arrival = policy.far_arrival;
+        let bed_step = policy.bed_step;
         // Without `..`: a field added to `Policy` does not compile until
         // someone decides which slice of the engine owns it.
         let Policy {
@@ -56,11 +57,13 @@ impl Engine {
             parts,
             held_exit: _,
             far_arrival: _,
+            bed_step: _,
         } = policy;
         let occupancy_rules = OccupancyRules {
             persistence,
             held_exit,
             far_arrival,
+            bed_step,
         };
         let verify_rules = VerifyRules::of(verify.as_ref());
         Self {

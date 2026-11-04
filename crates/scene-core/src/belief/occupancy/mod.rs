@@ -24,7 +24,7 @@ pub(crate) use room::{Alone, InBed, Room};
 
 use crate::belief::{Fact, Occupants};
 use crate::look::Detection;
-use crate::policy::{FarArrival, Persistence, SideExit};
+use crate::policy::{BedStep, FarArrival, Persistence, SideExit};
 use crate::time::SampleRef;
 use crate::units::count;
 use crate::zone::Counts;
@@ -41,6 +41,8 @@ pub(crate) struct OccupancyRules {
     pub(crate) held_exit: SideExit,
     /// Rule 5, refined: which bodies seen far come from the door.
     pub(crate) far_arrival: FarArrival,
+    /// Rule 1, refined: what counts as the step from the bed to the floor.
+    pub(crate) bed_step: BedStep,
 }
 
 /// A retained body (rule 1): it stopped being seen in bed without a step to
@@ -50,6 +52,10 @@ pub(crate) struct OccupancyRules {
 pub(crate) struct HeldBody {
     pub detection: Detection,
     pub since: SampleRef,
+    /// Held while one more was seen stepping down near the bed (rule 1,
+    /// refined): it leaves with the next one who leaves the floor, unless it
+    /// reappears first.
+    pub stepped: bool,
 }
 
 /// A layer-0 transition: the table row, `state[t−1] | input[t] | state[t]`,
