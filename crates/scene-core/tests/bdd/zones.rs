@@ -138,32 +138,8 @@ const POSE: &str = "pose";
 
 /// A body figure by its name in the table.
 pub(crate) fn figure(name: &str) -> crate::script::Figure {
-    use crate::script::Figure;
-    match name {
-        "lying" => Figure::Lying,
-        "lying, feet covered" => Figure::FeetCovered,
-        "lying, feet out" => Figure::FeetOutSide,
-        "lying, head beside the headboard" => Figure::HeadBesideTheHeadboard,
-        "corner: lying along the bed" => Figure::CornerLying,
-        "corner: lying, feet out" => Figure::CornerFeetOut,
-        "corner: lying, head beside the headboard" => Figure::CornerHeadBeside,
-        "corner: sitting up against the headboard" => Figure::CornerSittingUp,
-        "lying, feet far" => Figure::FeetFar,
-        "an arm out" => Figure::ArmOut,
-        "leaning out" => Figure::LeaningOut,
-        "slid down" => Figure::SlidDown,
-        "sitting on the edge" => Figure::SittingOnTheEdge,
-        "sitting on the edge, head down" => Figure::SittingOnTheEdgeHeadDown,
-        "sitting on the foot of the bed" => Figure::SittingOnTheFoot,
-        "sitting up" => Figure::SittingUp,
-        "sitting up against the headboard" => Figure::SittingUpAgainstTheHeadboard,
-        "no torso" => Figure::NoTorso,
-        "standing" => Figure::Standing,
-        "standing tall" => Figure::StandingTall,
-        "sitting on the edge, feet below" => Figure::SittingOnTheEdgeFeetBelow,
-        "standing tall, feet covered" => Figure::StandingTallFeetCovered,
-        other => panic!("\"{POSE}\": unknown figure \"{other}\""),
-    }
+    crate::script::Figure::named(name)
+        .unwrap_or_else(|| panic!("\"{POSE}\": unknown figure \"{name}\""))
 }
 
 /// Script column: what the subject's depth model answers.

@@ -201,195 +201,24 @@ impl Script {
     }
 }
 
-/// A body figure: the 17 COCO keypoints around the centre of the subject's box.
-/// The box in bed is 100×200 and its centre is 50 px from the bed's edges
-/// across and 100 along.
-// The three binaries that compile this module use different subsets of it.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Figure {
-    /// Lying along the bed, everything in sight.
-    Lying,
-    /// Lying, with the ankles covered (low score).
-    FeetCovered,
-    /// Lying, with the ankles past the bed's near side (x 100 in the test world):
-    /// the legs out of the bed (E7).
-    FeetOutSide,
-    /// Lying, with the head at (120,130) of the test world: past the headboard's
-    /// side on its plane, within the mattress's sides (E6 says beside the headboard).
-    HeadBesideTheHeadboard,
-    /// Corner bed (F5.2): lying along the bed on the diagonal, the head on the pillow.
-    CornerLying,
-    /// Corner bed: lying along the bed, the feet past the near side.
-    CornerFeetOut,
-    /// Corner bed: lying along the bed, the head past the headboard's side.
-    CornerHeadBeside,
-    /// Corner bed: sitting up against the headboard, the torso vertical in the image.
-    CornerSittingUp,
-    /// Sitting on the edge with the feet on the floor under the knees: the pelvis
-    /// a mattress height above them, over the feet (E2).
-    SittingOnTheEdgeFeetBelow,
-    /// Standing tall: the hips a mattress height and a half over the ankles
-    /// (the pelvis high over the feet, out of the band of the edge).
-    StandingTall,
-    /// Standing tall, with the ankles covered (low score).
-    StandingTallFeetCovered,
-    /// Lying, with the feet far from the camera (raised, or off the end of the
-    /// bed): their depth says nothing of the torso.
-    FeetFar,
-    /// Lying, with an arm hanging off the bed.
-    ArmOut,
-    /// Lying, slid down the bed: everything 60 px towards the feet, the head
-    /// below the headboard, the depth of lying.
-    SlidDown,
-    /// Leaning out over the side: the head and shoulders past the bed's left
-    /// edge (x 100 in the test world).
-    LeaningOut,
-    /// Sitting on the edge, with the legs off the bed.
-    SittingOnTheEdge,
-    /// Sitting on the edge, legs off the bed, leaning forward: the head
-    /// below the headboard as well.
-    SittingOnTheEdgeHeadDown,
-    /// Sitting on the foot of the bed, the feet on the floor past its foot
-    /// end (y 460 in the test world, the footprint ends at 440), not past
-    /// its sides: a corner camera's edge (white book, volume VII, ch. 04).
-    SittingOnTheFoot,
-    /// Sitting up: the head and shoulders project beyond the headboard.
-    SittingUp,
-    /// Sitting up against the headboard: the head where lying puts it, the
-    /// depth of sitting up (the head and shoulders closer than the hips).
-    SittingUpAgainstTheHeadboard,
-    /// Lying, with the shoulders covered.
-    NoTorso,
-    /// Standing: the same keypoints, with the head closer to the camera.
-    Standing,
+/// The figures live with the world (`golden::world::Figure`): a golden scene
+/// names them as a scenario does. Their depth is the harness's, which answers
+/// the depth sense the world does not model.
+pub use golden::world::Figure;
+
+/// The scripted depth of a figure's keypoints.
+pub trait FigureDepth {
+    fn depth(self, y: f32) -> f32;
+    fn feet_offset(self, y: f32, feet: f32) -> f32;
 }
 
-impl Figure {
-    /// Offset from the box centre and score, in COCO order.
-    pub fn keypoints(self) -> [(f32, f32, f32); 17] {
-        let mut p = [
-            (0.0, -85.0, 0.9),  // nose
-            (-5.0, -90.0, 0.9), // eyes
-            (5.0, -90.0, 0.9),
-            (-10.0, -85.0, 0.9), // ears
-            (10.0, -85.0, 0.9),
-            (-25.0, -55.0, 0.9), // shoulders
-            (25.0, -55.0, 0.9),
-            (-35.0, -20.0, 0.9), // elbows
-            (35.0, -20.0, 0.9),
-            (-35.0, 10.0, 0.9), // wrists
-            (35.0, 10.0, 0.9),
-            (-15.0, 10.0, 0.9), // hips
-            (15.0, 10.0, 0.9),
-            (-15.0, 50.0, 0.9), // knees
-            (15.0, 50.0, 0.9),
-            (-15.0, 90.0, 0.9), // ankles
-            (15.0, 90.0, 0.9),
-        ];
-        match self {
-            Figure::Lying | Figure::FeetFar | Figure::SittingUpAgainstTheHeadboard => {}
-            Figure::FeetCovered => {
-                p[15].2 = 0.1;
-                p[16].2 = 0.1;
-            }
-            Figure::FeetOutSide => {
-                p[15].0 = -215.0;
-                p[16].0 = -200.0;
-            }
-            Figure::CornerLying
-            | Figure::CornerFeetOut
-            | Figure::CornerHeadBeside
-            | Figure::CornerSittingUp => return corner_keypoints(self),
-            Figure::HeadBesideTheHeadboard => {
-                // The centre of the scenes' lying box is (300,265): the eyes at (120,130).
-                for point in p.iter_mut().take(5) {
-                    point.0 = -180.0;
-                    point.1 = -135.0;
-                }
-            }
-            Figure::SittingOnTheEdgeFeetBelow => {
-                // The scenes' footprint lies 40 px under the bed: a mattress height
-                // is 40 px here. The hips 10 px under the centre are a mattress
-                // height and a bit above the feet (E2), and the feet are past the
-                // mattress's foot (y 411 against 400): on the floor.
-                p[13] = (-15.0, 25.0, 0.9);
-                p[14] = (15.0, 25.0, 0.9);
-                p[15] = (-15.0, 46.0, 0.9);
-                p[16] = (15.0, 46.0, 0.9);
-            }
-            Figure::StandingTall | Figure::StandingTallFeetCovered => {
-                // Upright: the hips 100 px above the centre, the knees between them
-                // and the ankles, so the leg is straight (180 degrees).
-                let heights = [
-                    -255.0, -255.0, -225.0, -225.0, -200.0, -200.0, -170.0, -170.0,
-                ];
-                for (point, y) in p.iter_mut().zip(heights) {
-                    point.1 = y;
-                }
-                p[9].1 = -140.0;
-                p[10].1 = -140.0;
-                p[11].1 = -100.0;
-                p[12].1 = -100.0;
-                p[13].1 = -5.0;
-                p[14].1 = -5.0;
-                if self == Figure::StandingTallFeetCovered {
-                    p[15].2 = 0.1;
-                    p[16].2 = 0.1;
-                }
-            }
-            Figure::ArmOut => {
-                p[7] = (-170.0, -20.0, 0.9);
-                p[9] = (-200.0, 10.0, 0.9);
-            }
-            Figure::SlidDown => {
-                for point in &mut p {
-                    point.1 += 60.0;
-                }
-            }
-            Figure::LeaningOut => {
-                for point in p.iter_mut().take(7) {
-                    point.0 -= 200.0;
-                }
-            }
-            Figure::SittingOnTheEdgeHeadDown => {
-                p = Figure::SittingOnTheEdge.keypoints();
-                for point in p.iter_mut().take(5) {
-                    point.1 += 60.0;
-                }
-            }
-            Figure::SittingOnTheFoot => {
-                p[13] = (-15.0, 150.0, 0.9);
-                p[14] = (15.0, 150.0, 0.9);
-                p[15] = (-15.0, 210.0, 0.9);
-                p[16] = (15.0, 210.0, 0.9);
-            }
-            Figure::SittingOnTheEdge => {
-                p[13] = (280.0, 30.0, 0.9);
-                p[14] = (290.0, 30.0, 0.9);
-                p[15] = (320.0, 90.0, 0.9);
-                p[16] = (330.0, 90.0, 0.9);
-            }
-            Figure::SittingUp => {
-                for (i, point) in p.iter_mut().enumerate().take(7) {
-                    point.1 = -170.0 + if i < 5 { -20.0 } else { 0.0 };
-                }
-            }
-            Figure::NoTorso => {
-                p[5].2 = 0.1;
-                p[6].2 = 0.1;
-            }
-            Figure::Standing => {}
-        }
-        p
-    }
-
+impl FigureDepth for Figure {
     /// The depth of a figure keypoint at height `y` in the frame: lying,
     /// the head (higher in the image) is farther from the camera than the hips;
     /// sitting up or standing, the other way round, as measured through the
     /// bed's depth crop (R16: sitting up −0.06…+0.01); sitting on the edge,
     /// all the same. Slope of 0.002 per pixel around 2.0.
-    pub fn depth(self, y: f32) -> f32 {
+    fn depth(self, y: f32) -> f32 {
         let slope = 0.002 * (300.0 - y);
         match self {
             Figure::SittingOnTheEdge
@@ -403,12 +232,10 @@ impl Figure {
             _ => 2.0 + slope,
         }
     }
-}
 
-impl Figure {
     /// How much farther a keypoint at height `y` reads when it is one of the
     /// feet (`feet`, the lowest height of the pose): only for `FeetFar`.
-    pub fn feet_offset(self, y: f32, feet: f32) -> f32 {
+    fn feet_offset(self, y: f32, feet: f32) -> f32 {
         if self == Figure::FeetFar && y >= feet {
             1.0
         } else {
@@ -513,68 +340,4 @@ pub fn episode_scenario(n: u32) -> (Setup, Vec<Span>) {
         .find_map(|s| s.table.as_ref())
         .expect("the scenario has its table");
     (setup, spans_from_cells(&table.rows).unwrap())
-}
-
-/// The corner bed's figures (F5.2), relative to the box's centre (314,274), in
-/// the corner bed's geometry: the mattress on the diagonal, the footprint 40 px
-/// lower, the headboard on the head edge (`bdd/bed_posture.rs`).
-fn corner_keypoints(figure: Figure) -> [(f32, f32, f32); 17] {
-    let seen = 0.9;
-    let (head, shoulders, elbows, wrists, hips, knees, ankles) = match figure {
-        Figure::CornerLying => (
-            (-106.0, -106.0),
-            [(-62.4, -43.6), (-43.6, -62.4)],
-            [(-70.0, -20.0), (-20.0, -70.0)],
-            [(-80.0, 0.0), (0.0, -80.0)],
-            [(34.9, 49.9), (49.9, 34.9)],
-            [(60.0, 75.0), (75.0, 60.0)],
-            [(81.5, 96.6), (96.6, 81.5)],
-        ),
-        Figure::CornerFeetOut => (
-            (-106.0, -106.0),
-            [(-62.4, -43.6), (-43.6, -62.4)],
-            [(-70.0, -20.0), (-20.0, -70.0)],
-            [(-80.0, 0.0), (0.0, -80.0)],
-            [(34.9, 49.9), (49.9, 34.9)],
-            [(60.0, 75.0), (75.0, 60.0)],
-            [(14.3, 155.3), (-2.2, 129.4)],
-        ),
-        Figure::CornerHeadBeside => (
-            // (151,175): past the headboard's left side (u < 0 on its plane), inside
-            // the mattress's sides (u about 0.16) and past the head end.
-            (-163.0, -99.0),
-            [(-62.4, -43.6), (-43.6, -62.4)],
-            [(-70.0, -20.0), (-20.0, -70.0)],
-            [(-80.0, 0.0), (0.0, -80.0)],
-            [(34.9, 49.9), (49.9, 34.9)],
-            [(60.0, 75.0), (75.0, 60.0)],
-            [(81.5, 96.6), (96.6, 81.5)],
-        ),
-        _ => (
-            (-106.0, -126.0),
-            [(-30.0, -60.0), (-10.0, -60.0)],
-            [(-40.0, -30.0), (0.0, -30.0)],
-            [(-40.0, 0.0), (0.0, 0.0)],
-            [(-30.0, 10.0), (-10.0, 10.0)],
-            [(-30.0, 50.0), (-10.0, 50.0)],
-            [(-30.0, 90.0), (-10.0, 90.0)],
-        ),
-    };
-    let mut p = [(0.0, 0.0, seen); 17];
-    for point in p.iter_mut().take(5) {
-        *point = (head.0, head.1, seen);
-    }
-    p[5] = (shoulders[0].0, shoulders[0].1, seen);
-    p[6] = (shoulders[1].0, shoulders[1].1, seen);
-    p[7] = (elbows[0].0, elbows[0].1, seen);
-    p[8] = (elbows[1].0, elbows[1].1, seen);
-    p[9] = (wrists[0].0, wrists[0].1, seen);
-    p[10] = (wrists[1].0, wrists[1].1, seen);
-    p[11] = (hips[0].0, hips[0].1, seen);
-    p[12] = (hips[1].0, hips[1].1, seen);
-    p[13] = (knees[0].0, knees[0].1, seen);
-    p[14] = (knees[1].0, knees[1].1, seen);
-    p[15] = (ankles[0].0, ankles[0].1, seen);
-    p[16] = (ankles[1].0, ankles[1].1, seen);
-    p
 }
