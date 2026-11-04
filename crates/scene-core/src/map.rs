@@ -32,7 +32,7 @@ fn grown(bed: &crate::geom::Quad, across: f64, along: f64) -> Option<crate::geom
 
 use crate::body::BedSite;
 use crate::body::bed_site_at;
-use crate::geom::{Point, Quad, Rect, Zone};
+use crate::geom::{Point, Quad, Rect, Region};
 use crate::policy::{FocusPolicy, ShadowPolicy};
 use crate::room::SpaceRules;
 use crate::time::SampleRef;
@@ -225,16 +225,16 @@ impl Map {
     }
 
     /// The headboard, if the geometry applies.
-    pub(crate) fn headboard_for(&self, geometry: Geometry) -> Option<Zone> {
+    pub(crate) fn headboard_for(&self, geometry: Geometry) -> Option<Region> {
         self.headboard().filter(|_| geometry == Geometry::Valid)
     }
 
     /// The headboard delimited: the quadrilateral if drawn, else the box.
-    fn headboard(&self) -> Option<Zone> {
+    fn headboard(&self) -> Option<Region> {
         self.site
             .headboard_area
-            .map(Zone::Quad)
-            .or(self.site.headboard.map(Zone::Box))
+            .map(Region::Quad)
+            .or(self.site.headboard.map(Region::Box))
     }
 
     /// Where faces are looked for with nobody in sight, if the geometry

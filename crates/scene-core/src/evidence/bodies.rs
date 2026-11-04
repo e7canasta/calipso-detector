@@ -1,9 +1,7 @@
 //! The bodies: which boxes are people, one body per person, in which zone;
 //! and the main detector's reading consolidated with the reinforcement's.
 
-use super::{
-    Admission, Bodies, Body, BodyEvidence, BodySource, FloorBody, NONE, RejectReason, Sensed, count,
-};
+use super::{Admission, Bodies, Body, BodyEvidence, BodySource, NONE, RejectReason, Sensed, count};
 use crate::attention::LookResult;
 use crate::look::{Detection, Label};
 use crate::policy::AdmissionPolicy;
@@ -44,6 +42,7 @@ fn admit_from(
             None => admitted.push(Body {
                 detection: *d,
                 source,
+                zone: None,
                 shadow: None,
                 knee_deg: None,
                 parts: None,
@@ -65,16 +64,14 @@ fn admit_from(
     };
     let mut bodies = Bodies::default();
     for d in admitted {
-        match room.body_zone(&d.detection.bbox) {
-            BodyZone::Bed => bodies.bed.push(d),
-            BodyZone::Floor { near_bed } => bodies.floor.push(FloorBody {
-                detection: d.detection,
-                near_bed,
-                source: d.source,
-                shadow: None,
-                knee_deg: None,
-                parts: None,
-            }),
+        let zone = room.body_zone(&d.detection.bbox);
+        let body = Body {
+            zone: Some(zone),
+            ..d
+        };
+        match zone {
+            BodyZone::Bed => bodies.bed.push(body),
+            BodyZone::Floor { .. } => bodies.floor.push(body),
         }
     }
     Admission {
@@ -202,8 +199,8 @@ mod tests {
             &policy(),
         ));
         assert_eq!(b.counts(), Counts { floor: 2, bed: 1 });
-        assert!(b.floor[0].near_bed, "next to the bed");
-        assert!(!b.floor[1].near_bed, "at the door");
+        assert!(b.floor[0].near_bed(), "next to the bed");
+        assert!(!b.floor[1].near_bed(), "at the door");
         assert_eq!(b.far(), 1);
     }
 
@@ -229,7 +226,7 @@ mod tests {
         let near = |policy: &AdmissionPolicy| {
             let room = Room::new(&diamond, None, policy);
             let b = seen(admit(Ok(&[in_the_corner, beside]), Some(&room), policy));
-            (b.floor[0].near_bed, b.floor[1].near_bed)
+            (b.floor[0].near_bed(), b.floor[1].near_bed())
         };
         assert_eq!(near(&policy()), (true, true), "image axes: the box grown");
         let bed_frame = AdmissionPolicy {

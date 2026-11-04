@@ -11,11 +11,12 @@
 
 use super::*;
 use crate::belief::total;
+use crate::evidence::Body;
 use crate::evidence::BodySource;
-use crate::evidence::{Body, FloorBody};
 use crate::geom::Rect;
 use crate::look::Label;
 use crate::policy::{FarArrival, Persistence, SideExit};
+use crate::room::BodyZone;
 use crate::time::SessionId;
 use crate::units::Seconds;
 use scene_contract::SourceSecs;
@@ -81,16 +82,17 @@ fn bodies(floor: u32, far: u32, bed: u32) -> Bodies {
             .map(|i| Body {
                 detection: bbox(i),
                 source: BodySource::Primary,
+                zone: Some(BodyZone::Bed),
                 shadow: None,
                 parts: None,
                 knee_deg: None,
             })
             .collect(),
         floor: (0..floor)
-            .map(|i| FloorBody {
+            .map(|i| Body {
                 detection: bbox(10 + i),
-                near_bed: i >= far,
                 source: BodySource::Primary,
+                zone: Some(BodyZone::Floor { near_bed: i >= far }),
                 shadow: None,
                 parts: None,
                 knee_deg: None,

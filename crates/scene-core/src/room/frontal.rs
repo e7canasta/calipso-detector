@@ -2,7 +2,7 @@
 //! they were.
 
 use super::{BodyZone, HeadArea};
-use crate::geom::{Point, Quad, Rect, Zone};
+use crate::geom::{Point, Quad, Rect, Region};
 use crate::map::{BedArea, BedPlane, Geometry, Map};
 use crate::policy::AdmissionPolicy;
 
@@ -13,7 +13,7 @@ pub(super) struct Frontal {
     bed: Quad,
     /// The bed's own coordinates; `None` if its corners are degenerate.
     pub(super) plane: Option<BedPlane>,
-    headboard: Option<Zone>,
+    headboard: Option<Region>,
     near: Near,
     /// `Some`: a box is in bed when at least this share of it is
     /// (`AdmissionPolicy::bed_frame`).
@@ -36,7 +36,7 @@ impl Frontal {
         Some(Self::new(bed, map.headboard_for(geometry), admission))
     }
 
-    pub(crate) fn new(bed: &Quad, headboard: Option<Zone>, admission: &AdmissionPolicy) -> Self {
+    pub(crate) fn new(bed: &Quad, headboard: Option<Region>, admission: &AdmissionPolicy) -> Self {
         let margin = admission.near_bed_margin;
         let near = match admission
             .bed_frame
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn without_the_beds_plane_nothing_is_in_bed_and_the_head_is_elsewhere() {
         let p = Point { x: 1.0, y: 1.0 };
-        let headboard = Zone::Box(Rect::new(0.0, 0.0, 10.0, 10.0));
+        let headboard = Region::Box(Rect::new(0.0, 0.0, 10.0, 10.0));
         let room = Frontal::new(&Quad([p; 4]), Some(headboard), &admission());
         assert!(!room.has_plane());
         assert!(!room.in_bed(p) && !room.past_the_sides(p));

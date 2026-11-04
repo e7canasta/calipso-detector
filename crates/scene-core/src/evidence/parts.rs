@@ -14,7 +14,7 @@
 //! The memory matches a body to the last turn's by its box, IoU at least the
 //! admission's `same_body_iou`. It lives in the engine, never in `room`.
 
-use super::{BodyEvidence, FloorBody, Perceived};
+use super::{Body, BodyEvidence, Perceived};
 use crate::geom::{Point, Rect};
 use crate::room::{BodyZone, Room, Step};
 
@@ -143,13 +143,11 @@ pub(crate) fn decide(
                 perceived.bodies.primary.bed = perceived.bodies.primary.bed.saturating_sub(1);
                 perceived.bodies.primary.floor += 1;
             }
-            floor_list.push(FloorBody {
-                near_bed: near.get(i).copied().unwrap_or(false),
-                detection: body.detection,
-                source: body.source,
-                shadow: body.shadow,
-                knee_deg: body.knee_deg,
-                parts: body.parts,
+            floor_list.push(Body {
+                zone: Some(BodyZone::Floor {
+                    near_bed: near.get(i).copied().unwrap_or(false),
+                }),
+                ..body
             });
         }
     }
@@ -159,16 +157,15 @@ pub(crate) fn decide(
                 perceived.bodies.primary.floor = perceived.bodies.primary.floor.saturating_sub(1);
                 perceived.bodies.primary.bed += 1;
             }
-            bed_list.push(crate::evidence::Body {
-                detection: body.detection,
-                source: body.source,
-                shadow: body.shadow,
-                knee_deg: body.knee_deg,
-                parts: body.parts,
+            bed_list.push(Body {
+                zone: Some(BodyZone::Bed),
+                ..body
             });
         } else {
-            floor_list.push(FloorBody {
-                near_bed: near.get(beds + j).copied().unwrap_or(false),
+            floor_list.push(Body {
+                zone: Some(BodyZone::Floor {
+                    near_bed: near.get(beds + j).copied().unwrap_or(false),
+                }),
                 ..body
             });
         }

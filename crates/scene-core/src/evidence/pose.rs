@@ -67,11 +67,8 @@ pub(crate) fn pose_body(
                 admission.primary.bed += 1;
             }
             bodies.bed.push(Body {
-                detection: moved.detection,
-                source: moved.source,
-                shadow: moved.shadow,
-                knee_deg: moved.knee_deg,
-                parts: moved.parts,
+                zone: Some(BodyZone::Bed),
+                ..moved
             });
             bodies
                 .bed

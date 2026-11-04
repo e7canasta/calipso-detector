@@ -27,11 +27,14 @@ const NONE: Counts = Counts { floor: 0, bed: 0 };
 /// What a sense read, or why it could not.
 pub(crate) type Sensed<T> = Result<T, Failure>;
 
-/// An admitted box, keeping which instrument produced it.
+/// An admitted box, keeping which instrument produced it and where it falls.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Body {
     pub detection: Detection,
     pub source: BodySource,
+    /// Where it falls in the room; `None` where the bed geometry did not
+    /// apply and the zone is unknown.
+    pub zone: Option<crate::room::BodyZone>,
     /// Where it falls for the geometry's shadow, if asked for: it decides
     /// nothing (white book, volume VII, ch. 11).
     pub shadow: Option<BodyShadow>,
@@ -42,25 +45,22 @@ pub(crate) struct Body {
     pub parts: Option<crate::room::shadow::PartsRead>,
 }
 
-/// A body off the bed, and whether it is near it.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct FloorBody {
-    pub detection: Detection,
-    pub near_bed: bool,
-    pub source: BodySource,
-    /// Where it falls for the geometry's shadow, if asked for.
-    pub shadow: Option<BodyShadow>,
-    /// The knee measured on its pose, if it was doubtful and asked.
-    pub knee_deg: Option<f32>,
-    /// The zone by parts, if the profile asks for them (F2.3b).
-    pub parts: Option<crate::room::shadow::PartsRead>,
+impl Body {
+    /// Near the bed, as its zone says (P2): only a body on the floor can be.
+    pub(crate) fn near_bed(&self) -> bool {
+        matches!(
+            self.zone,
+            Some(crate::room::BodyZone::Floor { near_bed: true })
+        )
+    }
 }
 
-/// The accepted bodies of a sample, per zone, from most to least confident.
+/// The accepted bodies of a sample, per zone, from most to least confident:
+/// each list holds the bodies whose zone is that one.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Bodies {
     pub bed: Vec<Body>,
-    pub floor: Vec<FloorBody>,
+    pub floor: Vec<Body>,
 }
 
 impl Bodies {
@@ -74,7 +74,7 @@ impl Bodies {
 
     /// How many are on the floor far from the bed: they come from the door, not from the bed.
     pub(crate) fn far(&self) -> u32 {
-        count(self.floor.iter().filter(|b| !b.near_bed).count())
+        count(self.floor.iter().filter(|b| !b.near_bed()).count())
     }
 
     pub(crate) fn is_empty(&self) -> bool {

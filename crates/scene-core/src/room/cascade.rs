@@ -2,7 +2,9 @@
 //! with the step that decided it. A pure function of the frame's planes, the
 //! body's box, its pose if it was looked at, the turn's face, and the
 //! cascade's thresholds. It remembers nothing (the memory is `belief`'s, P7)
-//! and counts nothing; the shadow publishes its measures (F2.3).
+//! and counts nothing; the shadow publishes its measures (F2.3). It measures
+//! first ([`measure`], the only reader of the planes) and decides after
+//! ([`decide`], from the measures and the rules alone).
 //!
 //! Steps, in order: the box (1a past the near edge, 1b the cut at the far
 //! edge, 1c no touch), the face at the headboard (2), the feet (3: proven on
@@ -111,7 +113,8 @@ pub(crate) struct Placed {
     pub(crate) v: f64,
 }
 
-/// The measures the shadow publishes next to the decision.
+/// What the cascade reads of a body: the measures the shadow publishes next
+/// to the decision, and how the pose was read.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Measures {
     /// The share of the box over the mattress.
@@ -130,6 +133,11 @@ pub(crate) struct Measures {
     pub(crate) foot_u: Option<f64>,
     /// The mean score of the seen ankles, if any.
     pub(crate) foot_score: Option<f32>,
+    /// The pose was looked at this turn, and the cascade read its feet.
+    pub(crate) pose_looked: bool,
+    /// The seen ankles in the far strip, `strip_m` from the far side: `None`
+    /// without seen ankles or without the bed's size.
+    pub(crate) far_strip: Option<bool>,
     /// The pelvis's height over the foot, in mattress heights, if the hips were seen.
     pub(crate) pelvis: Option<f64>,
     /// The head's `(u, w)` on the headboard, if the face is given and the headboard drawn.
@@ -153,9 +161,13 @@ pub(crate) struct Verdict {
     pub(crate) measures: Measures,
 }
 
-/// The zone of a body by the cascade. `None` without the bed's footprint and
-/// size, which the cascade needs to read the feet.
-pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) -> Option<Verdict> {
+/// What the cascade reads of a body against the planes, with the rules'
+/// thresholds (the cut reads `e5_tol`, the ankles `kp_min`, the strip
+/// `strip_m`): the measure before any decision, pure. `None` where the
+/// cascade cannot read the body: without the bed's footprint, or with seen
+/// feet on the mattress and no bed's size, where the far strip (3a) cannot
+/// be read and those feet prove nothing.
+pub(crate) fn measure(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) -> Option<Measures> {
     let mattress = planes.mattress();
     let sides = planes.sides()?;
     let b = body.bbox;
@@ -182,8 +194,15 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
     ]
     .into_iter()
     .any(|p| mattress.inside(p));
+    let far_strip = ankles.and_then(|a| planes.in_far_strip(a, rules.strip_m));
+    // Seen feet on the mattress are read against the far strip (E5S): without
+    // the bed's size there is no strip to read, and the cascade can say
+    // nothing of those feet.
+    if ankles.is_some() && foot.level() == 1.0 && far_strip.is_none() {
+        return None;
+    }
 
-    let measures = Measures {
+    Some(Measures {
         share,
         past_near,
         cut,
@@ -192,6 +211,8 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
         foot_level: foot.level(),
         foot_u: ankles.and_then(|a| planes.read_floor(a)).map(|(u, _)| u),
         foot_score: mean_score(body.pose, &ANKLES, rules.kp_min),
+        pose_looked: body.pose.is_some(),
+        far_strip,
         pelvis: hips.map(|h| foot.height(h)),
         head_uw: body.face.and_then(|f| planes.read_headboard(f)),
         head: body.face.and_then(|f| {
@@ -225,7 +246,12 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
             .floor()
             .zip(planes.size())
             .map(|(floor, size)| support_m(&floor, size, &b)),
-    };
+    })
+}
+
+/// The zone of a body, from its measures and the rules: the step that decides
+/// names itself. Pure: it reads no plane, only what [`measure`] read.
+pub(crate) fn decide(measures: Measures, rules: &CascadeRules) -> Verdict {
     let near_bed = measures.support_m.is_some_and(|d| d <= rules.near_m);
     let decided = |zone: BodyZone, step: Step| Verdict {
         zone,
@@ -236,14 +262,14 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
     let bed = |step: Step| decided(BodyZone::Bed, step);
 
     // 1: the box.
-    if past_near && share < rules.share {
-        return Some(floor(Step::PastNear));
+    if measures.past_near && measures.share < rules.share {
+        return floor(Step::PastNear);
     }
-    if cut && share < rules.share {
-        return Some(floor(Step::Cut));
+    if measures.cut && measures.share < rules.share {
+        return floor(Step::Cut);
     }
-    if !touches {
-        return Some(floor(Step::NoTouch));
+    if !measures.touches {
+        return floor(Step::NoTouch);
     }
     // 2: the face at the headboard.
     let band = rules.headboard_w;
@@ -251,33 +277,35 @@ pub(crate) fn decide(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) ->
         && (0.0..=1.0).contains(&u)
         && (f64::from(band.lo().get())..=f64::from(band.hi().get())).contains(&w)
     {
-        return Some(bed(Step::FaceAtHeadboard));
+        return bed(Step::FaceAtHeadboard);
     }
     // The feet need the pose: without it, the cascade stops here.
-    if body.pose.is_none() {
-        return Some(floor(Step::PoseNotLooked));
+    if !measures.pose_looked {
+        return floor(Step::PoseNotLooked);
     }
     // 3: the feet.
-    let Some(ankle) = ankles else {
-        return Some(floor(Step::Unproven));
-    };
-    if mattress.inside(ankle) {
+    if !measures.foot_seen {
+        return floor(Step::Unproven);
+    }
+    // The foot rests on the mattress exactly when its level says so (`Foot`
+    // reads the mattress for it).
+    if measures.foot_level == 1.0 {
         let score = measures.foot_score.unwrap_or(0.0);
-        let proves = !planes.in_far_strip(ankle, rules.strip_m)? && score >= rules.score_test;
-        return Some(if proves {
+        let proves = measures.far_strip == Some(false) && score >= rules.score_test;
+        return if proves {
             bed(Step::FeetOnMattress)
         } else {
             floor(Step::Unproven)
-        });
+        };
     }
-    if let (Some(h), Some(hip)) = (measures.pelvis, hips) {
+    if let (Some(h), Some(hip)) = (measures.pelvis, measures.hips) {
         let band = rules.e2_band;
         let (lo, hi) = (f64::from(band.lo().get()), f64::from(band.hi().get()));
-        if (lo..=hi).contains(&h) && in_unit(mattress.project(hip), 0.1) {
-            return Some(bed(Step::PelvisAtEdge));
+        if (lo..=hi).contains(&h) && in_unit((hip.u, hip.v), 0.1) {
+            return bed(Step::PelvisAtEdge);
         }
     }
-    Some(floor(Step::Standing))
+    floor(Step::Standing)
 }
 
 /// The mean score of the seen joints among these COCO indices, if any. The
@@ -352,6 +380,11 @@ mod tests {
         }
     }
 
+    /// The cascade's answer, composed as the room composes it: measure, decide.
+    fn run(planes: &ThreePlanes, body: &Body, rules: &CascadeRules) -> Option<Verdict> {
+        Some(decide(measure(planes, body, rules)?, rules))
+    }
+
     #[test]
     fn a_box_past_the_near_side_with_no_share_is_on_the_floor() {
         // Left of the bed, its foot past the near side (u < 0), nothing over the mattress.
@@ -360,7 +393,7 @@ mod tests {
             pose: None,
             face: None,
         };
-        let v = decide(&dig1(), &body, &proposal()).expect("the footprint");
+        let v = run(&dig1(), &body, &proposal()).expect("the footprint");
         assert_eq!(v.step, Step::PastNear);
         assert_eq!(v.zone, BodyZone::Floor { near_bed: false });
         assert_eq!(v.measures.share, 0.0);
@@ -374,7 +407,7 @@ mod tests {
             pose: None,
             face: None,
         };
-        let v = decide(&dig1(), &body, &proposal()).expect("the footprint");
+        let v = run(&dig1(), &body, &proposal()).expect("the footprint");
         assert_eq!(v.step, Step::PoseNotLooked);
         assert_eq!(v.zone, BodyZone::Floor { near_bed: true });
         assert!(!v.measures.foot_seen);
@@ -420,7 +453,7 @@ mod tests {
             pose: Some(&pose),
             face: Some(face),
         };
-        let m = decide(&planes, &body, &proposal())
+        let m = run(&planes, &body, &proposal())
             .expect("the footprint")
             .measures;
         let head = m.head.expect("the face on the headboard");
@@ -451,7 +484,7 @@ mod tests {
             pose: None,
             face: None,
         };
-        let v = decide(
+        let v = run(
             &planes,
             &left,
             &CascadeRules {
@@ -469,11 +502,11 @@ mod tests {
             pose: None,
             face: None,
         };
-        let base = decide(&planes, &lying, &proposal()).expect("the footprint");
+        let base = run(&planes, &lying, &proposal()).expect("the footprint");
         let d = base.measures.support_m.expect("the bed's size");
         assert!(base.measures.touches);
         assert!(d > 0.0, "the support is off the footprint: {d}");
-        let at_zero = decide(
+        let at_zero = run(
             &planes,
             &lying,
             &CascadeRules {
@@ -483,7 +516,7 @@ mod tests {
         )
         .expect("the footprint");
         assert_eq!(at_zero.zone, BodyZone::Floor { near_bed: false });
-        let at_d = decide(
+        let at_d = run(
             &planes,
             &lying,
             &CascadeRules {
@@ -510,7 +543,7 @@ mod tests {
             face: None,
         };
         // Most of the box over the mattress, its foot on the far edge, no ankles.
-        let on_bed = decide(
+        let on_bed = run(
             &planes,
             &body(Rect::new(50.0, 150.0, 150.0, 300.0)),
             &proposal(),
@@ -524,7 +557,7 @@ mod tests {
         );
         assert_ne!(on_bed.step, Step::Cut);
         // The same foot with little of the box over the mattress: cut.
-        let off_bed = decide(
+        let off_bed = run(
             &planes,
             &body(Rect::new(50.0, 20.0, 150.0, 110.0)),
             &proposal(),
@@ -550,10 +583,64 @@ mod tests {
                 y: 380.0,
             }),
         };
-        let v = decide(&dig1(), &body, &proposal()).expect("the footprint");
+        let v = run(&dig1(), &body, &proposal()).expect("the footprint");
         assert_eq!(v.step, Step::FaceAtHeadboard);
         assert_eq!(v.zone, BodyZone::Bed);
         assert!(v.measures.head_uw.is_some());
+    }
+
+    #[test]
+    fn without_the_bed_size_seen_feet_on_the_mattress_have_no_verdict() {
+        // A bed and its footprint drawn, no size in metres: the far strip
+        // cannot be read, and the cascade says nothing of feet seen on the
+        // mattress (E5S needs the strip). The same feet on the floor decide.
+        let bed = crate::geom::Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0));
+        let floor = crate::geom::Quad::from_rect(Rect::new(100.0, 140.0, 500.0, 440.0));
+        let on_mattress = ThreePlanes::new(&bed, Some(&floor), None, None).expect("the bed");
+        let posed = |x: f32, y: f32| {
+            let mut pose = vec![
+                Keypoint {
+                    x: 0.0,
+                    y: 0.0,
+                    score: 0.0
+                };
+                17
+            ];
+            let foot = Keypoint { x, y, score: 0.9 };
+            pose[11] = foot;
+            pose[12] = foot;
+            pose[15] = foot;
+            pose[16] = foot;
+            pose
+        };
+        // The box over the mattress, its feet at its centre: on the mattress.
+        let lying = posed(300.0, 250.0);
+        let body = Body {
+            bbox: Rect::new(150.0, 150.0, 450.0, 380.0),
+            pose: Some(&lying),
+            face: None,
+        };
+        assert_eq!(run(&on_mattress, &body, &proposal()), None, "no size");
+        // The same box and feet off the bed, on the floor: standing decides.
+        let standing = posed(300.0, 420.0);
+        let body = Body {
+            bbox: Rect::new(150.0, 150.0, 450.0, 430.0),
+            pose: Some(&standing),
+            face: None,
+        };
+        assert_eq!(
+            run(&on_mattress, &body, &proposal()).map(|v| v.step),
+            Some(Step::Standing)
+        );
+        // With the size, the feet on the mattress are read against the strip.
+        let sized = ThreePlanes::new(&bed, Some(&floor), None, crate::room::bed_sizes([0.9, 2.0]))
+            .expect("the bed");
+        let body = Body {
+            bbox: Rect::new(150.0, 150.0, 450.0, 380.0),
+            pose: Some(&lying),
+            face: None,
+        };
+        assert!(run(&sized, &body, &proposal()).is_some(), "with size");
     }
 
     /// The fixture of the prototype: `classify_s1` with E5S and no memory, over
@@ -637,7 +724,7 @@ mod tests {
                 pose: Some(&pose),
                 face: row.face.map(|[x, y]| Point { x, y }),
             };
-            let v = decide(&planes, &body, &proposal()).expect("the footprint");
+            let v = run(&planes, &body, &proposal()).expect("the footprint");
             let zone = match v.zone {
                 BodyZone::Bed => "bed",
                 BodyZone::Floor { .. } => "floor",

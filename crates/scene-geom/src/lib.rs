@@ -163,40 +163,39 @@ fn cross((p, q): (Point, Point), (r, s): (Point, Point)) -> bool {
     d1 * d2 < 0.0 && d3 * d4 < 0.0
 }
 
-/// A delimited zone: a box, or a quadrilateral for a camera that sees it at
-/// an angle (a corner camera sees the headboard on the diagonal, and its box
-/// takes in mattress and floor). Only asked what falls inside it; what is
-/// cropped around it is its bounds.
+/// A delimited region of the image: a box, or a quadrilateral for one seen on
+/// the diagonal, whose box would take in what falls beside it. Only asked what
+/// falls inside it; what is cropped around it is its bounds.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Zone {
+pub enum Region {
     /// An axis-aligned box.
     Box(Rect),
     /// Convex, in any order around it.
     Quad(Quad),
 }
 
-impl Zone {
+impl Region {
     /// Does it contain the point? A box counts its edges as inside.
     pub fn contains(&self, p: Point) -> bool {
         match self {
-            Zone::Box(r) => r.contains(p),
-            Zone::Quad(q) => q.contains(p),
+            Region::Box(r) => r.contains(p),
+            Region::Quad(q) => q.contains(p),
         }
     }
 
     /// Does `other` fall entirely inside it?
     pub fn contains_rect(&self, other: &Rect) -> bool {
         match self {
-            Zone::Box(r) => r.contains_rect(other),
-            Zone::Quad(q) => Quad::from_rect(*other).0.iter().all(|&p| q.contains(p)),
+            Region::Box(r) => r.contains_rect(other),
+            Region::Quad(q) => Quad::from_rect(*other).0.iter().all(|&p| q.contains(p)),
         }
     }
 
     /// The smallest box that contains it.
     pub fn bounds(&self) -> Rect {
         match self {
-            Zone::Box(r) => *r,
-            Zone::Quad(q) => q.bounds(),
+            Region::Box(r) => *r,
+            Region::Quad(q) => q.bounds(),
         }
     }
 }
@@ -205,15 +204,15 @@ impl Zone {
 mod tests {
     use super::*;
 
-    fn bed() -> Quad {
+    fn square() -> Quad {
         Quad::from_rect(Rect::new(100.0, 100.0, 500.0, 400.0))
     }
 
     #[test]
     fn one_point_inside_and_one_outside() {
-        assert!(bed().contains(Point { x: 300.0, y: 250.0 }));
-        assert!(!bed().contains(Point { x: 50.0, y: 250.0 }));
-        assert!(!bed().contains(Point { x: 300.0, y: 450.0 }));
+        assert!(square().contains(Point { x: 300.0, y: 250.0 }));
+        assert!(!square().contains(Point { x: 50.0, y: 250.0 }));
+        assert!(!square().contains(Point { x: 300.0, y: 450.0 }));
     }
 
     #[test]
@@ -238,7 +237,7 @@ mod tests {
         assert_eq!(a.expand(0.1), Rect::new(-1.0, -1.0, 11.0, 11.0));
     }
 
-    /// The headboard seen from the corner: a band on the diagonal.
+    /// A band on the diagonal, as a corner view sees it.
     fn band() -> Quad {
         Quad([
             Point { x: 300.0, y: 100.0 },
@@ -249,9 +248,9 @@ mod tests {
     }
 
     #[test]
-    fn a_diagonal_zone_leaves_out_what_its_box_takes_in() {
-        let quad = Zone::Quad(band());
-        let boxed = Zone::Box(band().bounds());
+    fn a_diagonal_region_leaves_out_what_its_box_takes_in() {
+        let quad = Region::Quad(band());
+        let boxed = Region::Box(band().bounds());
         let off_the_band = Point { x: 380.0, y: 120.0 };
         assert!(boxed.contains(off_the_band));
         assert!(!quad.contains(off_the_band));

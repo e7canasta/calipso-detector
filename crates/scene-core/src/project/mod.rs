@@ -20,7 +20,6 @@ use crate::body::{BedPoint, BodyPoint, HeadEvidence, HeadPlace, HeadPlaceState, 
 use crate::chronicle::{BedKind, Chronicled, RoomName};
 use crate::conclusion::RepublishReason;
 use crate::evidence::{BodyEvidence, FaceEvidence, Perceived};
-use crate::look::Detection;
 use crate::refine::Refinement;
 use crate::refine::{BodyGroup, BodyGroups, Disparities, Lying, LyingState, Posture, PostureState};
 use crate::units::Seconds;
@@ -360,58 +359,34 @@ fn project_evidence(
 
 /// The admitted bodies, with their zone when the bed geometry applied.
 fn bodies(evidence: &BodyEvidence) -> BodiesEvidence {
-    let seen = |d: &Detection, source, zone, near_bed, shadow, knee_deg| BodySeen {
-        zone,
-        near_bed,
-        bbox: d.bbox,
-        confidence: d.confidence,
-        source,
-        shadow,
-        knee_deg,
+    let seen = |b: &crate::evidence::Body| BodySeen {
+        zone: b.zone.map(|z| match z {
+            crate::room::BodyZone::Bed => Zone::Bed,
+            crate::room::BodyZone::Floor { .. } => Zone::Floor,
+        }),
+        near_bed: match b.zone {
+            Some(crate::room::BodyZone::Floor { near_bed }) => Some(near_bed),
+            Some(crate::room::BodyZone::Bed) | None => None,
+        },
+        bbox: b.detection.bbox,
+        confidence: b.detection.confidence,
+        source: b.source,
+        shadow: with_parts(b.shadow, b.parts),
+        knee_deg: b.knee_deg,
     };
     match evidence {
         BodyEvidence::Unavailable(_) => BodiesEvidence::default(),
         BodyEvidence::Unzoned(unzoned) => BodiesEvidence {
             status: BodiesStatus::Unzoned,
-            items: unzoned
-                .iter()
-                .map(|b| {
-                    seen(
-                        &b.detection,
-                        b.source,
-                        None,
-                        None,
-                        with_parts(b.shadow, b.parts),
-                        b.knee_deg,
-                    )
-                })
-                .collect(),
+            items: unzoned.iter().map(&seen).collect(),
         },
         BodyEvidence::Seen(bodies) => BodiesEvidence {
             status: BodiesStatus::Seen,
             items: bodies
                 .bed
                 .iter()
-                .map(|b| {
-                    seen(
-                        &b.detection,
-                        b.source,
-                        Some(Zone::Bed),
-                        None,
-                        with_parts(b.shadow, b.parts),
-                        b.knee_deg,
-                    )
-                })
-                .chain(bodies.floor.iter().map(|b| {
-                    seen(
-                        &b.detection,
-                        b.source,
-                        Some(Zone::Floor),
-                        Some(b.near_bed),
-                        with_parts(b.shadow, b.parts),
-                        b.knee_deg,
-                    )
-                }))
+                .map(&seen)
+                .chain(bodies.floor.iter().map(seen))
                 .collect(),
         },
     }

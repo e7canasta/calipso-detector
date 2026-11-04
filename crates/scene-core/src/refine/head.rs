@@ -84,7 +84,7 @@ pub(crate) fn place(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geom::{Quad, Rect, Zone};
+    use crate::geom::{Quad, Rect, Region};
     use crate::look::{Detection, Label};
     use crate::policy::AdmissionPolicy;
     use crate::units::Confidence;
@@ -119,7 +119,7 @@ mod tests {
     fn room(bed: Quad) -> Room {
         Room::new(
             &bed,
-            Some(Zone::Box(HEADBOARD)),
+            Some(Region::Box(HEADBOARD)),
             &AdmissionPolicy {
                 min_confidence: Confidence::HALF,
                 same_body_iou: Proportion::new(0.5).expect("a constant proportion"),

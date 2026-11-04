@@ -14,7 +14,7 @@
 use crate::body::Keypoint;
 use crate::geom::{Point, Rect};
 #[cfg(test)]
-use crate::geom::{Quad, Zone};
+use crate::geom::{Quad, Region};
 use crate::map::{Geometry, Map};
 use crate::policy::{AdmissionPolicy, PartsPolicy, PostureSource, ShadowPolicy, TwoPlanesPolicy};
 use crate::units::{Confidence, PositiveMetres};
@@ -184,7 +184,8 @@ impl Room {
         face: Option<Point>,
     ) -> Option<cascade::Verdict> {
         let body = cascade::Body { bbox, pose, face };
-        cascade::decide(self.planes.as_ref()?, &body, self.cascade.as_ref()?)
+        let measures = cascade::measure(self.planes.as_ref()?, &body, self.cascade.as_ref()?)?;
+        Some(cascade::decide(measures, self.cascade.as_ref()?))
     }
 
     /// The face of body `index` among `boxes` (F2.3b): see `turn::face_of`.
@@ -304,7 +305,7 @@ impl Room {
 #[cfg(test)]
 impl Room {
     /// A frontal room, for the layers' tests.
-    pub(crate) fn new(bed: &Quad, headboard: Option<Zone>, admission: &AdmissionPolicy) -> Self {
+    pub(crate) fn new(bed: &Quad, headboard: Option<Region>, admission: &AdmissionPolicy) -> Self {
         Self {
             frontal: Frontal::new(bed, headboard, admission),
             two_planes: None,
