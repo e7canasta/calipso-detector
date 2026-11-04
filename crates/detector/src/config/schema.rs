@@ -12,6 +12,7 @@ use super::pose::Pose;
 use super::reinforce::Reinforce;
 use super::shadow::ShadowConfig;
 use super::verify::{VerifyConfig, VerifySense};
+use crate::source::Rotation;
 use scene_core::policy::Policy;
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +67,10 @@ pub struct Stream {
     pub sample_interval_ms: u64,
     #[serde(default = "defaults::stall_timeout_secs")]
     pub stall_timeout_secs: u64,
+    /// The quarter turn clockwise that sets the frame upright, in degrees:
+    /// the map is measured on the turned frame. Absent, the frame as decoded.
+    #[serde(default)]
+    pub rotate: Rotation,
 }
 
 /// The senses: the main detector always, and each optional sense whose

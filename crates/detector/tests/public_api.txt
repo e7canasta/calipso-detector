@@ -5,5 +5,5 @@ pub use driver::{Driver, Processed, build_driver}
 pub use publish::{CHANNEL_BUFFER, Kind, Publication, PublisherHandle, nats}
 pub use router::answer
 pub use senses::{Frame, SensesPort, load as load_senses}
-pub use source::{Arrival, FramesSource, RtspSource, SampleDecoder, SampleSource}
+pub use source::{ Arrival, FramesSource, Rotation, RtspSource, SampleDecoder, SampleSource, Turned, }
 pub use verifier::{ DeadlineVerifier, NatsVerifier, NoVerifier, VerifierEndpoint, VerifierPort, jpeg_crop, }

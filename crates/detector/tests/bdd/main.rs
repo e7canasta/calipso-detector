@@ -7,6 +7,7 @@ mod pose;
 mod probe;
 mod profile;
 mod profile_capability;
+mod rotation;
 #[path = "../support/mod.rs"]
 mod support;
 mod world;

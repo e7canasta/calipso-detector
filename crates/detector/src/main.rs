@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use detector::build_info;
 use detector::{
-    Config, DeadlineVerifier, NatsVerifier, PublisherHandle, RtspSource, SystemClock,
+    Config, DeadlineVerifier, NatsVerifier, PublisherHandle, RtspSource, SystemClock, Turned,
     VerifierEndpoint, build_driver, nats,
 };
 use ingest::{Mailbox, Sample};
@@ -101,11 +101,14 @@ async fn main() -> Result<()> {
                 &config,
                 Some(Duration::from_secs(config.stream.stall_timeout_secs)),
             )?;
-            let mut source = RtspSource::new(
-                mailbox,
-                events_rx,
-                Duration::from_millis(config.stream.sample_interval_ms),
-                SystemClock,
+            let mut source = Turned::new(
+                RtspSource::new(
+                    mailbox,
+                    events_rx,
+                    Duration::from_millis(config.stream.sample_interval_ms),
+                    SystemClock,
+                ),
+                config.stream.rotate,
             );
             let emit = |processed: detector::Processed| {
                 publisher.send(processed.output, processed.timing);

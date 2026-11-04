@@ -49,6 +49,11 @@ impl Config {
         if let Some(occupancy) = &self.occupancy {
             canonical.extend(serde_json::to_vec(occupancy)?);
         }
+        // The map is measured on the turned frame: a turn enters the hash
+        // only if there is one.
+        if !self.stream.rotate.is_none() {
+            canonical.extend(serde_json::to_vec(&self.stream.rotate)?);
+        }
         let digest = Sha256::digest(canonical);
         let hex: String = digest
             .iter()

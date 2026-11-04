@@ -5,10 +5,10 @@
 //! the same clip frame by frame (white book, volume VII, ch. 12).
 use anyhow::{Context, Result};
 use clap::Parser;
-use detector::FramesSource;
 use detector::SystemClock;
 use detector::build_info;
 use detector::{Config, PublisherHandle, build_driver};
+use detector::{FramesSource, Turned};
 use scene_contract::Source;
 use std::{io::Write, path::PathBuf};
 use tokio_util::sync::CancellationToken;
@@ -44,7 +44,7 @@ fn main() -> Result<()> {
         config.senses.verify.is_none(),
         "drop [senses.verify]: the verifier is not repeatable"
     );
-    let mut source = FramesSource::open(&args.frames, SystemClock)
+    let source = FramesSource::open(&args.frames, SystemClock)
         .with_context(|| format!("read {}", args.frames.display()))?;
     anyhow::ensure!(
         !source.is_empty(),
@@ -62,6 +62,8 @@ fn main() -> Result<()> {
     let (mut publisher, _rx) = PublisherHandle::channel(run, profile);
     let mut file = std::fs::File::create(&args.out)
         .with_context(|| format!("create {}", args.out.display()))?;
+    // The frames on disk are as the camera sends them: they turn like the stream.
+    let mut source = Turned::new(source, config.stream.rotate);
     let mut driver = build_driver(
         &config,
         // No camera, nothing to stall: the watchdog runs on the wall clock,
